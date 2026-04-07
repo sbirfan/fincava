@@ -4,24 +4,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Star, ShieldCheck, MapPin, Truck, ChevronRight } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Star, ShieldCheck, MapPin, ChevronRight, Users, Handshake, Leaf, Droplets, Mountain, Calendar, ArrowRight } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ProductDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
   const { data: product, isLoading } = useGetProduct(id, {
-    query: {
-      enabled: !!id,
-    }
+    query: { enabled: !!id }
   });
 
-  const { data: similarProducts, isLoading: isSimilarLoading } = useGetSimilarProducts(id, {
-    query: {
-      enabled: !!id,
-    }
+  const { data: similarProducts } = useGetSimilarProducts(id, {
+    query: { enabled: !!id }
   });
+
+  const p = product as any;
 
   if (isLoading) {
     return (
@@ -48,6 +51,22 @@ export default function ProductDetail() {
         </Link>
       </div>
     );
+  }
+
+  const story = p.story;
+  const impactFlags = [
+    p.smallholder && { label: "Smallholder Farm", icon: Users, color: "bg-amber-50 text-amber-700 border-amber-200" },
+    p.directTrade && { label: "Direct Trade", icon: Handshake, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    p.organic && { label: "Certified Organic", icon: Leaf, color: "bg-green-50 text-green-700 border-green-200" },
+    p.climateResilient && { label: "Climate-Resilient", icon: Droplets, color: "bg-sky-50 text-sky-700 border-sky-200" },
+  ].filter(Boolean) as { label: string; icon: any; color: string }[];
+
+  function handleInquiry() {
+    if (!isAuthenticated) {
+      toast({ title: "Login required", description: "Please log in to send an inquiry.", variant: "destructive" });
+      return;
+    }
+    window.location.href = `/dashboard/inquiries`;
   }
 
   return (
@@ -90,28 +109,68 @@ export default function ProductDetail() {
               {product.featured && <Badge className="bg-primary text-primary-foreground">Featured</Badge>}
             </div>
             
-            <h1 className="text-3xl md:text-4xl font-serif font-bold mb-4">{product.name}</h1>
-            
-            <div className="flex items-center space-x-6 mb-6 pb-6 border-b">
-              <Link href={`/supplier/${product.companyId}`} className="flex items-center text-sm font-medium hover:text-primary group">
-                <ShieldCheck className="w-4 h-4 mr-2 text-primary" />
-                <span className="group-hover:underline">{product.supplierName}</span>
-                {product.supplierVerified && (
-                  <Badge variant="secondary" className="ml-2 text-[10px] px-1 py-0 h-4">Verified</Badge>
+            <h1 className="text-3xl md:text-4xl font-serif font-bold mb-3">{product.name}</h1>
+
+            {/* Farmer Identity — replaces generic supplier line */}
+            {story ? (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                {story.farmerPhoto && (
+                  <img src={story.farmerPhoto} alt={story.farmerName} className="w-10 h-10 rounded-full object-cover object-top border-2 border-primary/20 shrink-0" />
                 )}
-              </Link>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate">{story.farmerName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{story.farmName} · {story.region}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-4 mb-4 pb-4 border-b">
+                <Link href={`/supplier/${product.companyId}`} className="flex items-center text-sm font-medium hover:text-primary group">
+                  <ShieldCheck className="w-4 h-4 mr-2 text-primary" />
+                  <span className="group-hover:underline">{product.supplierName}</span>
+                  {product.supplierVerified && (
+                    <Badge variant="secondary" className="ml-2 text-[10px] px-1 py-0 h-4">Verified</Badge>
+                  )}
+                </Link>
+              </div>
+            )}
+
+            {/* Impact badges */}
+            {impactFlags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {impactFlags.map(f => (
+                  <span key={f.label} className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border ${f.color}`}>
+                    <f.icon className="w-3 h-3" />
+                    {f.label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center mb-6 pb-6 border-b">
               <div className="flex items-center text-sm">
                 <Star className="w-4 h-4 text-yellow-500 mr-1 fill-current" />
                 <span className="font-medium">{product.avgRating?.toFixed(1) || "New"}</span>
                 <span className="text-muted-foreground ml-1">({product.reviewCount} reviews)</span>
               </div>
+              {p.familiesSupported && (
+                <span className="ml-4 text-xs text-muted-foreground flex items-center gap-1">
+                  <Users className="w-3 h-3 text-primary" /> Supports {p.familiesSupported} families
+                </span>
+              )}
             </div>
 
+            {/* Price */}
             <div className="mb-6">
               <div className="flex items-baseline mb-2">
                 <span className="text-4xl font-bold">${product.pricePerKgUSD.toFixed(2)}</span>
                 <span className="text-muted-foreground ml-2">/ kg (USD)</span>
               </div>
+              {p.directTrade && (
+                <p className="text-xs text-emerald-600 flex items-center gap-1">
+                  <Handshake className="w-3 h-3" />
+                  Direct trade price — 40–70% above commodity market paid to farmer
+                </p>
+              )}
             </div>
 
             <div className="bg-muted/50 rounded-lg p-4 mb-8 space-y-3 text-sm">
@@ -130,9 +189,19 @@ export default function ProductDetail() {
                   {product.origin}
                 </span>
               </div>
+              {story?.elevation && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Elevation</span>
+                  <span className="font-medium flex items-center">
+                    <Mountain className="w-3 h-3 mr-1" />{story.elevation}
+                  </span>
+                </div>
+              )}
             </div>
 
-            <Button className="w-full h-12 text-lg mb-4">Request Quote / Inquiry</Button>
+            <Button className="w-full h-12 text-lg mb-4" onClick={handleInquiry}>
+              Request Quote / Inquiry
+            </Button>
             <p className="text-center text-xs text-muted-foreground flex items-center justify-center">
               <ShieldCheck className="w-3 h-3 mr-1" />
               Fincava Trade Assurance protects your orders
@@ -140,6 +209,82 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {/* MEET THE FARMER — Full story section */}
+      {story && (
+        <div className="mb-16 rounded-2xl overflow-hidden border bg-card">
+          <div className="grid grid-cols-1 lg:grid-cols-5">
+            {/* Farmer portrait */}
+            <div className="lg:col-span-2 relative min-h-[300px] bg-muted">
+              {story.farmerPhoto ? (
+                <img src={story.farmerPhoto} alt={story.farmerName} className="w-full h-full object-cover object-top absolute inset-0" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">No photo</div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute bottom-0 left-0 p-6 text-white">
+                <h3 className="text-2xl font-serif font-bold">{story.farmerName}</h3>
+                <p className="text-white/80 text-sm mt-1">{story.farmName}</p>
+                <p className="text-white/60 text-xs mt-0.5 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" /> {story.region}
+                </p>
+              </div>
+            </div>
+
+            {/* Story content */}
+            <div className="lg:col-span-3 p-8">
+              <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Meet the Farmer</p>
+
+              {/* Farm quick stats */}
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {story.yearsFarming && (
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-primary">{story.yearsFarming}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Years farming</div>
+                  </div>
+                )}
+                {story.farmSizeHa && (
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-primary">{story.farmSizeHa} ha</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Farm size</div>
+                  </div>
+                )}
+                {story.elevation && (
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-primary leading-tight">{story.elevation.split(" ")[0]}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Altitude</div>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-muted-foreground leading-relaxed text-sm">{story.story}</p>
+            </div>
+          </div>
+
+          {/* Challenges + Impact row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 border-t divide-y md:divide-y-0 md:divide-x">
+            <div className="p-8">
+              <h4 className="font-serif font-bold text-lg mb-3 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs flex items-center justify-center font-bold">!</span>
+                The Challenge
+              </h4>
+              <p className="text-muted-foreground text-sm leading-relaxed">{story.challenges}</p>
+            </div>
+            <div className="p-8 bg-primary/3">
+              <h4 className="font-serif font-bold text-lg mb-3 flex items-center gap-2 text-primary">
+                <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">✓</span>
+                Your Impact
+              </h4>
+              <p className="text-muted-foreground text-sm leading-relaxed">{story.impact}</p>
+              <Link href="/impact">
+                <span className="inline-flex items-center gap-1.5 text-primary text-sm font-medium mt-4 hover:gap-2.5 transition-all">
+                  See all impact data <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mb-24">

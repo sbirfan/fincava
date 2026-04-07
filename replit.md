@@ -31,6 +31,23 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ### Product Summary
 Full-stack B2B trade platform connecting Colombian agricultural producers with international buyers (Middle East, Asia, Africa). Specialty coffee, cacao, avocado, exotic fruits, superfoods.
 
+### V3 Features — Story + Impact Layer (Active)
+- **Farmer Identity Cards** — every product card shows farmer name, farm, impact flags (Smallholder, Direct Trade, Organic, Climate-Resilient), families supported count
+- **Origin Story Engine** — `origin_stories` DB table with farmerName, farmerPhoto, farmName, region, elevation, farmSizeHa, yearsFarming, story, challenges, impact
+- **"Meet the Farmer" Section** — full split-layout panel on product detail page with portrait, farm stats, "Their Story" narrative, "The Challenge" and "Your Impact" columns
+- **Impact Filters** — marketplace sidebar checkboxes: Direct Trade, Smallholder Farm, Women-Led Farm, Certified Organic
+- **`/impact` Page** — live platform impact stats (farmers, families, regions, direct trade), farmer voices carousel, direct trade value comparison, UN SDG alignment, CTA
+- **Homepage Mission Section** — "The farmer should earn more than the broker" split layout with farmer portrait, 3 mini stats, "See our full impact report →" link
+- **Impact badges** — product page sticky info shows "Direct trade price — 40–70% above commodity market paid to farmer"
+- **New API routes** — `GET /stories/:productId`, `GET /impact`; products list + detail now include all impact flags
+
+### New DB Columns / Tables (V3)
+- `products`: `smallholder`, `women_led`, `direct_trade`, `climate_resilient`, `organic` booleans; `families_supported` int
+- `origin_stories`: full farmer narrative table (productId FK, farmerPhoto, story, challenges, impact, images[], etc.)
+
+### Seed note
+V3 origin stories seeded for all 8 products using script run via `scripts/node_modules/.bin/tsx artifacts/api-server/src/seed-v3.ts` from workspace root.
+
 ### V2 Features (Active)
 - **RFQ System** — buyers post sourcing requests, suppliers bid, buyers award; public `/rfqs` board + dashboard pages
 - **Trust Scores** — 0-100 scores (Basic/Silver/Gold/Platinum tiers) per supplier; visible on cards, detail pages, and bid comparisons

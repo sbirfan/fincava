@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ProductCard } from "@/components/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { ShieldCheck, Globe, TrendingUp, Sprout } from "lucide-react";
+import { ShieldCheck, Globe, TrendingUp, Sprout, Handshake, Users, Leaf, ArrowRight } from "lucide-react";
 
 export default function Home() {
   const { data: featuredProducts, isLoading: isLoadingFeatured } = useListFeaturedProducts();
@@ -23,6 +23,15 @@ export default function Home() {
         </div>
         
         <div className="relative z-10 container mx-auto px-4 text-center text-white">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2 text-sm mb-8"
+          >
+            <Handshake className="w-4 h-4" />
+            Direct from Colombian farmers — no brokers, no middlemen
+          </motion.div>
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -37,7 +46,7 @@ export default function Home() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-xl md:text-2xl max-w-3xl mx-auto mb-10 text-white/90 font-light"
           >
-            The premium sourcing marketplace connecting Colombian agricultural producers with international buyers. Trust, traceability, and compliance built-in.
+            The premium B2B sourcing marketplace connecting Colombian agricultural producers with international buyers across the Middle East, Asia, and Africa.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -51,6 +60,18 @@ export default function Home() {
             <Link href="/register" className="bg-white/10 text-white backdrop-blur-md border border-white/20 px-8 py-4 rounded-md text-lg font-medium hover:bg-white/20 transition-colors">
               Become a Partner
             </Link>
+          </motion.div>
+
+          {/* Inline trust signals */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 0.8 }}
+            className="mt-12 flex flex-wrap justify-center gap-6 text-sm text-white/70"
+          >
+            <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-primary" /> Verified Suppliers</span>
+            <span className="flex items-center gap-1.5"><Leaf className="w-4 h-4 text-primary" /> Traceable Origins</span>
+            <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-primary" /> 85+ Families Supported</span>
           </motion.div>
         </div>
       </section>
@@ -91,8 +112,61 @@ export default function Home() {
         </div>
       </section>
 
+      {/* WHY FINCAVA EXISTS — Mission Section */}
+      <section className="py-24 bg-card border-y border-border overflow-hidden">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            {/* Left: image + floating stat */}
+            <div className="relative">
+              <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-muted">
+                <img
+                  src="https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=800"
+                  alt="Colombian farmer Carlos Andres Muñoz"
+                  className="w-full h-full object-cover object-top"
+                />
+              </div>
+              <div className="absolute -bottom-6 -right-4 md:right-8 bg-primary text-primary-foreground rounded-2xl p-5 shadow-xl max-w-[200px]">
+                <div className="text-3xl font-bold mb-1">40–70%</div>
+                <div className="text-sm text-primary-foreground/80">Farm-gate premium above commodity price</div>
+              </div>
+            </div>
+
+            {/* Right: narrative */}
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-4 block">Why Fincava Exists</span>
+              <h2 className="text-3xl md:text-4xl font-serif font-bold mb-6 leading-tight">
+                The farmer should earn<br />more than the broker.
+              </h2>
+              <p className="text-muted-foreground leading-relaxed mb-6">
+                Colombia grows some of the world's finest coffee, cacao, and superfoods. Yet the farmers behind those products routinely receive less than 5% of the final retail value — while 3 to 5 intermediary layers capture everything in between.
+              </p>
+              <p className="text-muted-foreground leading-relaxed mb-8">
+                Fincava exists to close that gap. We connect international buyers directly to the farm. No brokers. No commodity price race-to-the-bottom. Just transparent, accountable trade that pays farmers fairly and gives buyers full traceability of what they're sourcing.
+              </p>
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                {[
+                  { value: "0", label: "Brokers between you and the farm" },
+                  { value: "85+", label: "Families earning stable income" },
+                  { value: "6", label: "Regions, fully traceable" },
+                ].map(stat => (
+                  <div key={stat.label} className="text-center p-4 bg-background rounded-xl border">
+                    <div className="text-2xl font-bold text-primary mb-1">{stat.value}</div>
+                    <div className="text-xs text-muted-foreground leading-tight">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+              <Link href="/impact">
+                <span className="inline-flex items-center gap-2 text-primary font-medium hover:gap-3 transition-all">
+                  See our full impact report <ArrowRight className="w-4 h-4" />
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Featured Products */}
-      <section className="py-24 bg-card border-y border-border">
+      <section className="py-24 bg-background">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-end mb-12">
             <div className="max-w-2xl">

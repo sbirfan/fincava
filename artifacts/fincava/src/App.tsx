@@ -21,6 +21,7 @@ import Login from "@/pages/login";
 import Register from "@/pages/register";
 import RFQs from "@/pages/rfqs";
 import RFQDetail from "@/pages/rfq-detail";
+import Impact from "@/pages/impact";
 
 // Buyer Dashboard
 import BuyerDashboard from "@/pages/dashboard/index";
@@ -85,6 +86,7 @@ function Router() {
       <Route path="/markets" component={() => <AppLayout><Markets /></AppLayout>} />
       <Route path="/rfqs" component={() => <AppLayout><RFQs /></AppLayout>} />
       <Route path="/rfq/:id" component={() => <AppLayout><RFQDetail /></AppLayout>} />
+      <Route path="/impact" component={() => <AppLayout><Impact /></AppLayout>} />
       <Route path="/origin-stories" component={() => <AppLayout><OriginStories /></AppLayout>} />
       <Route path="/about" component={() => <AppLayout><About /></AppLayout>} />
       <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />

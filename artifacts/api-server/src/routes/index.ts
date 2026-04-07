@@ -12,6 +12,7 @@ import usersRouter from "./users";
 import rfqsRouter from "./rfqs";
 import shipmentsRouter from "./shipments";
 import analyticsRouter from "./analytics";
+import storiesRouter from "./stories";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(usersRouter);
 router.use(rfqsRouter);
 router.use(shipmentsRouter);
 router.use(analyticsRouter);
+router.use(storiesRouter);
 
 export default router;

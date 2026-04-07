@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, ilike, sql, desc, asc } from "drizzle-orm";
-import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable } from "@workspace/db";
+import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable } from "@workspace/db";
 import {
   ListProductsQueryParams,
   CreateProductBody,
@@ -45,6 +45,14 @@ async function buildProductResponse(product: any, company: any) {
     avgRating,
     reviewCount: reviews.length,
     createdAt: product.createdAt.toISOString(),
+    smallholder: product.smallholder,
+    womenLed: product.womenLed,
+    directTrade: product.directTrade,
+    climateResilient: product.climateResilient,
+    organic: product.organic,
+    familiesSupported: product.familiesSupported,
+    farmerName: product.farmerName ?? null,
+    farmName: product.farmName ?? null,
   };
 }
 
@@ -61,6 +69,12 @@ router.get("/products", async (req, res): Promise<void> => {
     featured, supplierId,
     page = 1, limit = 20,
   } = parsed.data;
+
+  const rawQ = req.query as Record<string, string>;
+  const filterSmallholder = rawQ.smallholder === "true";
+  const filterWomenLed = rawQ.womenLed === "true";
+  const filterDirectTrade = rawQ.directTrade === "true";
+  const filterOrganic = rawQ.organic === "true";
 
   let query = db.select({
     product: productsTable,
@@ -80,6 +94,10 @@ router.get("/products", async (req, res): Promise<void> => {
   if (minCupping != null) conditions.push(gte(sql`COALESCE(${productsTable.cupping}, 0)`, minCupping));
   if (featured != null) conditions.push(eq(productsTable.featured, featured));
   if (supplierId != null) conditions.push(eq(productsTable.companyId, supplierId));
+  if (filterSmallholder) conditions.push(eq(productsTable.smallholder, true));
+  if (filterWomenLed) conditions.push(eq(productsTable.womenLed, true));
+  if (filterDirectTrade) conditions.push(eq(productsTable.directTrade, true));
+  if (filterOrganic) conditions.push(eq(productsTable.organic, true));
 
   query = query.where(and(...conditions)) as any;
 
@@ -157,6 +175,9 @@ router.get("/products/:id", async (req, res): Promise<void> => {
     };
   }));
 
+  const [story] = await db.select().from(originStoriesTable)
+    .where(eq(originStoriesTable.productId, row.product.id));
+
   res.json({
     ...base,
     supplierDescription: row.company?.description ?? null,
@@ -167,7 +188,21 @@ router.get("/products/:id", async (req, res): Promise<void> => {
     supplierCertifications: [],
     originStory: row.product.originStory ?? null,
     farmerName: row.product.farmerName ?? null,
+    farmName: row.product.farmName ?? null,
     reviews: reviewsWithAuthor,
+    story: story ? {
+      farmerName: story.farmerName,
+      farmerPhoto: story.farmerPhoto,
+      farmName: story.farmName,
+      region: story.region,
+      elevation: story.elevation,
+      farmSizeHa: story.farmSizeHa,
+      yearsFarming: story.yearsFarming,
+      story: story.story,
+      challenges: story.challenges,
+      impact: story.impact,
+      images: story.images,
+    } : null,
   });
 });
 

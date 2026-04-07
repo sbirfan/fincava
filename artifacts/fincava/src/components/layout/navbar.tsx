@@ -25,8 +25,8 @@ export function Navbar() {
           <Link href="/rfqs" className="transition-colors hover:text-primary">
             RFQs
           </Link>
-          <Link href="/origin-stories" className="transition-colors hover:text-primary">
-            Origin Stories
+          <Link href="/impact" className="transition-colors hover:text-primary text-primary font-semibold">
+            Impact
           </Link>
         </nav>
 

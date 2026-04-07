@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, real, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
@@ -34,6 +34,30 @@ export const productsTable = pgTable("products", {
   farmLat: real("farm_lat"),
   farmLng: real("farm_lng"),
   harvestDate: timestamp("harvest_date", { withTimezone: true }),
+  smallholder: boolean("smallholder").notNull().default(false),
+  womenLed: boolean("women_led").notNull().default(false),
+  directTrade: boolean("direct_trade").notNull().default(false),
+  climateResilient: boolean("climate_resilient").notNull().default(false),
+  organic: boolean("organic").notNull().default(false),
+  familiesSupported: integer("families_supported"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const originStoriesTable = pgTable("origin_stories", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => productsTable.id),
+  farmerName: text("farmer_name").notNull(),
+  farmerPhoto: text("farmer_photo"),
+  farmName: text("farm_name").notNull(),
+  region: text("region").notNull(),
+  elevation: text("elevation"),
+  farmSizeHa: real("farm_size_ha"),
+  yearsFarming: integer("years_farming"),
+  story: text("story").notNull(),
+  challenges: text("challenges").notNull(),
+  impact: text("impact").notNull(),
+  images: text("images").array().notNull().default([]),
+  videoUrl: text("video_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
