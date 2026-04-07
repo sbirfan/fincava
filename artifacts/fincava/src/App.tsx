@@ -19,6 +19,8 @@ import About from "@/pages/about";
 import Contact from "@/pages/contact";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import RFQs from "@/pages/rfqs";
+import RFQDetail from "@/pages/rfq-detail";
 
 // Buyer Dashboard
 import BuyerDashboard from "@/pages/dashboard/index";
@@ -27,6 +29,8 @@ import BuyerOrders from "@/pages/dashboard/orders";
 import BuyerOrderDetail from "@/pages/dashboard/order-detail";
 import BuyerMessages from "@/pages/dashboard/messages";
 import BuyerProfile from "@/pages/dashboard/profile";
+import BuyerRFQs from "@/pages/dashboard/rfqs";
+import BuyerMarketIntel from "@/pages/dashboard/market-intel";
 
 // Supplier Dashboard
 import SupplierDashboard from "@/pages/supplier-dashboard/index";
@@ -35,6 +39,8 @@ import SupplierProductNew from "@/pages/supplier-dashboard/product-new";
 import SupplierInquiries from "@/pages/supplier-dashboard/inquiries";
 import SupplierOrders from "@/pages/supplier-dashboard/orders";
 import SupplierProfile from "@/pages/supplier-dashboard/profile";
+import SupplierRFQs from "@/pages/supplier-dashboard/rfqs";
+import SupplierPerformance from "@/pages/supplier-dashboard/performance";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,32 +76,40 @@ function PrivateRoute({ component: Component, roles, layout: Layout = AppLayout 
 function Router() {
   return (
     <Switch>
+      {/* Public */}
       <Route path="/" component={() => <AppLayout><Home /></AppLayout>} />
       <Route path="/marketplace" component={() => <AppLayout><Marketplace /></AppLayout>} />
       <Route path="/product/:id" component={() => <AppLayout><ProductDetail /></AppLayout>} />
       <Route path="/suppliers" component={() => <AppLayout><Suppliers /></AppLayout>} />
       <Route path="/supplier/:id" component={() => <AppLayout><SupplierDetail /></AppLayout>} />
       <Route path="/markets" component={() => <AppLayout><Markets /></AppLayout>} />
+      <Route path="/rfqs" component={() => <AppLayout><RFQs /></AppLayout>} />
+      <Route path="/rfq/:id" component={() => <AppLayout><RFQDetail /></AppLayout>} />
       <Route path="/origin-stories" component={() => <AppLayout><OriginStories /></AppLayout>} />
       <Route path="/about" component={() => <AppLayout><About /></AppLayout>} />
       <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
       <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
       <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
-      
+
       {/* Buyer Dashboard */}
       <Route path="/dashboard" component={() => <PrivateRoute component={BuyerDashboard} roles={["BUYER"]} layout={DashboardLayout} />} />
+      <Route path="/dashboard/rfqs" component={() => <PrivateRoute component={BuyerRFQs} roles={["BUYER"]} layout={DashboardLayout} />} />
+      <Route path="/dashboard/rfqs/new" component={() => <PrivateRoute component={BuyerRFQs} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/inquiries" component={() => <PrivateRoute component={BuyerInquiries} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/orders" component={() => <PrivateRoute component={BuyerOrders} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/orders/:id" component={() => <PrivateRoute component={BuyerOrderDetail} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
+      <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
-      
+
       {/* Supplier Dashboard */}
       <Route path="/supplier-dashboard" component={() => <PrivateRoute component={SupplierDashboard} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
       <Route path="/supplier-dashboard/products" component={() => <PrivateRoute component={SupplierProducts} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
       <Route path="/supplier-dashboard/products/new" component={() => <PrivateRoute component={SupplierProductNew} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
       <Route path="/supplier-dashboard/inquiries" component={() => <PrivateRoute component={SupplierInquiries} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
       <Route path="/supplier-dashboard/orders" component={() => <PrivateRoute component={SupplierOrders} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+      <Route path="/supplier-dashboard/rfqs" component={() => <PrivateRoute component={SupplierRFQs} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+      <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
       <Route path="/supplier-dashboard/profile" component={() => <PrivateRoute component={SupplierProfile} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
 
       <Route component={() => <AppLayout><NotFound /></AppLayout>} />

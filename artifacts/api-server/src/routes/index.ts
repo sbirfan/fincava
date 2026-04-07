@@ -9,6 +9,9 @@ import statsRouter from "./stats";
 import reviewsRouter from "./reviews";
 import messagesRouter from "./messages";
 import usersRouter from "./users";
+import rfqsRouter from "./rfqs";
+import shipmentsRouter from "./shipments";
+import analyticsRouter from "./analytics";
 
 const router: IRouter = Router();
 
@@ -22,5 +25,8 @@ router.use(statsRouter);
 router.use(reviewsRouter);
 router.use(messagesRouter);
 router.use(usersRouter);
+router.use(rfqsRouter);
+router.use(shipmentsRouter);
+router.use(analyticsRouter);
 
 export default router;

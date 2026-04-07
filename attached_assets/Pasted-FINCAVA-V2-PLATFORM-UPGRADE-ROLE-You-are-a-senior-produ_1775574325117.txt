@@ -1,0 +1,244 @@
+FINCAVA V2 — PLATFORM UPGRADE
+ROLE
+
+You are a senior product engineer and B2B marketplace architect.
+
+You are upgrading an existing application (already built with React + Node + PostgreSQL + Supabase) into a global trade platform for Colombian exports.
+
+DO NOT rebuild from scratch.
+Extend the current system with new schemas, APIs, and UI.
+
+🎯 OBJECTIVE
+
+Transform Fincava from:
+
+“Product marketplace”
+
+Into:
+
+“End-to-end sourcing, negotiation, and trade execution platform”
+
+🧱 NEW CORE SYSTEMS TO BUILD
+1. 🧠 TRUST & VERIFICATION SYSTEM (CRITICAL)
+Add to Database:
+model TrustScore {
+  id            String @id @default(cuid())
+  companyId     String
+  score         Float  // 0–100
+  factors       Json   // breakdown
+  updatedAt     DateTime @updatedAt
+}
+
+model TradeHistory {
+  id            String @id @default(cuid())
+  companyId     String
+  product       String
+  volumeKg      Float
+  destination   String
+  year          Int
+}
+Logic:
+
+Trust Score calculated from:
+
+Completed orders
+Certifications verified
+Response time
+Profile completeness
+Trade history volume
+UI:
+Add Trust Score badge everywhere (0–100)
+Tooltip showing breakdown:
+Reliability
+Volume
+Compliance
+Responsiveness
+2. 💬 RFQ (REQUEST FOR QUOTE) SYSTEM
+New Flow:
+
+Buyer can:
+👉 Select product OR create custom request
+👉 Send RFQ to multiple suppliers
+
+Schema:
+model RFQ {
+  id            String @id @default(cuid())
+  buyerId       String
+  title         String
+  description   String
+  quantityKg    Float
+  targetPrice   Float?
+  destination   String
+  deadline      DateTime
+  status        String // OPEN, CLOSED, AWARDED
+  createdAt     DateTime @default(now())
+}
+
+model RFQResponse {
+  id            String @id @default(cuid())
+  rfqId         String
+  supplierId    String
+  pricePerKg    Float
+  leadTimeDays  Int
+  message       String
+  createdAt     DateTime @default(now())
+}
+UI:
+New page: /rfqs
+Buyer dashboard: “Post RFQ”
+Supplier dashboard: “Available RFQs”
+Compare bids table:
+Price
+Lead time
+Trust score
+3. 🚢 LOGISTICS & TRADE LAYER
+Add:
+model Shipment {
+  id              String @id @default(cuid())
+  orderId         String
+  status          String // BOOKED, IN_TRANSIT, CUSTOMS, DELIVERED
+  originPort      String
+  destinationPort String
+  carrier         String?
+  trackingNumber  String?
+  eta             DateTime?
+}
+Features:
+Shipment timeline UI
+Incoterm selector with explanations (FOB, CIF, EXW)
+Estimated shipping cost calculator (basic logic)
+4. 💰 ESCROW & PAYMENT MILESTONES
+Upgrade Orders:
+model PaymentMilestone {
+  id          String @id @default(cuid())
+  orderId     String
+  name        String // Deposit, Shipment, Delivery
+  amountUSD   Float
+  status      String // PENDING, RELEASED
+}
+UI:
+Visual payment breakdown
+“Release Payment” button (buyer side)
+Escrow status bar
+5. 📊 BUYER INTELLIGENCE ENGINE
+Features:
+“Trending products” (based on inquiries)
+“Popular in your region”
+“Recently exported to UAE / Korea / China”
+Backend:
+
+Track:
+
+model ProductAnalytics {
+  id          String @id @default(cuid())
+  productId   String
+  views       Int
+  inquiries   Int
+  saves       Int
+}
+6. 🌍 MARKET DEMAND SIGNALS
+
+Enhance /markets pages:
+
+Add:
+
+“Top requested products this quarter”
+“Avg price per kg”
+“Import requirements checklist”
+7. 🧾 COMPLIANCE ENGINE
+
+For each product:
+
+Add:
+
+Required documents per destination
+Export readiness score
+Schema:
+model ComplianceRequirement {
+  id          String @id @default(cuid())
+  country     String
+  productType String
+  requirement String
+}
+8. 🧑‍🌾 STRUCTURED ORIGIN DATA (IMPORTANT)
+
+Enhance Product:
+
+farmName       String?
+farmerName     String?
+latitude       Float?
+longitude      Float?
+harvestDate    DateTime?
+UI:
+Map view (leaflet)
+Farm-level traceability card
+9. 💼 SUPPLIER MONETIZATION
+
+Add:
+
+model Subscription {
+  id          String @id @default(cuid())
+  companyId   String
+  tier        String // FREE, PRO, PREMIUM
+  active      Boolean
+}
+Logic:
+FREE: limited inquiries
+PRO: unlimited + analytics
+PREMIUM: featured placement
+10. 🔎 ADVANCED SEARCH (UPGRADE)
+
+Add filters:
+
+Trust score
+Export history
+Lead time
+Response rate
+🎨 UI UPGRADES
+Add globally:
+Trust score badges
+“Verified Exporter” tiers:
+Silver / Gold / Platinum
+Product Page Add:
+Export history chart
+Price trend (mock data OK)
+Supplier response time
+Dashboard Add:
+
+Buyer:
+
+RFQs
+Active negotiations
+Market insights
+
+Supplier:
+
+RFQ inbox
+Performance metrics
+Conversion rate
+⚙️ IMPLEMENTATION RULES
+DO NOT break existing functionality
+Extend Prisma schema via migration
+Maintain clean API structure
+Use modular components
+All new features must be functional (no placeholders)
+✅ SUCCESS CRITERIA
+
+The platform should now support:
+
+✔ Multi-supplier negotiation (RFQs)
+✔ Real trade workflows (not just browsing)
+✔ Trust-based decision making
+✔ Shipment + payment visibility
+✔ Market intelligence
+
+🔥 FINAL INSTRUCTION
+
+Upgrade this app into something that could realistically compete with:
+
+Alibaba (trust + scale)
+Faire (UX)
+Tradeling (regional focus)
+
+But with a unique edge:
+👉 Colombian origin + traceability + curated supply

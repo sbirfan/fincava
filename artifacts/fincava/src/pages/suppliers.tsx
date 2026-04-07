@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, MapPin, ShieldCheck, Star } from "lucide-react";
+import { TrustBadge } from "@/components/trust-badge";
 
 export default function Suppliers() {
   const [search, setSearch] = useState("");
@@ -69,12 +70,15 @@ export default function Suppliers() {
                 <CardContent className="pt-12 pb-6 px-6 flex-1 flex flex-col">
                   <div className="flex justify-between items-start mb-1">
                     <h3 className="font-serif font-bold text-xl group-hover:text-primary transition-colors line-clamp-1">{supplier.name}</h3>
-                    {supplier.avgRating && (
-                      <div className="flex items-center text-sm font-medium bg-secondary/10 text-secondary px-2 py-0.5 rounded">
-                        <Star className="w-3 h-3 mr-1 fill-current" />
-                        {supplier.avgRating.toFixed(1)}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {supplier.avgRating && (
+                        <div className="flex items-center text-sm font-medium bg-secondary/10 text-secondary px-2 py-0.5 rounded">
+                          <Star className="w-3 h-3 mr-1 fill-current" />
+                          {supplier.avgRating.toFixed(1)}
+                        </div>
+                      )}
+                      {supplier.trustScore && <TrustBadge score={Math.round(supplier.trustScore)} size="sm" />}
+                    </div>
                   </div>
                   
                   <div className="flex items-center text-sm text-muted-foreground mb-4">

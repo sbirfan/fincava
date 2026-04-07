@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShieldCheck, MapPin, Globe, Calendar, Star } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
+import { TrustBadge, TrustScoreBar } from "@/components/trust-badge";
 
 export default function SupplierDetail() {
   const params = useParams();
@@ -61,13 +62,16 @@ export default function SupplierDetail() {
       <div className="container mx-auto px-4 pt-20">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center flex-wrap gap-3 mb-2">
               <h1 className="text-3xl md:text-4xl font-serif font-bold">{supplier.name}</h1>
               {supplier.verified && (
                 <Badge className="bg-primary text-primary-foreground border-transparent h-6 text-xs px-2 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
                   Verified
                 </Badge>
+              )}
+              {(supplier as any).trustScore && (
+                <TrustBadge score={Math.round((supplier as any).trustScore)} size="md" showLabel />
               )}
             </div>
             
@@ -103,6 +107,16 @@ export default function SupplierDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-3 space-y-6">
+            {(supplier as any).trustScore && (
+              <div className="bg-card border rounded-lg p-5">
+                <TrustScoreBar score={Math.round((supplier as any).trustScore)} />
+                {(supplier as any).responseTimeHours && (
+                  <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+                    Avg. response time: <strong>{(supplier as any).responseTimeHours}h</strong>
+                  </p>
+                )}
+              </div>
+            )}
             <div className="bg-card border rounded-lg p-6">
               <h3 className="font-bold text-lg mb-4 font-serif">About</h3>
               <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">

@@ -41,6 +41,9 @@ async function buildSupplierResponse(company: any) {
     productCategories: categories,
     productCount: products.length,
     avgRating,
+    trustScore: company.trustScore ?? null,
+    subscriptionTier: company.subscriptionTier ?? null,
+    responseTimeHours: company.responseTimeHours ?? null,
     memberSince: company.createdAt.toISOString(),
   };
 }

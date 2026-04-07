@@ -22,6 +22,9 @@ export function Navbar() {
           <Link href="/markets" className="transition-colors hover:text-primary">
             Markets
           </Link>
+          <Link href="/rfqs" className="transition-colors hover:text-primary">
+            RFQs
+          </Link>
           <Link href="/origin-stories" className="transition-colors hover:text-primary">
             Origin Stories
           </Link>

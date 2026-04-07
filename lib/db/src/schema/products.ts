@@ -30,6 +30,10 @@ export const productsTable = pgTable("products", {
   featured: boolean("featured").notNull().default(false),
   originStory: text("origin_story"),
   farmerName: text("farmer_name"),
+  farmName: text("farm_name"),
+  farmLat: real("farm_lat"),
+  farmLng: real("farm_lng"),
+  harvestDate: timestamp("harvest_date", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

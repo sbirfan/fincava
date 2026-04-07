@@ -10,7 +10,10 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
-  PlusCircle
+  PlusCircle,
+  FileQuestion,
+  BarChart2,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -28,12 +31,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'Add Product', href: `${basePath}/products/new`, icon: PlusCircle },
     { name: 'Inquiries', href: `${basePath}/inquiries`, icon: MessageSquare },
     { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart },
+    { name: 'RFQ Inbox', href: `${basePath}/rfqs`, icon: FileQuestion },
+    { name: 'Performance', href: `${basePath}/performance`, icon: BarChart2 },
     { name: 'Company Profile', href: `${basePath}/profile`, icon: User },
   ] : [
     { name: 'Overview', href: basePath, icon: LayoutDashboard },
+    { name: 'My RFQs', href: `${basePath}/rfqs`, icon: FileQuestion },
     { name: 'My Inquiries', href: `${basePath}/inquiries`, icon: MessageSquare },
     { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart },
     { name: 'Messages', href: `${basePath}/messages`, icon: MessageSquare },
+    { name: 'Market Intelligence', href: `${basePath}/market-intel`, icon: Globe },
     { name: 'Profile Settings', href: `${basePath}/profile`, icon: User },
   ];
 
