@@ -1,0 +1,26 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "axrH5w9St4ShnwiSwzwrT"
+uri = "file://artifacts/fincava/public/images/hero.png"
+type = "image"
+title = "Colombian coffee farm sunrise"
+
+[[generated]]
+id = "Y3RpGe0J0MFgUW9JQ-oao"
+uri = "file://artifacts/fincava/public/images/cacao.png"
+type = "image"
+title = "Cacao pods in rainforest"
+
+[[generated]]
+id = "6ReLLTkUTS8qcDF-gkSjq"
+uri = "file://artifacts/fincava/public/images/farmer.png"
+type = "image"
+title = "Colombian coffee farmer portrait"
+
+[[generated]]
+id = "87fbPCHSm_bg0-KsTxazb"
+uri = "file://artifacts/fincava/public/images/avocado.png"
+type = "image"
+title = "Premium avocado export"

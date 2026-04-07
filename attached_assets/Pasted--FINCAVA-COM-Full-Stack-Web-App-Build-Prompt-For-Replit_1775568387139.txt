@@ -1,0 +1,658 @@
+# FINCAVA.COM — Full-Stack Web App Build Prompt
+## For Replit / Claude Code / Any AI Code Agent
+
+---
+
+## ROLE & CONTEXT
+
+You are a senior full-stack engineer building **Fincava.com**, a B2B sourcing marketplace that connects verified Colombian agricultural producers (coffee, cacao, exotic fruits, superfoods, artisanal goods) directly to international buyers across the Middle East, Asia, and Africa. Think: Alibaba meets Faire, but exclusively for Colombian premium agricultural exports — with built-in trust, traceability, logistics coordination, and compliance tools.
+
+Build a production-ready, fully functional web application. No placeholder content. No "coming soon" pages. Every feature must work.
+
+---
+
+## TECH STACK
+
+**Frontend:**
+- React 18 + TypeScript
+- Tailwind CSS (utility-first styling)
+- React Router v6 (client-side routing)
+- React Query (server state management)
+- Zustand (client state)
+- Framer Motion (animations)
+- Lucide React (icons)
+
+**Backend:**
+- Node.js + Express (REST API)
+- PostgreSQL (primary database via Supabase or direct)
+- Supabase (auth, storage, realtime)
+- Prisma ORM
+- JWT authentication
+
+**Additional:**
+- Stripe (payments + escrow simulation)
+- SendGrid (transactional email)
+- Cloudinary (image/document uploads)
+- Resend (email notifications)
+
+**Deploy target:** Replit (ensure all env vars are configurable via Secrets)
+
+---
+
+## DATABASE SCHEMA
+
+Create these tables in PostgreSQL via Prisma:
+
+```prisma
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  role          Role     // BUYER | SUPPLIER | ADMIN
+  profile       Profile?
+  company       Company?
+  createdAt     DateTime @default(now())
+  orders        Order[]
+  messages      Message[]
+  reviews       Review[]
+}
+
+model Profile {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  user        User    @relation(fields: [userId], references: [id])
+  firstName   String
+  lastName    String
+  phone       String?
+  country     String
+  language    String  @default("en")
+  avatarUrl   String?
+}
+
+model Company {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id])
+  name            String
+  type            CompanyType  // COOPERATIVE | EXPORTER | SMALLHOLDER | IMPORTER | DISTRIBUTOR | ROASTER | MANUFACTURER
+  country         String
+  region          String?
+  description     String
+  logoUrl         String?
+  website         String?
+  verified        Boolean   @default(false)
+  certifications  Certification[]
+  products        Product[]
+  documents       Document[]
+  createdAt       DateTime  @default(now())
+}
+
+model Product {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  name            String
+  category        ProductCategory  // COFFEE | CACAO | AVOCADO | EXOTIC_FRUIT | SUPERFOOD | PROCESSED | TEXTILE | OTHER
+  subCategory     String?
+  description     String
+  origin          String    // Colombian region e.g. "Huila", "Santander", "Antioquia"
+  altitude        String?   // e.g. "1600-2000 masl"
+  process         String?   // e.g. "Washed", "Natural", "Honey"
+  variety         String?   // e.g. "Castillo", "Geisha", "Criollo"
+  minOrderKg      Float
+  maxOrderKg      Float?
+  pricePerKgUSD   Float
+  availableKg     Float
+  harvestSeason   String?
+  images          String[]
+  certifications  String[]  // ["Organic", "Fair Trade", "Rainforest Alliance"]
+  cupping         Float?    // 0-100 SCA score for coffee
+  active          Boolean   @default(true)
+  featured        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  orderItems      OrderItem[]
+  reviews         Review[]
+  inquiries       Inquiry[]
+}
+
+model Certification {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  type        String   // "USDA Organic" | "EU Organic" | "Fair Trade" | "Rainforest Alliance" | "UTZ" | "Halal" | "SCA Q Grade"
+  issuer      String
+  expiryDate  DateTime?
+  documentUrl String?
+  verified    Boolean  @default(false)
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  buyerId         String
+  buyer           User        @relation(fields: [buyerId], references: [id])
+  status          OrderStatus // INQUIRY | SAMPLE_REQUESTED | QUOTED | CONFIRMED | IN_PRODUCTION | SHIPPED | DELIVERED | COMPLETED | CANCELLED
+  totalUSD        Float
+  incoterm        String      @default("FOB")
+  destinationPort String?
+  shippingMethod  String?     // "Sea Freight" | "Air Freight"
+  notes           String?
+  items           OrderItem[]
+  documents       Document[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  quantityKg  Float
+  pricePerKg  Float
+  totalUSD    Float
+}
+
+model Inquiry {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  buyerEmail  String
+  buyerName   String
+  company     String
+  country     String
+  message     String
+  quantityKg  Float?
+  status      String   @default("PENDING")  // PENDING | RESPONDED | CLOSED
+  createdAt   DateTime @default(now())
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  sender      User     @relation(fields: [senderId], references: [id])
+  receiverId  String
+  content     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  rating      Int      // 1-5
+  comment     String?
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  companyId   String?
+  orderId     String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  order       Order?   @relation(fields: [orderId], references: [id])
+  type        String   // "Certificate of Origin" | "Phytosanitary" | "Invoice" | "Packing List" | "Bill of Lading" | "Quality Report"
+  name        String
+  url         String
+  createdAt   DateTime @default(now())
+}
+
+enum Role { BUYER SUPPLIER ADMIN }
+enum CompanyType { COOPERATIVE EXPORTER SMALLHOLDER IMPORTER DISTRIBUTOR ROASTER MANUFACTURER }
+enum ProductCategory { COFFEE CACAO AVOCADO EXOTIC_FRUIT SUPERFOOD PROCESSED TEXTILE OTHER }
+enum OrderStatus { INQUIRY SAMPLE_REQUESTED QUOTED CONFIRMED IN_PRODUCTION SHIPPED DELIVERED COMPLETED CANCELLED }
+```
+
+---
+
+## PAGES & ROUTES
+
+### Public Pages (no auth required)
+
+**`/` — Homepage**
+- Hero section: Full-width hero with tagline "From Colombian soil, to your supply chain." Dark green (#0F6E56) background, white text, two CTAs: "Source Products" → /marketplace, "List Your Products" → /register?role=supplier
+- Trust bar: Logos/icons showing "Verified Suppliers" | "15+ Product Categories" | "UAE · China · South Korea · West Africa" | "Escrow Protected"
+- Featured Products grid: 8 cards pulled from database (featured=true)
+- How it works: 4-step visual flow for buyers (Browse → Request Sample → Confirm Order → Receive Shipment) and 3-step for suppliers (List → Get Matched → Export)
+- Market regions section: Cards for UAE/Gulf, China, South Korea, West Africa — each with flag, key stat, and "Explore buyers" CTA
+- Origin stories section: 3 featured supplier stories with photos, region, product, and story
+- Stats bar: "50+ Verified Suppliers" | "15 Export Destinations" | "$2M+ in Facilitated Trade" | "100% Escrow Protected"
+- Footer: Links, social icons, email signup, language switcher (EN/ES/AR)
+
+**`/marketplace` — Product Catalog**
+- Left sidebar filters:
+  - Category (COFFEE, CACAO, AVOCADO, etc.) — checkbox
+  - Origin region (Huila, Santander, Antioquia, Nariño, etc.) — checkbox
+  - Certifications (Organic, Fair Trade, Halal, etc.) — checkbox
+  - Min order weight (slider: 0–5000 kg)
+  - Price range (slider: $0–$50/kg)
+  - SCA Score (for coffee, slider 80–100)
+  - Availability (In stock only toggle)
+- Top bar: Search input, Sort by (Newest | Price ↑ | Price ↓ | Top Rated | Featured), Results count
+- Product grid: 3-column responsive cards
+- Each card shows: Product image, Supplier name + verified badge, Origin region + flag, Category pill, Price/kg, Min order, Certifications icons, Rating stars, "Request Sample" button + "View Details" button
+
+**`/product/:id` — Product Detail**
+- Left: Image gallery (main + thumbnails), Certifications badge strip
+- Right: Product name, Supplier info with verified badge, Origin + altitude + process + variety, Price/kg (USD), Available quantity, Min order, Description
+- Tabs: Details | Certifications | Supplier Profile | Reviews
+- CTA box (sticky right): Quantity input (kg), Calculate total, "Request Sample" button, "Place Inquiry" button, "Contact Supplier" button
+- Origin story panel: Farm photo, farmer name, region map pin, quote
+- Similar products: 4 related cards
+
+**`/suppliers` — Supplier Directory**
+- Grid of verified supplier cards: Logo, company name, type badge, country, products offered, certifications, rating
+- Filters: Company type, Region, Certifications
+- Each card links to `/supplier/:id`
+
+**`/supplier/:id` — Supplier Profile**
+- Header: Logo, company name, verified badge, country flag, member since, rating
+- About section, company overview
+- Products tab: All products from this supplier
+- Certifications tab: List with icons and expiry dates
+- Reviews tab: Buyer reviews with ratings
+
+**`/markets` — Market Intelligence**
+- Regional market pages with stats cards and opportunity data
+- Sub-pages: `/markets/uae` | `/markets/china` | `/markets/south-korea` | `/markets/west-africa`
+- Each shows: Market size, growth rate, top imported products, entry requirements, key buyers
+
+**`/origin-stories` — Blog/Stories**
+- Grid of supplier origin stories with rich photos
+- Each story: Farmer name, region, product, elevation, story text, photos
+
+**`/about` — About Fincava**
+- Mission statement, team, how Fincava works, trust and verification process
+
+**`/contact` — Contact**
+- Contact form, office location (Colombia + UAE), WhatsApp button
+
+---
+
+### Auth Pages
+
+**`/register` — Registration**
+- Step 1: Choose role (Buyer or Supplier) — large clickable cards
+- Step 2 (Buyer): Email, password, full name, company name, country, what you're looking to source
+- Step 2 (Supplier): Email, password, full name, company name, region in Colombia, what you produce, estimated annual production
+- Step 3: Email verification
+- OAuth: "Continue with Google" option
+
+**`/login` — Login**
+- Email + password, Remember me, Forgot password link, Register link
+
+---
+
+### Buyer Dashboard (auth required, role=BUYER)
+
+**`/dashboard` — Overview**
+- Welcome card with name
+- Quick stats: Active inquiries, Sample requests, Orders in progress
+- Recent activity feed
+- Saved products (wishlist)
+- Recommended products based on profile
+
+**`/dashboard/marketplace`** — same as public marketplace but with "Save" and quick-inquiry features
+
+**`/dashboard/inquiries`** — List of all submitted inquiries with status badges
+
+**`/dashboard/orders`** — Order list with status pipeline (Quoted → Confirmed → Shipped → Delivered)
+
+**`/dashboard/orders/:id`** — Order detail with:
+- Status timeline
+- Order items
+- Documents (downloadable: invoice, packing list, certificate of origin)
+- Messages thread with supplier
+- Shipping tracking (text input for now)
+
+**`/dashboard/messages`** — Chat interface: sidebar with conversations, message thread on right
+
+**`/dashboard/profile`** — Edit profile, company details, preferences
+
+---
+
+### Supplier Dashboard (auth required, role=SUPPLIER)
+
+**`/supplier-dashboard` — Overview**
+- Stats: Listed products, Active inquiries, Total orders, Revenue (USD)
+- Verification status and checklist (what to complete to get verified badge)
+- Recent inquiries
+
+**`/supplier-dashboard/products`** — My products list with edit/delete/toggle active
+
+**`/supplier-dashboard/products/new`** — Add product form:
+- All product fields from schema above
+- Image upload (up to 8 images via Cloudinary)
+- Certification checkboxes
+- Pricing and availability
+- Origin details (region, altitude, process, variety)
+- Preview before publishing
+
+**`/supplier-dashboard/products/edit/:id`** — Edit existing product
+
+**`/supplier-dashboard/inquiries`** — Incoming buyer inquiries with reply modal
+
+**`/supplier-dashboard/orders`** — Orders linked to supplier's products, with status update capability
+
+**`/supplier-dashboard/certifications`** — Upload and manage certifications with expiry tracking
+
+**`/supplier-dashboard/documents`** — Upload export documents (phytosanitary, certificates of origin, quality reports)
+
+**`/supplier-dashboard/profile`** — Edit company profile, add origin story, upload photos
+
+---
+
+### Admin Dashboard (auth required, role=ADMIN)
+
+**`/admin`** — Full CRUD on Users, Products, Companies, Orders, Reviews
+- Verify/unverify suppliers
+- Feature/unfeature products
+- View all platform activity
+- Simple table-based UI
+
+---
+
+## KEY UI COMPONENTS TO BUILD
+
+### ProductCard
+```
+- Image (16:9 ratio, lazy loaded)
+- Top-right: Certification icons (small, tooltip on hover)
+- Supplier name + verified checkmark
+- Product name (bold)
+- Origin: Colombia flag + region name
+- Price: "$X.XX / kg" in teal
+- Min order: "Min. Xkg"
+- Rating stars
+- Two buttons: "Sample" (outline) | "Inquire" (filled teal)
+```
+
+### SupplierBadge
+```
+- Avatar/logo circle
+- Company name
+- "Verified Supplier" badge with checkmark (green) or "Pending" (amber)
+- Star rating + review count
+- Country flag
+```
+
+### OrderStatusPipeline
+```
+Horizontal step indicator:
+Inquiry → Quoted → Confirmed → In Production → Shipped → Delivered
+Each step: icon + label + date if completed
+```
+
+### InquiryForm (modal)
+```
+Fields: Full name, Email, Company, Country, Product quantity (kg), Delivery port, Desired delivery date, Message
+Submit → creates Inquiry record, sends email to supplier via SendGrid
+```
+
+### CertificationBadge
+```
+Icon + certification name + "Verified" or "Pending"
+Colors: Organic=Green, Fair Trade=Blue, Halal=Teal, Rainforest Alliance=Forest green
+```
+
+---
+
+## DESIGN SYSTEM
+
+**Colors (use CSS variables):**
+```css
+--color-primary: #0F6E56;        /* Deep teal-green — main brand */
+--color-primary-light: #1D9E75;  /* Lighter teal */
+--color-primary-dark: #085041;   /* Dark teal */
+--color-accent: #EF9F27;         /* Amber — CTAs, highlights */
+--color-accent-dark: #BA7517;    /* Dark amber */
+--color-background: #FAFAF8;     /* Off-white background */
+--color-surface: #FFFFFF;        /* Card surfaces */
+--color-text: #1A1A1A;           /* Primary text */
+--color-text-muted: #666666;     /* Secondary text */
+--color-border: rgba(0,0,0,0.1); /* Borders */
+--color-success: #27500A;
+--color-warning: #854F0B;
+--color-danger: #A32D2D;
+```
+
+**Typography:**
+- Font: Inter (Google Fonts)
+- Headings: 700 weight
+- Body: 400 weight, 1.6 line height
+- Labels/badges: 500 weight, uppercase, letter-spacing
+
+**Spacing:** 8px base unit (8, 16, 24, 32, 48, 64, 96)
+
+**Border radius:** 8px cards, 24px buttons, 50% avatars
+
+**Shadows:** `0 1px 3px rgba(0,0,0,0.08)` default, `0 4px 16px rgba(0,0,0,0.12)` elevated
+
+---
+
+## FEATURE SPECIFICATIONS
+
+### Search & Filter System
+- Full-text search across product name, description, supplier name, origin
+- Real-time filter updates without page reload
+- URL-based filter state (shareable links)
+- "Clear all filters" button
+
+### Inquiry & Sample Request Flow
+1. Buyer clicks "Request Sample" or "Place Inquiry" on any product
+2. If not logged in → redirect to login with return URL
+3. If logged in → modal opens with pre-filled product info
+4. Buyer fills in quantity, port, message
+5. Submit → creates Inquiry record in DB
+6. Email sent to supplier (SendGrid template)
+7. Email confirmation sent to buyer
+8. Both can see inquiry in their respective dashboards
+9. Supplier can respond with quote (text + price + timeline)
+10. Buyer can accept quote → creates Order
+
+### Messaging System
+- Real-time via Supabase Realtime subscriptions
+- Message threads linked to Order or Inquiry
+- Unread message count badge in nav
+- Typing indicator
+- File attachment (documents, images)
+
+### Verification System (Supplier)
+Suppliers start as "Pending". To become "Verified":
+- [ ] Complete company profile
+- [ ] Upload valid company registration
+- [ ] Upload at least 1 product with full details
+- [ ] Upload at least 1 certification
+- Admin reviews and clicks "Verify"
+- Verified badge appears on all their listings
+
+### Wishlist / Save Products
+- Heart icon on each product card
+- Saved to buyer profile
+- "Saved Products" section in dashboard
+
+### Multi-language
+- Language switcher: EN | ES | AR
+- Use i18next for translations
+- RTL support for Arabic
+- Key pages translated: Homepage, Marketplace, Product Detail
+
+### SEO
+- React Helmet for meta tags
+- Open Graph tags for product sharing
+- Structured data (JSON-LD) for products
+- Sitemap generation
+- Clean URLs (no hash routing)
+
+---
+
+## API ENDPOINTS
+
+```
+AUTH
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+POST /api/auth/refresh
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
+
+PRODUCTS
+GET  /api/products              (public, with filters)
+GET  /api/products/featured     (public)
+GET  /api/products/:id          (public)
+POST /api/products              (auth: SUPPLIER)
+PUT  /api/products/:id          (auth: SUPPLIER, owner)
+DEL  /api/products/:id          (auth: SUPPLIER, owner)
+
+SUPPLIERS
+GET  /api/suppliers             (public)
+GET  /api/suppliers/:id         (public)
+PUT  /api/suppliers/:id         (auth: SUPPLIER, owner)
+
+INQUIRIES
+POST /api/inquiries             (auth: BUYER)
+GET  /api/inquiries             (auth: own)
+PUT  /api/inquiries/:id/respond (auth: SUPPLIER)
+
+ORDERS
+GET  /api/orders                (auth: own)
+GET  /api/orders/:id            (auth: own)
+POST /api/orders                (auth: BUYER)
+PUT  /api/orders/:id/status     (auth: SUPPLIER | ADMIN)
+
+MESSAGES
+GET  /api/messages/:conversationId   (auth: participant)
+POST /api/messages                    (auth: logged in)
+
+UPLOADS
+POST /api/upload/image          (auth: logged in) → Cloudinary
+POST /api/upload/document       (auth: logged in) → Cloudinary
+
+ADMIN
+GET  /api/admin/users           (auth: ADMIN)
+PUT  /api/admin/suppliers/:id/verify   (auth: ADMIN)
+PUT  /api/admin/products/:id/feature   (auth: ADMIN)
+```
+
+---
+
+## SEED DATA
+
+Seed the database with realistic data:
+
+**5 Supplier Companies:**
+1. "Cooperativa de Caficultores de Huila" — Cooperative — Huila, Colombia
+2. "Cacao del Santander SAS" — Exporter — Santander, Colombia  
+3. "Finca La Reserva" — Smallholder — Nariño, Colombia
+4. "Antioquia Coffee Traders" — Exporter — Antioquia, Colombia
+5. "Frutas Exóticas del Pacífico" — Exporter — Valle del Cauca, Colombia
+
+**15 Products:**
+- 4 coffees (different regions, processes, varieties, SCA scores 84-92)
+- 3 cacaos (fine flavor, different origins)
+- 2 avocados (Hass)
+- 2 exotic fruit pulps (passion fruit, guava)
+- 2 superfoods (moringa, cacao nibs)
+- 1 artisanal chocolate
+- 1 panela
+
+**3 Buyer Accounts:**
+- UAE buyer (importer/distributor)
+- South Korea specialty roaster
+- China food company
+
+**Sample inquiries and orders connecting buyers to products.**
+
+---
+
+## ENVIRONMENT VARIABLES
+
+```env
+DATABASE_URL=postgresql://...
+SUPABASE_URL=https://...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_KEY=...
+JWT_SECRET=...
+SENDGRID_API_KEY=...
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+STRIPE_SECRET_KEY=...
+STRIPE_WEBHOOK_SECRET=...
+FRONTEND_URL=https://fincava.com
+```
+
+---
+
+## REPLIT-SPECIFIC SETUP
+
+Create `.replit` file:
+```toml
+run = "npm run dev"
+entrypoint = "server/index.ts"
+
+[nix]
+channel = "stable-23_11"
+
+[deployment]
+run = ["sh", "-c", "npm run build && npm start"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+```
+
+Create `replit.nix`:
+```nix
+{ pkgs }: {
+  deps = [
+    pkgs.nodejs-18_x
+    pkgs.postgresql
+  ];
+}
+```
+
+---
+
+## WHAT MAKES FINCAVA DIFFERENT (build these into the UX)
+
+1. **Every product has an origin story** — not just specs, but photos of the farm, the farmer's name, GPS coordinates of the region, seasonal availability calendar
+
+2. **Compliance-ready documents** — every supplier upload includes certificate of origin, phytosanitary cert section; buyers can download these
+
+3. **Regional market guides** — built-in pages showing what buyers in UAE, China, South Korea, and West Africa are specifically looking for
+
+4. **Transparent pricing** — all prices in USD/kg, no hidden fees; platform takes 8-12% on confirmed orders, shown clearly
+
+5. **Sample-first workflow** — the default CTA is always "Request Sample" not "Buy Now" — this matches how real B2B agricultural trade actually works
+
+6. **Halal certification flag** — all products that are Halal certified show a prominent Halal badge (critical for UAE/Middle East market)
+
+7. **Escrow language** — every order page shows "Payment secured by Fincava Escrow — released to supplier upon delivery confirmation"
+
+---
+
+## LAUNCH CHECKLIST
+
+Before deploying:
+- [ ] All auth flows tested (register, login, password reset)
+- [ ] Product CRUD working end to end
+- [ ] Inquiry flow: buyer submits → supplier gets email → supplier replies → buyer gets notification
+- [ ] Image upload to Cloudinary working
+- [ ] Seed data loaded
+- [ ] Mobile responsive (test at 375px, 768px, 1280px)
+- [ ] All env vars in Replit Secrets
+- [ ] Database migrations run (`npx prisma migrate deploy`)
+- [ ] Error pages: 404, 500
+- [ ] Loading states on all async operations
+- [ ] Empty states on all list pages
+
+---
+
+*Build this as a real product, not a demo. Every page should be completable, every button should do something, every form should submit to a real backend endpoint.*

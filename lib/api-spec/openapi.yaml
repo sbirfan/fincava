@@ -3,13 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Fincava — Colombian Agricultural B2B Marketplace API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: products
+    description: Product catalog operations
+  - name: suppliers
+    description: Supplier directory operations
+  - name: inquiries
+    description: Buyer inquiry operations
+  - name: orders
+    description: Order management operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User profile operations
+  - name: stats
+    description: Dashboard statistics
+  - name: reviews
+    description: Product reviews
+  - name: messages
+    description: Messaging between buyers and suppliers
+
 paths:
   /healthz:
     get:
@@ -24,6 +43,754 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # AUTH
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginUserBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserWithProfile"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # PRODUCTS
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List products with filters
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: origin
+          in: query
+          schema:
+            type: string
+        - name: certification
+          in: query
+          schema:
+            type: string
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: minOrderKg
+          in: query
+          schema:
+            type: number
+        - name: minCupping
+          in: query
+          schema:
+            type: number
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+        - name: supplierId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductListResponse"
+
+  /products/featured:
+    get:
+      operationId: listFeaturedProducts
+      tags: [products]
+      summary: Get featured products for homepage
+      responses:
+        "200":
+          description: Featured products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products/{id}/similar:
+    get:
+      operationId: getSimilarProducts
+      tags: [products]
+      summary: Get similar products
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Similar products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /supplier/products:
+    get:
+      operationId: listMyProducts
+      tags: [products]
+      summary: List supplier's own products
+      responses:
+        "200":
+          description: Supplier's products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a new product (supplier only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductBody"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /supplier/products/{id}:
+    patch:
+      operationId: updateProduct
+      tags: [products]
+      summary: Update a product (supplier only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductBody"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Delete a product (supplier only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # SUPPLIERS
+  /suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [suppliers]
+      summary: List verified suppliers
+      parameters:
+        - name: companyType
+          in: query
+          schema:
+            type: string
+        - name: region
+          in: query
+          schema:
+            type: string
+        - name: certification
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+
+  /suppliers/{id}:
+    get:
+      operationId: getSupplier
+      tags: [suppliers]
+      summary: Get supplier profile by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Supplier profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /supplier/profile:
+    get:
+      operationId: getMySupplierProfile
+      tags: [suppliers]
+      summary: Get authenticated supplier's own profile
+      responses:
+        "200":
+          description: Supplier profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierDetail"
+
+    patch:
+      operationId: updateSupplierProfile
+      tags: [suppliers]
+      summary: Update supplier profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSupplierBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierDetail"
+
+  # INQUIRIES
+  /inquiries:
+    post:
+      operationId: createInquiry
+      tags: [inquiries]
+      summary: Submit a product inquiry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInquiryBody"
+      responses:
+        "201":
+          description: Inquiry submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inquiry"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /buyer/inquiries:
+    get:
+      operationId: listBuyerInquiries
+      tags: [inquiries]
+      summary: List all inquiries submitted by the buyer
+      responses:
+        "200":
+          description: Buyer's inquiries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Inquiry"
+
+  /supplier/inquiries:
+    get:
+      operationId: listSupplierInquiries
+      tags: [inquiries]
+      summary: List all inquiries received by the supplier
+      responses:
+        "200":
+          description: Supplier's inquiries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Inquiry"
+
+  /supplier/inquiries/{id}:
+    patch:
+      operationId: updateInquiryStatus
+      tags: [inquiries]
+      summary: Update inquiry status (supplier only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInquiryStatusBody"
+      responses:
+        "200":
+          description: Updated inquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inquiry"
+
+  # ORDERS
+  /buyer/orders:
+    get:
+      operationId: listBuyerOrders
+      tags: [orders]
+      summary: List buyer's orders
+      responses:
+        "200":
+          description: Orders list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderBody"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /buyer/orders/{id}:
+    get:
+      operationId: getBuyerOrder
+      tags: [orders]
+      summary: Get order detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+
+  /supplier/orders:
+    get:
+      operationId: listSupplierOrders
+      tags: [orders]
+      summary: List supplier's orders
+      responses:
+        "200":
+          description: Orders list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+  /supplier/orders/{id}/status:
+    patch:
+      operationId: updateOrderStatus
+      tags: [orders]
+      summary: Update order status (supplier only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderStatusBody"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  # USER PROFILE
+  /users/profile:
+    patch:
+      operationId: updateUserProfile
+      tags: [users]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserWithProfile"
+
+  # STATS / DASHBOARDS (wow endpoints)
+  /buyer/stats:
+    get:
+      operationId: getBuyerStats
+      tags: [stats]
+      summary: Get buyer dashboard stats
+      responses:
+        "200":
+          description: Buyer stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuyerStats"
+
+  /supplier/stats:
+    get:
+      operationId: getSupplierStats
+      tags: [stats]
+      summary: Get supplier dashboard stats
+      responses:
+        "200":
+          description: Supplier stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierStats"
+
+  /stats/platform:
+    get:
+      operationId: getPlatformStats
+      tags: [stats]
+      summary: Get platform-wide stats for homepage
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+
+  # REVIEWS
+  /products/{id}/reviews:
+    get:
+      operationId: listProductReviews
+      tags: [reviews]
+      summary: List reviews for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+
+    post:
+      operationId: createReview
+      tags: [reviews]
+      summary: Submit a review for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewBody"
+      responses:
+        "201":
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+
+  # MESSAGES
+  /messages/conversations:
+    get:
+      operationId: listConversations
+      tags: [messages]
+      summary: List message conversations
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+  /messages/{userId}:
+    get:
+      operationId: getMessages
+      tags: [messages]
+      summary: Get messages with a specific user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message to a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageBody"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # ORIGIN STORIES
+  /origin-stories:
+    get:
+      operationId: listOriginStories
+      tags: [suppliers]
+      summary: List supplier origin stories
+      responses:
+        "200":
+          description: Origin stories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OriginStory"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +801,874 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    RegisterUserBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [BUYER, SUPPLIER]
+        companyName:
+          type: string
+        country:
+          type: string
+        region:
+          type: ["string", "null"]
+        whatYouSource:
+          type: ["string", "null"]
+        whatYouProduce:
+          type: ["string", "null"]
+        annualProduction:
+          type: ["string", "null"]
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - role
+        - companyName
+        - country
+
+    LoginUserBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserWithProfile"
+        token:
+          type: string
+      required:
+        - user
+        - token
+
+    UserWithProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        role:
+          type: string
+          enum: [BUYER, SUPPLIER, ADMIN]
+        firstName:
+          type: string
+        lastName:
+          type: string
+        country:
+          type: ["string", "null"]
+        language:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        companyId:
+          type: ["integer", "null"]
+        companyName:
+          type: ["string", "null"]
+        companyVerified:
+          type: ["boolean", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - email
+        - role
+        - firstName
+        - lastName
+        - language
+        - createdAt
+
+    UpdateProfileBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        language:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        supplierName:
+          type: string
+        supplierVerified:
+          type: boolean
+        supplierLogoUrl:
+          type: ["string", "null"]
+        name:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        description:
+          type: string
+        origin:
+          type: string
+        altitude:
+          type: ["string", "null"]
+        process:
+          type: ["string", "null"]
+        variety:
+          type: ["string", "null"]
+        minOrderKg:
+          type: number
+        maxOrderKg:
+          type: ["number", "null"]
+        pricePerKgUSD:
+          type: number
+        availableKg:
+          type: number
+        harvestSeason:
+          type: ["string", "null"]
+        images:
+          type: array
+          items:
+            type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        cupping:
+          type: ["number", "null"]
+        active:
+          type: boolean
+        featured:
+          type: boolean
+        avgRating:
+          type: ["number", "null"]
+        reviewCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - companyId
+        - supplierName
+        - supplierVerified
+        - name
+        - category
+        - description
+        - origin
+        - minOrderKg
+        - pricePerKgUSD
+        - availableKg
+        - images
+        - certifications
+        - active
+        - featured
+        - reviewCount
+        - createdAt
+
+    ProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            supplierDescription:
+              type: ["string", "null"]
+            supplierCountry:
+              type: ["string", "null"]
+            supplierRegion:
+              type: ["string", "null"]
+            supplierWebsite:
+              type: ["string", "null"]
+            supplierMemberSince:
+              type: ["string", "null"]
+            supplierCertifications:
+              type: array
+              items:
+                $ref: "#/components/schemas/Certification"
+            originStory:
+              type: ["string", "null"]
+            farmerName:
+              type: ["string", "null"]
+          required:
+            - supplierCertifications
+
+    ProductListResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - products
+        - total
+        - page
+        - limit
+
+    CreateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        description:
+          type: string
+        origin:
+          type: string
+        altitude:
+          type: ["string", "null"]
+        process:
+          type: ["string", "null"]
+        variety:
+          type: ["string", "null"]
+        minOrderKg:
+          type: number
+        maxOrderKg:
+          type: ["number", "null"]
+        pricePerKgUSD:
+          type: number
+        availableKg:
+          type: number
+        harvestSeason:
+          type: ["string", "null"]
+        images:
+          type: array
+          items:
+            type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        cupping:
+          type: ["number", "null"]
+        originStory:
+          type: ["string", "null"]
+        farmerName:
+          type: ["string", "null"]
+      required:
+        - name
+        - category
+        - description
+        - origin
+        - minOrderKg
+        - pricePerKgUSD
+        - availableKg
+
+    UpdateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        description:
+          type: string
+        origin:
+          type: string
+        altitude:
+          type: ["string", "null"]
+        process:
+          type: ["string", "null"]
+        variety:
+          type: ["string", "null"]
+        minOrderKg:
+          type: number
+        maxOrderKg:
+          type: ["number", "null"]
+        pricePerKgUSD:
+          type: number
+        availableKg:
+          type: number
+        harvestSeason:
+          type: ["string", "null"]
+        images:
+          type: array
+          items:
+            type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        cupping:
+          type: ["number", "null"]
+        active:
+          type: boolean
+        featured:
+          type: boolean
+        originStory:
+          type: ["string", "null"]
+        farmerName:
+          type: ["string", "null"]
+
+    Certification:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        issuer:
+          type: string
+        expiryDate:
+          type: ["string", "null"]
+        documentUrl:
+          type: ["string", "null"]
+        verified:
+          type: boolean
+      required:
+        - id
+        - type
+        - issuer
+        - verified
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        country:
+          type: string
+        region:
+          type: ["string", "null"]
+        description:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        verified:
+          type: boolean
+        certifications:
+          type: array
+          items:
+            type: string
+        productCategories:
+          type: array
+          items:
+            type: string
+        productCount:
+          type: integer
+        avgRating:
+          type: ["number", "null"]
+        memberSince:
+          type: string
+      required:
+        - id
+        - userId
+        - name
+        - type
+        - country
+        - description
+        - verified
+        - certifications
+        - productCategories
+        - productCount
+        - memberSince
+
+    SupplierDetail:
+      allOf:
+        - $ref: "#/components/schemas/Supplier"
+        - type: object
+          properties:
+            certificationDetails:
+              type: array
+              items:
+                $ref: "#/components/schemas/Certification"
+            products:
+              type: array
+              items:
+                $ref: "#/components/schemas/Product"
+            reviews:
+              type: array
+              items:
+                $ref: "#/components/schemas/Review"
+            originStory:
+              type: ["string", "null"]
+            farmerName:
+              type: ["string", "null"]
+          required:
+            - certificationDetails
+            - products
+            - reviews
+
+    UpdateSupplierBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        country:
+          type: string
+        region:
+          type: ["string", "null"]
+        description:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        originStory:
+          type: ["string", "null"]
+        farmerName:
+          type: ["string", "null"]
+
+    Inquiry:
+      type: object
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        productName:
+          type: string
+        productImage:
+          type: ["string", "null"]
+        supplierName:
+          type: string
+        buyerEmail:
+          type: string
+        buyerName:
+          type: string
+        company:
+          type: string
+        country:
+          type: string
+        message:
+          type: string
+        quantityKg:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [PENDING, RESPONDED, CLOSED]
+        createdAt:
+          type: string
+      required:
+        - id
+        - productId
+        - productName
+        - supplierName
+        - buyerEmail
+        - buyerName
+        - company
+        - country
+        - message
+        - status
+        - createdAt
+
+    CreateInquiryBody:
+      type: object
+      properties:
+        productId:
+          type: integer
+        buyerEmail:
+          type: string
+        buyerName:
+          type: string
+        company:
+          type: string
+        country:
+          type: string
+        message:
+          type: string
+        quantityKg:
+          type: ["number", "null"]
+      required:
+        - productId
+        - buyerEmail
+        - buyerName
+        - company
+        - country
+        - message
+
+    UpdateInquiryStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [PENDING, RESPONDED, CLOSED]
+      required:
+        - status
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        buyerId:
+          type: integer
+        buyerName:
+          type: string
+        status:
+          type: string
+          enum: [INQUIRY, SAMPLE_REQUESTED, QUOTED, CONFIRMED, IN_PRODUCTION, SHIPPED, DELIVERED, COMPLETED, CANCELLED]
+        totalUSD:
+          type: number
+        incoterm:
+          type: string
+        destinationPort:
+          type: ["string", "null"]
+        shippingMethod:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        itemCount:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - buyerId
+        - buyerName
+        - status
+        - totalUSD
+        - incoterm
+        - itemCount
+        - createdAt
+        - updatedAt
+
+    OrderDetail:
+      allOf:
+        - $ref: "#/components/schemas/Order"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrderItem"
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/Message"
+          required:
+            - items
+            - messages
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        productName:
+          type: string
+        productImage:
+          type: ["string", "null"]
+        quantityKg:
+          type: number
+        pricePerKg:
+          type: number
+        totalUSD:
+          type: number
+      required:
+        - id
+        - productId
+        - productName
+        - quantityKg
+        - pricePerKg
+        - totalUSD
+
+    CreateOrderBody:
+      type: object
+      properties:
+        incoterm:
+          type: string
+        destinationPort:
+          type: ["string", "null"]
+        shippingMethod:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateOrderItemBody"
+      required:
+        - items
+
+    CreateOrderItemBody:
+      type: object
+      properties:
+        productId:
+          type: integer
+        quantityKg:
+          type: number
+      required:
+        - productId
+        - quantityKg
+
+    UpdateOrderStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [INQUIRY, SAMPLE_REQUESTED, QUOTED, CONFIRMED, IN_PRODUCTION, SHIPPED, DELIVERED, COMPLETED, CANCELLED]
+      required:
+        - status
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        authorCountry:
+          type: ["string", "null"]
+        productId:
+          type: integer
+        rating:
+          type: integer
+        comment:
+          type: ["string", "null"]
+        verified:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - authorId
+        - authorName
+        - productId
+        - rating
+        - verified
+        - createdAt
+
+    CreateReviewBody:
+      type: object
+      properties:
+        rating:
+          type: integer
+        comment:
+          type: ["string", "null"]
+      required:
+        - rating
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        senderId:
+          type: integer
+        senderName:
+          type: string
+        receiverId:
+          type: integer
+        content:
+          type: string
+        read:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - senderId
+        - senderName
+        - receiverId
+        - content
+        - read
+        - createdAt
+
+    SendMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    Conversation:
+      type: object
+      properties:
+        userId:
+          type: integer
+        userName:
+          type: string
+        userRole:
+          type: string
+        userAvatarUrl:
+          type: ["string", "null"]
+        lastMessage:
+          type: string
+        lastMessageAt:
+          type: string
+        unreadCount:
+          type: integer
+      required:
+        - userId
+        - userName
+        - userRole
+        - lastMessage
+        - lastMessageAt
+        - unreadCount
+
+    BuyerStats:
+      type: object
+      properties:
+        activeInquiries:
+          type: integer
+        totalOrders:
+          type: integer
+        ordersInProgress:
+          type: integer
+        savedProducts:
+          type: integer
+        recentInquiries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Inquiry"
+        recentOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+      required:
+        - activeInquiries
+        - totalOrders
+        - ordersInProgress
+        - savedProducts
+        - recentInquiries
+        - recentOrders
+
+    SupplierStats:
+      type: object
+      properties:
+        listedProducts:
+          type: integer
+        activeInquiries:
+          type: integer
+        totalOrders:
+          type: integer
+        totalRevenueUSD:
+          type: number
+        verificationStatus:
+          type: string
+        recentInquiries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Inquiry"
+        recentOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+      required:
+        - listedProducts
+        - activeInquiries
+        - totalOrders
+        - totalRevenueUSD
+        - verificationStatus
+        - recentInquiries
+        - recentOrders
+
+    PlatformStats:
+      type: object
+      properties:
+        verifiedSuppliers:
+          type: integer
+        exportDestinations:
+          type: integer
+        facilitatedTradeUSD:
+          type: number
+        productCategories:
+          type: integer
+        totalProducts:
+          type: integer
+      required:
+        - verifiedSuppliers
+        - exportDestinations
+        - facilitatedTradeUSD
+        - productCategories
+        - totalProducts
+
+    OriginStory:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplierId:
+          type: integer
+        supplierName:
+          type: string
+        farmerName:
+          type: string
+        region:
+          type: string
+        product:
+          type: string
+        elevation:
+          type: ["string", "null"]
+        story:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+      required:
+        - id
+        - supplierId
+        - supplierName
+        - farmerName
+        - region
+        - product
+        - story

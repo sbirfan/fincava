@@ -1,0 +1,125 @@
+import { useListMyProducts, useDeleteProduct } from "@workspace/api-client-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
+import { PlusCircle, Edit, Trash2, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { getListMyProductsQueryKey } from "@workspace/api-client-react";
+
+export default function SupplierProducts() {
+  const { data: products, isLoading } = useListMyProducts();
+  const deleteProduct = useDeleteProduct();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleDelete = (id: number) => {
+    if (confirm("Are you sure you want to delete this product?")) {
+      deleteProduct.mutate({ id }, {
+        onSuccess: () => {
+          toast({ title: "Product deleted successfully" });
+          queryClient.invalidateQueries({ queryKey: getListMyProductsQueryKey() });
+        },
+        onError: () => {
+          toast({ title: "Failed to delete product", variant: "destructive" });
+        }
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-serif font-bold tracking-tight">My Products</h1>
+          <p className="text-muted-foreground mt-2">Manage your agricultural catalog and inventory.</p>
+        </div>
+        <Link href="/supplier-dashboard/products/new">
+          <Button>
+            <PlusCircle className="w-4 h-4 mr-2" />
+            Add Product
+          </Button>
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-64 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : products && products.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {products.map((product) => (
+            <Card key={product.id} className="overflow-hidden flex flex-col">
+              <div className="aspect-video bg-muted relative">
+                {product.images && product.images[0] ? (
+                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">No image</div>
+                )}
+                <div className="absolute top-2 right-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" size="icon" className="h-8 w-8 bg-background/80 backdrop-blur">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>
+                        <Edit className="w-4 h-4 mr-2" /> Edit Product
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={() => handleDelete(product.id)}>
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="absolute bottom-2 left-2 flex gap-1">
+                  <Badge variant={product.active ? "default" : "secondary"}>
+                    {product.active ? "Active" : "Inactive"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-background/80 backdrop-blur">
+                    {product.category}
+                  </Badge>
+                </div>
+              </div>
+              <CardContent className="p-4 flex-1 flex flex-col">
+                <h3 className="font-bold text-lg mb-1 truncate">{product.name}</h3>
+                <div className="text-sm text-muted-foreground mb-4 line-clamp-2">{product.description}</div>
+                
+                <div className="mt-auto grid grid-cols-2 gap-4 text-sm border-t pt-4">
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">Price/kg (USD)</p>
+                    <p className="font-bold">${product.pricePerKgUSD.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">Available</p>
+                    <p className="font-medium">{product.availableKg} kg</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Package className="w-12 h-12 text-muted-foreground mb-4 opacity-50" />
+            <p className="text-xl font-serif font-bold mb-2">No products yet</p>
+            <p className="text-muted-foreground mb-6 max-w-md">Start building your catalog to connect with international buyers looking for premium Colombian agriculture.</p>
+            <Link href="/supplier-dashboard/products/new">
+              <Button>
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Add Your First Product
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

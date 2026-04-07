@@ -1,0 +1,341 @@
+import { Router, type IRouter } from "express";
+import { eq, and, gte, lte, ilike, sql, desc, asc } from "drizzle-orm";
+import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable } from "@workspace/db";
+import {
+  ListProductsQueryParams,
+  CreateProductBody,
+  UpdateProductBody,
+  UpdateProductParams,
+  DeleteProductParams,
+  GetProductParams,
+  GetSimilarProductsParams,
+} from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
+
+const router: IRouter = Router();
+
+async function buildProductResponse(product: any, company: any) {
+  const reviews = await db.select().from(reviewsTable).where(eq(reviewsTable.productId, product.id));
+  const avgRating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
+
+  return {
+    id: product.id,
+    companyId: product.companyId,
+    supplierName: company?.name ?? "",
+    supplierVerified: company?.verified ?? false,
+    supplierLogoUrl: company?.logoUrl ?? null,
+    name: product.name,
+    category: product.category,
+    subCategory: product.subCategory ?? null,
+    description: product.description,
+    origin: product.origin,
+    altitude: product.altitude ?? null,
+    process: product.process ?? null,
+    variety: product.variety ?? null,
+    minOrderKg: product.minOrderKg,
+    maxOrderKg: product.maxOrderKg ?? null,
+    pricePerKgUSD: product.pricePerKgUSD,
+    availableKg: product.availableKg,
+    harvestSeason: product.harvestSeason ?? null,
+    images: product.images ?? [],
+    certifications: product.certifications ?? [],
+    cupping: product.cupping ?? null,
+    active: product.active,
+    featured: product.featured,
+    avgRating,
+    reviewCount: reviews.length,
+    createdAt: product.createdAt.toISOString(),
+  };
+}
+
+router.get("/products", async (req, res): Promise<void> => {
+  const parsed = ListProductsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const {
+    category, origin, search, sort,
+    minPrice, maxPrice, minCupping,
+    featured, supplierId,
+    page = 1, limit = 20,
+  } = parsed.data;
+
+  let query = db.select({
+    product: productsTable,
+    company: companiesTable,
+  })
+    .from(productsTable)
+    .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
+    .$dynamic();
+
+  const conditions = [eq(productsTable.active, true)];
+
+  if (category) conditions.push(eq(productsTable.category, category as any));
+  if (origin) conditions.push(ilike(productsTable.origin, `%${origin}%`));
+  if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
+  if (minPrice != null) conditions.push(gte(productsTable.pricePerKgUSD, minPrice));
+  if (maxPrice != null) conditions.push(lte(productsTable.pricePerKgUSD, maxPrice));
+  if (minCupping != null) conditions.push(gte(sql`COALESCE(${productsTable.cupping}, 0)`, minCupping));
+  if (featured != null) conditions.push(eq(productsTable.featured, featured));
+  if (supplierId != null) conditions.push(eq(productsTable.companyId, supplierId));
+
+  query = query.where(and(...conditions)) as any;
+
+  if (sort === "price_asc") {
+    query = query.orderBy(asc(productsTable.pricePerKgUSD)) as any;
+  } else if (sort === "price_desc") {
+    query = query.orderBy(desc(productsTable.pricePerKgUSD)) as any;
+  } else {
+    query = query.orderBy(desc(productsTable.createdAt)) as any;
+  }
+
+  const offset = (page - 1) * limit;
+  const rows = await (query as any).limit(limit).offset(offset);
+
+  const products = await Promise.all(rows.map((r: any) => buildProductResponse(r.product, r.company)));
+
+  res.json({
+    products,
+    total: products.length,
+    page,
+    limit,
+  });
+});
+
+router.get("/products/featured", async (_req, res): Promise<void> => {
+  const rows = await db.select({
+    product: productsTable,
+    company: companiesTable,
+  })
+    .from(productsTable)
+    .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
+    .where(and(eq(productsTable.featured, true), eq(productsTable.active, true)))
+    .limit(8)
+    .orderBy(desc(productsTable.createdAt));
+
+  const products = await Promise.all(rows.map((r) => buildProductResponse(r.product, r.company)));
+  res.json(products);
+});
+
+router.get("/products/:id", async (req, res): Promise<void> => {
+  const params = GetProductParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [row] = await db.select({
+    product: productsTable,
+    company: companiesTable,
+  })
+    .from(productsTable)
+    .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
+    .where(eq(productsTable.id, params.data.id));
+
+  if (!row) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+
+  const base = await buildProductResponse(row.product, row.company);
+  const reviews = await db.select().from(reviewsTable).where(eq(reviewsTable.productId, row.product.id));
+
+  const reviewsWithAuthor = await Promise.all(reviews.map(async (r) => {
+    const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, r.authorId));
+    return {
+      id: r.id,
+      authorId: r.authorId,
+      authorName: profile ? `${profile.firstName} ${profile.lastName}` : "Anonymous",
+      authorCountry: profile?.country ?? null,
+      productId: r.productId,
+      rating: r.rating,
+      comment: r.comment ?? null,
+      verified: r.verified,
+      createdAt: r.createdAt.toISOString(),
+    };
+  }));
+
+  res.json({
+    ...base,
+    supplierDescription: row.company?.description ?? null,
+    supplierCountry: row.company?.country ?? null,
+    supplierRegion: row.company?.region ?? null,
+    supplierWebsite: row.company?.website ?? null,
+    supplierMemberSince: row.company?.createdAt?.toISOString() ?? null,
+    supplierCertifications: [],
+    originStory: row.product.originStory ?? null,
+    farmerName: row.product.farmerName ?? null,
+    reviews: reviewsWithAuthor,
+  });
+});
+
+router.get("/products/:id/similar", async (req, res): Promise<void> => {
+  const params = GetSimilarProductsParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, params.data.id));
+  if (!product) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+
+  const rows = await db.select({
+    product: productsTable,
+    company: companiesTable,
+  })
+    .from(productsTable)
+    .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
+    .where(
+      and(
+        eq(productsTable.category, product.category),
+        eq(productsTable.active, true),
+        sql`${productsTable.id} != ${product.id}`,
+      )
+    )
+    .limit(4);
+
+  const products = await Promise.all(rows.map((r) => buildProductResponse(r.product, r.company)));
+  res.json(products);
+});
+
+// Supplier product management
+router.get("/supplier/products", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId;
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+  if (!company) {
+    res.json([]);
+    return;
+  }
+
+  const rows = await db.select({
+    product: productsTable,
+    company: companiesTable,
+  })
+    .from(productsTable)
+    .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
+    .where(eq(productsTable.companyId, company.id))
+    .orderBy(desc(productsTable.createdAt));
+
+  const products = await Promise.all(rows.map((r) => buildProductResponse(r.product, r.company)));
+  res.json(products);
+});
+
+router.post("/supplier/products", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId;
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+  if (!company) {
+    res.status(400).json({ error: "Supplier company not found" });
+    return;
+  }
+
+  const parsed = CreateProductBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [product] = await db.insert(productsTable).values({
+    companyId: company.id,
+    name: parsed.data.name,
+    category: parsed.data.category as any,
+    subCategory: parsed.data.subCategory ?? null,
+    description: parsed.data.description,
+    origin: parsed.data.origin,
+    altitude: parsed.data.altitude ?? null,
+    process: parsed.data.process ?? null,
+    variety: parsed.data.variety ?? null,
+    minOrderKg: parsed.data.minOrderKg,
+    maxOrderKg: parsed.data.maxOrderKg ?? null,
+    pricePerKgUSD: parsed.data.pricePerKgUSD,
+    availableKg: parsed.data.availableKg,
+    harvestSeason: parsed.data.harvestSeason ?? null,
+    images: parsed.data.images ?? [],
+    certifications: parsed.data.certifications ?? [],
+    cupping: parsed.data.cupping ?? null,
+    originStory: parsed.data.originStory ?? null,
+    farmerName: parsed.data.farmerName ?? null,
+  }).returning();
+
+  const result = await buildProductResponse(product, company);
+  res.status(201).json(result);
+});
+
+router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId;
+  const params = UpdateProductParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+  if (!company) {
+    res.status(400).json({ error: "Supplier company not found" });
+    return;
+  }
+
+  const [product] = await db.select().from(productsTable)
+    .where(and(eq(productsTable.id, params.data.id), eq(productsTable.companyId, company.id)));
+  if (!product) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+
+  const parsed = UpdateProductBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const updateData: any = {};
+  if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
+  if (parsed.data.category !== undefined) updateData.category = parsed.data.category;
+  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
+  if (parsed.data.origin !== undefined) updateData.origin = parsed.data.origin;
+  if (parsed.data.pricePerKgUSD !== undefined) updateData.pricePerKgUSD = parsed.data.pricePerKgUSD;
+  if (parsed.data.availableKg !== undefined) updateData.availableKg = parsed.data.availableKg;
+  if (parsed.data.minOrderKg !== undefined) updateData.minOrderKg = parsed.data.minOrderKg;
+  if (parsed.data.active !== undefined) updateData.active = parsed.data.active;
+  if (parsed.data.featured !== undefined) updateData.featured = parsed.data.featured;
+  if (parsed.data.images !== undefined) updateData.images = parsed.data.images;
+  if (parsed.data.certifications !== undefined) updateData.certifications = parsed.data.certifications;
+  if (parsed.data.cupping !== undefined) updateData.cupping = parsed.data.cupping;
+
+  const [updated] = await db.update(productsTable).set(updateData)
+    .where(eq(productsTable.id, params.data.id)).returning();
+
+  const result = await buildProductResponse(updated, company);
+  res.json(result);
+});
+
+router.delete("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId;
+  const params = DeleteProductParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+  if (!company) {
+    res.status(400).json({ error: "Supplier company not found" });
+    return;
+  }
+
+  const [product] = await db.select().from(productsTable)
+    .where(and(eq(productsTable.id, params.data.id), eq(productsTable.companyId, company.id)));
+  if (!product) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+
+  await db.delete(productsTable).where(eq(productsTable.id, params.data.id));
+  res.sendStatus(204);
+});
+
+export default router;

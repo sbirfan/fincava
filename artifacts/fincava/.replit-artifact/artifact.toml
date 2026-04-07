@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Fincava — Colombian Agricultural Marketplace"
+version = "1.0.0"
+id = "artifacts/fincava"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25876
+
+[services.development]
+run = "pnpm --filter @workspace/fincava run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fincava", "run", "build" ]
+publicDir = "artifacts/fincava/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25876"
+BASE_PATH = "/"
