@@ -15,7 +15,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(getToken());
-  const [user, setUser] = useState<UserWithProfile | null>(null);
+  const [storedUser, setStoredUser] = useState<UserWithProfile | null>(null);
   const queryClient = useQueryClient();
 
   const { data: me, isLoading: isLoadingMe } = useGetMe({
@@ -27,23 +27,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    if (me) {
-      setUser(me);
-    }
-  }, [me]);
-
-  useEffect(() => {
     if (token) {
       setLocalToken(token);
     } else {
       clearLocalToken();
-      setUser(null);
+      setStoredUser(null);
     }
   }, [token]);
 
   const login = (newToken: string, newUser: UserWithProfile) => {
     setToken(newToken);
-    setUser(newUser);
+    setStoredUser(newUser);
   };
 
   const logout = () => {
@@ -51,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
   };
 
+  const user = me ?? storedUser ?? null;
   const isLoading = !!token && isLoadingMe && !user;
 
   return (
