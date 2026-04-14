@@ -2,10 +2,10 @@ import { useGetPlatformStats } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, Globe, Landmark, Truck, Cpu, Zap, BarChart3,
-  AlertTriangle, Layers, ShieldCheck, TrendingUp, Users,
-  MapPin, Building2, Network, DollarSign, Package, Sprout,
-  ChevronRight, CheckCircle2, Lock, Scale, Star
+  ArrowRight, Globe, Landmark, Truck, ShieldCheck,
+  MapPin, Users, Package, Sprout, CheckCircle2,
+  FileText, BarChart3, Search, Banknote, Star,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -18,13 +18,27 @@ const fadeUp = {
   }),
 };
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+const inView = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
+};
+
+function SectionLabel({ children, light }: { children: React.ReactNode; light?: boolean }) {
   return (
-    <span className="inline-block text-xs font-semibold uppercase tracking-[0.18em] text-primary mb-4">
+    <span className={`inline-block text-xs font-semibold uppercase tracking-[0.18em] mb-4 ${light ? "text-white/40" : "text-primary"}`}>
       {children}
     </span>
   );
 }
+
+const PRODUCTS = [
+  { name: "Specialty Coffee", origin: "Huila · Nariño · Cauca", icon: "☕", tag: "Most Traded" },
+  { name: "Fine Cacao", origin: "Tumaco · Arauca", icon: "🍫", tag: "High Demand" },
+  { name: "Hass Avocado", origin: "Antioquia · Eje Cafetero", icon: "🥑", tag: "Export Ready" },
+  { name: "Exotic Fruits", origin: "Valle del Cauca", icon: "🍍", tag: "Premium" },
+  { name: "Superfoods", origin: "Boyacá · Cundinamarca", icon: "🌿", tag: "Growing" },
+  { name: "Quinoa & Grains", origin: "Nariño · Cauca", icon: "🌾", tag: "Certified" },
+];
 
 export default function Home() {
   const { data: stats } = useGetPlatformStats();
@@ -34,7 +48,6 @@ export default function Home() {
 
       {/* ─── 1. HERO ──────────────────────────────────────────────────────── */}
       <section className="relative flex items-center justify-center min-h-screen overflow-hidden bg-[#050f0a]">
-        {/* Background image */}
         <div className="absolute inset-0 z-0">
           <img
             src="/images/hero.png"
@@ -43,8 +56,6 @@ export default function Home() {
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#050f0a]/60 via-[#050f0a]/20 to-[#050f0a]" />
         </div>
-
-        {/* Grid overlay */}
         <div
           className="absolute inset-0 z-0 opacity-[0.04]"
           style={{
@@ -59,23 +70,23 @@ export default function Home() {
             className="inline-flex items-center gap-2 bg-white/8 backdrop-blur-sm border border-white/12 rounded-full px-4 py-2 text-sm text-white/70 mb-10"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            Infrastructure for Emerging Market Commerce
+            Colombia meets the world
           </motion.div>
 
           <motion.h1
             variants={fadeUp} initial="hidden" animate="visible" custom={1}
-            className="text-5xl md:text-7xl lg:text-[88px] font-serif font-bold leading-[1.04] tracking-tight mb-8"
+            className="text-5xl md:text-7xl lg:text-[80px] font-serif font-bold leading-[1.06] tracking-tight mb-8"
           >
-            The Operating System<br />
-            <span className="text-primary">for Emerging Market</span><br />
-            Commerce.
+            Colombia's best producers.<br />
+            <span className="text-primary">The world's best buyers.</span><br />
+            One platform.
           </motion.h1>
 
           <motion.p
             variants={fadeUp} initial="hidden" animate="visible" custom={2}
-            className="text-xl md:text-2xl max-w-3xl mx-auto mb-12 text-white/60 font-light leading-relaxed"
+            className="text-xl md:text-2xl max-w-2xl mx-auto mb-12 text-white/60 font-light leading-relaxed"
           >
-            Fincava unifies market access, embedded finance, and distribution into one infrastructure layer — enabling producers in Colombia to trade at scale with buyers across the Middle East, Asia, and Africa.
+            Fincava connects verified Colombian agricultural producers with global buyers — with embedded finance, compliance documentation, and distribution built in.
           </motion.p>
 
           <motion.div
@@ -84,17 +95,16 @@ export default function Home() {
           >
             <Link href="/register">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground h-14 px-8 text-base font-semibold rounded-lg">
-                Get Started <ArrowRight className="w-4 h-4 ml-2" />
+                Start Buying <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
-            <Link href="/marketplace">
+            <Link href="/register">
               <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/8 h-14 px-8 text-base font-semibold rounded-lg bg-transparent">
-                Partner With Us
+                Join as a Supplier
               </Button>
             </Link>
           </motion.div>
 
-          {/* Metrics bar */}
           <motion.div
             variants={fadeUp} initial="hidden" animate="visible" custom={4}
             className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/8 rounded-2xl overflow-hidden border border-white/10 max-w-3xl mx-auto"
@@ -102,7 +112,7 @@ export default function Home() {
             {[
               { value: stats?.verifiedSuppliers || "12+", label: "Verified Producers" },
               { value: stats?.totalProducts || "40+", label: "Export Products" },
-              { value: "3", label: "System Layers" },
+              { value: "15+", label: "Countries Reached" },
               { value: "$4.2M+", label: "Trade Facilitated" },
             ].map(m => (
               <div key={m.label} className="bg-white/[0.04] px-6 py-5 text-center">
@@ -113,71 +123,87 @@ export default function Home() {
           </motion.div>
         </div>
 
-        {/* Bottom gradient */}
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent z-10" />
       </section>
 
-      {/* ─── 2. PROBLEM ───────────────────────────────────────────────────── */}
+      {/* ─── 2. THE PROBLEM (TWO SIDES) ───────────────────────────────────── */}
       <section className="py-28 bg-background">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mb-16">
+          <div className="max-w-2xl mx-auto text-center mb-16">
             <SectionLabel>The Problem</SectionLabel>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-              Emerging markets are trapped by broken infrastructure.
+            <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-5">
+              Global trade is broken for both sides.
             </h2>
-            <p className="text-muted-foreground text-xl leading-relaxed">
-              Colombia produces world-class agricultural goods. Yet the systems connecting producers to global demand are fragmented, extractive, and decades behind. Value leaks at every layer.
+            <p className="text-muted-foreground text-lg leading-relaxed">
+              Buyers can't find verified, traceable supply. Producers can't reach the buyers who need them. Fincava fixes both.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[
-              {
-                icon: AlertTriangle,
-                label: "Fragmented Supply Chains",
-                body: "4–6 intermediary layers sit between the farm and the buyer. Each layer extracts margin, obscures provenance, and adds weeks of lead time. Producers receive less than 5% of end consumer value.",
-                stat: "< 5%", statLabel: "value captured by producers",
-              },
-              {
-                icon: Globe,
-                label: "No Market Access",
-                body: "Smallholder producers and mid-tier exporters cannot access international buyers directly. They lack the infrastructure, credit history, and compliance documentation that global trade requires.",
-                stat: "80%", statLabel: "of producers without direct export access",
-              },
-              {
-                icon: Lock,
-                label: "Capital Locked Out",
-                body: "Traditional banks won't finance agricultural trade without collateral. This creates a vicious cycle: no capital means no growth, no growth means no bankability. Producers are permanently underfinanced.",
-                stat: "$2.1B", statLabel: "annual financing gap in Colombian agri-trade",
-              },
-              {
-                icon: Truck,
-                label: "Inefficient Distribution",
-                body: "Cold-chain gaps, port inefficiency, and fragmented logistics make reliable cross-border delivery nearly impossible for emerging producers. Distribution costs devour what margin survives the supply chain.",
-                stat: "40%", statLabel: "of goods lost to logistics inefficiency",
-              },
-            ].map(p => (
-              <div key={p.label} className="relative p-8 border border-border rounded-2xl bg-card hover:border-primary/30 transition-colors group">
-                <div className="flex items-start gap-5">
-                  <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
-                    <p.icon className="w-6 h-6 text-red-500 group-hover:text-primary transition-colors" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg mb-2">{p.label}</h3>
-                    <p className="text-muted-foreground text-sm leading-relaxed mb-4">{p.body}</p>
-                    <div className="inline-flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full">
-                      <span className="font-bold text-foreground text-sm">{p.stat}</span>
-                      <span className="text-muted-foreground text-xs">{p.statLabel}</span>
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Buyers side */}
+            <motion.div
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="p-8 rounded-2xl border border-border bg-card"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                  <Search className="w-5 h-5 text-sky-500" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-sky-500 mb-0.5">For Buyers</div>
+                  <h3 className="font-serif font-bold text-lg">Finding reliable supply is a guessing game</h3>
                 </div>
               </div>
-            ))}
+              <ul className="space-y-3">
+                {[
+                  "No way to verify producer quality or certifications without flying there",
+                  "Compliance documentation arrives incomplete or too late",
+                  "4–6 broker layers obscure origin and inflate cost",
+                  "No shipment visibility once goods leave the farm",
+                  "No single counterparty to hold accountable end-to-end",
+                ].map(p => (
+                  <li key={p} className="flex items-start gap-3 text-sm text-muted-foreground">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0 mt-2" />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+
+            {/* Suppliers side */}
+            <motion.div
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="p-8 rounded-2xl border border-border bg-card"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Sprout className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-0.5">For Suppliers</div>
+                  <h3 className="font-serif font-bold text-lg">Reaching global buyers is nearly impossible</h3>
+                </div>
+              </div>
+              <ul className="space-y-3">
+                {[
+                  "No direct channel to reach buyers in the Middle East, Asia, or Europe",
+                  "Traditional banks won't finance agricultural trade without heavy collateral",
+                  "Producers capture less than 5% of end consumer value",
+                  "Every sale goes through 4–6 extractive intermediary layers",
+                  "No infrastructure to present certifications, origin, or traceability",
+                ].map(p => (
+                  <li key={p} className="flex items-start gap-3 text-sm text-muted-foreground">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0 mt-2" />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ─── 3. SOLUTION — 3 SYSTEM LAYERS ───────────────────────────────── */}
+      {/* ─── 3. HOW IT WORKS ──────────────────────────────────────────────── */}
       <section className="py-28 bg-[#050f0a] text-white overflow-hidden relative">
         <div
           className="absolute inset-0 opacity-[0.03]"
@@ -187,262 +213,274 @@ export default function Home() {
           }}
         />
         <div className="relative container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center mb-20">
-            <SectionLabel>The Solution</SectionLabel>
+          <div className="max-w-2xl mx-auto text-center mb-20">
+            <SectionLabel light>How It Works</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-              One system. Three layers.<br />Complete infrastructure.
+              Three layers. One seamless trade.
             </h2>
-            <p className="text-white/60 text-xl leading-relaxed">
-              Fincava is not a feature — it is the unified operating layer that connects every element of emerging market commerce into a coherent, scalable system.
+            <p className="text-white/60 text-lg leading-relaxed">
+              Every trade on Fincava moves through three integrated layers — from finding each other to getting paid to receiving your goods.
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {[
               {
-                layer: "Layer 01",
+                step: "01",
                 icon: Globe,
                 title: "Market Access",
                 color: "from-primary/20 to-primary/5",
                 border: "border-primary/30",
                 badge: "bg-primary/20 text-primary",
-                capabilities: [
-                  "Verified producer network",
-                  "Demand-signal matching",
-                  "RFQ + bidding engine",
-                  "Compliance documentation",
-                  "Origin story & traceability",
-                ],
-                body: "We remove every layer between producer and buyer. Verified suppliers, real-time demand signals, and structured RFQ workflows create direct, compliant, traceable trade at scale.",
+                buyerValue: "Browse verified Colombian producers. Post an RFQ and receive competitive quotes within 48 hours.",
+                supplierValue: "List your products, certifications, and origin story. Get discovered by vetted international buyers.",
+                capabilities: ["Verified producer profiles", "RFQ & bidding engine", "Compliance documentation", "Origin traceability"],
               },
               {
-                layer: "Layer 02",
+                step: "02",
                 icon: Landmark,
                 title: "Embedded Finance",
                 color: "from-amber-500/20 to-amber-500/5",
                 border: "border-amber-500/30",
                 badge: "bg-amber-500/20 text-amber-400",
-                capabilities: [
-                  "Trade finance & credit lines",
-                  "Payment milestone escrow",
-                  "Foreign exchange facilitation",
-                  "Invoice factoring",
-                  "Risk scoring by transaction",
-                ],
-                body: "Capital should follow commerce, not block it. Fincava's financial layer provides the credit infrastructure that emerging market producers need to compete on the global stage.",
+                buyerValue: "Pay on milestones with escrow protection. FX handled. No surprise fees.",
+                supplierValue: "Access trade credit against your orders. Get financed before shipment arrives.",
+                capabilities: ["Milestone payment escrow", "Trade credit lines", "FX facilitation", "Invoice factoring"],
               },
               {
-                layer: "Layer 03",
+                step: "03",
                 icon: Truck,
                 title: "Distribution",
                 color: "from-sky-500/20 to-sky-500/5",
                 border: "border-sky-500/30",
                 badge: "bg-sky-500/20 text-sky-400",
-                capabilities: [
-                  "Shipment tracking & milestones",
-                  "Cold-chain coordination",
-                  "Port & customs pre-clearance",
-                  "Last-mile network integration",
-                  "Logistics intelligence",
-                ],
-                body: "End-to-end visibility from farm gate to port of destination. Real-time tracking, automated milestone triggers, and pre-integrated logistics partners make reliable delivery the default.",
+                buyerValue: "Real-time tracking from farm gate to your port. Customs pre-clearance included.",
+                supplierValue: "Logistics partners coordinated for you. Cold chain, port clearance, last-mile handled.",
+                capabilities: ["Shipment tracking", "Cold-chain coordination", "Customs pre-clearance", "Logistics intelligence"],
               },
             ].map(l => (
-              <div key={l.title} className={`relative p-8 rounded-2xl border ${l.border} bg-gradient-to-b ${l.color} flex flex-col`}>
+              <motion.div
+                key={l.title}
+                variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+                className={`relative p-8 rounded-2xl border ${l.border} bg-gradient-to-b ${l.color} flex flex-col`}
+              >
                 <div className={`inline-flex items-center gap-2 ${l.badge} text-xs font-semibold px-3 py-1 rounded-full mb-6 w-fit`}>
-                  {l.layer}
+                  Step {l.step}
                 </div>
                 <l.icon className="w-8 h-8 mb-4 text-white/60" />
-                <h3 className="text-2xl font-serif font-bold mb-3">{l.title} Layer</h3>
-                <p className="text-white/50 text-sm leading-relaxed mb-6 flex-1">{l.body}</p>
-                <ul className="space-y-2">
+                <h3 className="text-xl font-serif font-bold mb-5">{l.title}</h3>
+                <div className="space-y-3 mb-6 flex-1">
+                  <div className="p-3 rounded-lg bg-white/5 border border-white/8">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-400 mb-1">Buyers</div>
+                    <p className="text-white/60 text-xs leading-relaxed">{l.buyerValue}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-white/5 border border-white/8">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Suppliers</div>
+                    <p className="text-white/60 text-xs leading-relaxed">{l.supplierValue}</p>
+                  </div>
+                </div>
+                <ul className="space-y-1.5 border-t border-white/10 pt-4">
                   {l.capabilities.map(c => (
-                    <li key={c} className="flex items-center gap-2 text-sm text-white/70">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                    <li key={c} className="flex items-center gap-2 text-xs text-white/50">
+                      <CheckCircle2 className="w-3 h-3 text-white/25 shrink-0" />
                       {c}
                     </li>
                   ))}
                 </ul>
-              </div>
+              </motion.div>
             ))}
-          </div>
-
-          {/* System connector visual */}
-          <div className="mt-12 flex items-center justify-center gap-4 text-white/30 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-primary" />
-              <span>Market Access</span>
-            </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-primary/30 via-white/10 to-amber-500/30 max-w-48" />
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-500" />
-              <span>Finance</span>
-            </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 via-white/10 to-sky-500/30 max-w-48" />
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-sky-500" />
-              <span>Distribution</span>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* ─── 4. ARCHITECTURE ──────────────────────────────────────────────── */}
-      <section className="py-28 bg-card border-y border-border">
+      {/* ─── 4. FOR BUYERS ────────────────────────────────────────────────── */}
+      <section className="py-28 bg-background">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <SectionLabel>Architecture</SectionLabel>
+            <motion.div variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+              <SectionLabel>For Buyers</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                Built as a modular<br />agentic system.
+                Source premium Colombian goods with confidence.
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                Every component of Fincava is a discrete, composable service. AI agents coordinate across layers in real time — matching supply to demand, triggering financing events, and managing compliance — without human bottlenecks.
+                Every supplier on Fincava is verified. Every shipment is tracked. Every document is in order before your goods leave Colombia.
               </p>
               <div className="space-y-4">
                 {[
-                  { icon: Cpu, label: "AI-Driven Agents", desc: "Autonomous agents match RFQs to suppliers, score trust, and flag compliance risks in real time." },
-                  { icon: Network, label: "Modular Services", desc: "Each system layer (market, finance, distribution) operates independently and composes via clean APIs." },
-                  { icon: Scale, label: "Scalable by Design", desc: "Built to serve 10 producers or 10,000. The architecture scales horizontally without rearchitecting." },
+                  { icon: ShieldCheck, label: "Verified Producers", desc: "Every supplier is screened, certified, and quality-reviewed before listing on the platform." },
+                  { icon: FileText, label: "Compliance Ready", desc: "Origin certificates, phytosanitary docs, and customs paperwork — prepared for your destination market." },
+                  { icon: BarChart3, label: "Real-Time Tracking", desc: "Follow your shipment from farm gate to your port. Live milestones, no black boxes." },
+                  { icon: Globe, label: "Competitive Sourcing", desc: "Post an RFQ and receive quotes from multiple verified Colombian producers within 48 hours." },
+                ].map(f => (
+                  <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <f.icon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-semibold mb-1 text-sm">{f.label}</div>
+                      <div className="text-sm text-muted-foreground leading-relaxed">{f.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-3 mt-8">
+                <Link href="/marketplace">
+                  <Button className="bg-primary hover:bg-primary/90">
+                    Browse Marketplace <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+                <Link href="/rfqs">
+                  <Button variant="outline">Post an RFQ</Button>
+                </Link>
+              </div>
+            </motion.div>
+
+            {/* Buyer visual */}
+            <motion.div
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="relative"
+            >
+              <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold">Active Sourcing</span>
+                  <span className="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium">Live</span>
+                </div>
+                {[
+                  { product: "Specialty Coffee — Washed", origin: "Huila, Colombia", qty: "5,000 kg", status: "Quote received", color: "text-primary bg-primary/10" },
+                  { product: "Fine Cacao — Fermented", origin: "Tumaco, Colombia", qty: "2,000 kg", status: "In transit", color: "text-sky-600 bg-sky-50" },
+                  { product: "Hass Avocado — Grade A", origin: "Antioquia, Colombia", qty: "8,000 kg", status: "Delivered", color: "text-emerald-600 bg-emerald-50" },
+                ].map(o => (
+                  <div key={o.product} className="flex items-center justify-between p-4 rounded-xl border border-border bg-background">
+                    <div>
+                      <div className="font-medium text-sm">{o.product}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" /> {o.origin} · {o.qty}
+                      </div>
+                    </div>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${o.color}`}>{o.status}</span>
+                  </div>
+                ))}
+                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-border">
+                  {[
+                    { label: "Avg lead time", value: "14 days" },
+                    { label: "Docs complete", value: "100%" },
+                    { label: "Satisfaction", value: "4.9 ★" },
+                  ].map(s => (
+                    <div key={s.label} className="text-center">
+                      <div className="text-base font-bold">{s.value}</div>
+                      <div className="text-xs text-muted-foreground">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 5. FOR SUPPLIERS ─────────────────────────────────────────────── */}
+      <section className="py-28 bg-card border-y border-border">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            {/* Supplier visual — left side */}
+            <motion.div
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="relative order-2 lg:order-1"
+            >
+              <div className="bg-background border border-border rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold">Your Global Reach</span>
+                  <span className="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium">Live orders</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { flag: "🇸🇦", market: "Saudi Arabia", orders: "3 active" },
+                    { flag: "🇯🇵", market: "Japan", orders: "1 active" },
+                    { flag: "🇰🇷", market: "South Korea", orders: "2 active" },
+                    { flag: "🇦🇪", market: "UAE", orders: "4 active" },
+                    { flag: "🇸🇬", market: "Singapore", orders: "1 active" },
+                    { flag: "🇳🇱", market: "Netherlands", orders: "2 active" },
+                  ].map(m => (
+                    <div key={m.market} className="p-3 rounded-xl border border-border bg-card text-center">
+                      <div className="text-xl mb-1">{m.flag}</div>
+                      <div className="text-xs font-medium leading-tight">{m.market}</div>
+                      <div className="text-[10px] text-primary mt-0.5">{m.orders}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-4 rounded-xl bg-primary/8 border border-primary/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold">Trade Finance</span>
+                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">Available now</span>
+                  </div>
+                  <div className="text-2xl font-bold text-primary mb-1">$28,000</div>
+                  <div className="text-xs text-muted-foreground">Pre-shipment credit against confirmed orders</div>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="order-1 lg:order-2"
+            >
+              <SectionLabel>For Suppliers</SectionLabel>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
+                Reach global buyers. Get paid. Keep your margin.
+              </h2>
+              <p className="text-muted-foreground text-lg leading-relaxed mb-8">
+                Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers in 15+ countries — with financing to grow and logistics to deliver.
+              </p>
+              <div className="space-y-4">
+                {[
+                  { icon: Globe, label: "Global Buyer Network", desc: "Access vetted importers, distributors, and retail buyers across the Middle East, Asia, Europe, and North America." },
+                  { icon: Banknote, label: "Trade Finance Access", desc: "Get credit against confirmed purchase orders — no land collateral required. Capital that follows your orders." },
+                  { icon: Truck, label: "Logistics Handled", desc: "We coordinate cold chain, port clearance, and freight forwarding so you focus on growing and harvesting." },
+                  { icon: Star, label: "Your Story, Professionally Presented", desc: "Origin documentation, certifications, and your farm's story — presented to buyers in a format they trust." },
                 ].map(f => (
                   <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-background hover:border-primary/30 transition-colors">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <f.icon className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                      <div className="font-semibold mb-1">{f.label}</div>
-                      <div className="text-sm text-muted-foreground">{f.desc}</div>
+                      <div className="font-semibold mb-1 text-sm">{f.label}</div>
+                      <div className="text-sm text-muted-foreground leading-relaxed">{f.desc}</div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Architecture diagram */}
-            <div className="relative">
-              <div className="bg-[#050f0a] rounded-2xl p-8 border border-white/10 font-mono text-sm">
-                <div className="text-white/30 text-xs mb-6">// Fincava System Architecture</div>
-
-                {/* Top layer */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  {["Buyer App", "Supplier App", "Admin Console"].map(n => (
-                    <div key={n} className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center text-white/60 text-xs">{n}</div>
-                  ))}
-                </div>
-
-                {/* API Layer */}
-                <div className="bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 text-center text-primary text-xs font-semibold mb-4">
-                  Fincava API Gateway
-                </div>
-
-                {/* Agent layer */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  {[
-                    { label: "Match Agent", color: "text-primary border-primary/20 bg-primary/5" },
-                    { label: "Finance Agent", color: "text-amber-400 border-amber-500/20 bg-amber-500/5" },
-                    { label: "Logistics Agent", color: "text-sky-400 border-sky-500/20 bg-sky-500/5" },
-                  ].map(a => (
-                    <div key={a.label} className={`border rounded-lg px-2 py-2.5 text-center text-xs font-medium ${a.color}`}>
-                      {a.label}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Service layer */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  {[
-                    { label: "Market Access", color: "bg-primary/10 border-primary/20 text-primary/70" },
-                    { label: "Embedded Finance", color: "bg-amber-500/10 border-amber-500/20 text-amber-400/70" },
-                    { label: "Distribution", color: "bg-sky-500/10 border-sky-500/20 text-sky-400/70" },
-                  ].map(s => (
-                    <div key={s.label} className={`border rounded-lg px-2 py-3 text-center text-[11px] ${s.color}`}>{s.label}</div>
-                  ))}
-                </div>
-
-                {/* Database */}
-                <div className="bg-white/3 border border-white/8 rounded-lg px-4 py-2.5 text-center text-white/30 text-xs">
-                  PostgreSQL · Event Store · Analytics DB
-                </div>
-
-                <div className="mt-4 flex items-center justify-between text-[10px] text-white/20">
-                  <span>← Market layer</span>
-                  <span>Real-time sync →</span>
-                </div>
+              <div className="flex gap-3 mt-8">
+                <Link href="/register">
+                  <Button className="bg-primary hover:bg-primary/90">
+                    Apply to Join <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+                <Link href="/suppliers">
+                  <Button variant="outline">See Our Producers</Button>
+                </Link>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ─── 5. WHY NOW ───────────────────────────────────────────────────── */}
-      <section className="py-28 bg-background">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <SectionLabel>Why Now</SectionLabel>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-              The window is open — and it won't stay open long.
-            </h2>
-            <p className="text-muted-foreground text-xl leading-relaxed">
-              Three converging forces make this the precise moment to build commerce infrastructure for emerging markets.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                number: "01",
-                icon: TrendingUp,
-                title: "Colombia's Export Moment",
-                body: "Colombia is the world's 3rd largest coffee producer and rapidly expanding specialty exports. Premium demand from the Middle East, Japan, and South Korea is growing 22% YoY. The infrastructure to capture that demand doesn't exist yet.",
-                highlight: "22% YoY demand growth",
-              },
-              {
-                number: "02",
-                icon: Zap,
-                title: "Proven in Adjacent Markets",
-                body: "Dastgyr (Pakistan) built a $500M commerce infrastructure business in 3 years by digitizing the same broken supply chain dynamics. The model is validated. Colombia is structurally identical but earlier stage — with higher product value floors.",
-                highlight: "$500M validated playbook",
-              },
-              {
-                number: "03",
-                icon: Globe,
-                title: "Emerging Market Demand Surge",
-                body: "The Middle East, Asia, and Africa are importing $180B in agricultural commodities annually — with growing preference for traceability and direct sourcing. Traditional brokers cannot provide what modern buyers demand. Fincava can.",
-                highlight: "$180B annual import market",
-              },
-            ].map(r => (
-              <div key={r.number} className="relative p-8 rounded-2xl border border-border bg-card">
-                <div className="text-6xl font-bold text-border mb-6 select-none leading-none">{r.number}</div>
-                <r.icon className="w-7 h-7 text-primary mb-4" />
-                <h3 className="text-xl font-serif font-bold mb-3">{r.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed mb-4">{r.body}</p>
-                <div className="bg-primary/10 text-primary text-xs font-semibold px-3 py-1.5 rounded-full inline-block">
-                  {r.highlight}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── 6. TRACTION ──────────────────────────────────────────────────── */}
+      {/* ─── 6. SOCIAL PROOF ──────────────────────────────────────────────── */}
       <section className="py-28 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
-              <SectionLabel>Traction & Insight</SectionLabel>
+              <SectionLabel light>Real Traction</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                Built from the ground up — not from a spreadsheet.
+                Real producers. Real buyers. Real trade.
               </h2>
               <p className="text-primary-foreground/70 text-lg leading-relaxed mb-8">
-                Fincava is not a theoretical platform. It was designed from direct relationships with Colombian producers, exporters, and logistics operators — the people who live the inefficiencies every day.
+                Fincava is not a concept. We have verified producer relationships, live order flow, and trade data across Colombia's top agricultural regions.
               </p>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {[
-                  "Active relationships with 12+ verified Colombian producers across coffee, cacao, and superfoods",
-                  "Live RFQ, order, and shipment tracking infrastructure processing real trade flows",
-                  "Origin story system capturing farm-level data across 8+ regions, 85+ families",
-                  "Direct market intelligence from export operators in Huila, Tumaco, Antioquia, and Boyacá",
+                  "12+ verified Colombian producers across coffee, cacao, and superfoods",
+                  "Active buyers in Saudi Arabia, Japan, South Korea, UAE, and the Netherlands",
+                  "Origin story documentation covering 85+ farming families across 8 regions",
+                  "Live RFQ, order, and shipment tracking processing real trade flows",
                 ].map(t => (
                   <div key={t} className="flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-primary-foreground/60 shrink-0 mt-0.5" />
@@ -456,7 +494,7 @@ export default function Home() {
                 { value: "12+", label: "Verified Producers", icon: ShieldCheck },
                 { value: "8", label: "Colombian Regions", icon: MapPin },
                 { value: "85+", label: "Farming Families", icon: Users },
-                { value: "100%", label: "Live, Real Trade Data", icon: BarChart3 },
+                { value: "$4.2M+", label: "Trade Facilitated", icon: BarChart3 },
               ].map(s => (
                 <div key={s.label} className="bg-primary-foreground/10 rounded-2xl p-6 border border-primary-foreground/10">
                   <s.icon className="w-6 h-6 text-primary-foreground/50 mb-3" />
@@ -469,227 +507,114 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── 7. BUSINESS MODEL ────────────────────────────────────────────── */}
+      {/* ─── 7. PRODUCT PREVIEW ───────────────────────────────────────────── */}
       <section className="py-28 bg-background">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <SectionLabel>Business Model</SectionLabel>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-              Multi-layer revenue that compounds with scale.
+          <div className="max-w-2xl mx-auto text-center mb-14">
+            <SectionLabel>What We Trade</SectionLabel>
+            <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-5">
+              Colombia's finest, export-ready.
             </h2>
-            <p className="text-muted-foreground text-xl leading-relaxed">
-              Each system layer generates its own revenue stream. As volume grows, margin compounds across all three simultaneously.
+            <p className="text-muted-foreground text-lg leading-relaxed">
+              From specialty coffee to exotic superfoods — every product on Fincava is verified, traceable, and export-ready.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-            {[
-              {
-                icon: DollarSign,
-                title: "Transaction Margin",
-                tier: "Core Revenue",
-                color: "border-primary/30 bg-primary/5",
-                iconColor: "text-primary bg-primary/10",
-                items: [
-                  "2–4% on each trade transaction",
-                  "Scales directly with GMV",
-                  "Immediate from day one",
-                  "No inventory risk",
-                ],
-                note: "Revenue activates with first transaction",
-              },
-              {
-                icon: Landmark,
-                title: "Trade Financing",
-                tier: "High Margin",
-                color: "border-amber-500/30 bg-amber-500/5",
-                iconColor: "text-amber-600 bg-amber-500/10",
-                items: [
-                  "8–18% APR on trade credit",
-                  "Secured by trade receivables",
-                  "Risk scored per transaction",
-                  "Scales with producer creditworthiness",
-                ],
-                note: "Highest margin layer — unlocked at scale",
-              },
-              {
-                icon: Package,
-                title: "Platform Services",
-                tier: "Future Layer",
-                color: "border-sky-500/30 bg-sky-500/5",
-                iconColor: "text-sky-600 bg-sky-500/10",
-                items: [
-                  "SaaS subscriptions for exporters",
-                  "Compliance-as-a-service",
-                  "Analytics & market intelligence",
-                  "White-label infrastructure licensing",
-                ],
-                note: "Platform flywheel — activates at network depth",
-              },
-            ].map(m => (
-              <div key={m.title} className={`p-8 rounded-2xl border ${m.color} flex flex-col`}>
-                <div className={`w-12 h-12 rounded-xl ${m.iconColor} flex items-center justify-center mb-4`}>
-                  <m.icon className="w-6 h-6" />
-                </div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{m.tier}</div>
-                <h3 className="text-xl font-serif font-bold mb-4">{m.title}</h3>
-                <ul className="space-y-2 flex-1 mb-6">
-                  {m.items.map(i => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="w-1 h-1 rounded-full bg-muted-foreground/40 shrink-0" />
-                      {i}
-                    </li>
-                  ))}
-                </ul>
-                <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg border border-border">
-                  {m.note}
-                </div>
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+            {PRODUCTS.map(p => (
+              <motion.div
+                key={p.name}
+                variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+                className="p-6 rounded-2xl border border-border bg-card hover:border-primary/30 transition-colors group cursor-pointer"
+              >
+                <div className="text-3xl mb-3">{p.icon}</div>
+                <h3 className="font-serif font-bold mb-1">{p.name}</h3>
+                <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" /> {p.origin}
+                </p>
+                <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
+                  {p.tag}
+                </span>
+              </motion.div>
             ))}
           </div>
 
-          <div className="bg-card border border-border rounded-2xl p-8 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            {[
-              { value: "2–4%", label: "Transaction take rate", sublabel: "on every trade" },
-              { value: "8–18%", label: "Financing APR", sublabel: "on extended credit" },
-              { value: "3x", label: "Revenue per account", sublabel: "across all layers" },
-            ].map(s => (
-              <div key={s.label}>
-                <div className="text-4xl font-bold text-primary mb-2">{s.value}</div>
-                <div className="font-semibold mb-1">{s.label}</div>
-                <div className="text-sm text-muted-foreground">{s.sublabel}</div>
-              </div>
-            ))}
+          <div className="text-center">
+            <Link href="/marketplace">
+              <Button size="lg" variant="outline" className="h-12 px-8">
+                Browse Full Marketplace <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* ─── 8. COMPETITIVE ADVANTAGE ─────────────────────────────────────── */}
-      <section className="py-28 bg-card border-y border-border">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
-            <div>
-              <SectionLabel>Why Fincava Wins</SectionLabel>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                Advantages that compound. Moats that deepen over time.
-              </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed">
-                Fincava's competitive position is not a single feature — it is the combination of local depth, architectural superiority, and execution timing that creates durable defensibility.
+      {/* ─── 8. DUAL CTA ──────────────────────────────────────────────────── */}
+      <section className="py-28 bg-card border-t border-border">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <div className="text-center mb-14">
+            <SectionLabel>Get Started</SectionLabel>
+            <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-5">
+              Which side of the trade are you on?
+            </h2>
+            <p className="text-muted-foreground text-lg leading-relaxed max-w-2xl mx-auto">
+              Join the platform built for both sides of Colombian agricultural trade. Registration takes five minutes.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Buyer CTA */}
+            <div className="p-8 rounded-2xl border-2 border-sky-200 bg-sky-50 flex flex-col">
+              <div className="w-12 h-12 rounded-xl bg-sky-100 flex items-center justify-center mb-5">
+                <Search className="w-6 h-6 text-sky-600" />
+              </div>
+              <h3 className="text-2xl font-serif font-bold mb-3">I'm a Buyer</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">
+                Source premium, verified Colombian agricultural products with full traceability, compliance docs, and end-to-end logistics support.
               </p>
+              <ul className="space-y-2 mb-8">
+                {["Access verified Colombian producers", "Request quotes via RFQ engine", "Full compliance documentation", "Real-time shipment tracking"].map(b => (
+                  <li key={b} className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-sky-500 shrink-0" />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register">
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white h-12">
+                  Register as a Buyer <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
             </div>
 
-            <div className="space-y-4">
-              {[
-                {
-                  icon: MapPin,
-                  title: "Local Ecosystem Depth",
-                  body: "We have ground-level producer relationships that a well-funded competitor cannot purchase. Trust is earned through presence, and we are present.",
-                },
-                {
-                  icon: Layers,
-                  title: "Unified Architecture Advantage",
-                  body: "Most competitors operate in a single layer (marketplace OR finance OR logistics). Fincava operates across all three, creating cross-layer network effects and switching costs.",
-                },
-                {
-                  icon: TrendingUp,
-                  title: "Data Flywheel",
-                  body: "Every transaction enriches our risk models, demand signals, and logistics intelligence. The platform gets stronger with each trade — creating compounding advantages over later entrants.",
-                },
-                {
-                  icon: Building2,
-                  title: "Regulatory & Compliance Moat",
-                  body: "International trade compliance is complex and relationship-dependent. Our pre-built compliance workflows, documentation standards, and regulatory relationships are years of work to replicate.",
-                },
-              ].map(a => (
-                <div key={a.title} className="flex items-start gap-4 p-5 rounded-xl border border-border bg-background hover:border-primary/20 transition-colors">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <a.icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <div className="font-semibold mb-1">{a.title}</div>
-                    <div className="text-sm text-muted-foreground leading-relaxed">{a.body}</div>
-                  </div>
-                </div>
-              ))}
+            {/* Supplier CTA */}
+            <div className="p-8 rounded-2xl border-2 border-primary/30 bg-primary/5 flex flex-col">
+              <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center mb-5">
+                <Sprout className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="text-2xl font-serif font-bold mb-3">I'm a Supplier</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">
+                Connect directly with international buyers, access trade financing, and export your products to 15+ countries — without intermediaries.
+              </p>
+              <ul className="space-y-2 mb-8">
+                {["Reach buyers in 15+ countries", "Trade finance on your orders", "Logistics fully coordinated", "Keep more of your margin"].map(b => (
+                  <li key={b} className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register">
+                <Button className="w-full bg-primary hover:bg-primary/90 h-12">
+                  Join as a Supplier <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* ─── 9. VISION ────────────────────────────────────────────────────── */}
-      <section className="py-28 bg-[#050f0a] text-white text-center relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-[0.035]"
-          style={{
-            backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-        <div className="relative container mx-auto px-4 max-w-4xl">
-          <SectionLabel>The Vision</SectionLabel>
-          <h2 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold leading-[1.06] mb-8">
-            Infrastructure for commerce<br />across Latin America.
-          </h2>
-          <p className="text-white/50 text-xl md:text-2xl leading-relaxed mb-12 max-w-3xl mx-auto">
-            Colombia is the proving ground. The same infrastructure that unlocks Colombian agricultural trade is replicable across Peru, Ecuador, Brazil, and every emerging market where producers are underserved and buyers are underconnected.
+          <p className="text-center text-sm text-muted-foreground mt-8">
+            Questions? <Link href="/contact"><span className="text-primary hover:underline cursor-pointer">Talk to our team →</span></Link>
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-            {[
-              { flag: "🇨🇴", label: "Colombia", status: "Live", color: "bg-primary/20 text-primary border-primary/30" },
-              { flag: "🇵🇪", label: "Peru", status: "2026", color: "bg-white/5 text-white/40 border-white/10" },
-              { flag: "🌎", label: "LatAm", status: "Vision", color: "bg-white/3 text-white/25 border-white/5" },
-            ].map(m => (
-              <div key={m.label} className={`rounded-xl p-4 border text-center ${m.color}`}>
-                <div className="text-2xl mb-2">{m.flag}</div>
-                <div className="font-semibold text-sm">{m.label}</div>
-                <div className="text-xs mt-1 opacity-70">{m.status}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── 10. CTA ──────────────────────────────────────────────────────── */}
-      <section className="py-28 bg-background border-t border-border">
-        <div className="container mx-auto px-4 text-center max-w-3xl">
-          <SectionLabel>Get Involved</SectionLabel>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-            Build the future of commerce<br />with Fincava.
-          </h2>
-          <p className="text-muted-foreground text-xl leading-relaxed mb-12">
-            Whether you are a buyer sourcing premium Colombian goods, a producer seeking global distribution, an investor looking for category-defining infrastructure, or a logistics partner — there is a place for you in this system.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-            {[
-              { label: "Source Products", desc: "Access premium Colombian agricultural exports with full traceability.", href: "/marketplace", cta: "Browse Marketplace" },
-              { label: "Become a Supplier", desc: "Join the network. Get access to global buyers and embedded finance.", href: "/register", cta: "Apply to Join" },
-              { label: "Partner / Invest", desc: "Explore investment, integration, or strategic partnership opportunities.", href: "/contact", cta: "Get in Touch" },
-            ].map(c => (
-              <div key={c.label} className="p-6 border border-border rounded-2xl bg-card text-left hover:border-primary/30 transition-colors">
-                <h3 className="font-semibold mb-2">{c.label}</h3>
-                <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{c.desc}</p>
-                <Link href={c.href}>
-                  <span className="text-primary text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all">
-                    {c.cta} <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </Link>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/register">
-              <Button size="lg" className="h-14 px-10 text-base font-semibold bg-primary hover:bg-primary/90">
-                Get Started <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
-            <Link href="/contact">
-              <Button size="lg" variant="outline" className="h-14 px-10 text-base font-semibold">
-                Talk to Us
-              </Button>
-            </Link>
-          </div>
         </div>
       </section>
 
