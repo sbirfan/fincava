@@ -31,6 +31,21 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ### Product Summary
 Full-stack B2B trade platform connecting Colombian agricultural producers with international buyers (Middle East, Asia, Africa). Specialty coffee, cacao, avocado, exotic fruits, superfoods.
 
+### V4 — Investor-Grade Repositioning (Active)
+- **New Brand Position** — "The Operating System for Emerging Market Commerce" (not a marketplace)
+- **Navbar** — "Commerce OS" badge, active-state nav links, "Get Started" CTA replacing "Sign up", "Products" replaces "Marketplace" label
+- **Homepage** — 10-section investor-grade landing page:
+  1. Hero (dark full-bleed, grid overlay, primary-color headline emphasis, metrics bar)
+  2. Problem (4 problem cards with real stats: fragmented chains, market access, capital, distribution)
+  3. Solution (3 System Layers: Market Access / Embedded Finance / Distribution, dark section)
+  4. Architecture ("Built as a Modular Agentic System" with interactive ASCII-style diagram)
+  5. Why Now (Colombia opportunity, Dastgyr parallel, emerging market demand surge)
+  6. Traction (ground-level relationships, live platform stats)
+  7. Business Model (3 revenue streams: 2–4% transaction, 8–18% financing APR, future SaaS)
+  8. Competitive Advantage (4 moats: local depth, architecture, data flywheel, compliance)
+  9. Vision ("Infrastructure for commerce across Latin America", expansion roadmap)
+  10. CTA (Partner / Join / Contact three-card grid + primary buttons)
+
 ### V3 Features — Story + Impact Layer (Active)
 - **Farmer Identity Cards** — every product card shows farmer name, farm, impact flags (Smallholder, Direct Trade, Organic, Climate-Resilient), families supported count
 - **Origin Story Engine** — `origin_stories` DB table with farmerName, farmerPhoto, farmName, region, elevation, farmSizeHa, yearsFarming, story, challenges, impact

@@ -1,0 +1,215 @@
+You are a senior full-stack engineer, product designer, and startup brand strategist.
+
+Your task is to ENHANCE and REFACTOR the existing FINCAVA web application:
+https://fincava.replit.app/
+
+This is NOT a rebuild from scratch.
+This is a strategic upgrade of positioning, UX, and architecture.
+
+-----------------------------------
+CONTEXT
+-----------------------------------
+
+FINCAVA is NOT a marketplace.
+
+FINCAVA is:
+→ Infrastructure layer for commerce in emerging markets
+
+It connects:
+- Producers
+- Retailers
+- Capital
+- Logistics
+
+Through:
+- Market access
+- Embedded finance
+- Distribution systems
+
+Inspired by Dastgyr, but must be significantly stronger in:
+- Positioning
+- Architecture communication
+- Investor appeal
+
+-----------------------------------
+OBJECTIVES
+-----------------------------------
+
+1. Upgrade the website to:
+   - Investor-grade landing experience
+   - Clear category-defining positioning
+   - Modern SaaS UX (Stripe-level quality)
+
+2. Improve:
+   - Messaging clarity
+   - Visual hierarchy
+   - Component structure
+   - Responsiveness
+   - Performance
+
+3. Maintain:
+   - Existing codebase where possible
+   - Clean, modular architecture
+
+-----------------------------------
+CORE POSITIONING (MANDATORY)
+-----------------------------------
+
+Replace any “marketplace” messaging with:
+
+"FINCAVA is the operating system for emerging market commerce."
+
+This is a PLATFORM, not a feature set.
+
+-----------------------------------
+REQUIRED PAGE STRUCTURE
+-----------------------------------
+
+Refactor or create sections in this exact order:
+
+1. HERO SECTION
+   - Headline: “The Operating System for Emerging Market Commerce”
+   - Subheadline: Explain unified infrastructure (market + finance + distribution)
+   - CTA buttons: “Get Started” and “Partner With Us”
+   - Clean, minimal, high-impact design
+
+2. PROBLEM SECTION
+   - Highlight:
+     - Fragmented supply chains
+     - Lack of market access
+     - Limited capital access
+     - Inefficient distribution
+   - Use strong visual hierarchy (icons/cards)
+
+3. SOLUTION SECTION (CRITICAL)
+   Present FINCAVA as 3 SYSTEM LAYERS:
+
+   a. Market Access Layer
+   b. Financial Layer
+   c. Distribution Layer
+
+   Each must be:
+   - Visually distinct
+   - Clearly explained
+   - Designed as part of ONE system
+
+4. ARCHITECTURE SECTION (KEY DIFFERENTIATOR)
+   - Title: “Built as a Modular Agentic System”
+   - Explain:
+     - AI-driven agents
+     - Modular services
+     - Scalable infrastructure
+   - Use diagrams or visual components if possible
+
+5. WHY NOW SECTION
+   - Colombia market opportunity
+   - Emerging market inefficiencies
+   - Parallel to proven models (Pakistan)
+   - Keep concise but powerful
+
+6. TRACTION / INSIGHT SECTION
+   - Ground-level insight from ecosystem
+   - Relationships with producers
+   - Real-world validation
+   - Frame as advantage, not weakness
+
+7. BUSINESS MODEL SECTION
+   - Multi-layer revenue:
+     - Transaction margin
+     - Financing
+     - Platform/services (future)
+   - Visual clarity (grid/cards)
+
+8. COMPETITIVE ADVANTAGE
+   - Local insight
+   - Architecture advantage
+   - Execution capability
+   - Platform scalability
+
+9. VISION SECTION
+   - “Infrastructure for commerce across Latin America”
+   - Big, bold, long-term
+
+10. CTA SECTION
+   - Strong closing:
+     - “Build the future of commerce with FINCAVA”
+     - Buttons: Partner / Join / Contact
+
+-----------------------------------
+DESIGN REQUIREMENTS
+-----------------------------------
+
+- Use modern SaaS design principles:
+  - Clean spacing
+  - Large typography
+  - Minimal color palette
+  - Strong contrast
+  - Subtle animations
+
+- Use:
+  - React (preferred if already used)
+  - Tailwind CSS (or improve existing styling system)
+
+- Ensure:
+  - Fully responsive (mobile-first)
+  - Fast loading
+  - Accessible UI
+
+-----------------------------------
+CODE QUALITY REQUIREMENTS
+-----------------------------------
+
+- Refactor into reusable components
+- Remove unused or redundant code
+- Keep file structure clean and scalable
+- Use semantic HTML where possible
+- Optimize for performance
+
+-----------------------------------
+ENHANCEMENT TASKS
+-----------------------------------
+
+- Improve all copy to be:
+  - Clear
+  - High-signal
+  - Investor-grade
+- Replace weak or generic language
+- Add subtle animations (hover, transitions)
+- Improve CTA placement and conversion flow
+
+-----------------------------------
+CONSTRAINTS
+-----------------------------------
+
+- DO NOT:
+  - Rebuild entire project unnecessarily
+  - Add unnecessary dependencies
+  - Use generic template language
+  - Position FINCAVA as a simple marketplace
+
+- DO:
+  - Upgrade, not bloat
+  - Keep it clean and scalable
+  - Make it feel like a venture-backed startup
+
+-----------------------------------
+OUTPUT FORMAT
+-----------------------------------
+
+1. Updated code (only changed files or components)
+2. Brief explanation of improvements made
+3. Suggestions for further enhancements (optional)
+
+-----------------------------------
+SUCCESS CRITERIA
+-----------------------------------
+
+The final product should:
+- Feel like a Series A/B startup website
+- Clearly communicate FINCAVA as infrastructure
+- Be significantly stronger than Dastgyr.com
+- Be ready for investor sharing
+
+-----------------------------------
+
+Start by analyzing the existing codebase, then proceed with incremental improvements section by section.
