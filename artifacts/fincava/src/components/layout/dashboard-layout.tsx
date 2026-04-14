@@ -14,6 +14,7 @@ import {
   FileQuestion,
   BarChart2,
   Globe,
+  Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -40,6 +41,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'My Inquiries', href: `${basePath}/inquiries`, icon: MessageSquare },
     { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart },
     { name: 'Messages', href: `${basePath}/messages`, icon: MessageSquare },
+    { name: 'Trade Finance', href: `${basePath}/finance`, icon: Landmark },
     { name: 'Market Intelligence', href: `${basePath}/market-intel`, icon: Globe },
     { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
     { name: 'Profile Settings', href: `${basePath}/profile`, icon: User },

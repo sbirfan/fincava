@@ -35,6 +35,7 @@ import BuyerProfile from "@/pages/dashboard/profile";
 import BuyerRFQs from "@/pages/dashboard/rfqs";
 import BuyerMarketIntel from "@/pages/dashboard/market-intel";
 import BuyerAnalytics from "@/pages/dashboard/analytics";
+import BuyerFinance from "@/pages/dashboard/finance";
 
 // Supplier Dashboard
 import SupplierDashboard from "@/pages/supplier-dashboard/index";
@@ -108,6 +109,7 @@ function Router() {
       <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
+      <Route path="/dashboard/finance" component={() => <PrivateRoute component={BuyerFinance} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
 
       {/* Supplier Dashboard */}

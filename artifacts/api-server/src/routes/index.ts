@@ -13,6 +13,7 @@ import rfqsRouter from "./rfqs";
 import shipmentsRouter from "./shipments";
 import analyticsRouter from "./analytics";
 import storiesRouter from "./stories";
+import financingRouter from "./financing";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(rfqsRouter);
 router.use(shipmentsRouter);
 router.use(analyticsRouter);
 router.use(storiesRouter);
+router.use(financingRouter);
 
 export default router;

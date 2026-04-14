@@ -1,0 +1,220 @@
+
+1. DATABASE UPDATES (db.js)
+
+Add repayments + improve loans:
+
+```js id="repay-db"
+db.run(`
+CREATE TABLE IF NOT EXISTS repayments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER,
+  amount REAL,
+  date TEXT DEFAULT CURRENT_TIMESTAMP
+)
+`);
+
+// Add due_date to loans (if not already)
+db.run(`
+ALTER TABLE loans ADD COLUMN due_date TEXT
+`, (err) => {});
+```
+
+---
+
+2. CREATE LOAN WITH DUE DATE
+
+Update your financing logic:
+
+```js id="loan-update"
+// inside /api/finance/order
+
+const dueDate = new Date();
+dueDate.setDate(dueDate.getDate() + 14); // 14-day term
+
+db.run(
+  `INSERT INTO loans (user_id, order_id, amount, fee, total_repayment, due_date)
+   VALUES (?, ?, ?, ?, ?, ?)`,
+  [req.user.id, orderId, amount, fee, total, dueDate.toISOString()]
+);
+```
+
+---
+
+3. REPAYMENT ENDPOINT
+
+```js id="repay-endpoint"
+app.post("/api/finance/repay", verifyToken, (req, res) => {
+  const { loan_id, amount } = req.body;
+
+  // 1. Record repayment
+  db.run(
+    `INSERT INTO repayments (loan_id, amount) VALUES (?, ?)`,
+    [loan_id, amount],
+    function (err) {
+      if (err) return res.status(400).json(err);
+
+      // 2. Get loan
+      db.get(`SELECT * FROM loans WHERE id = ?`, [loan_id], (err, loan) => {
+        if (!loan) return res.status(404).json({ error: "Loan not found" });
+
+        // 3. Calculate total repaid
+        db.get(
+          `SELECT SUM(amount) as total FROM repayments WHERE loan_id = ?`,
+          [loan_id],
+          (err, row) => {
+            const totalPaid = row.total || 0;
+
+            // 4. If fully repaid
+            if (totalPaid >= loan.total_repayment) {
+              db.run(`UPDATE loans SET status = 'repaid' WHERE id = ?`, [loan_id]);
+
+              // Restore credit
+              db.run(
+                `UPDATE financing_accounts
+                 SET available_credit = available_credit + ?
+                 WHERE user_id = ?`,
+                [loan.amount, req.user.id]
+              );
+            }
+
+            res.json({
+              success: true,
+              totalPaid
+            });
+          }
+        );
+      });
+    }
+  );
+});
+```
+
+---
+
+4. GET USER LOANS
+
+```js id="get-loans"
+app.get("/api/loans", verifyToken, (req, res) => {
+  db.all(
+    `SELECT * FROM loans WHERE user_id = ?`,
+    [req.user.id],
+    (err, rows) => {
+      res.json(rows);
+    }
+  );
+});
+```
+
+---
+
+5. CREDIT SCORING ENGINE (MVP → SMART)
+
+Basic logic:
+
+```js id="credit-score"
+function calculateCredit(user_id, callback) {
+  db.all(`SELECT * FROM loans WHERE user_id = ?`, [user_id], (err, loans) => {
+
+    let score = 500; // base score
+
+    loans.forEach(loan => {
+      if (loan.status === "repaid") score += 20;
+      if (loan.status === "defaulted") score -= 50;
+    });
+
+    // clamp score
+    if (score < 100) score = 100;
+    if (score > 1000) score = 1000;
+
+    // convert to credit limit
+    const creditLimit = score;
+
+    callback(creditLimit);
+  });
+}
+```
+
+---
+
+Apply it AFTER repayment
+
+Update repayment endpoint:
+
+```js id="apply-credit-update"
+calculateCredit(req.user.id, (newLimit) => {
+  db.run(
+    `UPDATE financing_accounts
+     SET credit_limit = ?, available_credit = MIN(available_credit, ?)
+     WHERE user_id = ?`,
+    [newLimit, newLimit, req.user.id]
+  );
+});
+```
+
+---
+
+6. FRONTEND — REPAYMENT UI
+
+Dashboard.jsx (upgrade)
+
+```jsx id="dashboard-loans"
+import { useEffect, useState } from "react";
+
+export default function Dashboard() {
+  const [loans, setLoans] = useState([]);
+  const token = localStorage.getItem("token");
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/loans", {
+      headers: { Authorization: token }
+    })
+      .then(res => res.json())
+      .then(setLoans);
+  }, []);
+
+  const repay = async (loanId) => {
+    await fetch("http://localhost:5000/api/finance/repay", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token
+      },
+      body: JSON.stringify({
+        loan_id: loanId,
+        amount: 999999 // full repayment for now
+      })
+    });
+
+    alert("Repaid!");
+    window.location.reload();
+  };
+
+  return (
+    <div className="p-10">
+
+      <h1 className="text-3xl font-bold">Loans</h1>
+
+      {loans.map(loan => (
+        <div key={loan.id} className="border p-4 mt-4">
+
+          <p>Amount: ${loan.amount}</p>
+          <p>Total: ${loan.total_repayment}</p>
+          <p>Status: {loan.status}</p>
+          <p>Due: {loan.due_date}</p>
+
+          {loan.status === "active" && (
+            <button
+              onClick={() => repay(loan.id)}
+              className="bg-black text-white px-4 py-2 mt-2"
+            >
+              Repay
+            </button>
+          )}
+
+        </div>
+      ))}
+
+    </div>
+  );
+}
+```
