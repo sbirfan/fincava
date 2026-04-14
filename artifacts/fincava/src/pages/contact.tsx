@@ -58,23 +58,24 @@ export default function Contact() {
               <div className="flex items-start">
                 <MapPin className="w-5 h-5 text-primary mr-4 mt-0.5" />
                 <div>
-                  <h4 className="font-medium">Bogotá Office</h4>
-                  <p className="text-muted-foreground text-sm">Edificio Torre Empresarial<br/>Calle 93 #11-20, Bogotá, Colombia</p>
+                  <h4 className="font-medium">San Gil Office</h4>
+                  <p className="text-muted-foreground text-sm">calle 13 No. 8 - 14, San Gil, Santander, Colombia</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <Mail className="w-5 h-5 text-primary mr-4 mt-0.5" />
                 <div>
                   <h4 className="font-medium">Email Us</h4>
-                  <p className="text-muted-foreground text-sm">hello@fincava.com</p>
+                  <p className="text-muted-foreground text-sm">info@fincava.com</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <Phone className="w-5 h-5 text-primary mr-4 mt-0.5" />
                 <div>
                   <h4 className="font-medium">WhatsApp Support</h4>
-                  <p className="text-muted-foreground text-sm">+57 300 123 4567</p>
-                  <Button variant="outline" className="mt-3 text-[#25D366] border-[#25D366] hover:bg-[#25D366] hover:text-white" onClick={() => window.open('https://wa.me/573001234567', '_blank')}>
+                  <p className="text-muted-foreground text-sm">Colombia: +57 316 656 3613</p>
+                  <p className="text-muted-foreground text-sm">US: +1 512 659 1415</p>
+                  <Button variant="outline" className="mt-3 text-[#25D366] border-[#25D366] hover:bg-[#25D366] hover:text-white" onClick={() => window.open('https://wa.me/573166563613', '_blank')}>
                     Chat on WhatsApp
                   </Button>
                 </div>
