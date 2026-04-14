@@ -1,11 +1,17 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
+import { useState } from "react";
 import { useGetProduct, useGetSimilarProducts } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, ShieldCheck, MapPin, ChevronRight, Users, Handshake, Leaf, Droplets, Mountain, Calendar, ArrowRight } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Star, ShieldCheck, MapPin, ChevronRight, Users, Handshake, Leaf, Droplets, Mountain, Calendar, ArrowRight, Package, Loader2 } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -13,8 +19,61 @@ import { useToast } from "@/hooks/use-toast";
 export default function ProductDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [qty, setQty] = useState("");
+  const [incoterm, setIncoterm] = useState("FOB");
+  const [destPort, setDestPort] = useState("");
+  const [shipMethod, setShipMethod] = useState("Sea Freight");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handlePlaceOrder() {
+    const qtyNum = parseFloat(qty);
+    if (!qtyNum || qtyNum <= 0) {
+      toast({ title: "Invalid quantity", description: "Please enter a valid quantity in kg.", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem("fincava_token");
+      const res = await fetch("/api/buyer/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          incoterm,
+          destinationPort: destPort || null,
+          shippingMethod: shipMethod || null,
+          notes: notes || null,
+          items: [{ productId: id, quantityKg: qtyNum }],
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: "Order placed!", description: "Your order has been submitted and is pending supplier confirmation." });
+      setOrderOpen(false);
+      setLocation("/dashboard/orders");
+    } catch (e: any) {
+      toast({ title: "Order failed", description: e.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function openOrderDialog() {
+    if (!isAuthenticated) {
+      toast({ title: "Login required", description: "Please log in to place an order.", variant: "destructive" });
+      setLocation("/login");
+      return;
+    }
+    if (user?.role !== "BUYER") {
+      toast({ title: "Buyers only", description: "Only registered buyers can place orders.", variant: "destructive" });
+      return;
+    }
+    setOrderOpen(true);
+  }
 
   const { data: product, isLoading } = useGetProduct(id, {
     query: { enabled: !!id }
@@ -199,7 +258,11 @@ export default function ProductDetail() {
               )}
             </div>
 
-            <Button className="w-full h-12 text-lg mb-4" onClick={handleInquiry}>
+            <Button className="w-full h-12 text-lg mb-3" onClick={openOrderDialog}>
+              <Package className="w-5 h-5 mr-2" />
+              Place Order
+            </Button>
+            <Button variant="outline" className="w-full h-11 mb-4" onClick={handleInquiry}>
               Request Quote / Inquiry
             </Button>
             <p className="text-center text-xs text-muted-foreground flex items-center justify-center">
@@ -400,6 +463,95 @@ export default function ProductDetail() {
           </div>
         </div>
       )}
+
+      {/* ── Place Order Dialog ── */}
+      <Dialog open={orderOpen} onOpenChange={setOrderOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Place Order</DialogTitle>
+            <DialogDescription>
+              {product && `${product.name} · $${product.pricePerKgUSD.toFixed(2)} / kg`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label htmlFor="qty">Quantity (kg) <span className="text-destructive">*</span></Label>
+              <Input
+                id="qty"
+                type="number"
+                min={product?.minOrderKg ?? 1}
+                placeholder={`Min. ${product?.minOrderKg ?? 100} kg`}
+                value={qty}
+                onChange={e => setQty(e.target.value)}
+                className="mt-1"
+              />
+              {qty && product && (
+                <p className="text-sm text-primary font-medium mt-1">
+                  Total: ${(parseFloat(qty) * product.pricePerKgUSD).toFixed(2)} USD
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label>Incoterm</Label>
+              <Select value={incoterm} onValueChange={setIncoterm}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["FOB", "CIF", "CFR", "EXW", "DDP"].map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="port">Destination Port</Label>
+              <Input
+                id="port"
+                placeholder="e.g. Dubai, Jebel Ali, Singapore"
+                value={destPort}
+                onChange={e => setDestPort(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label>Shipping Method</Label>
+              <Select value={shipMethod} onValueChange={setShipMethod}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Sea Freight", "Air Freight", "Road Freight", "Multimodal"].map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="notes">Notes (optional)</Label>
+              <Textarea
+                id="notes"
+                placeholder="Certifications required, packaging preferences, delivery window..."
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                className="mt-1 h-20"
+              />
+            </div>
+
+            <Button className="w-full h-11" onClick={handlePlaceOrder} disabled={submitting}>
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : "Confirm Order"}
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              Your order will be reviewed by the supplier before confirmation.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

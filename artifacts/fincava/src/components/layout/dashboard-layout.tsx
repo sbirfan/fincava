@@ -41,6 +41,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart },
     { name: 'Messages', href: `${basePath}/messages`, icon: MessageSquare },
     { name: 'Market Intelligence', href: `${basePath}/market-intel`, icon: Globe },
+    { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
     { name: 'Profile Settings', href: `${basePath}/profile`, icon: User },
   ];
 

@@ -16,6 +16,8 @@ import SupplierDetail from "@/pages/supplier-detail";
 import Markets from "@/pages/markets";
 import OriginStories from "@/pages/origin-stories";
 import About from "@/pages/about";
+import Platform from "@/pages/platform";
+import Investors from "@/pages/investors";
 import Contact from "@/pages/contact";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
@@ -32,6 +34,7 @@ import BuyerMessages from "@/pages/dashboard/messages";
 import BuyerProfile from "@/pages/dashboard/profile";
 import BuyerRFQs from "@/pages/dashboard/rfqs";
 import BuyerMarketIntel from "@/pages/dashboard/market-intel";
+import BuyerAnalytics from "@/pages/dashboard/analytics";
 
 // Supplier Dashboard
 import SupplierDashboard from "@/pages/supplier-dashboard/index";
@@ -89,6 +92,8 @@ function Router() {
       <Route path="/impact" component={() => <AppLayout><Impact /></AppLayout>} />
       <Route path="/origin-stories" component={() => <AppLayout><OriginStories /></AppLayout>} />
       <Route path="/about" component={() => <AppLayout><About /></AppLayout>} />
+      <Route path="/platform" component={() => <AppLayout><Platform /></AppLayout>} />
+      <Route path="/investors" component={() => <AppLayout><Investors /></AppLayout>} />
       <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
       <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
       <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
@@ -102,6 +107,7 @@ function Router() {
       <Route path="/dashboard/orders/:id" component={() => <PrivateRoute component={BuyerOrderDetail} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
+      <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
       <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
 
       {/* Supplier Dashboard */}

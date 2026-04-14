@@ -5,10 +5,11 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "/marketplace", label: "Products" },
+  { href: "/platform", label: "Platform" },
   { href: "/suppliers", label: "Suppliers" },
   { href: "/markets", label: "Markets" },
-  { href: "/rfqs", label: "RFQs" },
   { href: "/impact", label: "Impact" },
+  { href: "/investors", label: "Investors" },
 ];
 
 export function Navbar() {

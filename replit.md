@@ -31,6 +31,15 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ### Product Summary
 Full-stack B2B trade platform connecting Colombian agricultural producers with international buyers (Middle East, Asia, Africa). Specialty coffee, cacao, avocado, exotic fruits, superfoods.
 
+### V5 — Full Platform Features (Active)
+- **Checkout Flow** — Product detail page has a primary "Place Order" button (BUYER-only) opening a dialog with: quantity (kg), incoterm select (FOB/CIF/CFR/EXW/DDP), destination port, shipping method, notes, real-time total calculation; submits to `POST /api/buyer/orders` and redirects to `/dashboard/orders`
+- **Platform Page** (`/platform`) — "Three Layers. One Operating System." deep dive: 3 system layer cards with feature lists, competitor comparison table (Fincava vs. Trade Broker vs. Traditional Import), 6-card technical architecture grid
+- **Investors Page** (`/investors`) — Dark hero matching homepage, market opportunity metrics ($180B TAM, 800K+ producers, $2.1B gap, Dastgyr parallel), traction checklist, 3-stream revenue model, 4 competitive moats, team section, CTA
+- **Live Messaging** — `dashboard/messages.tsx` fully rewritten: conversation selection, message thread with time-stamped bubbles, live polling every 3s (conversations every 5s), auto-scroll to bottom, send form with optimistic-update mutation
+- **Analytics Dashboard** (`/dashboard/analytics`) — Recharts-powered: stat cards (orders, value, products, AOV), dual-axis line chart (orders + value over 7 months), bar chart (product views/inquiries), pie chart (by category), regional demand index horizontal bars; added to buyer dashboard sidebar nav
+- **Navbar updated** — Added Platform and Investors links to primary nav (6 links total)
+- **Dashboard sidebar** — Added "Analytics" link for buyers (uses existing BarChart2 icon)
+
 ### V4 — Investor-Grade Repositioning (Active)
 - **New Brand Position** — "The Operating System for Emerging Market Commerce" (not a marketplace)
 - **Navbar** — "Commerce OS" badge, active-state nav links, "Get Started" CTA replacing "Sign up", "Products" replaces "Marketplace" label
