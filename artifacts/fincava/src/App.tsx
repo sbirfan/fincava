@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AppLayout } from "@/components/layout/app-layout";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { AdminLayout } from "@/components/layout/admin-layout";
 
 // Public
 import Home from "@/pages/home";
@@ -36,6 +37,12 @@ import BuyerRFQs from "@/pages/dashboard/rfqs";
 import BuyerMarketIntel from "@/pages/dashboard/market-intel";
 import BuyerAnalytics from "@/pages/dashboard/analytics";
 import BuyerFinance from "@/pages/dashboard/finance";
+
+// Admin
+import AdminDashboard from "@/pages/admin/index";
+import AdminUsers from "@/pages/admin/users";
+import AdminOrders from "@/pages/admin/orders";
+import AdminLoans from "@/pages/admin/loans";
 
 // Supplier Dashboard
 import SupplierDashboard from "@/pages/supplier-dashboard/index";
@@ -121,6 +128,12 @@ function Router() {
       <Route path="/supplier-dashboard/rfqs" component={() => <PrivateRoute component={SupplierRFQs} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
       <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
       <Route path="/supplier-dashboard/profile" component={() => <PrivateRoute component={SupplierProfile} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+
+      {/* Admin */}
+      <Route path="/admin" component={() => <PrivateRoute component={AdminDashboard} roles={["ADMIN"]} layout={AdminLayout} />} />
+      <Route path="/admin/users" component={() => <PrivateRoute component={AdminUsers} roles={["ADMIN"]} layout={AdminLayout} />} />
+      <Route path="/admin/orders" component={() => <PrivateRoute component={AdminOrders} roles={["ADMIN"]} layout={AdminLayout} />} />
+      <Route path="/admin/loans" component={() => <PrivateRoute component={AdminLoans} roles={["ADMIN"]} layout={AdminLayout} />} />
 
       <Route component={() => <AppLayout><NotFound /></AppLayout>} />
     </Switch>

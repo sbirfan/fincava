@@ -1,0 +1,184 @@
+1. TARGET ARCHITECTURE
+Split into TWO apps (same backend)
+
+/client        → Customer-facing (producers + retailers)
+/admin         → FINCAVA internal dashboard
+/server        → Shared backend API
+
+
+Roles
+Customer App (/client)
+* Register / Login
+* Browse marketplace
+* Place orders
+* Use financing
+* View loans
+
+FINCAVA Admin (/admin)
+* View all users
+* Manage orders
+* Monitor loans
+* Track defaults
+* Manage capital providers
+
+2. BACKEND CHANGES (CRITICAL)
+Add Admin Role
+In users table:
+
+role: "producer" | "retailer" | "admin"
+
+
+Protect Admin Routes
+Create middleware:
+
+function requireAdmin(req, res, next) {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ error: "Admin only" });
+  }
+  next();
+}
+
+
+Admin APIs
+Add these:
+
+// All users
+app.get("/api/admin/users", verifyToken, requireAdmin, (req, res) => {
+  db.all(`SELECT * FROM users`, [], (err, rows) => {
+    res.json(rows);
+  });
+});
+
+// All loans
+app.get("/api/admin/loans", verifyToken, requireAdmin, (req, res) => {
+  db.all(`SELECT * FROM loans`, [], (err, rows) => {
+    res.json(rows);
+  });
+});
+
+// All orders
+app.get("/api/admin/orders", verifyToken, requireAdmin, (req, res) => {
+  db.all(`SELECT * FROM orders`, [], (err, rows) => {
+    res.json(rows);
+  });
+});
+
+
+3. FRONTEND SPLIT
+Option A (BEST for now)
+Keep one React app Add route-based separation
+
+/               → customer app
+/admin          → admin app
+
+
+App.jsx update
+
+<Route path="/admin/*" element={<AdminLayout />} />
+<Route path="/*" element={<ClientLayout />} />
+
+
+4. ADMIN APP STRUCTURE
+
+/pages/admin/
+  AdminDashboard.jsx
+  Users.jsx
+  Orders.jsx
+  Loans.jsx
+
+
+Admin Layout
+
+export default function AdminLayout() {
+  return (
+    <div className="flex">
+
+      <div className="w-64 border-r p-4">
+        <p>Admin Panel</p>
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/users">Users</a>
+        <a href="/admin/orders">Orders</a>
+        <a href="/admin/loans">Loans</a>
+      </div>
+
+      <div className="flex-1 p-6">
+        <Routes>
+          <Route path="/" element={<AdminDashboard />} />
+          <Route path="users" element={<Users />} />
+          <Route path="orders" element={<Orders />} />
+          <Route path="loans" element={<Loans />} />
+        </Routes>
+      </div>
+
+    </div>
+  );
+}
+
+
+5. ADMIN PAGES
+Users.jsx
+
+import { useEffect, useState } from "react";
+
+export default function Users() {
+  const [users, setUsers] = useState([]);
+  const token = localStorage.getItem("token");
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/admin/users", {
+      headers: { Authorization: token }
+    })
+      .then(res => res.json())
+      .then(setUsers);
+  }, []);
+
+  return (
+    <div>
+      <h1>Users</h1>
+
+      {users.map(u => (
+        <div key={u.id} className="border p-2 mt-2">
+          {u.name} ({u.role})
+        </div>
+      ))}
+    </div>
+  );
+}
+
+Loans.jsx
+
+export default function Loans() {
+  const [loans, setLoans] = useState([]);
+  const token = localStorage.getItem("token");
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/admin/loans", {
+      headers: { Authorization: token }
+    })
+      .then(res => res.json())
+      .then(setLoans);
+  }, []);
+
+  return (
+    <div>
+      <h1>Loans</h1>
+
+      {loans.map(l => (
+        <div key={l.id} className="border p-2 mt-2">
+          ${l.amount} - {l.status}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+6. SEPARATE LOGIN EXPERIENCE
+Option:
+Single login page + redirect
+
+if (user.role === "admin") {
+  navigate("/admin");
+} else {
+  navigate("/");
+}
+

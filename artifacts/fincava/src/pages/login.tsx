@@ -39,7 +39,9 @@ export default function Login() {
           title: "Welcome back",
           description: `Successfully logged in as ${data.user.firstName}`,
         });
-        if (data.user.role === "SUPPLIER") {
+        if (data.user.role === "ADMIN") {
+          setLocation("/admin");
+        } else if (data.user.role === "SUPPLIER") {
           setLocation("/supplier-dashboard");
         } else {
           setLocation("/dashboard");
