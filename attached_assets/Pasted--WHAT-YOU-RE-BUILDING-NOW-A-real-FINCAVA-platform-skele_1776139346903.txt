@@ -1,0 +1,289 @@
+
+WHAT YOU’RE BUILDING NOW
+
+A **real FINCAVA platform skeleton** with:
+
+Auth (secure)
+
+* JWT authentication
+* Password hashing
+
+Dashboards
+
+* Producer dashboard
+* Retailer dashboard
+
+Marketplace
+
+* Product listing
+* Product browsing
+* Order creation
+
+---
+
+UPDATED ARCHITECTURE
+
+```bash
+/server
+  server.js
+  db.js
+  auth.js
+/client
+  (your React app)
+    /pages
+      Login.jsx
+      Register.jsx
+      Dashboard.jsx
+      Marketplace.jsx
+```
+
+---
+
+1. Install NEW dependencies
+
+```bash
+npm install jsonwebtoken bcryptjs
+```
+
+---
+
+2. Auth utilities (server/auth.js)
+
+```js
+const jwt = require("jsonwebtoken");
+
+const SECRET = "fincava-secret";
+
+function generateToken(user) {
+  return jwt.sign(
+    { id: user.id, role: user.role },
+    SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+function verifyToken(req, res, next) {
+  const token = req.headers.authorization;
+
+  if (!token) return res.status(401).json({ error: "No token" });
+
+  try {
+    const decoded = jwt.verify(token, SECRET);
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+module.exports = { generateToken, verifyToken };
+```
+
+---
+
+3. Update DB (add products + orders)
+
+In `db.js`, ADD:
+
+```js
+db.run(`
+  CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    producer_id INTEGER,
+    name TEXT,
+    price REAL
+  )
+`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    retailer_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER
+  )
+`);
+```
+
+---
+
+4. Upgrade Backend (server.js)
+
+Register (hashed password)
+
+```js
+const bcrypt = require("bcryptjs");
+const { generateToken, verifyToken } = require("./auth");
+
+app.post("/api/register", async (req, res) => {
+  const { name, email, password, role } = req.body;
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  db.run(
+    `INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)`,
+    [name, email, hashed, role],
+    function (err) {
+      if (err) return res.status(400).json({ error: err.message });
+
+      const user = { id: this.lastID, role };
+      const token = generateToken(user);
+
+      res.json({ token, user });
+    }
+  );
+});
+```
+
+---
+
+Login
+
+```js
+app.post("/api/login", (req, res) => {
+  const { email, password } = req.body;
+
+  db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, user) => {
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ error: "Invalid credentials" });
+
+    const token = generateToken(user);
+    res.json({ token, user });
+  });
+});
+```
+
+---
+
+Products (Producer)
+
+```js
+app.post("/api/products", verifyToken, (req, res) => {
+  const { name, price } = req.body;
+
+  db.run(
+    `INSERT INTO products (producer_id, name, price) VALUES (?, ?, ?)`,
+    [req.user.id, name, price],
+    function (err) {
+      if (err) return res.status(400).json({ error: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+```
+
+---
+
+Marketplace (All users)
+
+```js
+app.get("/api/products", (req, res) => {
+  db.all(`SELECT * FROM products`, [], (err, rows) => {
+    res.json(rows);
+  });
+});
+```
+
+---
+
+Orders (Retailer)
+
+```js
+app.post("/api/orders", verifyToken, (req, res) => {
+  const { product_id, quantity } = req.body;
+
+  db.run(
+    `INSERT INTO orders (retailer_id, product_id, quantity)
+     VALUES (?, ?, ?)`,
+    [req.user.id, product_id, quantity],
+    function (err) {
+      if (err) return res.status(400).json({ error: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+```
+
+---
+
+5. Frontend — Auth Flow
+
+Login.jsx
+
+```jsx
+import { useState } from "react";
+
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const login = async () => {
+    const res = await fetch("http://localhost:5000/api/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    localStorage.setItem("token", data.token);
+  };
+
+  return (
+    <div className="p-10">
+      <input placeholder="Email" onChange={e=>setEmail(e.target.value)} />
+      <input type="password" placeholder="Password" onChange={e=>setPassword(e.target.value)} />
+      <button onClick={login}>Login</button>
+    </div>
+  );
+}
+```
+
+---
+
+6. Dashboard.jsx
+
+```jsx
+export default function Dashboard() {
+  return (
+    <div className="p-10">
+      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <p>Your FINCAVA control panel</p>
+    </div>
+  );
+}
+```
+
+---
+
+7. Marketplace.jsx
+
+```jsx
+import { useEffect, useState } from "react";
+
+export default function Marketplace() {
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/products")
+      .then(res => res.json())
+      .then(setProducts);
+  }, []);
+
+  return (
+    <div className="p-10">
+      <h1 className="text-3xl font-bold">Marketplace</h1>
+
+      <div className="grid grid-cols-3 gap-4 mt-6">
+        {products.map(p => (
+          <div key={p.id} className="border p-4">
+            <h2>{p.name}</h2>
+            <p>${p.price}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
