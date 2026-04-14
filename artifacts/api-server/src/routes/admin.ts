@@ -3,7 +3,7 @@ import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
-import { desc, eq, sql, count, sum } from "drizzle-orm";
+import { desc, eq, inArray, count, sum } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
 
 const router: IRouter = Router();
@@ -108,7 +108,7 @@ router.get("/admin/loans", ...adminOnly, async (_req, res): Promise<void> => {
       ? await db
           .select({ loanId: repaymentsTable.loanId, amountUSD: repaymentsTable.amountUSD })
           .from(repaymentsTable)
-          .where(sql`${repaymentsTable.loanId} = ANY(${sql.raw(`ARRAY[${loanIds.join(",")}]`)})`)
+          .where(inArray(repaymentsTable.loanId, loanIds))
       : [];
 
   const repaidByLoan: Record<number, number> = {};
