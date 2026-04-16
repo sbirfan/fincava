@@ -60,9 +60,9 @@ export default function Home() {
           <img
             src="/images/hero.png"
             alt="Colombian agricultural landscape"
-            className="w-full h-full object-cover opacity-30"
+            className="w-full h-full object-cover opacity-55"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#050f0a]/60 via-[#050f0a]/20 to-[#050f0a]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#050f0a]/30 via-[#050f0a]/10 to-[#050f0a]" />
         </div>
         <div
           className="absolute inset-0 z-0 opacity-[0.04]"
