@@ -74,8 +74,8 @@ export default function Contact() {
                 <div>
                   <h4 className="font-medium">WhatsApp Support</h4>
                   <p className="text-muted-foreground text-sm">Colombia: +57 316 656 3613</p>
-                  <p className="text-muted-foreground text-sm">US: +1 512 659 1415</p>
-                  <Button variant="outline" className="mt-3 text-[#25D366] border-[#25D366] hover:bg-[#25D366] hover:text-white" onClick={() => window.open('https://wa.me/573166563613', '_blank')}>
+                  <p className="text-muted-foreground text-sm">US: +1 512 360 0118</p>
+                  <Button variant="outline" className="mt-3 text-[#25D366] border-[#25D366] hover:bg-[#25D366] hover:text-white" onClick={() => window.open('https://wa.me/15123600118', '_blank')}>
                     Chat on WhatsApp
                   </Button>
                 </div>
