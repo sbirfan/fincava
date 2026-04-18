@@ -23,6 +23,8 @@ import Investors from "@/pages/investors";
 import Contact from "@/pages/contact";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Onboarding from "@/pages/onboarding";
+import OfficerRegister from "@/pages/officer/register";
 import RFQs from "@/pages/rfqs";
 import RFQDetail from "@/pages/rfq-detail";
 import Impact from "@/pages/impact";
@@ -106,6 +108,8 @@ function Router() {
       <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
       <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
       <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
+      <Route path="/onboarding" component={() => <Onboarding />} />
+      <Route path="/officer/register" component={() => <OfficerRegister />} />
 
       {/* Buyer Dashboard */}
       <Route path="/dashboard" component={() => <PrivateRoute component={BuyerDashboard} roles={["BUYER"]} layout={DashboardLayout} />} />
