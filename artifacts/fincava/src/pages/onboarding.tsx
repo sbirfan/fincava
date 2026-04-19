@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, RotateCcw, AlertCircle } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, RotateCcw, AlertCircle, Cloud } from "lucide-react";
 import {
   SANTANDER_MUNICIPIOS,
   VARIEDADES_CAFE,
@@ -133,6 +133,17 @@ function formatRelativeTime(isoString: string): string {
   } catch {
     return "";
   }
+}
+
+function formatSyncAge(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Sincronizado hace un momento";
+  if (minutes < 60) return `Sincronizado hace ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Sincronizado hace ${hours} ${hours === 1 ? "hora" : "horas"}`;
+  const days = Math.floor(hours / 24);
+  return `Sincronizado hace ${days} ${days === 1 ? "día" : "días"}`;
 }
 
 function formatDraftAge(isoString: string): string {
@@ -255,7 +266,7 @@ async function saveServerDraft(
   whatsapp: string,
   data: Record<string, unknown>,
   base: string,
-): Promise<void> {
+): Promise<Date | null> {
   try {
     const existingToken = getDraftToken(whatsapp);
     const res = await fetch(`${base}/api/drafts/onboarding`, {
@@ -272,9 +283,15 @@ async function saveServerDraft(
       if (json.restore_token) {
         setDraftToken(whatsapp, json.restore_token as string);
       }
+      if (json.updatedAt) {
+        const ts = new Date(json.updatedAt as string);
+        if (!Number.isNaN(ts.getTime())) return ts;
+      }
+      return new Date();
     }
   } catch {
   }
+  return null;
 }
 
 async function deleteServerDraft(whatsapp: string, base: string): Promise<void> {
@@ -299,6 +316,8 @@ export default function Onboarding() {
   const [successName, setSuccessName] = useState("");
   const [duplicateError, setDuplicateError] = useState<{ supplierId: string } | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [lastServerSync, setLastServerSync] = useState<Date | null>(null);
+  const [, setTick] = useState(0);
   const [draftBanner, setDraftBanner] = useState<DraftBanner | null>(null);
   const [checkingServerDraft, setCheckingServerDraft] = useState(false);
   const checkedWhatsappRef = React.useRef<string>("");
@@ -420,6 +439,10 @@ export default function Onboarding() {
   const restoreDraft = useCallback(() => {
     if (!draftBanner) return;
     if (draftBanner.source === "server") {
+      if (draftBanner.updatedAt) {
+        const ts = new Date(draftBanner.updatedAt);
+        if (!Number.isNaN(ts.getTime())) setLastServerSync(ts);
+      }
       if (draftBanner.canFullRestore) {
         const data = serverDraftDataRef.current;
         if (!data) {
@@ -464,7 +487,7 @@ export default function Onboarding() {
     checkedWhatsappRef.current = "";
   }, [draftBanner, form, getApiBase]);
 
-  const saveToStorage = useCallback(() => {
+  const saveToStorage = useCallback(async () => {
     const whatsapp = form.getValues("whatsapp_number");
     if (whatsapp && whatsapp.length > 6) {
       const values = form.getValues();
@@ -472,7 +495,8 @@ export default function Onboarding() {
       localStorage.setItem(getStorageKey(whatsapp), JSON.stringify(payload));
       setLastSaved(new Date());
       if (WHATSAPP_REGEX.test(whatsapp)) {
-        saveServerDraft(whatsapp, payload as Record<string, unknown>, getApiBase());
+        const syncedAt = await saveServerDraft(whatsapp, payload as Record<string, unknown>, getApiBase());
+        if (syncedAt) setLastServerSync(syncedAt);
       }
     }
   }, [form, step, getApiBase]);
@@ -481,6 +505,12 @@ export default function Onboarding() {
     const interval = setInterval(saveToStorage, 30000);
     return () => clearInterval(interval);
   }, [saveToStorage]);
+
+  useEffect(() => {
+    if (!lastServerSync) return;
+    const interval = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(interval);
+  }, [lastServerSync]);
 
   const goNext = async () => {
     const fields = STEP_FIELDS[step];
@@ -720,10 +750,20 @@ export default function Onboarding() {
           </div>
         </div>
 
-        {lastSaved && (
-          <div className="flex items-center gap-1 text-xs text-green-600 mb-3 justify-end">
-            <Save className="h-3 w-3" />
-            Guardado automáticamente {lastSaved.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+        {(lastSaved || lastServerSync) && (
+          <div className="flex flex-col items-end gap-0.5 mb-3">
+            {lastSaved && (
+              <div className="flex items-center gap-1 text-xs text-green-600">
+                <Save className="h-3 w-3" />
+                Guardado automáticamente {lastSaved.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            )}
+            {lastServerSync && (
+              <div className="flex items-center gap-1 text-xs text-blue-500">
+                <Cloud className="h-3 w-3" />
+                {formatSyncAge(lastServerSync)}
+              </div>
+            )}
           </div>
         )}
 

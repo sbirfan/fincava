@@ -148,12 +148,14 @@ router.put("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {
 
   if (!existing) {
     const newToken = randomUUID();
+    const now = new Date();
     await db.insert(onboardingDraftsTable).values({
       whatsappNumber: whatsapp_number,
       data,
       restoreToken: newToken,
+      updatedAt: now,
     });
-    res.json({ success: true, restore_token: newToken });
+    res.json({ success: true, restore_token: newToken, updatedAt: now.toISOString() });
     return;
   }
 
@@ -162,12 +164,13 @@ router.put("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {
     return;
   }
 
+  const now = new Date();
   await db
     .update(onboardingDraftsTable)
-    .set({ data, updatedAt: new Date() })
+    .set({ data, updatedAt: now })
     .where(eq(onboardingDraftsTable.whatsappNumber, whatsapp_number));
 
-  res.json({ success: true, restore_token });
+  res.json({ success: true, restore_token, updatedAt: now.toISOString() });
 });
 
 router.delete("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {
