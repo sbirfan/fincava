@@ -25,6 +25,8 @@ import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Onboarding from "@/pages/onboarding";
 import OfficerRegister from "@/pages/officer/register";
+import OfficerDashboard from "@/pages/officer/dashboard";
+import OfficerSupplierProfile from "@/pages/officer/supplier-profile";
 import RFQs from "@/pages/rfqs";
 import RFQDetail from "@/pages/rfq-detail";
 import Impact from "@/pages/impact";
@@ -110,6 +112,8 @@ function Router() {
       <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
       <Route path="/onboarding" component={() => <Onboarding />} />
       <Route path="/officer/register" component={() => <OfficerRegister />} />
+      <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN"]} />} />
+      <Route path="/officer/supplier/:id" component={() => <PrivateRoute component={OfficerSupplierProfile} roles={["ADMIN"]} />} />
 
       {/* Buyer Dashboard */}
       <Route path="/dashboard" component={() => <PrivateRoute component={BuyerDashboard} roles={["BUYER"]} layout={DashboardLayout} />} />
