@@ -153,8 +153,9 @@ router.get("/officer/token-window", requireOfficerAuth, async (_req: Request, re
     );
     const raw = result.rows[0]?.value;
     const dbDays = raw ? parseInt(raw, 10) : null;
-    const isDefault = !dbDays || !Number.isInteger(dbDays);
-    const days = isDefault ? DEFAULT_TOKEN_WINDOW_DAYS : dbDays;
+    const dbValid = dbDays !== null && Number.isInteger(dbDays) && dbDays >= 1 && dbDays <= 365;
+    const isDefault = !dbValid;
+    const days = dbValid ? dbDays : DEFAULT_TOKEN_WINDOW_DAYS;
     res.json({ days, isDefault });
   } catch (err) {
     console.error(err);
