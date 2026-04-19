@@ -931,6 +931,22 @@ router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Pro
     const [currentFarm] = await db.select().from(farmsTable).where(eq(farmsTable.supplierId, id)).limit(1);
     const [currentEcon] = await db.select().from(economicsTable).where(eq(economicsTable.supplierId, id)).limit(1);
 
+    const existingInteractions = await db
+      .select({ metadata: interactionsTable.metadata })
+      .from(interactionsTable)
+      .where(eq(interactionsTable.supplierId, id))
+      .orderBy(desc(interactionsTable.createdAt));
+
+    let currentGoalsMeta: Record<string, unknown> | null = null;
+    let currentOfficerMeta: Record<string, unknown> | null = null;
+    for (const row of existingInteractions) {
+      const m = row.metadata as Record<string, unknown> | null;
+      if (!m) continue;
+      if (!currentGoalsMeta && m.goals) currentGoalsMeta = m.goals as Record<string, unknown>;
+      if (!currentOfficerMeta && m.officer) currentOfficerMeta = m.officer as Record<string, unknown>;
+      if (currentGoalsMeta && currentOfficerMeta) break;
+    }
+
     if (body.supplier && Object.keys(body.supplier).length > 0) {
       await db
         .update(suppliersTable)
@@ -1003,6 +1019,20 @@ router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Pro
       situacionEconomica: "Situación económica",
       interesCanalpremium: "Interés en canal premium",
     };
+    const GOALS_LABELS: Record<string, string> = {
+      disposicion_cambiar: "Disposición al cambio (1–5)",
+      horizonte_inversion: "Horizonte de inversión",
+      meta_principal_12m: "Meta principal (12 meses)",
+      principales_desafios: "Principales desafíos",
+    };
+    const OFFICER_LABELS: Record<string, string> = {
+      salud_plantas: "Salud de plantas",
+      infraestructura_postcosecha: "Infraestructura postcosecha",
+      acceso_vial: "Acceso vial",
+      disposicion_agricultor: "Disposición del agricultor",
+      potencial_general: "Potencial general (1–5)",
+      notas_officer: "Notas del officer",
+    };
 
     const changes: Record<string, { before: unknown; after: unknown }> = {};
     function str(v: unknown): string {
@@ -1031,6 +1061,22 @@ router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Pro
         const prev = currentEcon ? (currentEcon as Record<string, unknown>)[key] : undefined;
         if (str(prev) !== str(val)) {
           changes[ECON_LABELS[key] ?? key] = { before: prev ?? null, after: val };
+        }
+      }
+    }
+    if (body.goalsMeta) {
+      for (const [key, val] of Object.entries(body.goalsMeta)) {
+        const prev = currentGoalsMeta ? currentGoalsMeta[key] : undefined;
+        if (str(prev) !== str(val)) {
+          changes[GOALS_LABELS[key] ?? key] = { before: prev ?? null, after: val };
+        }
+      }
+    }
+    if (body.officerMeta) {
+      for (const [key, val] of Object.entries(body.officerMeta)) {
+        const prev = currentOfficerMeta ? currentOfficerMeta[key] : undefined;
+        if (str(prev) !== str(val)) {
+          changes[OFFICER_LABELS[key] ?? key] = { before: prev ?? null, after: val };
         }
       }
     }
