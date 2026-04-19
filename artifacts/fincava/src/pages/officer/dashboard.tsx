@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Search, ShieldCheck, Users, ChevronRight } from "lucide-react";
-import { getToken } from "@/lib/auth";
+import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
 
 interface SupplierRow {
   id: string;
@@ -64,6 +64,11 @@ export default function OfficerDashboard() {
   const [cultivo, setCultivo] = useState("all");
   const [, navigate] = useLocation();
 
+  function handleUnauthorized() {
+    clearOfficerToken();
+    navigate("/officer/login");
+  }
+
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const params = new URLSearchParams();
@@ -73,10 +78,13 @@ export default function OfficerDashboard() {
   const { data, isLoading, isError } = useQuery<{ suppliers: SupplierRow[] }>({
     queryKey: ["officer-suppliers", search, cultivo],
     queryFn: async () => {
-      const token = getToken();
       const res = await fetch(`${base}/api/officer/suppliers?${params.toString()}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: officerAuthHeaders(),
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        throw new Error("Session expired");
+      }
       if (!res.ok) throw new Error("Error al cargar proveedores");
       return res.json();
     },

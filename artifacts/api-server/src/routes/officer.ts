@@ -1,20 +1,51 @@
+import crypto from "crypto";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, suppliersTable, farmsTable, economicsTable, interactionsTable } from "@workspace/db";
 import { eq, desc, ilike, or, and } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
 
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  const role = (req as Request & { userRole?: string }).userRole;
-  if (role !== "ADMIN") {
-    res.status(403).json({ error: "Forbidden: officer dashboard requires ADMIN role" });
-    return;
-  }
-  next();
+function getConfiguredPin(): string | null {
+  return process.env["OFFICER_PIN"] ?? null;
 }
 
-router.get("/officer/suppliers", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+function computeOfficerToken(pin: string): string {
+  return crypto.createHmac("sha256", pin).update("officer_v1").digest("hex");
+}
+
+function requireOfficerAuth(req: Request, res: Response, next: NextFunction): void {
+  const configuredPin = getConfiguredPin();
+  if (!configuredPin) {
+    res.status(503).json({ error: "Officer authentication is not configured" });
+    return;
+  }
+  const officerToken = req.headers["x-officer-token"];
+  if (typeof officerToken === "string" && officerToken === computeOfficerToken(configuredPin)) {
+    next();
+    return;
+  }
+  res.status(401).json({ error: "Unauthorized: valid officer token required" });
+}
+
+router.post("/officer/auth", (req: Request, res: Response): void => {
+  const configuredPin = getConfiguredPin();
+  if (!configuredPin) {
+    res.status(503).json({ error: "Officer authentication is not configured on this server" });
+    return;
+  }
+  const { pin } = req.body as { pin?: string };
+  if (!pin) {
+    res.status(400).json({ error: "PIN requerido" });
+    return;
+  }
+  if (pin !== configuredPin) {
+    res.status(401).json({ error: "PIN incorrecto" });
+    return;
+  }
+  res.json({ token: computeOfficerToken(configuredPin) });
+});
+
+router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<void> => {
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
@@ -80,7 +111,7 @@ router.get("/officer/suppliers", requireAuth, requireAdmin, async (req, res): Pr
   }
 });
 
-router.get("/officer/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+router.get("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Promise<void> => {
   try {
     const { id } = req.params;
 

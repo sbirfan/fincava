@@ -2,7 +2,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { type LucideIcon, Loader2, ShieldCheck, ArrowLeft, User, Sprout, TrendingUp, Banknote, Target, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getToken } from "@/lib/auth";
+import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
 
 interface Supplier {
   id: string;
@@ -137,13 +137,21 @@ export default function OfficerSupplierProfile() {
   const id = params?.id;
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+  function handleUnauthorized() {
+    clearOfficerToken();
+    navigate("/officer/login");
+  }
+
   const { data, isLoading, isError } = useQuery<ProfileData>({
     queryKey: ["officer-supplier", id],
     queryFn: async () => {
-      const token = getToken();
       const res = await fetch(`${base}/api/officer/suppliers/${id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: officerAuthHeaders(),
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        throw new Error("Session expired");
+      }
       if (!res.ok) throw new Error("Error al cargar perfil");
       return res.json();
     },
