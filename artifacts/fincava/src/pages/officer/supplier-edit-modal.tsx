@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, Loader2, Save, User, Sprout, TrendingUp, Banknote, Target, ShieldCheck, AlertCircle } from "lucide-react";
-import { officerAuthHeaders } from "@/lib/officer-auth";
+import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
 
 const WHATSAPP_RE = /^\+57[0-9]{10}$/;
 
@@ -275,6 +276,7 @@ interface ValidationErrors {
 
 export default function SupplierEditModal({ supplierId, initial, onClose, base }: Props) {
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
 
   const s = initial.supplier;
   const f = initial.farm;
@@ -390,6 +392,11 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
         body: JSON.stringify(body),
       });
 
+      if (res.status === 401) {
+        clearOfficerToken();
+        navigate("/officer/login");
+        throw new Error("Session expired");
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error ?? "Error al guardar cambios");

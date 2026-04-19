@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { clearOfficerToken, setLastActivity, isSessionExpired, INACTIVITY_TIMEOUT_MS } from "@/lib/officer-auth";
+import { clearOfficerToken, setLastActivity, isSessionExpired, isTokenExpired, INACTIVITY_TIMEOUT_MS } from "@/lib/officer-auth";
 
 const EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
 
@@ -16,7 +16,7 @@ export function useOfficerInactivity() {
     EVENTS.forEach((event) => window.addEventListener(event, recordActivity, { passive: true }));
 
     checkRef.current = setInterval(() => {
-      if (isSessionExpired()) {
+      if (isSessionExpired() || isTokenExpired()) {
         clearOfficerToken();
         navigate("/officer/login");
       }
@@ -28,3 +28,5 @@ export function useOfficerInactivity() {
     };
   }, [navigate]);
 }
+
+export { INACTIVITY_TIMEOUT_MS };

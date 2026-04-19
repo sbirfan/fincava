@@ -24,8 +24,25 @@ async function getConfiguredPin(): Promise<string | null> {
   return process.env["OFFICER_PIN"] ?? null;
 }
 
-function computeOfficerToken(pin: string): string {
-  return crypto.createHmac("sha256", pin).update("officer_v1").digest("hex");
+const TOKEN_WINDOW_DAYS = parseInt(process.env["OFFICER_TOKEN_WINDOW_DAYS"] ?? "7", 10) || 7;
+const TOKEN_WINDOW_MS = TOKEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+function issueOfficerToken(pin: string): string {
+  const issuedAt = Date.now();
+  const hmac = crypto.createHmac("sha256", pin).update(`officer_v1:${issuedAt}`).digest("hex");
+  return `${issuedAt}.${hmac}`;
+}
+
+function verifyOfficerToken(pin: string, token: string): boolean {
+  const dotIdx = token.indexOf(".");
+  if (dotIdx === -1) return false;
+  const issuedAtStr = token.slice(0, dotIdx);
+  const providedHmac = token.slice(dotIdx + 1);
+  const issuedAt = parseInt(issuedAtStr, 10);
+  if (!isFinite(issuedAt)) return false;
+  if (Date.now() - issuedAt > TOKEN_WINDOW_MS) return false;
+  const expectedHmac = crypto.createHmac("sha256", pin).update(`officer_v1:${issuedAt}`).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(providedHmac, "hex"), Buffer.from(expectedHmac, "hex"));
 }
 
 async function requireOfficerAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -35,9 +52,14 @@ async function requireOfficerAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
   const officerToken = req.headers["x-officer-token"];
-  if (typeof officerToken === "string" && officerToken === computeOfficerToken(configuredPin)) {
-    next();
-    return;
+  if (typeof officerToken === "string") {
+    try {
+      if (verifyOfficerToken(configuredPin, officerToken)) {
+        next();
+        return;
+      }
+    } catch {
+    }
   }
   res.status(401).json({ error: "Unauthorized: valid officer token required" });
 }
@@ -57,7 +79,7 @@ router.post("/officer/auth", async (req: Request, res: Response): Promise<void> 
     res.status(401).json({ error: "PIN incorrecto" });
     return;
   }
-  res.json({ token: computeOfficerToken(configuredPin) });
+  res.json({ token: issueOfficerToken(configuredPin) });
 });
 
 router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res: Response): Promise<void> => {
@@ -74,7 +96,7 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
        ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
       [trimmed],
     );
-    res.json({ token: computeOfficerToken(trimmed) });
+    res.json({ token: issueOfficerToken(trimmed) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al cambiar el PIN" });

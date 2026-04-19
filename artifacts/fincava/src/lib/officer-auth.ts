@@ -1,6 +1,18 @@
 const STORAGE_KEY = "officer_session";
 const LAST_ACTIVITY_KEY = "officer_last_activity";
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
+const _TOKEN_WINDOW_DAYS = parseInt(
+  (import.meta.env["VITE_OFFICER_TOKEN_WINDOW_DAYS"] as string | undefined) ?? "7",
+  10,
+) || 7;
+export const TOKEN_EXPIRY_MS = _TOKEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+function parseIssuedAt(token: string): number | null {
+  const dotIdx = token.indexOf(".");
+  if (dotIdx === -1) return null;
+  const n = parseInt(token.slice(0, dotIdx), 10);
+  return isFinite(n) ? n : null;
+}
 
 export function getOfficerToken(): string | null {
   return localStorage.getItem(STORAGE_KEY);
@@ -39,6 +51,16 @@ export function getLastActivity(): number {
 export function isSessionExpired(): boolean {
   if (!getOfficerToken()) return false;
   return Date.now() - getLastActivity() > INACTIVITY_TIMEOUT_MS;
+}
+
+export function isTokenExpired(): boolean {
+  const token = getOfficerToken();
+  if (!token) return false;
+  const issuedAt = parseIssuedAt(token);
+  if (issuedAt === null) {
+    return true;
+  }
+  return Date.now() - issuedAt > TOKEN_EXPIRY_MS;
 }
 
 export { INACTIVITY_TIMEOUT_MS };
