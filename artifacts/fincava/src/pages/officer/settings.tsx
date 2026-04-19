@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ShieldCheck, ArrowLeft, Lock, Eye, EyeOff, CheckCircle2, Clock } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Lock, Eye, EyeOff, CheckCircle2, Clock, Timer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { officerAuthHeaders, setOfficerToken } from "@/lib/officer-auth";
@@ -20,6 +20,13 @@ export default function OfficerSettings() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  const [tokenWindowDays, setTokenWindowDays] = useState<number | null>(null);
+  const [tokenWindowInput, setTokenWindowInput] = useState("");
+  const [tokenWindowIsDefault, setTokenWindowIsDefault] = useState(false);
+  const [tokenWindowLoading, setTokenWindowLoading] = useState(false);
+  const [tokenWindowError, setTokenWindowError] = useState("");
+  const [tokenWindowSuccess, setTokenWindowSuccess] = useState(false);
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const PIN_STALE_DAYS = 90;
@@ -42,6 +49,60 @@ export default function OfficerSettings() {
     }
     void fetchPinInfo();
   }, [base]);
+
+  useEffect(() => {
+    async function fetchTokenWindow() {
+      try {
+        const res = await fetch(`${base}/api/officer/token-window`, {
+          headers: officerAuthHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json() as { days: number; isDefault: boolean };
+          setTokenWindowDays(data.days);
+          setTokenWindowInput(String(data.days));
+          setTokenWindowIsDefault(data.isDefault);
+        }
+      } catch {
+        // silent — not critical UI
+      }
+    }
+    void fetchTokenWindow();
+  }, [base]);
+
+  async function handleSaveTokenWindow(e: React.FormEvent) {
+    e.preventDefault();
+    setTokenWindowError("");
+    setTokenWindowSuccess(false);
+    const parsed = parseInt(tokenWindowInput, 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) {
+      setTokenWindowError("Ingresa un número entre 1 y 365");
+      return;
+    }
+    setTokenWindowLoading(true);
+    try {
+      const res = await fetch(`${base}/api/officer/token-window`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...officerAuthHeaders() },
+        body: JSON.stringify({ days: parsed }),
+      });
+      if (res.status === 401) {
+        navigate("/officer/login");
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTokenWindowError((data as { error?: string }).error ?? "Error al guardar");
+        return;
+      }
+      setTokenWindowDays(parsed);
+      setTokenWindowIsDefault(false);
+      setTokenWindowSuccess(true);
+    } catch {
+      setTokenWindowError("Error de conexión. Intente nuevamente.");
+    } finally {
+      setTokenWindowLoading(false);
+    }
+  }
 
   async function handleChangePin(e: React.FormEvent) {
     e.preventDefault();
@@ -267,6 +328,64 @@ export default function OfficerSettings() {
 
           <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
             Al cambiar el PIN, todos los dispositivos con sesión iniciada quedarán desconectados la próxima vez que intenten usar el panel.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-md p-6 space-y-5">
+          <div className="flex items-center gap-2 border-b pb-3">
+            <Timer className="h-5 w-5 text-blue-600" />
+            <h2 className="text-base font-semibold text-gray-800">Duración de sesión</h2>
+          </div>
+
+          {tokenWindowDays !== null && (
+            <p className="text-sm text-gray-500">
+              Las sesiones actualmente vencen a los{" "}
+              <span className="font-medium text-gray-700">{tokenWindowDays} días</span>
+              {tokenWindowIsDefault && (
+                <span className="text-gray-400"> (valor por defecto)</span>
+              )}
+              .
+            </p>
+          )}
+
+          {tokenWindowSuccess && (
+            <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+              <p className="font-medium">Duración de sesión actualizada</p>
+            </div>
+          )}
+
+          {tokenWindowError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+              {tokenWindowError}
+            </div>
+          )}
+
+          <form onSubmit={handleSaveTokenWindow} className="flex items-end gap-3">
+            <div className="flex-1 space-y-1">
+              <label className="text-sm font-medium text-gray-700 block">
+                Días de validez del token (1–365)
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={tokenWindowInput}
+                onChange={(e) => { setTokenWindowInput(e.target.value); setTokenWindowError(""); setTokenWindowSuccess(false); }}
+                placeholder="Ej. 7"
+              />
+            </div>
+            <Button
+              type="submit"
+              className="bg-blue-700 hover:bg-blue-800 shrink-0"
+              disabled={tokenWindowLoading || !tokenWindowInput.trim()}
+            >
+              {tokenWindowLoading ? "Guardando..." : "Guardar"}
+            </Button>
+          </form>
+
+          <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
+            Este valor controla cuántos días puede usarse un token de acceso sin volver a ingresar el PIN. Los cambios aplican a la próxima verificación de token.
           </p>
         </div>
 

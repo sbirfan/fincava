@@ -24,8 +24,23 @@ async function getConfiguredPin(): Promise<string | null> {
   return process.env["OFFICER_PIN"] ?? null;
 }
 
-const TOKEN_WINDOW_DAYS = parseInt(process.env["OFFICER_TOKEN_WINDOW_DAYS"] ?? "7", 10) || 7;
-const TOKEN_WINDOW_MS = TOKEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+const DEFAULT_TOKEN_WINDOW_DAYS = parseInt(process.env["OFFICER_TOKEN_WINDOW_DAYS"] ?? "7", 10) || 7;
+
+async function getTokenWindowDays(): Promise<number> {
+  try {
+    const result = await pool.query<{ value: string }>(
+      "SELECT value FROM officer_config WHERE key = 'token_window_days' LIMIT 1",
+    );
+    const raw = result.rows[0]?.value;
+    if (raw) {
+      const parsed = parseInt(raw, 10);
+      if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 365) return parsed;
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_TOKEN_WINDOW_DAYS;
+}
 
 function issueOfficerToken(pin: string): string {
   const issuedAt = Date.now();
@@ -33,28 +48,29 @@ function issueOfficerToken(pin: string): string {
   return `${issuedAt}.${hmac}`;
 }
 
-function verifyOfficerToken(pin: string, token: string): boolean {
+function verifyOfficerToken(pin: string, token: string, windowMs: number): boolean {
   const dotIdx = token.indexOf(".");
   if (dotIdx === -1) return false;
   const issuedAtStr = token.slice(0, dotIdx);
   const providedHmac = token.slice(dotIdx + 1);
   const issuedAt = parseInt(issuedAtStr, 10);
   if (!isFinite(issuedAt)) return false;
-  if (Date.now() - issuedAt > TOKEN_WINDOW_MS) return false;
+  if (Date.now() - issuedAt > windowMs) return false;
   const expectedHmac = crypto.createHmac("sha256", pin).update(`officer_v1:${issuedAt}`).digest("hex");
   return crypto.timingSafeEqual(Buffer.from(providedHmac, "hex"), Buffer.from(expectedHmac, "hex"));
 }
 
 async function requireOfficerAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const configuredPin = await getConfiguredPin();
+  const [configuredPin, windowDays] = await Promise.all([getConfiguredPin(), getTokenWindowDays()]);
   if (!configuredPin) {
     res.status(503).json({ error: "Officer authentication is not configured" });
     return;
   }
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
   const officerToken = req.headers["x-officer-token"];
   if (typeof officerToken === "string") {
     try {
-      if (verifyOfficerToken(configuredPin, officerToken)) {
+      if (verifyOfficerToken(configuredPin, officerToken, windowMs)) {
         next();
         return;
       }
@@ -127,6 +143,42 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al cambiar el PIN" });
+  }
+});
+
+router.get("/officer/token-window", requireOfficerAuth, async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query<{ value: string }>(
+      "SELECT value FROM officer_config WHERE key = 'token_window_days' LIMIT 1",
+    );
+    const raw = result.rows[0]?.value;
+    const dbDays = raw ? parseInt(raw, 10) : null;
+    const isDefault = !dbDays || !Number.isInteger(dbDays);
+    const days = isDefault ? DEFAULT_TOKEN_WINDOW_DAYS : dbDays;
+    res.json({ days, isDefault });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener configuración de sesión" });
+  }
+});
+
+router.post("/officer/token-window", requireOfficerAuth, async (req: Request, res: Response): Promise<void> => {
+  const { days } = req.body as { days?: unknown };
+  if (!Number.isInteger(days) || (days as number) < 1 || (days as number) > 365) {
+    res.status(400).json({ error: "El valor debe ser un número entero entre 1 y 365 días" });
+    return;
+  }
+  try {
+    await pool.query(
+      `INSERT INTO officer_config (key, value, updated_at)
+       VALUES ('token_window_days', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [String(days)],
+    );
+    res.json({ days });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al guardar configuración de sesión" });
   }
 });
 
