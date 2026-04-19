@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@workspace/api-client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Users, ShoppingCart, Landmark, TrendingUp, AlertTriangle, DollarSign } from "lucide-react";
+import { Users, ShoppingCart, Landmark, TrendingUp, AlertTriangle, DollarSign, ShieldCheck, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
 function StatCard({
   icon: Icon,
@@ -32,6 +33,144 @@ function StatCard({
         <p className="text-2xl font-bold text-white mt-0.5">{value}</p>
         {sub && <p className="text-xs text-white/40 mt-1">{sub}</p>}
       </div>
+    </div>
+  );
+}
+
+function OfficerPinSection() {
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSuccess(false);
+
+    if (newPin.trim().length < 4) {
+      setError("El PIN debe tener al menos 4 caracteres");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setError("Los PINs no coinciden");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("fincava_token");
+      const res = await fetch("/api/admin/officer-pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ newPin: newPin.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError((data as { error?: string }).error ?? "Error al cambiar el PIN");
+        return;
+      }
+      setSuccess(true);
+      setNewPin("");
+      setConfirmPin("");
+    } catch {
+      setError("Error de conexión. Intente nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-4">
+      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+        <ShieldCheck className="h-4 w-4 text-emerald-400" />
+        <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">
+          PIN del Officer de Campo
+        </h2>
+      </div>
+      <p className="text-sm text-white/50">
+        Rota el PIN que usan los officers para acceder al panel de gestión de proveedores.
+        Al cambiarlo, las sesiones activas en otros dispositivos quedarán invalidadas
+        la próxima vez que intenten operar.
+      </p>
+
+      {success && (
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-500/15 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-300">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          PIN del officer actualizado exitosamente.
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg bg-red-500/15 border border-red-500/20 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-white/50 font-medium block">Nuevo PIN</label>
+          <div className="relative">
+            <input
+              type={showNew ? "text" : "password"}
+              value={newPin}
+              onChange={(e) => { setNewPin(e.target.value); setError(""); setSuccess(false); }}
+              placeholder="Mínimo 4 caracteres"
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/30 pr-9 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+              tabIndex={-1}
+            >
+              {showNew ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-white/50 font-medium block">Confirmar nuevo PIN</label>
+          <div className="relative">
+            <input
+              type={showConfirm ? "text" : "password"}
+              value={confirmPin}
+              onChange={(e) => { setConfirmPin(e.target.value); setError(""); setSuccess(false); }}
+              placeholder="Repita el PIN"
+              autoComplete="new-password"
+              className={`w-full rounded-lg border bg-white/5 px-3 py-2 text-sm text-white placeholder-white/30 pr-9 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${confirmPin && confirmPin !== newPin ? "border-red-500/50" : "border-white/10"}`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+              tabIndex={-1}
+            >
+              {showConfirm ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+          {confirmPin && confirmPin !== newPin && (
+            <p className="text-xs text-red-400 mt-0.5">Los PINs no coinciden</p>
+          )}
+        </div>
+
+        <div className="sm:col-span-2">
+          <button
+            type="submit"
+            disabled={loading || !newPin.trim() || !confirmPin.trim()}
+            className="rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed px-5 py-2 text-sm font-medium text-white transition-colors"
+          >
+            {loading ? "Cambiando PIN…" : "Cambiar PIN del officer"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -136,6 +275,8 @@ export default function AdminDashboard() {
           ))}
         </div>
       </div>
+
+      <OfficerPinSection />
     </div>
   );
 }

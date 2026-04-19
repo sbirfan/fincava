@@ -5,6 +5,7 @@ import { ordersTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { desc, eq, inArray, count, sum } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
+import { pool } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -145,6 +146,27 @@ router.get("/admin/orders", ...adminOnly, async (_req, res): Promise<void> => {
     .orderBy(desc(ordersTable.createdAt));
 
   res.json(orders);
+});
+
+router.post("/admin/officer-pin", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const { newPin } = req.body as { newPin?: string };
+  if (!newPin || newPin.trim().length < 4) {
+    res.status(400).json({ error: "El nuevo PIN debe tener al menos 4 caracteres" });
+    return;
+  }
+  const trimmed = newPin.trim();
+  try {
+    await pool.query(
+      `INSERT INTO officer_config (key, value, updated_at)
+       VALUES ('officer_pin', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [trimmed],
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al cambiar el PIN del officer" });
+  }
 });
 
 export default router;
