@@ -135,7 +135,20 @@ async function ensureAuxiliaryTables(): Promise<void> {
         ON registration_events (created_at)
     `);
 
-    console.log("[migrate] Auxiliary tables ready (officer_config, registration_events).");
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS draft_cleanup_log (
+        id           BIGSERIAL PRIMARY KEY,
+        swept_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        deleted_count INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS draft_cleanup_log_swept_at_idx
+        ON draft_cleanup_log (swept_at)
+    `);
+
+    console.log("[migrate] Auxiliary tables ready (officer_config, registration_events, draft_cleanup_log).");
   } finally {
     await client.end();
   }

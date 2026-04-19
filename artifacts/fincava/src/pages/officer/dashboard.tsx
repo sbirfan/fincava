@@ -32,6 +32,8 @@ interface Stats {
   activeDrafts: number;
   expiringDrafts: number;
   duplicateAttempts: number;
+  abandonedLast7: number;
+  abandonedLast30: number;
 }
 
 const POTENCIAL_COLORS: Record<number, string> = {
@@ -248,18 +250,30 @@ export default function OfficerDashboard() {
         </div>
 
         {showStats && statsData && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: "Agricultores registrados", value: statsData.totalSuppliers, color: "bg-blue-50 text-blue-800" },
-              { label: "Borradores activos", value: statsData.activeDrafts, color: "bg-amber-50 text-amber-800" },
-              { label: "Borradores por vencer", value: statsData.expiringDrafts, color: "bg-orange-50 text-orange-800" },
-              { label: "Duplicados detectados", value: statsData.duplicateAttempts, color: "bg-red-50 text-red-800" },
-            ].map((stat) => (
-              <div key={stat.label} className={`rounded-xl px-4 py-3 ${stat.color}`}>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="text-xs mt-0.5 opacity-80">{stat.label}</div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Agricultores registrados", value: statsData.totalSuppliers, color: "bg-blue-50 text-blue-800" },
+                { label: "Borradores activos", value: statsData.activeDrafts, color: "bg-amber-50 text-amber-800" },
+                { label: "Borradores por vencer", value: statsData.expiringDrafts, color: "bg-orange-50 text-orange-800" },
+                { label: "Duplicados detectados", value: statsData.duplicateAttempts, color: "bg-red-50 text-red-800" },
+              ].map((stat) => (
+                <div key={stat.label} className={`rounded-xl px-4 py-3 ${stat.color}`}>
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <div className="text-xs mt-0.5 opacity-80">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl px-4 py-3 bg-purple-50 text-purple-800">
+                <div className="text-2xl font-bold">{statsData.abandonedLast7}</div>
+                <div className="text-xs mt-0.5 opacity-80">Abandonos últimos 7 días</div>
               </div>
-            ))}
+              <div className="rounded-xl px-4 py-3 bg-purple-50 text-purple-800">
+                <div className="text-2xl font-bold">{statsData.abandonedLast30}</div>
+                <div className="text-xs mt-0.5 opacity-80">Abandonos últimos 30 días</div>
+              </div>
+            </div>
           </div>
         )}
 

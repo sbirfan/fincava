@@ -419,11 +419,27 @@ router.get("/officer/stats", requireOfficerAuth, async (_req, res): Promise<void
     );
     const expiringDrafts = parseInt(expiringDraftsResult.rows[0]?.count ?? "0", 10);
 
+    const abandonedLast7Result = await pool.query<{ total: string }>(
+      `SELECT COALESCE(SUM(deleted_count), 0) AS total
+         FROM draft_cleanup_log
+        WHERE swept_at >= NOW() - INTERVAL '7 days'`,
+    );
+    const abandonedLast7 = parseInt(abandonedLast7Result.rows[0]?.total ?? "0", 10);
+
+    const abandonedLast30Result = await pool.query<{ total: string }>(
+      `SELECT COALESCE(SUM(deleted_count), 0) AS total
+         FROM draft_cleanup_log
+        WHERE swept_at >= NOW() - INTERVAL '30 days'`,
+    );
+    const abandonedLast30 = parseInt(abandonedLast30Result.rows[0]?.total ?? "0", 10);
+
     res.json({
       totalSuppliers,
       activeDrafts,
       expiringDrafts,
       duplicateAttempts,
+      abandonedLast7,
+      abandonedLast30,
       weeklyRegistrations: weeklyRegistrationsResult.rows.map((r) => ({
         week: r.week,
         count: parseInt(r.count, 10),

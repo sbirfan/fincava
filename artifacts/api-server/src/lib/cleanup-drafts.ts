@@ -21,12 +21,22 @@ export async function cleanupStaleDrafts(): Promise<void> {
   const expiryDays = getExpiryDays();
   const cutoff = new Date(Date.now() - expiryDays * 24 * 60 * 60 * 1000);
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    const result = await client.query(
       "DELETE FROM onboarding_drafts WHERE updated_at < $1",
       [cutoff],
     );
     const count = result.rowCount ?? 0;
+
+    await client.query(
+      "INSERT INTO draft_cleanup_log (swept_at, deleted_count) VALUES (NOW(), $1)",
+      [count],
+    );
+
+    await client.query("COMMIT");
 
     if (count > 0) {
       logger.info(
@@ -37,7 +47,10 @@ export async function cleanupStaleDrafts(): Promise<void> {
       logger.debug({ expiryDays, cutoff }, "No stale onboarding drafts to prune");
     }
   } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
     logger.error({ err }, "Failed to prune stale onboarding drafts");
+  } finally {
+    client.release();
   }
 }
 
