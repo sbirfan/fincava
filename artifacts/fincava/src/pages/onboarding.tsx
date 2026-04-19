@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, RotateCcw } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, RotateCcw, AlertCircle } from "lucide-react";
 import {
   SANTANDER_MUNICIPIOS,
   VARIEDADES_CAFE,
@@ -139,6 +139,7 @@ export default function Onboarding() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [successName, setSuccessName] = useState("");
+  const [duplicateError, setDuplicateError] = useState<{ supplierId: string } | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [draftBanner, setDraftBanner] = useState<DraftBanner | null>(null);
   const { toast } = useToast();
@@ -187,6 +188,12 @@ export default function Onboarding() {
       setDraftBanner(draft);
     }
   }, []);
+
+  useEffect(() => {
+    if (duplicateError) {
+      setDuplicateError(null);
+    }
+  }, [watchWhatsapp]);
 
   const restoreDraft = useCallback(() => {
     if (!draftBanner) return;
@@ -308,6 +315,10 @@ export default function Onboarding() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (res.status === 409 && err.supplierId) {
+          setDuplicateError({ supplierId: err.supplierId });
+          return;
+        }
         throw new Error(err.error || "Error al enviar el formulario");
       }
 
@@ -432,6 +443,41 @@ export default function Onboarding() {
           <div className="flex items-center gap-1 text-xs text-green-600 mb-3 justify-end">
             <Save className="h-3 w-3" />
             Guardado automáticamente {lastSaved.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+        )}
+
+        {duplicateError && (
+          <div className="mb-5 rounded-2xl border border-red-300 bg-red-50 p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-red-900">
+                  Este número ya está registrado
+                </p>
+                <p className="text-xs text-red-800 mt-0.5 leading-snug">
+                  El número de WhatsApp ingresado ya tiene un perfil en Fincava. Si desea actualizar su información, comuníquese con un oficial de campo.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 h-auto"
+                    onClick={() => setLocation("/")}
+                  >
+                    Volver al inicio
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-xs px-3 py-1 h-auto border-red-400 text-red-800 hover:bg-red-100"
+                    onClick={() => setDuplicateError(null)}
+                  >
+                    Corregir número
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -778,7 +824,7 @@ export default function Onboarding() {
                   />
 
                   <div>
-                    <FormLabel className="text-sm font-medium">Volumen última cosecha</FormLabel>
+                    <p className="text-sm font-medium">Volumen última cosecha</p>
                     <div className="flex gap-2 mt-2">
                       <FormField
                         control={form.control}

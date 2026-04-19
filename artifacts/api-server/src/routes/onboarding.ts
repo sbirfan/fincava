@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, suppliersTable, farmsTable, economicsTable, interactionsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -54,20 +55,52 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
 
   const data = parsed.data;
 
-  const [supplier] = await db
-    .insert(suppliersTable)
-    .values({
-      nombreCompleto: data.nombre_completo,
-      whatsappNumber: data.whatsapp_number,
-      municipio: data.municipio,
-      vereda: data.vereda,
-      supplierType: data.supplier_type ?? "farmer",
-      registeredBy: data.registered_by ?? "self",
-      status: "active",
-      consentGiven: data.consent_given,
-      consentDate: data.consent_given ? new Date() : undefined,
-    })
-    .returning();
+  const existing = await db
+    .select({ id: suppliersTable.id })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.whatsappNumber, data.whatsapp_number))
+    .limit(1);
+
+  if (existing.length > 0) {
+    res.status(409).json({
+      error: "Este número ya está registrado",
+      supplierId: existing[0].id,
+    });
+    return;
+  }
+
+  let supplier: typeof suppliersTable.$inferSelect;
+  try {
+    const [inserted] = await db
+      .insert(suppliersTable)
+      .values({
+        nombreCompleto: data.nombre_completo,
+        whatsappNumber: data.whatsapp_number,
+        municipio: data.municipio,
+        vereda: data.vereda,
+        supplierType: data.supplier_type ?? "farmer",
+        registeredBy: data.registered_by ?? "self",
+        status: "active",
+        consentGiven: data.consent_given,
+        consentDate: data.consent_given ? new Date() : undefined,
+      })
+      .returning();
+    supplier = inserted;
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      const [found] = await db
+        .select({ id: suppliersTable.id })
+        .from(suppliersTable)
+        .where(eq(suppliersTable.whatsappNumber, data.whatsapp_number))
+        .limit(1);
+      res.status(409).json({
+        error: "Este número ya está registrado",
+        supplierId: found?.id ?? null,
+      });
+      return;
+    }
+    throw err;
+  }
 
   await db.insert(farmsTable).values({
     supplierId: supplier.id,
