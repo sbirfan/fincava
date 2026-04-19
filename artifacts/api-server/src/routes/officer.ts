@@ -80,18 +80,17 @@ router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<v
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(suppliersTable.createdAt));
 
-    const onboardingInteractions = await db
+    const allInteractions = await db
       .select({
         supplierId: interactionsTable.supplierId,
         metadata: interactionsTable.metadata,
         createdAt: interactionsTable.createdAt,
       })
       .from(interactionsTable)
-      .where(eq(interactionsTable.interactionType, "onboarding"))
       .orderBy(desc(interactionsTable.createdAt));
 
     const officerMetaMap = new Map<string, Record<string, unknown>>();
-    for (const interaction of onboardingInteractions) {
+    for (const interaction of allInteractions) {
       if (officerMetaMap.has(interaction.supplierId)) continue;
       const meta = interaction.metadata as Record<string, unknown> | null;
       if (meta?.officer) {
@@ -144,20 +143,157 @@ router.get("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Promi
       .where(eq(interactionsTable.supplierId, id))
       .orderBy(desc(interactionsTable.createdAt));
 
-    const onboarding = interactions.find((i) => i.interactionType === "onboarding");
-    const meta = onboarding?.metadata as Record<string, unknown> | null;
+    // Find the most recent interaction that contains goals or officer metadata
+    let goalsMeta: Record<string, unknown> | null = null;
+    let officerMeta: Record<string, unknown> | null = null;
+
+    for (const interaction of interactions) {
+      const meta = interaction.metadata as Record<string, unknown> | null;
+      if (!meta) continue;
+      if (!goalsMeta && meta.goals) {
+        goalsMeta = meta.goals as Record<string, unknown>;
+      }
+      if (!officerMeta && meta.officer) {
+        officerMeta = meta.officer as Record<string, unknown>;
+      }
+      if (goalsMeta && officerMeta) break;
+    }
 
     res.json({
       supplier,
       farm: farm ?? null,
       economics: economics ?? null,
       interactions,
-      goalsMeta: (meta?.goals as Record<string, unknown>) ?? null,
-      officerMeta: (meta?.officer as Record<string, unknown>) ?? null,
+      goalsMeta,
+      officerMeta,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al obtener perfil del proveedor" });
+  }
+});
+
+interface PatchSupplierBody {
+  supplier?: {
+    nombreCompleto?: string;
+    whatsappNumber?: string;
+    municipio?: string;
+    vereda?: string;
+    supplierType?: string;
+  };
+  farm?: {
+    cultivoPrincipal?: string;
+    variedadCafe?: string;
+    hectareasProduccion?: string;
+    edadPlantasAnos?: number | null;
+    cosechasPorAno?: number | null;
+    metodoSecado?: string;
+    accesoAgua?: string;
+    tenenciaTierra?: string;
+  };
+  economics?: {
+    tipoComprador?: string;
+    volumenKgUltimaCosecha?: number | null;
+    precioVentaBanda?: string;
+    deudaActual?: string;
+    usoCapital?: string[];
+    personasDependientes?: number | null;
+    situacionEconomica?: string;
+    interesCanalpremium?: boolean | null;
+  };
+  goalsMeta?: {
+    disposicion_cambiar?: number | null;
+    horizonte_inversion?: string;
+    meta_principal_12m?: string;
+    principales_desafios?: string[];
+  };
+  officerMeta?: {
+    salud_plantas?: string;
+    infraestructura_postcosecha?: string;
+    acceso_vial?: string;
+    disposicion_agricultor?: string;
+    potencial_general?: number | null;
+    notas_officer?: string;
+  };
+  notes?: string;
+}
+
+router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const body = req.body as PatchSupplierBody;
+
+    const [existing] = await db
+      .select({ id: suppliersTable.id })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, id))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: "Proveedor no encontrado" });
+      return;
+    }
+
+    if (body.supplier && Object.keys(body.supplier).length > 0) {
+      await db
+        .update(suppliersTable)
+        .set(body.supplier)
+        .where(eq(suppliersTable.id, id));
+    }
+
+    if (body.farm && Object.keys(body.farm).length > 0) {
+      const [existingFarm] = await db
+        .select({ id: farmsTable.id })
+        .from(farmsTable)
+        .where(eq(farmsTable.supplierId, id))
+        .limit(1);
+
+      if (existingFarm) {
+        await db
+          .update(farmsTable)
+          .set(body.farm)
+          .where(eq(farmsTable.supplierId, id));
+      } else {
+        await db
+          .insert(farmsTable)
+          .values({ supplierId: id, ...body.farm });
+      }
+    }
+
+    if (body.economics && Object.keys(body.economics).length > 0) {
+      const [existingEcon] = await db
+        .select({ id: economicsTable.id })
+        .from(economicsTable)
+        .where(eq(economicsTable.supplierId, id))
+        .limit(1);
+
+      if (existingEcon) {
+        await db
+          .update(economicsTable)
+          .set(body.economics)
+          .where(eq(economicsTable.supplierId, id));
+      } else {
+        await db
+          .insert(economicsTable)
+          .values({ supplierId: id, ...body.economics });
+      }
+    }
+
+    await db.insert(interactionsTable).values({
+      supplierId: id,
+      interactionType: "update",
+      actor: "officer",
+      notes: body.notes ?? "Perfil actualizado por officer",
+      metadata: {
+        goals: body.goalsMeta ?? null,
+        officer: body.officerMeta ?? null,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al actualizar proveedor" });
   }
 });
 

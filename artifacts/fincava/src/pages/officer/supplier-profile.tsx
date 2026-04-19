@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { type LucideIcon, Loader2, ShieldCheck, ArrowLeft, User, Sprout, TrendingUp, Banknote, Target, Star } from "lucide-react";
+import { type LucideIcon, Loader2, ShieldCheck, ArrowLeft, User, Sprout, TrendingUp, Banknote, Target, Star, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
+import SupplierEditModal from "./supplier-edit-modal";
 
 interface Supplier {
   id: string;
@@ -136,6 +138,7 @@ export default function OfficerSupplierProfile() {
   const [match, params] = useRoute("/officer/supplier/:id");
   const id = params?.id;
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const [editOpen, setEditOpen] = useState(false);
 
   function handleUnauthorized() {
     clearOfficerToken();
@@ -188,18 +191,27 @@ export default function OfficerSupplierProfile() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
       <div className="max-w-3xl mx-auto space-y-5">
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/officer/dashboard")}
-            className="p-2 rounded-xl hover:bg-blue-100 text-blue-700 transition-colors"
-            aria-label="Volver"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-6 w-6 text-blue-700 shrink-0" />
-            <h1 className="text-xl font-bold text-blue-900">Perfil del Agricultor</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/officer/dashboard")}
+              className="p-2 rounded-xl hover:bg-blue-100 text-blue-700 transition-colors"
+              aria-label="Volver"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-6 w-6 text-blue-700 shrink-0" />
+              <h1 className="text-xl font-bold text-blue-900">Perfil del Agricultor</h1>
+            </div>
           </div>
+          <button
+            onClick={() => setEditOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <Pencil className="h-4 w-4" />
+            Editar
+          </button>
         </div>
 
         {officerMeta?.potencial_general && (
@@ -279,6 +291,21 @@ export default function OfficerSupplierProfile() {
         )}
 
       </div>
+
+      {editOpen && id && (
+        <SupplierEditModal
+          supplierId={id}
+          initial={{
+            supplier,
+            farm,
+            economics,
+            goalsMeta,
+            officerMeta,
+          }}
+          onClose={() => setEditOpen(false)}
+          base={base}
+        />
+      )}
     </div>
   );
 }
