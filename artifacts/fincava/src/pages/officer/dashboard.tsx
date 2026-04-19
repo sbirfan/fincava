@@ -523,7 +523,7 @@ export default function OfficerDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={handleExport}
-                disabled={isExporting || isLoading || suppliers.length === 0}
+                disabled={isExporting || isLoading || suppliers.length === 0 || selectedColumns.length === 0}
                 className="flex items-center gap-1.5 text-sm h-8"
               >
                 {isExporting ? (
