@@ -126,6 +126,7 @@ type DraftBanner = {
   whatsapp: string;
   savedStep: number;
   daysUntilExpiry?: number;
+  savedAt?: string;
 };
 
 const DRAFT_PREFIX = "fincava_officer_reg_";
@@ -155,7 +156,7 @@ function findExistingDraft(): DraftBanner | null {
         const msRemaining = DRAFT_EXPIRY_MS - age;
         const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
         const daysUntilExpiry = daysRemaining > 0 && daysRemaining <= 7 ? daysRemaining : undefined;
-        return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, daysUntilExpiry };
+        return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, daysUntilExpiry, savedAt: parsed._savedAt };
       }
     }
   } catch {
@@ -426,6 +427,16 @@ export default function OfficerRegister() {
                   {draftBanner.whatsapp}
                   {" · "}
                   Sección {draftBanner.savedStep + 1} de {STEPS.length} — {STEPS[draftBanner.savedStep]}
+                  {draftBanner.savedAt && (() => {
+                    const days = Math.floor((Date.now() - new Date(draftBanner.savedAt!).getTime()) / (24 * 60 * 60 * 1000));
+                    return days >= 1 ? (
+                      <span className="block mt-0.5 text-amber-600">
+                        Iniciado hace {days} {days === 1 ? "día" : "días"}
+                      </span>
+                    ) : (
+                      <span className="block mt-0.5 text-amber-600">Iniciado hoy</span>
+                    );
+                  })()}
                   {draftBanner.daysUntilExpiry !== undefined && (
                     <span className="flex items-center gap-1 mt-1 text-red-700 font-medium">
                       <AlertCircle className="h-3.5 w-3.5 shrink-0" />

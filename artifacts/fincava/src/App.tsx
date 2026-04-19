@@ -28,6 +28,7 @@ import Onboarding from "@/pages/onboarding";
 import OfficerRegister from "@/pages/officer/register";
 import OfficerDashboard from "@/pages/officer/dashboard";
 import OfficerSupplierProfile from "@/pages/officer/supplier-profile";
+import OfficerSettings from "@/pages/officer/settings";
 import OfficerLogin from "@/pages/officer/login";
 import RFQs from "@/pages/rfqs";
 import RFQDetail from "@/pages/rfq-detail";
@@ -123,6 +124,7 @@ function Router() {
       <Route path="/officer/register" component={() => <OfficerRegister />} />
       <Route path="/officer/login" component={() => <OfficerLogin />} />
       <Route path="/officer/dashboard" component={() => <OfficerRoute component={OfficerDashboard} />} />
+      <Route path="/officer/settings" component={() => <OfficerRoute component={OfficerSettings} />} />
       <Route path="/officer/supplier/:id" component={() => <OfficerRoute component={OfficerSupplierProfile} />} />
 
       {/* Buyer Dashboard */}

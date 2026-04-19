@@ -1,7 +1,19 @@
 import { Router, type IRouter } from "express";
 import { db, suppliersTable, farmsTable, economicsTable, interactionsTable, onboardingDraftsTable } from "@workspace/db";
+import { pool } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+
+async function logRegistrationEvent(whatsappNumber: string, eventType: string, metadata?: Record<string, unknown>): Promise<void> {
+  try {
+    await pool.query(
+      "INSERT INTO registration_events (whatsapp_number, event_type, metadata) VALUES ($1, $2, $3)",
+      [whatsappNumber, eventType, metadata ? JSON.stringify(metadata) : null],
+    );
+  } catch {
+    // Non-critical — don't let logging failures affect the main flow
+  }
+}
 
 const router: IRouter = Router();
 
@@ -62,6 +74,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     .limit(1);
 
   if (existing.length > 0) {
+    void logRegistrationEvent(data.whatsapp_number, "duplicate_attempt", { supplierId: existing[0].id });
     res.status(409).json({
       error: "Este número ya está registrado",
       supplierId: existing[0].id,
@@ -93,6 +106,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         .from(suppliersTable)
         .where(eq(suppliersTable.whatsappNumber, data.whatsapp_number))
         .limit(1);
+      void logRegistrationEvent(data.whatsapp_number, "duplicate_attempt", { supplierId: found?.id ?? null, source: "race_condition" });
       res.status(409).json({
         error: "Este número ya está registrado",
         supplierId: found?.id ?? null,

@@ -57,6 +57,13 @@ const DeleteQuerySchema = z.object({
   restore_token: z.string().uuid(),
 });
 
+function getDraftExpiryDays(): number {
+  const raw = process.env["DRAFT_EXPIRY_DAYS"];
+  if (!raw) return 30;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 30;
+}
+
 router.get("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {
   const parsed = WhatsappQuerySchema.safeParse(req.query);
   if (!parsed.success) {
@@ -64,13 +71,22 @@ router.get("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {
     return;
   }
 
+  const expiryDays = getDraftExpiryDays();
+  const cutoff = new Date(Date.now() - expiryDays * 24 * 60 * 60 * 1000);
+
   const [draft] = await db
     .select({
       data: onboardingDraftsTable.data,
       updatedAt: onboardingDraftsTable.updatedAt,
+      createdAt: onboardingDraftsTable.createdAt,
     })
     .from(onboardingDraftsTable)
-    .where(eq(onboardingDraftsTable.whatsappNumber, parsed.data.whatsapp))
+    .where(
+      and(
+        eq(onboardingDraftsTable.whatsappNumber, parsed.data.whatsapp),
+        sql`${onboardingDraftsTable.updatedAt} >= ${cutoff}`,
+      )
+    )
     .limit(1);
 
   if (!draft) {
@@ -81,7 +97,7 @@ router.get("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {
   const data = draft.data as Record<string, unknown>;
   const savedStep = typeof data["_step"] === "number" ? data["_step"] : 0;
 
-  res.json({ found: true, savedStep, updatedAt: draft.updatedAt });
+  res.json({ found: true, savedStep, updatedAt: draft.updatedAt, createdAt: draft.createdAt });
 });
 
 router.post("/drafts/onboarding/restore", rateLimit, async (req, res): Promise<void> => {
@@ -92,6 +108,8 @@ router.post("/drafts/onboarding/restore", rateLimit, async (req, res): Promise<v
   }
 
   const { whatsapp_number, restore_token } = parsed.data;
+  const expiryDays = getDraftExpiryDays();
+  const cutoff = new Date(Date.now() - expiryDays * 24 * 60 * 60 * 1000);
 
   const [draft] = await db
     .select()
@@ -100,6 +118,7 @@ router.post("/drafts/onboarding/restore", rateLimit, async (req, res): Promise<v
       and(
         eq(onboardingDraftsTable.whatsappNumber, whatsapp_number),
         eq(onboardingDraftsTable.restoreToken, restore_token),
+        sql`${onboardingDraftsTable.updatedAt} >= ${cutoff}`,
       ),
     )
     .limit(1);
@@ -109,7 +128,7 @@ router.post("/drafts/onboarding/restore", rateLimit, async (req, res): Promise<v
     return;
   }
 
-  res.json({ found: true, data: draft.data, updatedAt: draft.updatedAt });
+  res.json({ found: true, data: draft.data, updatedAt: draft.updatedAt, createdAt: draft.createdAt });
 });
 
 router.put("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {

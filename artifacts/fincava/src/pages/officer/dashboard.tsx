@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -10,9 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, ShieldCheck, Users, ChevronRight, Download } from "lucide-react";
+import { Loader2, Search, ShieldCheck, Users, ChevronRight, Download, LogOut, Settings, FileSpreadsheet, BarChart3 } from "lucide-react";
 import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
+import { useOfficerInactivity } from "@/hooks/useOfficerInactivity";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface SupplierRow {
   id: string;
@@ -23,6 +25,13 @@ interface SupplierRow {
   createdAt: string;
   cultivoPrincipal: string | null;
   potencialGeneral: number | null;
+}
+
+interface Stats {
+  totalSuppliers: number;
+  activeDrafts: number;
+  expiringDrafts: number;
+  duplicateAttempts: number;
 }
 
 function PotencialBadge({ score }: { score: number | null }) {
@@ -59,13 +68,39 @@ function formatDate(iso: string) {
 }
 
 const CULTIVOS = ["Café", "Cacao", "Panela", "Otro"];
+const POTENCIAL_OPTIONS = [1, 2, 3, 4, 5];
+
+const ALL_CSV_COLUMNS = [
+  { key: "nombre", label: "Nombre" },
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "municipio", label: "Municipio" },
+  { key: "cultivo", label: "Cultivo" },
+  { key: "fecha_registro", label: "Fecha de registro" },
+  { key: "potencial_general", label: "Potencial general" },
+];
 
 export default function OfficerDashboard() {
   const [search, setSearch] = useState("");
   const [cultivo, setCultivo] = useState("all");
+  const [potencial, setPotencial] = useState("all");
   const [, navigate] = useLocation();
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(ALL_CSV_COLUMNS.map((c) => c.key));
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx">("csv");
+
+  const [showStats, setShowStats] = useState(false);
+
+  useOfficerInactivity();
+
   function handleUnauthorized() {
+    clearOfficerToken();
+    navigate("/officer/login");
+  }
+
+  function handleSignOut() {
     clearOfficerToken();
     navigate("/officer/login");
   }
@@ -75,15 +110,21 @@ export default function OfficerDashboard() {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (cultivo && cultivo !== "all") params.set("cultivo", cultivo);
+  if (potencial && potencial !== "all") params.set("potencial", potencial);
 
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-
-  async function handleExportCsv() {
+  async function handleExport() {
     setIsExporting(true);
     setExportError(null);
+    setShowColumnPicker(false);
     try {
-      const res = await fetch(`${base}/api/officer/suppliers/export?${params.toString()}`, {
+      const exportParams = new URLSearchParams(params);
+      if (exportFormat === "csv") {
+        exportParams.set("columns", selectedColumns.join(","));
+      }
+      const endpoint = exportFormat === "xlsx"
+        ? `${base}/api/officer/suppliers/export.xlsx`
+        : `${base}/api/officer/suppliers/export`;
+      const res = await fetch(`${endpoint}?${exportParams.toString()}`, {
         headers: officerAuthHeaders(),
       });
       if (res.status === 401) {
@@ -95,7 +136,7 @@ export default function OfficerDashboard() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "proveedores.csv";
+      a.download = exportFormat === "xlsx" ? "proveedores.xlsx" : "proveedores.csv";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -108,7 +149,7 @@ export default function OfficerDashboard() {
   }
 
   const { data, isLoading, isError } = useQuery<{ suppliers: SupplierRow[] }>({
-    queryKey: ["officer-suppliers", search, cultivo],
+    queryKey: ["officer-suppliers", search, cultivo, potencial],
     queryFn: async () => {
       const res = await fetch(`${base}/api/officer/suppliers?${params.toString()}`, {
         headers: officerAuthHeaders(),
@@ -122,19 +163,85 @@ export default function OfficerDashboard() {
     },
   });
 
+  const { data: statsData } = useQuery<Stats>({
+    queryKey: ["officer-stats"],
+    queryFn: async () => {
+      const res = await fetch(`${base}/api/officer/stats`, {
+        headers: officerAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Error al cargar estadísticas");
+      return res.json();
+    },
+    enabled: showStats,
+  });
+
   const suppliers = data?.suppliers ?? [];
+
+  function toggleColumn(key: string) {
+    setSelectedColumns((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
       <div className="max-w-5xl mx-auto space-y-6">
 
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-7 w-7 text-blue-700 shrink-0" />
-          <div>
-            <h1 className="text-2xl font-bold text-blue-900">Panel Officer — Proveedores</h1>
-            <p className="text-sm text-blue-600">Gestión y seguimiento de agricultores registrados</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-7 w-7 text-blue-700 shrink-0" />
+            <div>
+              <h1 className="text-2xl font-bold text-blue-900">Panel Officer — Proveedores</h1>
+              <p className="text-sm text-blue-600">Gestión y seguimiento de agricultores registrados</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowStats((v) => !v)}
+              className="text-blue-700 hover:bg-blue-100"
+              title="Estadísticas"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/officer/settings")}
+              className="text-blue-700 hover:bg-blue-100"
+              title="Configuración"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="text-red-600 hover:bg-red-50"
+              title="Cerrar sesión"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1.5">Salir</span>
+            </Button>
           </div>
         </div>
+
+        {showStats && statsData && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Agricultores registrados", value: statsData.totalSuppliers, color: "bg-blue-50 text-blue-800" },
+              { label: "Borradores activos", value: statsData.activeDrafts, color: "bg-amber-50 text-amber-800" },
+              { label: "Borradores por vencer", value: statsData.expiringDrafts, color: "bg-orange-50 text-orange-800" },
+              { label: "Duplicados detectados", value: statsData.duplicateAttempts, color: "bg-red-50 text-red-800" },
+            ].map((stat) => (
+              <div key={stat.label} className={`rounded-xl px-4 py-3 ${stat.color}`}>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="text-xs mt-0.5 opacity-80">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-md p-5 space-y-4">
           <div className="flex flex-col sm:flex-row gap-3">
@@ -148,7 +255,7 @@ export default function OfficerDashboard() {
               />
             </div>
             <Select value={cultivo} onValueChange={setCultivo}>
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Cultivo" />
               </SelectTrigger>
               <SelectContent>
@@ -158,28 +265,89 @@ export default function OfficerDashboard() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={potencial} onValueChange={setPotencial}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Potencial" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los potenciales</SelectItem>
+                {POTENCIAL_OPTIONS.map((p) => (
+                  <SelectItem key={p} value={String(p)}>{p}/5 — {["Muy bajo","Bajo","Medio","Alto","Muy alto"][p-1]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <Users className="h-4 w-4" />
               {isLoading ? "Cargando..." : `${suppliers.length} proveedor${suppliers.length !== 1 ? "es" : ""}`}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCsv}
-              disabled={isExporting || isLoading || suppliers.length === 0}
-              className="flex items-center gap-1.5 text-sm"
-            >
-              {isExporting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2">
+              <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "csv" | "xlsx")}>
+                <SelectTrigger className="w-24 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="csv">CSV</SelectItem>
+                  <SelectItem value="xlsx">Excel</SelectItem>
+                </SelectContent>
+              </Select>
+              {exportFormat === "csv" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowColumnPicker((v) => !v)}
+                  disabled={isLoading || suppliers.length === 0}
+                  className="text-xs h-8"
+                >
+                  Columnas
+                </Button>
               )}
-              Exportar CSV
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={isExporting || isLoading || suppliers.length === 0}
+                className="flex items-center gap-1.5 text-sm h-8"
+              >
+                {isExporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : exportFormat === "xlsx" ? (
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                Exportar
+              </Button>
+            </div>
           </div>
+
+          {showColumnPicker && exportFormat === "csv" && (
+            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
+              <p className="text-xs font-semibold text-gray-600">Seleccionar columnas para exportar:</p>
+              <div className="flex flex-wrap gap-3">
+                {ALL_CSV_COLUMNS.map((col) => (
+                  <label key={col.key} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={selectedColumns.includes(col.key)}
+                      onCheckedChange={() => toggleColumn(col.key)}
+                    />
+                    {col.label}
+                  </label>
+                ))}
+              </div>
+              <Button
+                size="sm"
+                onClick={handleExport}
+                disabled={isExporting || selectedColumns.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+              >
+                {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                Exportar CSV
+              </Button>
+            </div>
+          )}
         </div>
 
         {exportError && (

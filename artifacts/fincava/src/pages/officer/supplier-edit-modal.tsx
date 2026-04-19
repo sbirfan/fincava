@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Loader2, Save, User, Sprout, TrendingUp, Banknote, Target, ShieldCheck } from "lucide-react";
+import { X, Loader2, Save, User, Sprout, TrendingUp, Banknote, Target, ShieldCheck, AlertCircle } from "lucide-react";
 import { officerAuthHeaders } from "@/lib/officer-auth";
+
+const WHATSAPP_RE = /^\+57[0-9]{10}$/;
 
 interface Supplier {
   id: string;
@@ -266,6 +268,11 @@ function StarPicker({
   );
 }
 
+interface ValidationErrors {
+  nombreCompleto?: string;
+  whatsappNumber?: string;
+}
+
 export default function SupplierEditModal({ supplierId, initial, onClose, base }: Props) {
   const qc = useQueryClient();
 
@@ -274,6 +281,8 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
   const e = initial.economics;
   const g = initial.goalsMeta;
   const o = initial.officerMeta;
+
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
   const [nombreCompleto, setNombreCompleto] = useState(s.nombreCompleto ?? "");
   const [whatsappNumber, setWhatsappNumber] = useState(s.whatsappNumber ?? "");
@@ -313,6 +322,17 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
   const [disposicionAgr, setDisposicionAgr] = useState(o?.disposicion_agricultor ?? "");
   const [potencialGeneral, setPotencialGeneral] = useState<number>(o?.potencial_general ?? 0);
   const [notasOfficer, setNotasOfficer] = useState(o?.notas_officer ?? "");
+
+  function validate(): ValidationErrors {
+    const errors: ValidationErrors = {};
+    if (!nombreCompleto.trim() || nombreCompleto.trim().length < 2) {
+      errors.nombreCompleto = "El nombre completo es obligatorio (mínimo 2 caracteres).";
+    }
+    if (!WHATSAPP_RE.test(whatsappNumber)) {
+      errors.whatsappNumber = "Formato inválido. Debe ser +57 seguido de 10 dígitos.";
+    }
+    return errors;
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -425,10 +445,22 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
             <SectionHeader icon={User} title="A. Identidad" />
             <FormRow>
               <Field label="Nombre completo">
-                <TextInput value={nombreCompleto} onChange={setNombreCompleto} />
+                <TextInput value={nombreCompleto} onChange={(v) => { setNombreCompleto(v); if (validationErrors.nombreCompleto) setValidationErrors((prev) => ({ ...prev, nombreCompleto: undefined })); }} />
+                {validationErrors.nombreCompleto && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {validationErrors.nombreCompleto}
+                  </p>
+                )}
               </Field>
               <Field label="WhatsApp">
-                <TextInput value={whatsappNumber} onChange={setWhatsappNumber} placeholder="+57..." />
+                <TextInput value={whatsappNumber} onChange={(v) => { setWhatsappNumber(v); if (validationErrors.whatsappNumber) setValidationErrors((prev) => ({ ...prev, whatsappNumber: undefined })); }} placeholder="+57..." />
+                {validationErrors.whatsappNumber && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {validationErrors.whatsappNumber}
+                  </p>
+                )}
               </Field>
               <Field label="Municipio">
                 <TextInput value={municipio} onChange={setMunicipio} />
@@ -576,7 +608,15 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
           </button>
           <button
             type="button"
-            onClick={() => mutation.mutate()}
+            onClick={() => {
+              const errors = validate();
+              if (Object.keys(errors).length > 0) {
+                setValidationErrors(errors);
+                return;
+              }
+              setValidationErrors({});
+              mutation.mutate();
+            }}
             disabled={mutation.isPending}
             className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >

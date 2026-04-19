@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { type LucideIcon, Loader2, ShieldCheck, ArrowLeft, User, Sprout, TrendingUp, Banknote, Target, Star, Pencil } from "lucide-react";
+import { type LucideIcon, Loader2, ShieldCheck, ArrowLeft, User, Sprout, TrendingUp, Banknote, Target, Star, Pencil, Clock, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
 import SupplierEditModal from "./supplier-edit-modal";
@@ -57,12 +57,22 @@ interface OfficerMeta {
   notas_officer?: string;
 }
 
+interface Interaction {
+  id: string;
+  interactionType: string;
+  actor: string;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 interface ProfileData {
   supplier: Supplier;
   farm: Farm | null;
   economics: Economics | null;
   goalsMeta: GoalsMeta | null;
   officerMeta: OfficerMeta | null;
+  interactions: Interaction[];
 }
 
 function Section({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: React.ReactNode }) {
@@ -133,6 +143,91 @@ function formatDate(iso: string) {
   });
 }
 
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function InteractionTypeLabel({ type }: { type: string }) {
+  const styles: Record<string, string> = {
+    update: "bg-blue-100 text-blue-700",
+    registration: "bg-green-100 text-green-700",
+    note: "bg-gray-100 text-gray-700",
+  };
+  const labels: Record<string, string> = {
+    update: "Actualización",
+    registration: "Registro inicial",
+    note: "Nota",
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[type] ?? "bg-gray-100 text-gray-600"}`}>
+      {labels[type] ?? type}
+    </span>
+  );
+}
+
+function InteractionHistory({ interactions }: { interactions: Interaction[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? interactions : interactions.slice(0, 5);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+      <div className="flex items-center gap-2 border-b pb-3">
+        <History className="h-5 w-5 text-blue-600 shrink-0" />
+        <h2 className="text-base font-semibold text-gray-800">G. Historial de cambios</h2>
+      </div>
+
+      {interactions.length === 0 ? (
+        <p className="text-sm text-gray-400">No hay cambios registrados.</p>
+      ) : (
+        <ol className="relative border-l border-gray-200 ml-2 space-y-4">
+          {visible.map((interaction) => {
+            const officerMeta = (interaction.metadata as Record<string, unknown> | null)?.officer as Record<string, unknown> | null | undefined;
+            const potencial = officerMeta?.potencial_general as number | undefined;
+            return (
+              <li key={interaction.id} className="ml-4">
+                <span className="absolute -left-1.5 mt-1 flex h-3 w-3 rounded-full border-2 border-blue-400 bg-white" />
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <InteractionTypeLabel type={interaction.interactionType} />
+                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatDateTime(interaction.createdAt)}
+                  </span>
+                  {interaction.actor && (
+                    <span className="text-xs text-gray-500">por <span className="font-medium">{interaction.actor}</span></span>
+                  )}
+                  {potencial != null && (
+                    <span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-1.5 py-0.5 rounded">
+                      Potencial: {potencial}/5
+                    </span>
+                  )}
+                </div>
+                {interaction.notes && (
+                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">{interaction.notes}</p>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {interactions.length > 5 && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-sm text-blue-600 hover:underline"
+        >
+          {expanded ? "Mostrar menos" : `Ver los ${interactions.length - 5} cambios anteriores`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function OfficerSupplierProfile() {
   const [, navigate] = useLocation();
   const [match, params] = useRoute("/officer/supplier/:id");
@@ -185,7 +280,7 @@ export default function OfficerSupplierProfile() {
     );
   }
 
-  const { supplier, farm, economics, goalsMeta, officerMeta } = data;
+  const { supplier, farm, economics, goalsMeta, officerMeta, interactions } = data;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
@@ -289,6 +384,8 @@ export default function OfficerSupplierProfile() {
             )}
           </Section>
         )}
+
+        <InteractionHistory interactions={interactions ?? []} />
 
       </div>
 

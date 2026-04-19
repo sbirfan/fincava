@@ -11,7 +11,10 @@ export const onboardingDraftsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("onboarding_drafts_whatsapp_idx").on(t.whatsappNumber)]
+  (t) => [
+    index("onboarding_drafts_whatsapp_idx").on(t.whatsappNumber),
+    index("onboarding_drafts_updated_at_idx").on(t.updatedAt),
+  ]
 );
 
 export type OnboardingDraft = typeof onboardingDraftsTable.$inferSelect;

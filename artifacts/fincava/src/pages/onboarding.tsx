@@ -114,6 +114,7 @@ type DraftBanner = {
   source: "local" | "server";
   canFullRestore: boolean;
   updatedAt?: string;
+  createdAt?: string;
   daysUntilExpiry?: number;
 };
 
@@ -129,6 +130,18 @@ function formatRelativeTime(isoString: string): string {
     if (hours < 24) return `Guardado hace ${hours} ${hours === 1 ? "hora" : "horas"}`;
     const days = Math.floor(hours / 24);
     return `Guardado hace ${days} ${days === 1 ? "día" : "días"}`;
+  } catch {
+    return "";
+  }
+}
+
+function formatDraftAge(isoString: string): string {
+  try {
+    const ts = new Date(isoString).getTime();
+    if (!Number.isFinite(ts)) return "";
+    const days = Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
+    if (days < 1) return "Iniciado hoy";
+    return `Iniciado hace ${days} ${days === 1 ? "día" : "días"}`;
   } catch {
     return "";
   }
@@ -174,7 +187,7 @@ const WHATSAPP_REGEX = /^\+57[0-9]{10}$/;
 async function fetchServerDraftMeta(
   whatsapp: string,
   base: string,
-): Promise<{ savedStep: number; updatedAt: string } | null> {
+): Promise<{ savedStep: number; updatedAt: string; createdAt?: string } | null> {
   try {
     const res = await fetch(
       `${base}/api/drafts/onboarding?whatsapp=${encodeURIComponent(whatsapp)}`,
@@ -182,7 +195,11 @@ async function fetchServerDraftMeta(
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.found) return null;
-    return { savedStep: (json.savedStep as number) ?? 0, updatedAt: json.updatedAt as string };
+    return {
+      savedStep: (json.savedStep as number) ?? 0,
+      updatedAt: json.updatedAt as string,
+      createdAt: json.createdAt as string | undefined,
+    };
   } catch {
     return null;
   }
@@ -376,6 +393,7 @@ export default function Onboarding() {
             source: "server",
             canFullRestore: true,
             updatedAt: meta.updatedAt,
+            createdAt: meta.createdAt,
             daysUntilExpiry: serverDaysUntilExpiry,
           });
           return;
@@ -390,6 +408,7 @@ export default function Onboarding() {
         source: "server",
         canFullRestore: false,
         updatedAt: meta.updatedAt,
+        createdAt: meta.createdAt,
         daysUntilExpiry: serverDaysUntilExpiry,
       });
     } finally {
@@ -613,6 +632,11 @@ export default function Onboarding() {
                   {draftBanner.whatsapp}
                   {" · "}
                   Sección {draftBanner.savedStep + 1} de {STEPS.length} — {STEPS[draftBanner.savedStep]}
+                  {draftBanner.source === "server" && draftBanner.createdAt && (
+                    <span className="block mt-0.5 text-amber-600 text-xs">
+                      {formatDraftAge(draftBanner.createdAt)}
+                    </span>
+                  )}
                   {draftBanner.source === "server" && draftBanner.updatedAt && (
                     <span className="block mt-0.5 text-amber-700">
                       {formatRelativeTime(draftBanner.updatedAt)}
