@@ -22,6 +22,7 @@ export default function OfficerSettings() {
   const [success, setSuccess] = useState(false);
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const PIN_STALE_DAYS = 90;
 
   useEffect(() => {
     async function fetchPinInfo() {
@@ -147,6 +148,20 @@ export default function OfficerSettings() {
               </span>
             )}
           </div>
+
+          {pinLastChanged && (() => {
+            const ageDays = Math.floor((Date.now() - new Date(pinLastChanged).getTime()) / (24 * 60 * 60 * 1000));
+            const isStale = ageDays >= PIN_STALE_DAYS;
+            if (!isStale) return null;
+            return (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p className="font-medium">Recomendación de seguridad</p>
+                <p className="mt-1">
+                  Tu PIN no se ha cambiado en {ageDays} días. Considera actualizarlo para mantener la cuenta segura.
+                </p>
+              </div>
+            );
+          })()}
 
           {success && (
             <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
