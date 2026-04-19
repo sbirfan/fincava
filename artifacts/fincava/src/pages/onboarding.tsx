@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { SUPPORT_WHATSAPP_NUMBER } from "@/lib/config";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -671,6 +672,14 @@ export default function Onboarding() {
                 <p className="text-xs text-red-800 mt-0.5 leading-snug">
                   El número de WhatsApp ingresado ya tiene un perfil en Fincava. Si desea actualizar su información, comuníquese con un oficial de campo.
                 </p>
+                <a
+                  href={`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hola, mi número ${form.getValues("whatsapp_number")} ya está registrado en Fincava y necesito actualizar mi perfil`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-green-700 underline underline-offset-2 hover:text-green-800"
+                >
+                  Contactar oficial por WhatsApp
+                </a>
                 <div className="flex gap-2 mt-3">
                   <Button
                     type="button"
