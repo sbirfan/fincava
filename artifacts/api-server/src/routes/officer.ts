@@ -164,6 +164,7 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
 
   if (attempts.blockedUntil !== null && now < attempts.blockedUntil) {
     const retryAfterSeconds = Math.ceil((attempts.blockedUntil - now) / 1000);
+    res.setHeader("Retry-After", String(retryAfterSeconds));
     res.status(429).json({
       error: `Demasiados intentos incorrectos. Intente de nuevo en ${Math.ceil(retryAfterSeconds / 60)} minuto(s).`,
       retryAfterSeconds,
@@ -195,6 +196,7 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
     if (attempts.count >= PIN_CHANGE_MAX_ATTEMPTS) {
       attempts.blockedUntil = Date.now() + PIN_CHANGE_BLOCK_MS;
       const retryAfterSeconds = Math.ceil(PIN_CHANGE_BLOCK_MS / 1000);
+      res.setHeader("Retry-After", String(retryAfterSeconds));
       res.status(429).json({
         error: `Demasiados intentos incorrectos. Intente de nuevo en ${Math.ceil(retryAfterSeconds / 60)} minuto(s).`,
         retryAfterSeconds,
