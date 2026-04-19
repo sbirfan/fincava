@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, suppliersTable, farmsTable, economicsTable, interactionsTable } from "@workspace/db";
-import { eq, desc, ilike, or, and } from "drizzle-orm";
+import { eq, desc, ilike, or, and, inArray } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -107,6 +107,104 @@ router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<v
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al obtener proveedores" });
+  }
+});
+
+router.get("/officer/suppliers/export", requireOfficerAuth, async (req, res): Promise<void> => {
+  try {
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
+
+    const conditions = [];
+
+    if (cultivo) {
+      conditions.push(ilike(farmsTable.cultivoPrincipal, cultivo));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(suppliersTable.nombreCompleto, `%${search}%`),
+          ilike(suppliersTable.municipio, `%${search}%`)
+        )
+      );
+    }
+
+    const suppliers = await db
+      .select({
+        id: suppliersTable.id,
+        nombreCompleto: suppliersTable.nombreCompleto,
+        whatsappNumber: suppliersTable.whatsappNumber,
+        municipio: suppliersTable.municipio,
+        createdAt: suppliersTable.createdAt,
+        cultivoPrincipal: farmsTable.cultivoPrincipal,
+      })
+      .from(suppliersTable)
+      .leftJoin(farmsTable, eq(farmsTable.supplierId, suppliersTable.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(suppliersTable.createdAt));
+
+    const supplierIds = suppliers.map((s) => s.id);
+
+    const officerMetaMap = new Map<string, Record<string, unknown>>();
+
+    if (supplierIds.length > 0) {
+      const relevantInteractions = await db
+        .select({
+          supplierId: interactionsTable.supplierId,
+          metadata: interactionsTable.metadata,
+        })
+        .from(interactionsTable)
+        .where(inArray(interactionsTable.supplierId, supplierIds))
+        .orderBy(desc(interactionsTable.createdAt));
+
+      for (const interaction of relevantInteractions) {
+        if (officerMetaMap.has(interaction.supplierId)) continue;
+        const meta = interaction.metadata as Record<string, unknown> | null;
+        if (meta?.officer) {
+          officerMetaMap.set(interaction.supplierId, meta.officer as Record<string, unknown>);
+        }
+      }
+    }
+
+    function escCsv(val: string | null | undefined): string {
+      if (val == null) return "";
+      let s = String(val);
+      if (/^[=+\-@\t\r]/.test(s)) {
+        s = "'" + s;
+      }
+      if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("'")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    }
+
+    const rows = suppliers.map((s) => {
+      const potencial = (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null;
+      const fecha = new Date(s.createdAt).toLocaleDateString("es-CO", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      return [
+        escCsv(s.nombreCompleto),
+        escCsv(s.whatsappNumber),
+        escCsv(s.municipio),
+        escCsv(s.cultivoPrincipal),
+        escCsv(fecha),
+        potencial != null ? String(potencial) : "",
+      ].join(",");
+    });
+
+    const header = "nombre,whatsapp,municipio,cultivo,fecha de registro,potencial_general";
+    const csv = [header, ...rows].join("\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="proveedores.csv"');
+    res.send("\uFEFF" + csv);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al exportar proveedores" });
   }
 });
 

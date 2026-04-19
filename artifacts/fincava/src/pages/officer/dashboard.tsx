@@ -10,8 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, ShieldCheck, Users, ChevronRight } from "lucide-react";
+import { Loader2, Search, ShieldCheck, Users, ChevronRight, Download } from "lucide-react";
 import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
+import { Button } from "@/components/ui/button";
 
 interface SupplierRow {
   id: string;
@@ -75,6 +76,37 @@ export default function OfficerDashboard() {
   if (search) params.set("search", search);
   if (cultivo && cultivo !== "all") params.set("cultivo", cultivo);
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function handleExportCsv() {
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch(`${base}/api/officer/suppliers/export?${params.toString()}`, {
+        headers: officerAuthHeaders(),
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (!res.ok) throw new Error("Error al exportar proveedores");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "proveedores.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Error al exportar");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   const { data, isLoading, isError } = useQuery<{ suppliers: SupplierRow[] }>({
     queryKey: ["officer-suppliers", search, cultivo],
     queryFn: async () => {
@@ -128,11 +160,33 @@ export default function OfficerDashboard() {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Users className="h-4 w-4" />
-            {isLoading ? "Cargando..." : `${suppliers.length} proveedor${suppliers.length !== 1 ? "es" : ""}`}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Users className="h-4 w-4" />
+              {isLoading ? "Cargando..." : `${suppliers.length} proveedor${suppliers.length !== 1 ? "es" : ""}`}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              disabled={isExporting || isLoading || suppliers.length === 0}
+              className="flex items-center gap-1.5 text-sm"
+            >
+              {isExporting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              Exportar CSV
+            </Button>
           </div>
         </div>
+
+        {exportError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            {exportError}
+          </div>
+        )}
 
         {isLoading && (
           <div className="flex justify-center py-12">
