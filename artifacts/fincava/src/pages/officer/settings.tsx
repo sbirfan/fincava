@@ -10,7 +10,7 @@ export default function OfficerSettings() {
   const [, navigate] = useLocation();
 
   useOfficerInactivity();
-  const [pinLastChanged, setPinLastChanged] = useState<string | null | undefined>(undefined);
+  const [pinLastChanged, setPinLastChanged] = useState<string | null | undefined | "error">(undefined);
   const [currentPin, setCurrentPin] = useState("");
   const [showCurrentPin, setShowCurrentPin] = useState(false);
   const [newPin, setNewPin] = useState("");
@@ -34,10 +34,10 @@ export default function OfficerSettings() {
           const data = await res.json() as { lastChanged: string | null };
           setPinLastChanged(data.lastChanged);
         } else {
-          setPinLastChanged(null);
+          setPinLastChanged("error");
         }
       } catch {
-        setPinLastChanged(null);
+        setPinLastChanged("error");
       }
     }
     void fetchPinInfo();
@@ -131,6 +131,8 @@ export default function OfficerSettings() {
             <Clock className="h-4 w-4 shrink-0 text-gray-400" />
             {pinLastChanged === undefined ? (
               <span className="text-gray-400">Cargando...</span>
+            ) : pinLastChanged === "error" ? (
+              <span className="text-gray-400">No se pudo obtener información del PIN</span>
             ) : pinLastChanged === null ? (
               <span>PIN nunca cambiado <span className="text-gray-400">(usando valor por defecto)</span></span>
             ) : (
@@ -149,7 +151,7 @@ export default function OfficerSettings() {
             )}
           </div>
 
-          {pinLastChanged !== undefined && (() => {
+          {pinLastChanged !== undefined && pinLastChanged !== "error" && (() => {
             const isNeverChanged = pinLastChanged === null;
             const ageDays = isNeverChanged
               ? null
