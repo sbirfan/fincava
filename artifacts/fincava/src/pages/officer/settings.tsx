@@ -10,6 +10,8 @@ export default function OfficerSettings() {
   const [, navigate] = useLocation();
 
   useOfficerInactivity();
+  const [currentPin, setCurrentPin] = useState("");
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [showNewPin, setShowNewPin] = useState(false);
@@ -25,6 +27,10 @@ export default function OfficerSettings() {
     setError("");
     setSuccess(false);
 
+    if (!currentPin.trim()) {
+      setError("Debes ingresar tu PIN actual");
+      return;
+    }
     if (newPin.trim().length < 4) {
       setError("El nuevo PIN debe tener al menos 4 caracteres");
       return;
@@ -42,11 +48,17 @@ export default function OfficerSettings() {
           "Content-Type": "application/json",
           ...officerAuthHeaders(),
         },
-        body: JSON.stringify({ newPin: newPin.trim() }),
+        body: JSON.stringify({ currentPin: currentPin.trim(), newPin: newPin.trim() }),
       });
 
       if (res.status === 401) {
-        navigate("/officer/login");
+        const data = await res.json().catch(() => ({}));
+        const msg = (data as { error?: string }).error ?? "";
+        if (msg === "El PIN actual es incorrecto") {
+          setError(msg);
+        } else {
+          navigate("/officer/login");
+        }
         return;
       }
 
@@ -59,6 +71,7 @@ export default function OfficerSettings() {
       const data = await res.json() as { token: string };
       setOfficerToken(data.token);
       setSuccess(true);
+      setCurrentPin("");
       setNewPin("");
       setConfirmPin("");
     } catch {
@@ -110,6 +123,28 @@ export default function OfficerSettings() {
 
           <form onSubmit={handleChangePin} className="space-y-4">
             <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 block">PIN actual</label>
+              <div className="relative">
+                <Input
+                  type={showCurrentPin ? "text" : "password"}
+                  value={currentPin}
+                  onChange={(e) => { setCurrentPin(e.target.value); setError(""); setSuccess(false); }}
+                  placeholder="Ingrese su PIN actual"
+                  className="pr-10"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPin((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showCurrentPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700 block">Nuevo PIN</label>
               <div className="relative">
                 <Input
@@ -159,7 +194,7 @@ export default function OfficerSettings() {
             <Button
               type="submit"
               className="w-full bg-blue-700 hover:bg-blue-800"
-              disabled={isLoading || !newPin.trim() || !confirmPin.trim()}
+              disabled={isLoading || !currentPin.trim() || !newPin.trim() || !confirmPin.trim()}
             >
               {isLoading ? "Cambiando PIN..." : "Cambiar PIN"}
             </Button>

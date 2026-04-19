@@ -83,9 +83,22 @@ router.post("/officer/auth", async (req: Request, res: Response): Promise<void> 
 });
 
 router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res: Response): Promise<void> => {
-  const { newPin } = req.body as { newPin?: string };
+  const { currentPin, newPin } = req.body as { currentPin?: string; newPin?: string };
+  if (!currentPin || !currentPin.trim()) {
+    res.status(400).json({ error: "El PIN actual es requerido" });
+    return;
+  }
   if (!newPin || newPin.trim().length < 4) {
     res.status(400).json({ error: "El nuevo PIN debe tener al menos 4 caracteres" });
+    return;
+  }
+  const configuredPin = await getConfiguredPin();
+  if (!configuredPin) {
+    res.status(503).json({ error: "Officer authentication is not configured on this server" });
+    return;
+  }
+  if (currentPin.trim() !== configuredPin) {
+    res.status(401).json({ error: "El PIN actual es incorrecto" });
     return;
   }
   const trimmed = newPin.trim();
