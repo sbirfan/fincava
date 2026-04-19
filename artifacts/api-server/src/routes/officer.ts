@@ -904,16 +904,19 @@ router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Pro
     }
 
     if (body.officerMeta) {
-      if (body.officerMeta.potencial_general !== undefined && body.officerMeta.potencial_general !== null) {
-        if (
-          typeof body.officerMeta.potencial_general !== "number" ||
-          !Number.isInteger(body.officerMeta.potencial_general) ||
-          body.officerMeta.potencial_general < 1 ||
-          body.officerMeta.potencial_general > 5
-        ) {
-          res.status(400).json({ error: "El potencial general debe ser un número entre 1 y 5" });
-          return;
-        }
+      const pg = body.officerMeta.potencial_general;
+      if (pg === undefined || pg === null || pg === 0) {
+        res.status(400).json({ error: "El potencial general es obligatorio. Asigna una calificación de 1 a 5 estrellas." });
+        return;
+      }
+      if (
+        typeof pg !== "number" ||
+        !Number.isInteger(pg) ||
+        pg < 1 ||
+        pg > 5
+      ) {
+        res.status(400).json({ error: "El potencial general debe ser un número entre 1 y 5" });
+        return;
       }
     }
 

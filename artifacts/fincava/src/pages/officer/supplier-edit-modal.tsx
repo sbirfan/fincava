@@ -277,6 +277,7 @@ interface ValidationErrors {
   cosechas?: string;
   volumenKg?: string;
   personasDep?: string;
+  potencialGeneral?: string;
 }
 
 export default function SupplierEditModal({ supplierId, initial, onClose, base }: Props) {
@@ -373,6 +374,9 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
       if (!Number.isInteger(p) || p < 0) {
         errors.personasDep = "Debe ser un número entero no negativo.";
       }
+    }
+    if (potencialGeneral === 0) {
+      errors.potencialGeneral = "El potencial general es obligatorio. Asigna una calificación de 1 a 5 estrellas.";
     }
     return errors;
   }
@@ -655,7 +659,7 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
             <SectionHeader icon={ShieldCheck} title="F. Evaluación Officer" />
             {!evalComplete && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Completa los campos de evaluación (salud de plantas, infraestructura, acceso vial, disposición y potencial general) para registrar una evaluación completa.
+                Para una evaluación completa, rellena todos los campos: salud de plantas, infraestructura, acceso vial y disposición del agricultor. El <strong>potencial general</strong> es obligatorio para guardar.
               </div>
             )}
             <FormRow>
@@ -673,8 +677,22 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
               </Field>
             </FormRow>
             <div className="mt-4">
-              <Label>Potencial general</Label>
-              <StarPicker value={potencialGeneral} onChange={setPotencialGeneral} />
+              <Label>Potencial general <span className="text-red-500">*</span></Label>
+              <StarPicker
+                value={potencialGeneral}
+                onChange={(v) => {
+                  setPotencialGeneral(v);
+                  if (validationErrors.potencialGeneral) {
+                    setValidationErrors((prev) => ({ ...prev, potencialGeneral: undefined }));
+                  }
+                }}
+              />
+              {validationErrors.potencialGeneral && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  {validationErrors.potencialGeneral}
+                </p>
+              )}
             </div>
             <div className="mt-4">
               <Label>Notas del officer</Label>
