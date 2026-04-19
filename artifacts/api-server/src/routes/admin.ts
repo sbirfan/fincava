@@ -1,11 +1,10 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, profilesTable, companiesTable, onboardingDraftsTable } from "@workspace/db";
+import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { desc, eq, inArray, count, sum } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
-import { pool } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -146,49 +145,6 @@ router.get("/admin/orders", ...adminOnly, async (_req, res): Promise<void> => {
     .orderBy(desc(ordersTable.createdAt));
 
   res.json(orders);
-});
-
-router.post("/admin/officer-pin", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
-  const { newPin } = req.body as { newPin?: string };
-  if (!newPin || newPin.trim().length < 4) {
-    res.status(400).json({ error: "El nuevo PIN debe tener al menos 4 caracteres" });
-    return;
-  }
-  const trimmed = newPin.trim();
-  try {
-    await pool.query(
-      `INSERT INTO officer_config (key, value, updated_at)
-       VALUES ('officer_pin', $1, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
-      [trimmed],
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al cambiar el PIN del officer" });
-  }
-});
-
-router.get("/admin/draft-reminders", ...adminOnly, async (_req, res): Promise<void> => {
-  try {
-    const result = await db
-      .select({
-        whatsappNumber: onboardingDraftsTable.whatsappNumber,
-        updatedAt: onboardingDraftsTable.updatedAt,
-      })
-      .from(onboardingDraftsTable)
-      .orderBy(desc(onboardingDraftsTable.updatedAt))
-      .limit(50);
-    res.json({
-      reminders: result.rows.map((row) => ({
-        whatsappNumber: row.whatsappNumber,
-        sentAt: row.updatedAt,
-      })),
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al obtener recordatorios" });
-  }
 });
 
 export default router;

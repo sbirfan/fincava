@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
-import { isOfficerAuthenticated } from "./lib/officer-auth";
 import { AppLayout } from "@/components/layout/app-layout";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AdminLayout } from "@/components/layout/admin-layout";
@@ -24,12 +23,6 @@ import Investors from "@/pages/investors";
 import Contact from "@/pages/contact";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
-import Onboarding from "@/pages/onboarding";
-import OfficerRegister from "@/pages/officer/register";
-import OfficerDashboard from "@/pages/officer/dashboard";
-import OfficerSupplierProfile from "@/pages/officer/supplier-profile";
-import OfficerSettings from "@/pages/officer/settings";
-import OfficerLogin from "@/pages/officer/login";
 import RFQs from "@/pages/rfqs";
 import RFQDetail from "@/pages/rfq-detail";
 import Impact from "@/pages/impact";
@@ -70,13 +63,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-function OfficerRoute({ component: Component }: { component: any }) {
-  if (!isOfficerAuthenticated()) {
-    return <Redirect to="/officer/login" />;
-  }
-  return <Component />;
-}
 
 function PrivateRoute({ component: Component, roles, layout: Layout = AppLayout }: { component: any, roles?: string[], layout?: any }) {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -120,12 +106,6 @@ function Router() {
       <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
       <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
       <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
-      <Route path="/onboarding" component={() => <Onboarding />} />
-      <Route path="/officer/register" component={() => <OfficerRegister />} />
-      <Route path="/officer/login" component={() => <OfficerLogin />} />
-      <Route path="/officer/dashboard" component={() => <OfficerRoute component={OfficerDashboard} />} />
-      <Route path="/officer/settings" component={() => <OfficerRoute component={OfficerSettings} />} />
-      <Route path="/officer/supplier/:id" component={() => <OfficerRoute component={OfficerSupplierProfile} />} />
 
       {/* Buyer Dashboard */}
       <Route path="/dashboard" component={() => <PrivateRoute component={BuyerDashboard} roles={["BUYER"]} layout={DashboardLayout} />} />

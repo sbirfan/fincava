@@ -5,14 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts",
-    "./ensure-schema": "./src/ensure-schema.ts"
+    "./schema": "./src/schema/index.ts"
   },
   "scripts": {
-    "db:init": "tsx ./scripts/init-db.ts",
-    "generate": "drizzle-kit generate --config ./drizzle.config.ts",
-    "migrate": "tsx ./scripts/migrate.ts",
-    "check-drift": "tsx ./scripts/check-drift.ts",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
   },
@@ -25,7 +20,6 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.18.0",
-    "drizzle-kit": "^0.31.9",
-    "tsx": "catalog:"
+    "drizzle-kit": "^0.31.9"
   }
 }

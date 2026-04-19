@@ -15,16 +15,10 @@ import analyticsRouter from "./analytics";
 import storiesRouter from "./stories";
 import financingRouter from "./financing";
 import adminRouter from "./admin";
-import onboardingRouter from "./onboarding";
-import officerRouter from "./officer";
-import draftsRouter from "./drafts";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use(onboardingRouter);
-router.use(officerRouter);
-router.use(draftsRouter);
 router.use(authRouter);
 router.use(productsRouter);
 router.use(suppliersRouter);
