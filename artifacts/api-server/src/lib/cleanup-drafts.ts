@@ -3,7 +3,7 @@ import { logger } from "./logger";
 
 const DEFAULT_EXPIRY_DAYS = 30;
 
-function getExpiryDays(): number {
+export function getExpiryDays(): number {
   const raw = process.env["DRAFT_EXPIRY_DAYS"];
   if (!raw) return DEFAULT_EXPIRY_DAYS;
   const parsed = Number(raw);
