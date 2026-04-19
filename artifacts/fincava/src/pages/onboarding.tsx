@@ -114,6 +114,7 @@ type DraftBanner = {
   source: "local" | "server";
   canFullRestore: boolean;
   updatedAt?: string;
+  daysUntilExpiry?: number;
 };
 
 function formatRelativeTime(isoString: string): string {
@@ -157,7 +158,10 @@ function findExistingDraft(): DraftBanner | null {
       const nombre = parsed.nombre_completo || "";
       const whatsapp = parsed.whatsapp_number || key.replace(DRAFT_PREFIX, "");
       if (nombre || whatsapp.length > 6) {
-        return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, source: "local", canFullRestore: true };
+        const msRemaining = DRAFT_EXPIRY_MS - age;
+        const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+        const daysUntilExpiry = daysRemaining > 0 && daysRemaining <= 7 ? daysRemaining : undefined;
+        return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, source: "local", canFullRestore: true, daysUntilExpiry };
       }
     }
   } catch {
@@ -353,6 +357,11 @@ export default function Onboarding() {
       if (!meta) return;
 
       const token = getDraftToken(whatsapp);
+      const serverDaysRemaining = meta.updatedAt
+        ? Math.ceil((DRAFT_EXPIRY_MS - (Date.now() - new Date(meta.updatedAt).getTime())) / (24 * 60 * 60 * 1000))
+        : undefined;
+      const serverDaysUntilExpiry = serverDaysRemaining !== undefined && serverDaysRemaining > 0 && serverDaysRemaining <= 7 ? serverDaysRemaining : undefined;
+
       if (token) {
         setRestoringServer(true);
         const fullData = await restoreServerDraft(whatsapp, token, base);
@@ -367,6 +376,7 @@ export default function Onboarding() {
             source: "server",
             canFullRestore: true,
             updatedAt: meta.updatedAt,
+            daysUntilExpiry: serverDaysUntilExpiry,
           });
           return;
         }
@@ -380,6 +390,7 @@ export default function Onboarding() {
         source: "server",
         canFullRestore: false,
         updatedAt: meta.updatedAt,
+        daysUntilExpiry: serverDaysUntilExpiry,
       });
     } finally {
       setCheckingServerDraft(false);
@@ -610,6 +621,12 @@ export default function Onboarding() {
                   {draftBanner.source === "server" && !draftBanner.canFullRestore && (
                     <span className="block mt-0.5 text-amber-700">
                       (Este dispositivo no tiene el borrador; puede continuar desde esa sección)
+                    </span>
+                  )}
+                  {draftBanner.daysUntilExpiry !== undefined && (
+                    <span className="flex items-center gap-1 mt-1 text-red-700 font-medium">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      Su borrador vence en {draftBanner.daysUntilExpiry} {draftBanner.daysUntilExpiry === 1 ? "día" : "días"} — complete su registro para no perderlo.
                     </span>
                   )}
                 </p>

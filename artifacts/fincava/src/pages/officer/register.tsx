@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, ShieldCheck, RotateCcw } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, ShieldCheck, RotateCcw, AlertCircle } from "lucide-react";
 import {
   SANTANDER_MUNICIPIOS,
   VARIEDADES_CAFE,
@@ -125,6 +125,7 @@ type DraftBanner = {
   nombre: string;
   whatsapp: string;
   savedStep: number;
+  daysUntilExpiry?: number;
 };
 
 const DRAFT_PREFIX = "fincava_officer_reg_";
@@ -151,7 +152,10 @@ function findExistingDraft(): DraftBanner | null {
       const nombre = parsed.nombre_completo || "";
       const whatsapp = parsed.whatsapp_number || key.replace(DRAFT_PREFIX, "");
       if (nombre || whatsapp.length > 6) {
-        return { key, nombre, whatsapp, savedStep: parsed._step ?? 0 };
+        const msRemaining = DRAFT_EXPIRY_MS - age;
+        const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+        const daysUntilExpiry = daysRemaining > 0 && daysRemaining <= 7 ? daysRemaining : undefined;
+        return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, daysUntilExpiry };
       }
     }
   } catch {
@@ -422,6 +426,12 @@ export default function OfficerRegister() {
                   {draftBanner.whatsapp}
                   {" · "}
                   Sección {draftBanner.savedStep + 1} de {STEPS.length} — {STEPS[draftBanner.savedStep]}
+                  {draftBanner.daysUntilExpiry !== undefined && (
+                    <span className="flex items-center gap-1 mt-1 text-red-700 font-medium">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      Este borrador vence en {draftBanner.daysUntilExpiry} {draftBanner.daysUntilExpiry === 1 ? "día" : "días"} — complete el registro para no perderlo.
+                    </span>
+                  )}
                 </p>
                 <div className="flex gap-2 mt-3">
                   <Button
