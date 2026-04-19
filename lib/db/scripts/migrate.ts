@@ -148,6 +148,11 @@ async function ensureAuxiliaryTables(): Promise<void> {
         ON draft_cleanup_log (swept_at)
     `);
 
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS onboarding_drafts_updated_at_idx
+        ON onboarding_drafts (updated_at)
+    `);
+
     console.log("[migrate] Auxiliary tables ready (officer_config, registration_events, draft_cleanup_log).");
   } finally {
     await client.end();
