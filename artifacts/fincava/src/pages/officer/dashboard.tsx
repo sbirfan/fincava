@@ -40,6 +40,7 @@ interface Stats {
   weeklyDuplicates?: { week: string; count: number }[];
   weeklyAbandonments?: { week: string; count: number }[];
   abandonmentRate?: number | null;
+  whatsappConfigured?: boolean;
 }
 
 const POTENCIAL_COLORS: Record<number, string> = {
@@ -390,6 +391,14 @@ export default function OfficerDashboard() {
                   </div>
                 </div>
               )}
+              <div className={`rounded-xl px-4 py-3 ${statsData.whatsappConfigured ? "bg-green-50 text-green-800" : "bg-yellow-50 text-yellow-800"}`}>
+                <div className="text-lg font-bold">{statsData.whatsappConfigured ? "Activo" : "Sin configurar"}</div>
+                <div className="text-xs mt-0.5 opacity-80">
+                  {statsData.whatsappConfigured
+                    ? "Recordatorios WhatsApp habilitados"
+                    : "Recordatorios WhatsApp desactivados"}
+                </div>
+              </div>
             </div>
             {statsData.weeklyDuplicates && statsData.weeklyDuplicates.length > 0 && (
               <div className="rounded-xl px-4 py-3 bg-red-50 text-red-800">

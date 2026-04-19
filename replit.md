@@ -116,19 +116,24 @@ V3 origin stories seeded for all 8 products using script run via `scripts/node_m
 - **Auto-save** — pushes to server (and localStorage) on each step advance and every 30-second interval; stores returned token
 - **Cleanup on submission** — Successful onboarding deletes server draft via token-authenticated DELETE
 
-### Officer Panel — Feature Set (T038–T073)
+### Officer Panel — Feature Set (T038–T075)
 - **Field-diff tracking** — PATCH /officer/suppliers/:id logs before/after field changes + notes; displayed in UI
 - **Supplier list** — sort by date asc/desc and potential score; filter counts in badges; localStorage persistence for all filters
 - **Export** — CSV + Excel share a column picker (localStorage persisted); Excel has bold blue header row (cellStyles)
-- **Security** — PIN auth with 5-attempt rate limit → 10-min block; session expiry warning banner (remaining time) on dashboard/settings/supplier-profile; token-window reset button in settings; officer inactivity auto-logout
-- **Analytics stats** — /officer/stats returns: weeklyDuplicates, weeklyAbandonments, abandonmentRate, lastCleanup (date + count)
+- **Security** — PIN auth with 5-attempt rate limit → 10-min block; session expiry warning banner (remaining time) on dashboard/settings/supplier-profile/register; token-window reset button in settings; officer inactivity auto-logout
+- **PIN lockout persistence** — Lockout state persisted to officer_config table (`_lockout:auth:<ip>`, `_lockout:change:<ip>`); restored on server restart; expired entries pruned at startup; see `artifacts/api-server/src/lib/pin-lockout.ts`
+- **Security alerts** — On every PIN lockout, a structured `pin_lockout_triggered` warning is logged (pino); if `SECURITY_ALERT_WEBHOOK_URL` env var is set, a JSON payload is POSTed to it (Slack/PagerDuty/etc.)
+- **Analytics stats** — /officer/stats returns: weeklyDuplicates, weeklyAbandonments, abandonmentRate, lastCleanup (date + count), whatsappConfigured (bool)
 - **Dashboard mini-charts** — bar charts for weekly duplicate and abandonment trends rendered inline in the stats panel
+- **WhatsApp status card** — Dashboard shows "Activo" (green) or "Sin configurar" (yellow) based on Twilio credential presence
+- **WhatsApp reminders** — Twilio WhatsApp API integrated in cleanup-drafts.ts; activate by setting TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM secrets
 - **WhatsApp click tracking** — When a farmer sees the duplicate-error screen and clicks WhatsApp, a `whatsapp_support_click` event is logged via POST /api/events/track
 - **Log retention** — registration_events purged after 90 days; draft_cleanup_log purged after 365 days (nightly cleanup job)
 - **Drizzle schemas** — Type-safe table definitions added for officer_config, registration_events, draft_cleanup_log
 - **Drift check script** — `pnpm --filter @workspace/db check-drift` verifies all expected tables/columns exist
 - **Sync failure UX** — localStorage quota errors show an amber warning banner on the officer form; compact ✓ checkmark on mobile
 - **Event tracking endpoint** — POST /api/events/track (public, rate-limited via logRegistrationEvent)
+- **Draft expiry tests** — vitest test suite at `artifacts/api-server/src/lib/__tests__/cleanup-drafts.test.ts` covering 29 cases for getExpiryDays, getReminderDaysBeforeExpiry, computeExpiryCutoff, computeReminderWindow, isEligibleForReminder; run with `pnpm --filter @workspace/api-server run test`
 
 ### Seeded Suppliers
 - id=1 Café Huilas Premium (PREMIUM, trustScore=87)

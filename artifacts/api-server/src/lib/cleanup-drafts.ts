@@ -35,7 +35,7 @@ export function getExpiryDays(): number {
   return parsed;
 }
 
-function getReminderDaysBeforeExpiry(): number {
+export function getReminderDaysBeforeExpiry(): number {
   const raw = process.env["DRAFT_REMINDER_DAYS_BEFORE_EXPIRY"];
   if (!raw) return DEFAULT_REMINDER_DAYS_BEFORE_EXPIRY;
   const parsed = Number(raw);
@@ -51,6 +51,31 @@ function getReminderDaysBeforeExpiry(): number {
 
 function getReminderUrl(): string {
   return process.env["DRAFT_REMINDER_URL"] ?? DEFAULT_REMINDER_URL;
+}
+
+export function computeExpiryCutoff(now: Date, expiryDays: number): Date {
+  return new Date(now.getTime() - expiryDays * 24 * 60 * 60 * 1000);
+}
+
+export function computeReminderWindow(
+  now: Date,
+  expiryDays: number,
+  reminderDaysBefore: number,
+): { reminderCutoff: Date; expiryCutoff: Date } | null {
+  if (reminderDaysBefore >= expiryDays) return null;
+  const reminderThresholdDays = expiryDays - reminderDaysBefore;
+  return {
+    reminderCutoff: new Date(now.getTime() - reminderThresholdDays * 24 * 60 * 60 * 1000),
+    expiryCutoff: computeExpiryCutoff(now, expiryDays),
+  };
+}
+
+export function isEligibleForReminder(
+  updatedAt: Date,
+  reminderCutoff: Date,
+  expiryCutoff: Date,
+): boolean {
+  return updatedAt <= reminderCutoff && updatedAt > expiryCutoff;
 }
 
 function getTwilioClient(): ReturnType<typeof twilio> | null {

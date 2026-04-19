@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSchema } from "@workspace/db/ensure-schema";
 import { scheduleDraftCleanup } from "./lib/cleanup-drafts";
+import { initPinLockouts } from "./lib/pin-lockout";
 
 const rawPort = process.env["PORT"];
 
@@ -32,6 +33,7 @@ async function start() {
 
   logger.info("Database schema verified.");
 
+  await initPinLockouts();
   scheduleDraftCleanup();
 
   app.listen(port, (err) => {

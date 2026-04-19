@@ -4,6 +4,7 @@ import { db, suppliersTable, farmsTable, economicsTable, interactionsTable } fro
 import { pool } from "@workspace/db";
 import { eq, desc, asc, ilike, or, and, inArray, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
+import { getLockoutState, setLockoutState, sendLockoutAlert } from "../lib/pin-lockout";
 
 const router: IRouter = Router();
 
@@ -80,23 +81,10 @@ async function requireOfficerAuth(req: Request, res: Response, next: NextFunctio
   res.status(401).json({ error: "Unauthorized: valid officer token required" });
 }
 
-const PIN_ATTEMPTS: Map<string, { count: number; blockedUntil: number | null }> = new Map();
 const PIN_MAX_ATTEMPTS = 5;
 const PIN_BLOCK_MS = 10 * 60 * 1000;
-
-function getPinAttempts(ip: string) {
-  if (!PIN_ATTEMPTS.has(ip)) PIN_ATTEMPTS.set(ip, { count: 0, blockedUntil: null });
-  return PIN_ATTEMPTS.get(ip)!;
-}
-
-const PIN_CHANGE_ATTEMPTS: Map<string, { count: number; blockedUntil: number | null }> = new Map();
 const PIN_CHANGE_MAX_ATTEMPTS = 5;
 const PIN_CHANGE_BLOCK_MS = 10 * 60 * 1000;
-
-function getPinChangeAttempts(ip: string) {
-  if (!PIN_CHANGE_ATTEMPTS.has(ip)) PIN_CHANGE_ATTEMPTS.set(ip, { count: 0, blockedUntil: null });
-  return PIN_CHANGE_ATTEMPTS.get(ip)!;
-}
 
 router.post("/officer/auth", async (req: Request, res: Response): Promise<void> => {
   const configuredPin = await getConfiguredPin();
@@ -106,7 +94,7 @@ router.post("/officer/auth", async (req: Request, res: Response): Promise<void> 
   }
 
   const ip = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "unknown");
-  const state = getPinAttempts(ip);
+  const state = getLockoutState("auth", ip);
   if (state.blockedUntil !== null) {
     if (Date.now() < state.blockedUntil) {
       const secondsLeft = Math.ceil((state.blockedUntil - Date.now()) / 1000);
@@ -115,6 +103,7 @@ router.post("/officer/auth", async (req: Request, res: Response): Promise<void> 
     }
     state.count = 0;
     state.blockedUntil = null;
+    setLockoutState("auth", ip, state);
   }
 
   const { pin } = req.body as { pin?: string };
@@ -127,8 +116,11 @@ router.post("/officer/auth", async (req: Request, res: Response): Promise<void> 
     if (state.count >= PIN_MAX_ATTEMPTS) {
       state.blockedUntil = Date.now() + PIN_BLOCK_MS;
       state.count = 0;
+      setLockoutState("auth", ip, state);
+      void sendLockoutAlert("auth", ip);
       res.status(429).json({ error: "Demasiados intentos fallidos. Espera 10 minutos antes de intentar de nuevo." });
     } else {
+      setLockoutState("auth", ip, state);
       const attemptsLeft = PIN_MAX_ATTEMPTS - state.count;
       res.status(401).json({ error: `PIN incorrecto. ${attemptsLeft} intento${attemptsLeft !== 1 ? "s" : ""} restante${attemptsLeft !== 1 ? "s" : ""}.` });
     }
@@ -137,6 +129,7 @@ router.post("/officer/auth", async (req: Request, res: Response): Promise<void> 
 
   state.count = 0;
   state.blockedUntil = null;
+  setLockoutState("auth", ip, state);
   res.json({ token: issueOfficerToken(configuredPin) });
 });
 
@@ -159,7 +152,7 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
     ?? req.socket.remoteAddress
     ?? "unknown";
 
-  const attempts = getPinChangeAttempts(ip);
+  const attempts = getLockoutState("change", ip);
   const now = Date.now();
 
   if (attempts.blockedUntil !== null && now < attempts.blockedUntil) {
@@ -175,6 +168,7 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
   if (attempts.blockedUntil !== null && now >= attempts.blockedUntil) {
     attempts.count = 0;
     attempts.blockedUntil = null;
+    setLockoutState("change", ip, attempts);
   }
 
   const { currentPin, newPin } = req.body as { currentPin?: string; newPin?: string };
@@ -195,6 +189,8 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
     attempts.count += 1;
     if (attempts.count >= PIN_CHANGE_MAX_ATTEMPTS) {
       attempts.blockedUntil = Date.now() + PIN_CHANGE_BLOCK_MS;
+      setLockoutState("change", ip, attempts);
+      void sendLockoutAlert("change", ip);
       const retryAfterSeconds = Math.ceil(PIN_CHANGE_BLOCK_MS / 1000);
       res.setHeader("Retry-After", String(retryAfterSeconds));
       res.status(429).json({
@@ -203,6 +199,7 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
       });
       return;
     }
+    setLockoutState("change", ip, attempts);
     const remaining = PIN_CHANGE_MAX_ATTEMPTS - attempts.count;
     res.status(401).json({
       error: "El PIN actual es incorrecto",
@@ -213,6 +210,7 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
 
   attempts.count = 0;
   attempts.blockedUntil = null;
+  setLockoutState("change", ip, attempts);
 
   const trimmed = newPin.trim();
   try {
@@ -689,6 +687,12 @@ router.get("/officer/stats", requireOfficerAuth, async (_req, res): Promise<void
       ? abandonedLast30 / (abandonedLast30 + totalDraftsAndSuppliers)
       : null;
 
+    const whatsappConfigured = !!(
+      process.env["TWILIO_ACCOUNT_SID"] &&
+      process.env["TWILIO_AUTH_TOKEN"] &&
+      process.env["TWILIO_WHATSAPP_FROM"]
+    );
+
     res.json({
       totalSuppliers,
       activeDrafts,
@@ -698,6 +702,7 @@ router.get("/officer/stats", requireOfficerAuth, async (_req, res): Promise<void
       abandonedLast30,
       lastCleanup,
       abandonmentRate,
+      whatsappConfigured,
       weeklyRegistrations: weeklyRegistrationsResult.rows.map((r) => ({
         week: r.week,
         count: parseInt(r.count, 10),
