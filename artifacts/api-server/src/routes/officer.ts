@@ -82,6 +82,20 @@ router.post("/officer/auth", async (req: Request, res: Response): Promise<void> 
   res.json({ token: issueOfficerToken(configuredPin) });
 });
 
+router.get("/officer/pin/info", requireOfficerAuth, async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query<{ updated_at: Date | null }>(
+      "SELECT updated_at FROM officer_config WHERE key = 'officer_pin' LIMIT 1",
+    );
+    const row = result.rows[0];
+    const lastChanged = row?.updated_at ? row.updated_at.toISOString() : null;
+    res.json({ lastChanged });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener información del PIN" });
+  }
+});
+
 router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res: Response): Promise<void> => {
   const { currentPin, newPin } = req.body as { currentPin?: string; newPin?: string };
   if (!currentPin || !currentPin.trim()) {

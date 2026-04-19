@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ShieldCheck, ArrowLeft, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Lock, Eye, EyeOff, CheckCircle2, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { officerAuthHeaders, setOfficerToken } from "@/lib/officer-auth";
@@ -10,6 +10,7 @@ export default function OfficerSettings() {
   const [, navigate] = useLocation();
 
   useOfficerInactivity();
+  const [pinLastChanged, setPinLastChanged] = useState<string | null | undefined>(undefined);
   const [currentPin, setCurrentPin] = useState("");
   const [showCurrentPin, setShowCurrentPin] = useState(false);
   const [newPin, setNewPin] = useState("");
@@ -21,6 +22,25 @@ export default function OfficerSettings() {
   const [success, setSuccess] = useState(false);
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  useEffect(() => {
+    async function fetchPinInfo() {
+      try {
+        const res = await fetch(`${base}/api/officer/pin/info`, {
+          headers: officerAuthHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json() as { lastChanged: string | null };
+          setPinLastChanged(data.lastChanged);
+        } else {
+          setPinLastChanged(null);
+        }
+      } catch {
+        setPinLastChanged(null);
+      }
+    }
+    void fetchPinInfo();
+  }, [base]);
 
   async function handleChangePin(e: React.FormEvent) {
     e.preventDefault();
@@ -74,6 +94,7 @@ export default function OfficerSettings() {
       setCurrentPin("");
       setNewPin("");
       setConfirmPin("");
+      setPinLastChanged(new Date().toISOString());
     } catch {
       setError("Error de conexión. Intente nuevamente.");
     } finally {
@@ -103,6 +124,28 @@ export default function OfficerSettings() {
           <div className="flex items-center gap-2 border-b pb-3">
             <Lock className="h-5 w-5 text-blue-600" />
             <h2 className="text-base font-semibold text-gray-800">Cambiar PIN de acceso</h2>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Clock className="h-4 w-4 shrink-0 text-gray-400" />
+            {pinLastChanged === undefined ? (
+              <span className="text-gray-400">Cargando...</span>
+            ) : pinLastChanged === null ? (
+              <span>PIN nunca cambiado <span className="text-gray-400">(usando valor por defecto)</span></span>
+            ) : (
+              <span>
+                PIN cambiado por última vez:{" "}
+                <span className="font-medium text-gray-700">
+                  {new Date(pinLastChanged).toLocaleString("es-CO", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </span>
+            )}
           </div>
 
           {success && (
