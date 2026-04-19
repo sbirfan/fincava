@@ -113,7 +113,25 @@ type DraftBanner = {
   savedStep: number;
   source: "local" | "server";
   canFullRestore: boolean;
+  updatedAt?: string;
 };
+
+function formatRelativeTime(isoString: string): string {
+  try {
+    const ts = new Date(isoString).getTime();
+    if (!Number.isFinite(ts)) return "";
+    const diff = Date.now() - ts;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "Guardado hace un momento";
+    if (minutes < 60) return `Guardado hace ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Guardado hace ${hours} ${hours === 1 ? "hora" : "horas"}`;
+    const days = Math.floor(hours / 24);
+    return `Guardado hace ${days} ${days === 1 ? "día" : "días"}`;
+  } catch {
+    return "";
+  }
+}
 
 const DRAFT_PREFIX = "fincava_onboarding_";
 
@@ -348,6 +366,7 @@ export default function Onboarding() {
             savedStep: meta.savedStep,
             source: "server",
             canFullRestore: true,
+            updatedAt: meta.updatedAt,
           });
           return;
         }
@@ -360,6 +379,7 @@ export default function Onboarding() {
         savedStep: meta.savedStep,
         source: "server",
         canFullRestore: false,
+        updatedAt: meta.updatedAt,
       });
     } finally {
       setCheckingServerDraft(false);
@@ -582,6 +602,11 @@ export default function Onboarding() {
                   {draftBanner.whatsapp}
                   {" · "}
                   Sección {draftBanner.savedStep + 1} de {STEPS.length} — {STEPS[draftBanner.savedStep]}
+                  {draftBanner.source === "server" && draftBanner.updatedAt && (
+                    <span className="block mt-0.5 text-amber-700">
+                      {formatRelativeTime(draftBanner.updatedAt)}
+                    </span>
+                  )}
                   {draftBanner.source === "server" && !draftBanner.canFullRestore && (
                     <span className="block mt-0.5 text-amber-700">
                       (Este dispositivo no tiene el borrador; puede continuar desde esa sección)
