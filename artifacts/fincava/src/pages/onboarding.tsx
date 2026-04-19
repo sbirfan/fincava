@@ -116,19 +116,29 @@ type DraftBanner = {
 
 const DRAFT_PREFIX = "fincava_onboarding_";
 
+const DRAFT_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+
 function findExistingDraft(): DraftBanner | null {
   try {
+    const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(DRAFT_PREFIX)) {
-        const raw = localStorage.getItem(key);
-        if (!raw) continue;
-        const parsed = JSON.parse(raw) as Partial<FormData> & { _step?: number };
-        const nombre = parsed.nombre_completo || "";
-        const whatsapp = parsed.whatsapp_number || key.replace(DRAFT_PREFIX, "");
-        if (nombre || whatsapp.length > 6) {
-          return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, source: "local", canFullRestore: true };
-        }
+      const k = localStorage.key(i);
+      if (k && k.startsWith(DRAFT_PREFIX)) keys.push(k);
+    }
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as Partial<FormData> & { _step?: number; _savedAt?: string };
+      const savedAt = parsed._savedAt ? new Date(parsed._savedAt).getTime() : NaN;
+      const age = isNaN(savedAt) ? Infinity : Date.now() - savedAt;
+      if (age > DRAFT_EXPIRY_MS) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      const nombre = parsed.nombre_completo || "";
+      const whatsapp = parsed.whatsapp_number || key.replace(DRAFT_PREFIX, "");
+      if (nombre || whatsapp.length > 6) {
+        return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, source: "local", canFullRestore: true };
       }
     }
   } catch {
@@ -407,7 +417,7 @@ export default function Onboarding() {
     const whatsapp = form.getValues("whatsapp_number");
     if (whatsapp && whatsapp.length > 6) {
       const values = form.getValues();
-      const payload = { ...values, _step: step };
+      const payload = { ...values, _step: step, _savedAt: new Date().toISOString() };
       localStorage.setItem(getStorageKey(whatsapp), JSON.stringify(payload));
       setLastSaved(new Date());
       if (WHATSAPP_REGEX.test(whatsapp)) {
