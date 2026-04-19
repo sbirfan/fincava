@@ -149,15 +149,20 @@ export default function OfficerSettings() {
             )}
           </div>
 
-          {pinLastChanged && (() => {
-            const ageDays = Math.floor((Date.now() - new Date(pinLastChanged).getTime()) / (24 * 60 * 60 * 1000));
-            const isStale = ageDays >= PIN_STALE_DAYS;
+          {pinLastChanged !== undefined && (() => {
+            const isNeverChanged = pinLastChanged === null;
+            const ageDays = isNeverChanged
+              ? null
+              : Math.floor((Date.now() - new Date(pinLastChanged).getTime()) / (24 * 60 * 60 * 1000));
+            const isStale = isNeverChanged || (ageDays !== null && ageDays >= PIN_STALE_DAYS);
             if (!isStale) return null;
             return (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <p className="font-medium">Recomendación de seguridad</p>
                 <p className="mt-1">
-                  Tu PIN no se ha cambiado en {ageDays} días. Considera actualizarlo para mantener la cuenta segura.
+                  {isNeverChanged
+                    ? "Tu PIN nunca se ha cambiado. Considera actualizarlo para mantener la cuenta segura."
+                    : `Tu PIN no se ha cambiado en ${ageDays} días. Considera actualizarlo para mantener la cuenta segura.`}
                 </p>
               </div>
             );
