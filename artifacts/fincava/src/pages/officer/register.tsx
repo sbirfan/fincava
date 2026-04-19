@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, ShieldCheck } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, ShieldCheck, RotateCcw } from "lucide-react";
 import {
   SANTANDER_MUNICIPIOS,
   VARIEDADES_CAFE,
@@ -120,12 +120,42 @@ function getStorageKey(whatsapp: string) {
   return `fincava_officer_reg_${whatsapp}`;
 }
 
+type DraftBanner = {
+  key: string;
+  nombre: string;
+  whatsapp: string;
+  savedStep: number;
+};
+
+const DRAFT_PREFIX = "fincava_officer_reg_";
+
+function findExistingDraft(): DraftBanner | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(DRAFT_PREFIX)) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw) as Partial<FormData> & { _step?: number };
+        const nombre = parsed.nombre_completo || "";
+        const whatsapp = parsed.whatsapp_number || key.replace(DRAFT_PREFIX, "");
+        if (nombre || whatsapp.length > 6) {
+          return { key, nombre, whatsapp, savedStep: parsed._step ?? 0 };
+        }
+      }
+    }
+  } catch {
+  }
+  return null;
+}
+
 export default function OfficerRegister() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [successName, setSuccessName] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [draftBanner, setDraftBanner] = useState<DraftBanner | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -174,27 +204,44 @@ export default function OfficerRegister() {
   const watchDesafios = form.watch("principales_desafios");
 
   useEffect(() => {
-    const whatsapp = form.getValues("whatsapp_number");
-    if (whatsapp && whatsapp.length > 6) {
-      try {
-        const saved = localStorage.getItem(getStorageKey(whatsapp));
-        if (saved) {
-          const parsed = JSON.parse(saved) as Partial<FormData>;
-          form.reset({ ...form.getValues(), ...parsed }, { keepDefaultValues: true });
-        }
-      } catch (err) {
-        console.warn("[officer-register] Could not restore draft:", err);
-      }
+    const draft = findExistingDraft();
+    if (draft) {
+      setDraftBanner(draft);
     }
   }, []);
+
+  const restoreDraft = useCallback(() => {
+    if (!draftBanner) return;
+    try {
+      const raw = localStorage.getItem(draftBanner.key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<FormData> & { _step?: number };
+        const { _step, ...formValues } = parsed;
+        form.reset({ ...form.getValues(), ...formValues }, { keepDefaultValues: true });
+        setStep(Math.min(Math.max(_step ?? 0, 0), STEPS.length - 1));
+        window.scrollTo(0, 0);
+      }
+    } catch (err) {
+      console.warn("[officer-register] Could not restore draft:", err);
+    }
+    setDraftBanner(null);
+  }, [draftBanner, form]);
+
+  const discardDraft = useCallback(() => {
+    if (!draftBanner) return;
+    localStorage.removeItem(draftBanner.key);
+    form.reset();
+    setStep(0);
+    setDraftBanner(null);
+  }, [draftBanner, form]);
 
   const saveToStorage = useCallback(() => {
     const whatsapp = form.getValues("whatsapp_number");
     if (whatsapp && whatsapp.length > 6) {
-      localStorage.setItem(getStorageKey(whatsapp), JSON.stringify(form.getValues()));
+      localStorage.setItem(getStorageKey(whatsapp), JSON.stringify({ ...form.getValues(), _step: step }));
       setLastSaved(new Date());
     }
-  }, [form]);
+  }, [form, step]);
 
   useEffect(() => {
     const interval = setInterval(saveToStorage, 30000);
@@ -349,6 +396,47 @@ export default function OfficerRegister() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
       <div className="max-w-lg mx-auto">
+
+        {draftBanner && (
+          <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <RotateCcw className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900">
+                  ¿Continuar donde lo dejó?
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5 leading-snug">
+                  {draftBanner.nombre
+                    ? <><span className="font-medium">{draftBanner.nombre}</span> · </>
+                    : null}
+                  {draftBanner.whatsapp}
+                  {" · "}
+                  Sección {draftBanner.savedStep + 1} de {STEPS.length} — {STEPS[draftBanner.savedStep]}
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1 h-auto"
+                    onClick={restoreDraft}
+                  >
+                    Restaurar borrador
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-xs px-3 py-1 h-auto border-amber-400 text-amber-800 hover:bg-amber-100"
+                    onClick={discardDraft}
+                  >
+                    Empezar de nuevo
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mb-6 text-center">
           <div className="flex items-center justify-center gap-2 mb-1">
             <ShieldCheck className="h-5 w-5 text-blue-700" />
