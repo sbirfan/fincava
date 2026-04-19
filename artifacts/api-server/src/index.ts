@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSchema } from "@workspace/db/ensure-schema";
+import { scheduleDraftCleanup } from "./lib/cleanup-drafts";
 
 const rawPort = process.env["PORT"];
 
@@ -30,6 +31,8 @@ async function start() {
   }
 
   logger.info("Database schema verified.");
+
+  scheduleDraftCleanup();
 
   app.listen(port, (err) => {
     if (err) {
