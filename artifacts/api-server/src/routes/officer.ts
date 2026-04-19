@@ -103,10 +103,35 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
   }
 });
 
-function parsePotencialFilter(raw: unknown): number | null {
+function parseIntParam(raw: unknown): number | null {
   if (typeof raw !== "string") return null;
   const n = parseInt(raw, 10);
   return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
+}
+
+function parsePotencialRangeFilter(query: Record<string, unknown>): { min: number | null; max: number | null } {
+  const min = parseIntParam(query.potencial_min);
+  const max = parseIntParam(query.potencial_max);
+  if (min !== null || max !== null) {
+    return { min, max };
+  }
+  const exact = parseIntParam(query.potencial);
+  if (exact !== null) return { min: exact, max: exact };
+  return { min: null, max: null };
+}
+
+function applyPotencialRange<T extends { potencialGeneral?: number | null; potencial?: number | null }>(
+  rows: T[],
+  range: { min: number | null; max: number | null },
+): T[] {
+  if (range.min === null && range.max === null) return rows;
+  return rows.filter((r) => {
+    const score = r.potencialGeneral ?? r.potencial ?? null;
+    if (score === null) return false;
+    if (range.min !== null && score < range.min) return false;
+    if (range.max !== null && score > range.max) return false;
+    return true;
+  });
 }
 
 function buildSupplierConditions(search: string, cultivo: string) {
@@ -152,7 +177,7 @@ router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<v
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
-    const potencialFilter = parsePotencialFilter(req.query.potencial);
+    const potencialRange = parsePotencialRangeFilter(req.query as Record<string, unknown>);
 
     const conditions = buildSupplierConditions(search, cultivo);
 
@@ -174,14 +199,13 @@ router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<v
     const supplierIds = suppliers.map((s) => s.id);
     const officerMetaMap = await buildOfficerMetaMap(supplierIds);
 
-    let results = suppliers.map((s) => ({
-      ...s,
-      potencialGeneral: (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null,
-    }));
-
-    if (potencialFilter !== null) {
-      results = results.filter((s) => s.potencialGeneral === potencialFilter);
-    }
+    const results = applyPotencialRange(
+      suppliers.map((s) => ({
+        ...s,
+        potencialGeneral: (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null,
+      })),
+      potencialRange,
+    );
 
     res.json({ suppliers: results });
   } catch (err) {
@@ -209,7 +233,7 @@ router.get("/officer/suppliers/export", requireOfficerAuth, async (req, res): Pr
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
-    const potencialFilter = parsePotencialFilter(req.query.potencial);
+    const potencialRange = parsePotencialRangeFilter(req.query as Record<string, unknown>);
 
     const rawColumns = typeof req.query.columns === "string" ? req.query.columns.split(",").map((c) => c.trim()) : [];
     const selectedColumns: CsvColumn[] = rawColumns.length > 0
@@ -235,14 +259,13 @@ router.get("/officer/suppliers/export", requireOfficerAuth, async (req, res): Pr
     const supplierIds = suppliers.map((s) => s.id);
     const officerMetaMap = await buildOfficerMetaMap(supplierIds);
 
-    let rows = suppliers.map((s) => {
-      const potencial = (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null;
-      return { ...s, potencial };
-    });
-
-    if (potencialFilter !== null) {
-      rows = rows.filter((r) => r.potencial === potencialFilter);
-    }
+    const rows = applyPotencialRange(
+      suppliers.map((s) => ({
+        ...s,
+        potencial: (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null,
+      })),
+      potencialRange,
+    );
 
     const columnLabels: Record<CsvColumn, string> = {
       nombre: "nombre",
@@ -287,7 +310,7 @@ router.get("/officer/suppliers/export.xlsx", requireOfficerAuth, async (req, res
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
-    const potencialFilter = parsePotencialFilter(req.query.potencial);
+    const potencialRange = parsePotencialRangeFilter(req.query as Record<string, unknown>);
 
     const conditions = buildSupplierConditions(search, cultivo);
 
@@ -308,14 +331,13 @@ router.get("/officer/suppliers/export.xlsx", requireOfficerAuth, async (req, res
     const supplierIds = suppliers.map((s) => s.id);
     const officerMetaMap = await buildOfficerMetaMap(supplierIds);
 
-    let rows = suppliers.map((s) => {
-      const potencial = (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null;
-      return { ...s, potencial };
-    });
-
-    if (potencialFilter !== null) {
-      rows = rows.filter((r) => r.potencial === potencialFilter);
-    }
+    const rows = applyPotencialRange(
+      suppliers.map((s) => ({
+        ...s,
+        potencial: (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null,
+      })),
+      potencialRange,
+    );
 
     const sheetData = rows.map((s) => ({
       Nombre: s.nombreCompleto,

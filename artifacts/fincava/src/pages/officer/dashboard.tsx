@@ -62,7 +62,6 @@ function formatDate(iso: string) {
 }
 
 const CULTIVOS = ["Café", "Cacao", "Panela", "Otro"];
-const POTENCIAL_OPTIONS = [1, 2, 3, 4, 5];
 const POTENCIAL_LABELS: Record<number, string> = {
   1: "Muy bajo",
   2: "Bajo",
@@ -70,6 +69,24 @@ const POTENCIAL_LABELS: Record<number, string> = {
   4: "Alto",
   5: "Muy alto",
 };
+
+interface PotencialOption {
+  value: string;
+  label: string;
+  potencial_min?: number;
+  potencial_max?: number;
+}
+
+const POTENCIAL_FILTER_OPTIONS: PotencialOption[] = [
+  { value: "all", label: "Todos los potenciales" },
+  { value: "min:4", label: "4+ — Alto y Muy alto", potencial_min: 4 },
+  { value: "min:3", label: "3+ — Medio o más", potencial_min: 3 },
+  { value: "exact:5", label: "5/5 — Muy alto", potencial_min: 5, potencial_max: 5 },
+  { value: "exact:4", label: "4/5 — Alto", potencial_min: 4, potencial_max: 4 },
+  { value: "exact:3", label: "3/5 — Medio", potencial_min: 3, potencial_max: 3 },
+  { value: "exact:2", label: "2/5 — Bajo", potencial_min: 2, potencial_max: 2 },
+  { value: "exact:1", label: "1/5 — Muy bajo", potencial_min: 1, potencial_max: 1 },
+];
 
 const ALL_CSV_COLUMNS = [
   { key: "nombre", label: "Nombre" },
@@ -107,10 +124,13 @@ export default function OfficerDashboard() {
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+  const selectedPotencialOption = POTENCIAL_FILTER_OPTIONS.find((o) => o.value === potencial);
+
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (cultivo && cultivo !== "all") params.set("cultivo", cultivo);
-  if (potencial && potencial !== "all") params.set("potencial", potencial);
+  if (selectedPotencialOption?.potencial_min !== undefined) params.set("potencial_min", String(selectedPotencialOption.potencial_min));
+  if (selectedPotencialOption?.potencial_max !== undefined) params.set("potencial_max", String(selectedPotencialOption.potencial_max));
 
   async function handleExport() {
     setIsExporting(true);
@@ -266,13 +286,12 @@ export default function OfficerDashboard() {
               </SelectContent>
             </Select>
             <Select value={potencial} onValueChange={setPotencial}>
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger className="w-full sm:w-52">
                 <SelectValue placeholder="Potencial" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los potenciales</SelectItem>
-                {POTENCIAL_OPTIONS.map((p) => (
-                  <SelectItem key={p} value={String(p)}>{p}/5 — {POTENCIAL_LABELS[p]}</SelectItem>
+                {POTENCIAL_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
