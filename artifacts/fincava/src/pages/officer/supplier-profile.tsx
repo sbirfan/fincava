@@ -385,7 +385,7 @@ export default function OfficerSupplierProfile() {
           </Section>
         )}
 
-        <InteractionHistory interactions={interactions ?? []} />
+        <InteractionHistory interactions={(interactions ?? []).filter((i) => i.interactionType === "update")} />
 
       </div>
 
