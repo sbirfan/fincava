@@ -26,6 +26,22 @@ export default function OfficerSettings() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [pinLockedUntil, setPinLockedUntil] = useState<number | null>(null);
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number>(0);
+
+  useEffect(() => {
+    if (pinLockedUntil === null) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((pinLockedUntil - Date.now()) / 1000));
+      setLockoutSecondsLeft(left);
+      if (left === 0) setPinLockedUntil(null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [pinLockedUntil]);
+
+  const isPinLocked = pinLockedUntil !== null && Date.now() < pinLockedUntil;
 
   const [tokenWindowDays, setTokenWindowDays] = useState<number | null>(null);
   const [tokenWindowInput, setTokenWindowInput] = useState("");
@@ -143,6 +159,8 @@ export default function OfficerSettings() {
     setError("");
     setSuccess(false);
 
+    if (isPinLocked) return;
+
     if (!currentPin.trim()) {
       setError("Debes ingresar tu PIN actual");
       return;
@@ -167,11 +185,24 @@ export default function OfficerSettings() {
         body: JSON.stringify({ currentPin: currentPin.trim(), newPin: newPin.trim() }),
       });
 
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        const retryAfterSeconds: number = (data as { retryAfterSeconds?: number }).retryAfterSeconds ?? 600;
+        setPinLockedUntil(Date.now() + retryAfterSeconds * 1000);
+        setError((data as { error?: string }).error ?? "Demasiados intentos. Intente más tarde.");
+        return;
+      }
+
       if (res.status === 401) {
         const data = await res.json().catch(() => ({}));
         const msg = (data as { error?: string }).error ?? "";
         if (msg === "El PIN actual es incorrecto") {
-          setError(msg);
+          const left = (data as { attemptsRemaining?: number }).attemptsRemaining;
+          setError(
+            left !== undefined && left > 0
+              ? `El PIN actual es incorrecto. ${left} intento(s) restante(s) antes del bloqueo.`
+              : msg,
+          );
         } else {
           navigate("/officer/login");
         }
@@ -298,11 +329,24 @@ export default function OfficerSettings() {
             </div>
           )}
 
-          {error && (
+          {isPinLocked ? (
+            <div className="flex items-start gap-3 bg-orange-50 border border-orange-300 rounded-xl px-4 py-3 text-sm text-orange-800">
+              <Lock className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Cambio de PIN bloqueado temporalmente</p>
+                <p className="text-xs mt-0.5">
+                  Demasiados intentos incorrectos.{" "}
+                  {lockoutSecondsLeft > 60
+                    ? `Intente de nuevo en ${Math.ceil(lockoutSecondsLeft / 60)} min.`
+                    : `Intente de nuevo en ${lockoutSecondsLeft}s.`}
+                </p>
+              </div>
+            </div>
+          ) : error ? (
             <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
               {error}
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleChangePin} className="space-y-4">
             <div className="space-y-1">
@@ -377,9 +421,9 @@ export default function OfficerSettings() {
             <Button
               type="submit"
               className="w-full bg-blue-700 hover:bg-blue-800"
-              disabled={isLoading || !currentPin.trim() || !newPin.trim() || !confirmPin.trim()}
+              disabled={isLoading || isPinLocked || !currentPin.trim() || !newPin.trim() || !confirmPin.trim()}
             >
-              {isLoading ? "Cambiando PIN..." : "Cambiar PIN"}
+              {isLoading ? "Cambiando PIN..." : isPinLocked ? `Bloqueado (${lockoutSecondsLeft > 60 ? `${Math.ceil(lockoutSecondsLeft / 60)}min` : `${lockoutSecondsLeft}s`})` : "Cambiar PIN"}
             </Button>
           </form>
 

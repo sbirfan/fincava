@@ -89,6 +89,15 @@ function getPinAttempts(ip: string) {
   return PIN_ATTEMPTS.get(ip)!;
 }
 
+const PIN_CHANGE_ATTEMPTS: Map<string, { count: number; blockedUntil: number | null }> = new Map();
+const PIN_CHANGE_MAX_ATTEMPTS = 5;
+const PIN_CHANGE_BLOCK_MS = 10 * 60 * 1000;
+
+function getPinChangeAttempts(ip: string) {
+  if (!PIN_CHANGE_ATTEMPTS.has(ip)) PIN_CHANGE_ATTEMPTS.set(ip, { count: 0, blockedUntil: null });
+  return PIN_CHANGE_ATTEMPTS.get(ip)!;
+}
+
 router.post("/officer/auth", async (req: Request, res: Response): Promise<void> => {
   const configuredPin = await getConfiguredPin();
   if (!configuredPin) {
@@ -146,6 +155,27 @@ router.get("/officer/pin/info", requireOfficerAuth, async (_req: Request, res: R
 });
 
 router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res: Response): Promise<void> => {
+  const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+    ?? req.socket.remoteAddress
+    ?? "unknown";
+
+  const attempts = getPinChangeAttempts(ip);
+  const now = Date.now();
+
+  if (attempts.blockedUntil !== null && now < attempts.blockedUntil) {
+    const retryAfterSeconds = Math.ceil((attempts.blockedUntil - now) / 1000);
+    res.status(429).json({
+      error: `Demasiados intentos incorrectos. Intente de nuevo en ${Math.ceil(retryAfterSeconds / 60)} minuto(s).`,
+      retryAfterSeconds,
+    });
+    return;
+  }
+
+  if (attempts.blockedUntil !== null && now >= attempts.blockedUntil) {
+    attempts.count = 0;
+    attempts.blockedUntil = null;
+  }
+
   const { currentPin, newPin } = req.body as { currentPin?: string; newPin?: string };
   if (!currentPin || !currentPin.trim()) {
     res.status(400).json({ error: "El PIN actual es requerido" });
@@ -161,9 +191,27 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
     return;
   }
   if (currentPin.trim() !== configuredPin) {
-    res.status(401).json({ error: "El PIN actual es incorrecto" });
+    attempts.count += 1;
+    if (attempts.count >= PIN_CHANGE_MAX_ATTEMPTS) {
+      attempts.blockedUntil = Date.now() + PIN_CHANGE_BLOCK_MS;
+      const retryAfterSeconds = Math.ceil(PIN_CHANGE_BLOCK_MS / 1000);
+      res.status(429).json({
+        error: `Demasiados intentos incorrectos. Intente de nuevo en ${Math.ceil(retryAfterSeconds / 60)} minuto(s).`,
+        retryAfterSeconds,
+      });
+      return;
+    }
+    const remaining = PIN_CHANGE_MAX_ATTEMPTS - attempts.count;
+    res.status(401).json({
+      error: "El PIN actual es incorrecto",
+      attemptsRemaining: remaining,
+    });
     return;
   }
+
+  attempts.count = 0;
+  attempts.blockedUntil = null;
+
   const trimmed = newPin.trim();
   try {
     await pool.query(
