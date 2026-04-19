@@ -25,7 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, ShieldCheck, RotateCcw, AlertCircle } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, Save, ShieldCheck, RotateCcw, AlertCircle, AlertTriangle, X } from "lucide-react";
+import { useOfficerInactivity } from "@/hooks/useOfficerInactivity";
+import { useSessionExpiryWarning } from "@/hooks/useSessionExpiryWarning";
+import { SessionRenewalModal } from "@/components/SessionRenewalModal";
 import {
   SANTANDER_MUNICIPIOS,
   VARIEDADES_CAFE,
@@ -172,8 +175,12 @@ export default function OfficerRegister() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [draftBanner, setDraftBanner] = useState<DraftBanner | null>(null);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+
+  useOfficerInactivity();
+  const { showWarning, dismiss, onRenewed, remaining } = useSessionExpiryWarning();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -421,7 +428,30 @@ export default function OfficerRegister() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
+      {showRenewalModal && (
+        <SessionRenewalModal
+          onRenewed={() => { onRenewed(); setShowRenewalModal(false); }}
+          onClose={() => setShowRenewalModal(false)}
+        />
+      )}
       <div className="max-w-lg mx-auto">
+
+        {showWarning && (
+          <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-amber-800">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+            <div className="flex-1 text-sm">
+              <span className="font-semibold">Tu sesión expira pronto.</span>{" "}
+              {remaining && (remaining.hours > 0 || remaining.minutes > 0) ? (
+                <span>Tiempo restante: {remaining.hours > 0 ? `${remaining.hours}h ` : ""}{remaining.minutes}min. </span>
+              ) : null}
+              Renuévala para no perder tu trabajo.
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setShowRenewalModal(true)}>Renovar sesión</Button>
+              <button type="button" onClick={dismiss} className="text-amber-500 hover:text-amber-700 transition-colors" aria-label="Descartar aviso"><X className="h-4 w-4" /></button>
+            </div>
+          </div>
+        )}
 
         {draftBanner && (
           <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
