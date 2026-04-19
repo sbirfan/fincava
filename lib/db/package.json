@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./ensure-schema": "./src/ensure-schema.ts"
   },
   "scripts": {
     "db:init": "tsx ./scripts/init-db.ts",
