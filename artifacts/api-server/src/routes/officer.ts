@@ -524,13 +524,81 @@ router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Pro
     const body = req.body as PatchSupplierBody;
 
     if (body.supplier) {
-      if (body.supplier.nombreCompleto !== undefined && !body.supplier.nombreCompleto.trim()) {
-        res.status(400).json({ error: "El nombre completo no puede estar vacío" });
-        return;
+      if (body.supplier.nombreCompleto !== undefined) {
+        if (!body.supplier.nombreCompleto.trim() || body.supplier.nombreCompleto.trim().length < 2) {
+          res.status(400).json({ error: "El nombre completo no puede estar vacío (mínimo 2 caracteres)" });
+          return;
+        }
       }
       if (body.supplier.whatsappNumber !== undefined && !/^\+57[0-9]{10}$/.test(body.supplier.whatsappNumber)) {
         res.status(400).json({ error: "El número de WhatsApp debe tener el formato +57XXXXXXXXXX" });
         return;
+      }
+    }
+
+    if (body.farm) {
+      if (body.farm.hectareasProduccion !== undefined && body.farm.hectareasProduccion !== null) {
+        const haStr = String(body.farm.hectareasProduccion).trim();
+        const ha = Number(haStr);
+        if (!/^(\d+\.?\d*|\.\d+)$/.test(haStr) || isNaN(ha) || ha < 0) {
+          res.status(400).json({ error: "Las hectáreas en producción deben ser un número positivo" });
+          return;
+        }
+      }
+      if (body.farm.edadPlantasAnos !== undefined && body.farm.edadPlantasAnos !== null) {
+        if (typeof body.farm.edadPlantasAnos !== "number" || !Number.isInteger(body.farm.edadPlantasAnos) || body.farm.edadPlantasAnos < 0) {
+          res.status(400).json({ error: "La edad de las plantas debe ser un número entero no negativo" });
+          return;
+        }
+      }
+      if (body.farm.cosechasPorAno !== undefined && body.farm.cosechasPorAno !== null) {
+        if (typeof body.farm.cosechasPorAno !== "number" || !Number.isInteger(body.farm.cosechasPorAno) || body.farm.cosechasPorAno < 0) {
+          res.status(400).json({ error: "Las cosechas por año deben ser un número entero no negativo" });
+          return;
+        }
+      }
+    }
+
+    if (body.economics) {
+      if (body.economics.volumenKgUltimaCosecha !== undefined && body.economics.volumenKgUltimaCosecha !== null) {
+        if (typeof body.economics.volumenKgUltimaCosecha !== "number" || isNaN(body.economics.volumenKgUltimaCosecha) || body.economics.volumenKgUltimaCosecha < 0) {
+          res.status(400).json({ error: "El volumen de la última cosecha no puede ser negativo" });
+          return;
+        }
+      }
+      if (body.economics.personasDependientes !== undefined && body.economics.personasDependientes !== null) {
+        if (typeof body.economics.personasDependientes !== "number" || !Number.isInteger(body.economics.personasDependientes) || body.economics.personasDependientes < 0) {
+          res.status(400).json({ error: "Las personas dependientes deben ser un número entero no negativo" });
+          return;
+        }
+      }
+    }
+
+    if (body.goalsMeta) {
+      if (body.goalsMeta.disposicion_cambiar !== undefined && body.goalsMeta.disposicion_cambiar !== null) {
+        if (
+          typeof body.goalsMeta.disposicion_cambiar !== "number" ||
+          !Number.isInteger(body.goalsMeta.disposicion_cambiar) ||
+          body.goalsMeta.disposicion_cambiar < 1 ||
+          body.goalsMeta.disposicion_cambiar > 5
+        ) {
+          res.status(400).json({ error: "La disposición al cambio debe ser un valor entre 1 y 5" });
+          return;
+        }
+      }
+    }
+
+    if (body.officerMeta) {
+      if (body.officerMeta.potencial_general !== undefined && body.officerMeta.potencial_general !== null) {
+        if (
+          typeof body.officerMeta.potencial_general !== "number" ||
+          !Number.isInteger(body.officerMeta.potencial_general) ||
+          body.officerMeta.potencial_general < 1 ||
+          body.officerMeta.potencial_general > 5
+        ) {
+          res.status(400).json({ error: "El potencial general debe ser un número entre 1 y 5" });
+          return;
+        }
       }
     }
 

@@ -272,6 +272,11 @@ function StarPicker({
 interface ValidationErrors {
   nombreCompleto?: string;
   whatsappNumber?: string;
+  hectareas?: string;
+  edadPlantas?: string;
+  cosechas?: string;
+  volumenKg?: string;
+  personasDep?: string;
 }
 
 export default function SupplierEditModal({ supplierId, initial, onClose, base }: Props) {
@@ -332,6 +337,36 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
     }
     if (!WHATSAPP_RE.test(whatsappNumber)) {
       errors.whatsappNumber = "Formato inválido. Debe ser +57 seguido de 10 dígitos.";
+    }
+    if (hectareas !== "") {
+      const ha = parseFloat(hectareas);
+      if (isNaN(ha) || ha < 0) {
+        errors.hectareas = "Debe ser un número positivo.";
+      }
+    }
+    if (edadPlantas !== "") {
+      const ep = Number(edadPlantas);
+      if (!Number.isInteger(ep) || ep < 0) {
+        errors.edadPlantas = "Debe ser un número entero no negativo.";
+      }
+    }
+    if (cosechas !== "") {
+      const c = Number(cosechas);
+      if (!Number.isInteger(c) || c < 0) {
+        errors.cosechas = "Debe ser un número entero no negativo.";
+      }
+    }
+    if (volumenKg !== "") {
+      const v = Number(volumenKg);
+      if (isNaN(v) || v < 0) {
+        errors.volumenKg = "Debe ser un número no negativo.";
+      }
+    }
+    if (personasDep !== "") {
+      const p = Number(personasDep);
+      if (!Number.isInteger(p) || p < 0) {
+        errors.personasDep = "Debe ser un número entero no negativo.";
+      }
     }
     return errors;
   }
@@ -495,13 +530,31 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
                 <TextInput value={variedadCafe} onChange={setVariedadCafe} placeholder="Castillo, Caturra..." />
               </Field>
               <Field label="Hectáreas en producción">
-                <NumberInput value={hectareas} onChange={setHectareas} placeholder="0.0" />
+                <NumberInput value={hectareas} onChange={(v) => { setHectareas(v); if (validationErrors.hectareas) setValidationErrors((prev) => ({ ...prev, hectareas: undefined })); }} placeholder="0.0" />
+                {validationErrors.hectareas && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {validationErrors.hectareas}
+                  </p>
+                )}
               </Field>
               <Field label="Edad de plantas (años)">
-                <NumberInput value={edadPlantas} onChange={setEdadPlantas} placeholder="0" />
+                <NumberInput value={edadPlantas} onChange={(v) => { setEdadPlantas(v); if (validationErrors.edadPlantas) setValidationErrors((prev) => ({ ...prev, edadPlantas: undefined })); }} placeholder="0" />
+                {validationErrors.edadPlantas && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {validationErrors.edadPlantas}
+                  </p>
+                )}
               </Field>
               <Field label="Cosechas por año">
-                <NumberInput value={cosechas} onChange={setCosechas} placeholder="0" />
+                <NumberInput value={cosechas} onChange={(v) => { setCosechas(v); if (validationErrors.cosechas) setValidationErrors((prev) => ({ ...prev, cosechas: undefined })); }} placeholder="0" />
+                {validationErrors.cosechas && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {validationErrors.cosechas}
+                  </p>
+                )}
               </Field>
               <Field label="Método de secado">
                 <SelectInput value={metodoSecado} onChange={setMetodoSecado} options={secadoOptions} />
@@ -522,7 +575,13 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
                 <SelectInput value={tipoComprador} onChange={setTipoComprador} options={buyerOptions} />
               </Field>
               <Field label="Volumen última cosecha (kg)">
-                <NumberInput value={volumenKg} onChange={setVolumenKg} placeholder="0" />
+                <NumberInput value={volumenKg} onChange={(v) => { setVolumenKg(v); if (validationErrors.volumenKg) setValidationErrors((prev) => ({ ...prev, volumenKg: undefined })); }} placeholder="0" />
+                {validationErrors.volumenKg && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {validationErrors.volumenKg}
+                  </p>
+                )}
               </Field>
               <Field label="Precio de venta (banda)">
                 <TextInput value={precioVenta} onChange={setPrecioVenta} placeholder="Ej: $1.800–$2.200/kg" />
@@ -545,7 +604,13 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
                 <SelectInput value={deudaActual} onChange={setDeudaActual} options={debtOptions} />
               </Field>
               <Field label="Personas dependientes">
-                <NumberInput value={personasDep} onChange={setPersonasDep} placeholder="0" />
+                <NumberInput value={personasDep} onChange={(v) => { setPersonasDep(v); if (validationErrors.personasDep) setValidationErrors((prev) => ({ ...prev, personasDep: undefined })); }} placeholder="0" />
+                {validationErrors.personasDep && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {validationErrors.personasDep}
+                  </p>
+                )}
               </Field>
               <Field label="Situación económica">
                 <SelectInput value={situacionEcon} onChange={setSituacionEcon} options={economicOptions} />
