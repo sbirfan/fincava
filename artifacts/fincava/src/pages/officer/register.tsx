@@ -170,6 +170,7 @@ export default function OfficerRegister() {
   const [submitted, setSubmitted] = useState(false);
   const [successName, setSuccessName] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [draftBanner, setDraftBanner] = useState<DraftBanner | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -253,8 +254,18 @@ export default function OfficerRegister() {
   const saveToStorage = useCallback(() => {
     const whatsapp = form.getValues("whatsapp_number");
     if (whatsapp && whatsapp.length > 6) {
-      localStorage.setItem(getStorageKey(whatsapp), JSON.stringify({ ...form.getValues(), _step: step, _savedAt: new Date().toISOString() }));
-      setLastSaved(new Date());
+      try {
+        localStorage.setItem(getStorageKey(whatsapp), JSON.stringify({ ...form.getValues(), _step: step, _savedAt: new Date().toISOString() }));
+        setLastSaved(new Date());
+        setSyncError(null);
+      } catch (err) {
+        const isQuota = err instanceof DOMException && (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED");
+        const msg = isQuota
+          ? "Almacenamiento local lleno — el borrador no se guardó. Libere espacio o complete el registro ahora."
+          : "Error al guardar el borrador localmente.";
+        setSyncError(msg);
+        console.warn("[officer-register] localStorage save failed:", err);
+      }
     }
   }, [form, step]);
 
@@ -489,12 +500,21 @@ export default function OfficerRegister() {
           <Progress value={progress} className="h-2" />
         </div>
 
-        {lastSaved && (
-          <div className="flex items-center gap-1 text-xs text-blue-600 mb-3 justify-end">
-            <Save className="h-3 w-3" />
-            Guardado {lastSaved.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
-          </div>
-        )}
+        <div className="flex items-center justify-end mb-3 min-h-[1.25rem]">
+          {syncError ? (
+            <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 max-w-sm">
+              <span className="shrink-0">⚠️</span>
+              <span className="hidden sm:inline">{syncError}</span>
+              <span className="sm:hidden">Borrador no guardado</span>
+            </div>
+          ) : lastSaved ? (
+            <div className="flex items-center gap-1 text-xs text-blue-600">
+              <Save className="h-3 w-3 shrink-0" />
+              <span className="hidden sm:inline">Guardado {lastSaved.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="sm:hidden" title={`Guardado ${lastSaved.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}>✓</span>
+            </div>
+          ) : null}
+        </div>
 
         <div className="bg-white rounded-2xl shadow-md p-6">
           <Form {...form}>

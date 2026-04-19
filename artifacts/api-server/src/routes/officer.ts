@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, suppliersTable, farmsTable, economicsTable, interactionsTable } from "@workspace/db";
 import { pool } from "@workspace/db";
-import { eq, desc, ilike, or, and, inArray, sql } from "drizzle-orm";
+import { eq, desc, asc, ilike, or, and, inArray, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
 
 const router: IRouter = Router();
@@ -80,21 +80,54 @@ async function requireOfficerAuth(req: Request, res: Response, next: NextFunctio
   res.status(401).json({ error: "Unauthorized: valid officer token required" });
 }
 
+const PIN_ATTEMPTS: Map<string, { count: number; blockedUntil: number | null }> = new Map();
+const PIN_MAX_ATTEMPTS = 5;
+const PIN_BLOCK_MS = 10 * 60 * 1000;
+
+function getPinAttempts(ip: string) {
+  if (!PIN_ATTEMPTS.has(ip)) PIN_ATTEMPTS.set(ip, { count: 0, blockedUntil: null });
+  return PIN_ATTEMPTS.get(ip)!;
+}
+
 router.post("/officer/auth", async (req: Request, res: Response): Promise<void> => {
   const configuredPin = await getConfiguredPin();
   if (!configuredPin) {
     res.status(503).json({ error: "Officer authentication is not configured on this server" });
     return;
   }
+
+  const ip = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "unknown");
+  const state = getPinAttempts(ip);
+  if (state.blockedUntil !== null) {
+    if (Date.now() < state.blockedUntil) {
+      const secondsLeft = Math.ceil((state.blockedUntil - Date.now()) / 1000);
+      res.status(429).json({ error: `Demasiados intentos fallidos. Intenta de nuevo en ${secondsLeft} segundos.` });
+      return;
+    }
+    state.count = 0;
+    state.blockedUntil = null;
+  }
+
   const { pin } = req.body as { pin?: string };
   if (!pin) {
     res.status(400).json({ error: "PIN requerido" });
     return;
   }
   if (pin !== configuredPin) {
-    res.status(401).json({ error: "PIN incorrecto" });
+    state.count += 1;
+    if (state.count >= PIN_MAX_ATTEMPTS) {
+      state.blockedUntil = Date.now() + PIN_BLOCK_MS;
+      state.count = 0;
+      res.status(429).json({ error: "Demasiados intentos fallidos. Espera 10 minutos antes de intentar de nuevo." });
+    } else {
+      const attemptsLeft = PIN_MAX_ATTEMPTS - state.count;
+      res.status(401).json({ error: `PIN incorrecto. ${attemptsLeft} intento${attemptsLeft !== 1 ? "s" : ""} restante${attemptsLeft !== 1 ? "s" : ""}.` });
+    }
     return;
   }
+
+  state.count = 0;
+  state.blockedUntil = null;
   res.json({ token: issueOfficerToken(configuredPin) });
 });
 
@@ -183,6 +216,18 @@ router.post("/officer/token-window", requireOfficerAuth, async (req: Request, re
   }
 });
 
+router.post("/officer/token-window/reset", requireOfficerAuth, async (_req: Request, res: Response): Promise<void> => {
+  try {
+    await pool.query(
+      "DELETE FROM officer_config WHERE key = 'token_window_days'",
+    );
+    res.json({ days: DEFAULT_TOKEN_WINDOW_DAYS, isDefault: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al restablecer configuración de sesión" });
+  }
+});
+
 function parseIntParam(raw: unknown): number | null {
   if (typeof raw !== "string") return null;
   const n = parseInt(raw, 10);
@@ -253,13 +298,41 @@ async function buildOfficerMetaMap(supplierIds: string[]): Promise<Map<string, R
   return map;
 }
 
+router.get("/officer/suppliers/potential-counts", requireOfficerAuth, async (req, res): Promise<void> => {
+  try {
+    const suppliers = await db
+      .select({ id: suppliersTable.id })
+      .from(suppliersTable)
+      .orderBy(desc(suppliersTable.createdAt));
+
+    const supplierIds = suppliers.map((s) => s.id);
+    const officerMetaMap = await buildOfficerMetaMap(supplierIds);
+    const counts: Record<string, number> = { total: supplierIds.length };
+    for (let i = 1; i <= 5; i++) counts[String(i)] = 0;
+    for (const id of supplierIds) {
+      const score = (officerMetaMap.get(id)?.potencial_general as number | null) ?? null;
+      if (score !== null && score >= 1 && score <= 5) {
+        counts[String(score)] = (counts[String(score)] ?? 0) + 1;
+      }
+    }
+    res.json(counts);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al contar potenciales" });
+  }
+});
+
 router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<void> => {
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
+    const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy.trim() : "date_desc";
     const potencialRange = parsePotencialRangeFilter(req.query as Record<string, unknown>);
 
     const conditions = buildSupplierConditions(search, cultivo);
+
+    const dbOrder =
+      sortBy === "date_asc" ? asc(suppliersTable.createdAt) : desc(suppliersTable.createdAt);
 
     const suppliers = await db
       .select({
@@ -274,18 +347,24 @@ router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<v
       .from(suppliersTable)
       .leftJoin(farmsTable, eq(farmsTable.supplierId, suppliersTable.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(suppliersTable.createdAt));
+      .orderBy(dbOrder);
 
     const supplierIds = suppliers.map((s) => s.id);
     const officerMetaMap = await buildOfficerMetaMap(supplierIds);
 
-    const results = applyPotencialRange(
+    let results = applyPotencialRange(
       suppliers.map((s) => ({
         ...s,
         potencialGeneral: (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null,
       })),
       potencialRange,
     );
+
+    if (sortBy === "potential_desc") {
+      results = results.sort((a, b) => (b.potencialGeneral ?? 0) - (a.potencialGeneral ?? 0));
+    } else if (sortBy === "potential_asc") {
+      results = results.sort((a, b) => (a.potencialGeneral ?? 0) - (b.potencialGeneral ?? 0));
+    }
 
     res.json({ suppliers: results });
   } catch (err) {
@@ -386,11 +465,26 @@ router.get("/officer/suppliers/export", requireOfficerAuth, async (req, res): Pr
   }
 });
 
+const XLSX_COLUMN_DEFS: { key: CsvColumn; label: string; width: number }[] = [
+  { key: "nombre", label: "Nombre", width: 30 },
+  { key: "whatsapp", label: "WhatsApp", width: 18 },
+  { key: "municipio", label: "Municipio", width: 18 },
+  { key: "cultivo", label: "Cultivo", width: 14 },
+  { key: "fecha_registro", label: "Fecha de Registro", width: 18 },
+  { key: "potencial_general", label: "Potencial General", width: 18 },
+];
+
 router.get("/officer/suppliers/export.xlsx", requireOfficerAuth, async (req, res): Promise<void> => {
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
     const potencialRange = parsePotencialRangeFilter(req.query as Record<string, unknown>);
+
+    const rawColumns = typeof req.query.columns === "string" ? req.query.columns.split(",").map((c) => c.trim()) : [];
+    const selectedCols: CsvColumn[] = rawColumns.length > 0
+      ? rawColumns.filter((c): c is CsvColumn => ALL_CSV_COLUMNS.includes(c as CsvColumn))
+      : [...ALL_CSV_COLUMNS];
+    const activeCols = XLSX_COLUMN_DEFS.filter((d) => selectedCols.includes(d.key));
 
     const conditions = buildSupplierConditions(search, cultivo);
 
@@ -419,33 +513,36 @@ router.get("/officer/suppliers/export.xlsx", requireOfficerAuth, async (req, res
       potencialRange,
     );
 
-    const sheetData = rows.map((s) => ({
-      Nombre: s.nombreCompleto,
-      WhatsApp: s.whatsappNumber,
-      Municipio: s.municipio ?? "",
-      Cultivo: s.cultivoPrincipal ?? "",
-      "Fecha de Registro": new Date(s.createdAt).toLocaleDateString("es-CO", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }),
-      "Potencial General": s.potencial ?? "",
-    }));
+    const fecha = (s: { createdAt: string }) => new Date(s.createdAt).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const colValueGetters: Record<CsvColumn, (s: typeof rows[number]) => string | number> = {
+      nombre: (s) => s.nombreCompleto,
+      whatsapp: (s) => s.whatsappNumber ?? "",
+      municipio: (s) => s.municipio ?? "",
+      cultivo: (s) => s.cultivoPrincipal ?? "",
+      fecha_registro: (s) => fecha(s),
+      potencial_general: (s) => s.potencial ?? "",
+    };
+
+    const headerRow = activeCols.map((c) => c.label);
+    const dataRows = rows.map((s) => activeCols.map((c) => colValueGetters[c.key](s)));
 
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(sheetData);
+    const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
 
-    ws["!cols"] = [
-      { wch: 30 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 18 },
-    ];
+    ws["!cols"] = activeCols.map((c) => ({ wch: c.width }));
+
+    const headerStyle = {
+      font: { bold: true, color: { rgb: "1E3A5F" } },
+      fill: { patternType: "solid", fgColor: { rgb: "DBEAFE" } },
+      alignment: { horizontal: "center" },
+    };
+    for (let col = 0; col < activeCols.length; col++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellAddr]) ws[cellAddr].s = headerStyle;
+    }
 
     XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx", cellStyles: true });
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", 'attachment; filename="proveedores.xlsx"');
@@ -513,6 +610,35 @@ router.get("/officer/stats", requireOfficerAuth, async (_req, res): Promise<void
     );
     const abandonedLast30 = parseInt(abandonedLast30Result.rows[0]?.total ?? "0", 10);
 
+    const lastCleanupResult = await pool.query<{ swept_at: Date; deleted_count: string }>(
+      `SELECT swept_at, deleted_count FROM draft_cleanup_log ORDER BY swept_at DESC LIMIT 1`,
+    );
+    const lastCleanup = lastCleanupResult.rows[0]
+      ? { at: lastCleanupResult.rows[0].swept_at.toISOString(), count: parseInt(lastCleanupResult.rows[0].deleted_count, 10) }
+      : null;
+
+    const weeklyDuplicatesResult = await pool.query<{ week: string; count: string }>(
+      `SELECT DATE_TRUNC('week', created_at) AS week, COUNT(*) AS count
+         FROM registration_events
+        WHERE event_type = 'duplicate_attempt'
+          AND created_at >= NOW() - INTERVAL '12 weeks'
+        GROUP BY week
+        ORDER BY week ASC`,
+    );
+
+    const weeklyAbandonmentsResult = await pool.query<{ week: string; count: string }>(
+      `SELECT DATE_TRUNC('week', swept_at) AS week, COALESCE(SUM(deleted_count), 0) AS count
+         FROM draft_cleanup_log
+        WHERE swept_at >= NOW() - INTERVAL '12 weeks'
+        GROUP BY week
+        ORDER BY week ASC`,
+    );
+
+    const totalDraftsAndSuppliers = activeDrafts + totalSuppliers;
+    const abandonmentRate = totalDraftsAndSuppliers > 0
+      ? abandonedLast30 / (abandonedLast30 + totalDraftsAndSuppliers)
+      : null;
+
     res.json({
       totalSuppliers,
       activeDrafts,
@@ -520,11 +646,21 @@ router.get("/officer/stats", requireOfficerAuth, async (_req, res): Promise<void
       duplicateAttempts,
       abandonedLast7,
       abandonedLast30,
+      lastCleanup,
+      abandonmentRate,
       weeklyRegistrations: weeklyRegistrationsResult.rows.map((r) => ({
         week: r.week,
         count: parseInt(r.count, 10),
       })),
       weeklyDrafts: weeklyDraftsResult.rows.map((r) => ({
+        week: r.week,
+        count: parseInt(r.count, 10),
+      })),
+      weeklyDuplicates: weeklyDuplicatesResult.rows.map((r) => ({
+        week: r.week,
+        count: parseInt(r.count, 10),
+      })),
+      weeklyAbandonments: weeklyAbandonmentsResult.rows.map((r) => ({
         week: r.week,
         count: parseInt(r.count, 10),
       })),
@@ -726,16 +862,19 @@ router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Pro
       }
     }
 
-    const [existing] = await db
-      .select({ id: suppliersTable.id })
+    const [currentSupplier] = await db
+      .select()
       .from(suppliersTable)
       .where(eq(suppliersTable.id, id))
       .limit(1);
 
-    if (!existing) {
+    if (!currentSupplier) {
       res.status(404).json({ error: "Proveedor no encontrado" });
       return;
     }
+
+    const [currentFarm] = await db.select().from(farmsTable).where(eq(farmsTable.supplierId, id)).limit(1);
+    const [currentEcon] = await db.select().from(economicsTable).where(eq(economicsTable.supplierId, id)).limit(1);
 
     if (body.supplier && Object.keys(body.supplier).length > 0) {
       await db
@@ -782,14 +921,74 @@ router.patch("/officer/suppliers/:id", requireOfficerAuth, async (req, res): Pro
       }
     }
 
+    const SUPPLIER_LABELS: Record<string, string> = {
+      nombreCompleto: "Nombre completo",
+      whatsappNumber: "WhatsApp",
+      municipio: "Municipio",
+      vereda: "Vereda",
+      supplierType: "Tipo de proveedor",
+    };
+    const FARM_LABELS: Record<string, string> = {
+      cultivoPrincipal: "Cultivo principal",
+      variedadCafe: "Variedad de café",
+      hectareasProduccion: "Hectáreas en producción",
+      edadPlantasAnos: "Edad de plantas (años)",
+      cosechasPorAno: "Cosechas por año",
+      metodoSecado: "Método de secado",
+      accesoAgua: "Acceso al agua",
+      tenenciaTierra: "Tenencia de tierra",
+    };
+    const ECON_LABELS: Record<string, string> = {
+      tipoComprador: "Tipo de comprador",
+      volumenKgUltimaCosecha: "Volumen última cosecha (kg)",
+      precioVentaBanda: "Precio de venta",
+      deudaActual: "Deuda actual",
+      usoCapital: "Uso del capital",
+      personasDependientes: "Personas dependientes",
+      situacionEconomica: "Situación económica",
+      interesCanalpremium: "Interés en canal premium",
+    };
+
+    const changes: Record<string, { before: unknown; after: unknown }> = {};
+    function str(v: unknown): string {
+      if (v === null || v === undefined) return "";
+      if (Array.isArray(v)) return v.join(", ");
+      return String(v);
+    }
+    if (body.supplier) {
+      for (const [key, val] of Object.entries(body.supplier)) {
+        const prev = (currentSupplier as Record<string, unknown>)[key];
+        if (str(prev) !== str(val)) {
+          changes[SUPPLIER_LABELS[key] ?? key] = { before: prev ?? null, after: val };
+        }
+      }
+    }
+    if (body.farm) {
+      for (const [key, val] of Object.entries(body.farm)) {
+        const prev = currentFarm ? (currentFarm as Record<string, unknown>)[key] : undefined;
+        if (str(prev) !== str(val)) {
+          changes[FARM_LABELS[key] ?? key] = { before: prev ?? null, after: val };
+        }
+      }
+    }
+    if (body.economics) {
+      for (const [key, val] of Object.entries(body.economics)) {
+        const prev = currentEcon ? (currentEcon as Record<string, unknown>)[key] : undefined;
+        if (str(prev) !== str(val)) {
+          changes[ECON_LABELS[key] ?? key] = { before: prev ?? null, after: val };
+        }
+      }
+    }
+
     await db.insert(interactionsTable).values({
       supplierId: id,
       interactionType: "update",
       actor: "officer",
-      notes: body.notes ?? "Perfil actualizado por officer",
+      notes: body.notes?.trim() || "Perfil actualizado por officer",
       metadata: {
         goals: body.goalsMeta ?? null,
         officer: body.officerMeta ?? null,
+        changes: Object.keys(changes).length > 0 ? changes : null,
       },
     });
 

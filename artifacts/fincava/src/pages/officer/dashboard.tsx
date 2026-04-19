@@ -36,6 +36,10 @@ interface Stats {
   duplicateAttempts: number;
   abandonedLast7: number;
   abandonedLast30: number;
+  lastCleanup: { at: string; count: number } | null;
+  weeklyDuplicates?: { week: string; count: number }[];
+  weeklyAbandonments?: { week: string; count: number }[];
+  abandonmentRate?: number | null;
 }
 
 const POTENCIAL_COLORS: Record<number, string> = {
@@ -101,11 +105,36 @@ const ALL_CSV_COLUMNS = [
   { key: "potencial_general", label: "Potencial general" },
 ];
 
+const LS_KEY = "officer-dashboard-filters";
+function loadFilters() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as { cultivo?: string; potencial?: string; sortBy?: string };
+  } catch { return null; }
+}
+function saveFilters(v: { cultivo: string; potencial: string; sortBy: string }) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(v)); } catch { /* ignore */ }
+}
+
+const SORT_OPTIONS = [
+  { value: "date_desc", label: "Más reciente primero" },
+  { value: "date_asc", label: "Más antiguo primero" },
+  { value: "potential_desc", label: "Mayor potencial primero" },
+  { value: "potential_asc", label: "Menor potencial primero" },
+];
+
 export default function OfficerDashboard() {
+  const saved = loadFilters();
   const [search, setSearch] = useState("");
-  const [cultivo, setCultivo] = useState("all");
-  const [potencial, setPotencial] = useState("all");
+  const [cultivo, setCultivo] = useState(saved?.cultivo ?? "all");
+  const [potencial, setPotencial] = useState(saved?.potencial ?? "all");
+  const [sortBy, setSortBy] = useState(saved?.sortBy ?? "date_desc");
   const [, navigate] = useLocation();
+
+  useEffect(() => {
+    saveFilters({ cultivo, potencial, sortBy });
+  }, [cultivo, potencial, sortBy]);
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -116,8 +145,23 @@ export default function OfficerDashboard() {
   const [showStats, setShowStats] = useState(false);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("officer-csv-columns");
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        const valid = parsed.filter((k) => ALL_CSV_COLUMNS.some((c) => c.key === k));
+        if (valid.length > 0) setSelectedColumns(valid);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem("officer-csv-columns", JSON.stringify(selectedColumns)); } catch { /* ignore */ }
+  }, [selectedColumns]);
+
   useOfficerInactivity();
-  const { showWarning, dismiss, onRenewed } = useSessionExpiryWarning();
+  const { showWarning, dismiss, onRenewed, remaining } = useSessionExpiryWarning();
 
   function signOut() {
     clearOfficerToken();
@@ -137,6 +181,7 @@ export default function OfficerDashboard() {
   if (cultivo && cultivo !== "all") params.set("cultivo", cultivo);
   if (selectedPotencialOption?.potencial_min !== undefined) params.set("potencial_min", String(selectedPotencialOption.potencial_min));
   if (selectedPotencialOption?.potencial_max !== undefined) params.set("potencial_max", String(selectedPotencialOption.potencial_max));
+  if (sortBy && sortBy !== "date_desc") params.set("sortBy", sortBy);
 
   async function handleExport() {
     setIsExporting(true);
@@ -144,9 +189,7 @@ export default function OfficerDashboard() {
     setShowColumnPicker(false);
     try {
       const exportParams = new URLSearchParams(params);
-      if (exportFormat === "csv") {
-        exportParams.set("columns", selectedColumns.join(","));
-      }
+      exportParams.set("columns", selectedColumns.join(","));
       const endpoint = exportFormat === "xlsx"
         ? `${base}/api/officer/suppliers/export.xlsx`
         : `${base}/api/officer/suppliers/export`;
@@ -174,8 +217,20 @@ export default function OfficerDashboard() {
     }
   }
 
+  const { data: potCounts } = useQuery<Record<string, number>>({
+    queryKey: ["officer-potential-counts"],
+    queryFn: async () => {
+      const res = await fetch(`${base}/api/officer/suppliers/potential-counts`, {
+        headers: officerAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Error");
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
   const { data, isLoading, isError } = useQuery<{ suppliers: SupplierRow[] }>({
-    queryKey: ["officer-suppliers", search, cultivo, potencial],
+    queryKey: ["officer-suppliers", search, cultivo, potencial, sortBy],
     queryFn: async () => {
       const res = await fetch(`${base}/api/officer/suppliers?${params.toString()}`, {
         headers: officerAuthHeaders(),
@@ -228,6 +283,13 @@ export default function OfficerDashboard() {
             <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
             <div className="flex-1 text-sm">
               <span className="font-semibold">Tu sesión expira pronto.</span>{" "}
+              {remaining && (remaining.hours > 0 || remaining.minutes > 0) ? (
+                <span>
+                  Tiempo restante:{" "}
+                  {remaining.hours > 0 ? `${remaining.hours}h ` : ""}
+                  {remaining.minutes}min.{" "}
+                </span>
+              ) : null}
               Renuévala para no perder tu trabajo.
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -305,7 +367,7 @@ export default function OfficerDashboard() {
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-xl px-4 py-3 bg-purple-50 text-purple-800">
                 <div className="text-2xl font-bold">{statsData.abandonedLast7}</div>
                 <div className="text-xs mt-0.5 opacity-80">Abandonos últimos 7 días</div>
@@ -314,7 +376,51 @@ export default function OfficerDashboard() {
                 <div className="text-2xl font-bold">{statsData.abandonedLast30}</div>
                 <div className="text-xs mt-0.5 opacity-80">Abandonos últimos 30 días</div>
               </div>
+              {statsData.abandonmentRate != null && (
+                <div className="rounded-xl px-4 py-3 bg-slate-50 text-slate-800">
+                  <div className="text-2xl font-bold">{(statsData.abandonmentRate * 100).toFixed(1)}%</div>
+                  <div className="text-xs mt-0.5 opacity-80">Tasa de abandono (30d)</div>
+                </div>
+              )}
+              {statsData.lastCleanup && (
+                <div className="rounded-xl px-4 py-3 bg-gray-50 text-gray-700">
+                  <div className="text-2xl font-bold">{statsData.lastCleanup.count}</div>
+                  <div className="text-xs mt-0.5 opacity-80">
+                    Última limpieza · {new Date(statsData.lastCleanup.at).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}
+                  </div>
+                </div>
+              )}
             </div>
+            {statsData.weeklyDuplicates && statsData.weeklyDuplicates.length > 0 && (
+              <div className="rounded-xl px-4 py-3 bg-red-50 text-red-800">
+                <p className="text-xs font-semibold mb-2 opacity-70">Tendencia de duplicados (últimas semanas)</p>
+                <div className="flex items-end gap-1 h-10">
+                  {statsData.weeklyDuplicates.slice(-8).map((w, i) => {
+                    const maxVal = Math.max(...statsData.weeklyDuplicates!.map((x) => x.count), 1);
+                    const pct = Math.max(4, Math.round((w.count / maxVal) * 100));
+                    return (
+                      <div key={i} title={`Semana ${new Date(w.week).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}: ${w.count}`}
+                        className="flex-1 bg-red-300 rounded-t opacity-80" style={{ height: `${pct}%` }} />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {statsData.weeklyAbandonments && statsData.weeklyAbandonments.length > 0 && (
+              <div className="rounded-xl px-4 py-3 bg-purple-50 text-purple-800">
+                <p className="text-xs font-semibold mb-2 opacity-70">Tendencia de abandonos (últimas semanas)</p>
+                <div className="flex items-end gap-1 h-10">
+                  {statsData.weeklyAbandonments.slice(-8).map((w, i) => {
+                    const maxVal = Math.max(...statsData.weeklyAbandonments!.map((x) => x.count), 1);
+                    const pct = Math.max(4, Math.round((w.count / maxVal) * 100));
+                    return (
+                      <div key={i} title={`Semana ${new Date(w.week).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}: ${w.count}`}
+                        className="flex-1 bg-purple-300 rounded-t opacity-80" style={{ height: `${pct}%` }} />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -341,11 +447,39 @@ export default function OfficerDashboard() {
               </SelectContent>
             </Select>
             <Select value={potencial} onValueChange={setPotencial}>
-              <SelectTrigger className="w-full sm:w-52">
+              <SelectTrigger className="w-full sm:w-56">
                 <SelectValue placeholder="Potencial" />
               </SelectTrigger>
               <SelectContent>
-                {POTENCIAL_FILTER_OPTIONS.map((opt) => (
+                {POTENCIAL_FILTER_OPTIONS.map((opt) => {
+                  const countStr = (() => {
+                    if (!potCounts) return null;
+                    if (opt.value === "all") return potCounts.total != null ? ` (${potCounts.total})` : null;
+                    if (opt.potencial_min !== undefined && opt.potencial_max !== undefined) {
+                      const n = potCounts[String(opt.potencial_min)] ?? 0;
+                      return ` (${n})`;
+                    }
+                    if (opt.potencial_min !== undefined) {
+                      let sum = 0;
+                      for (let i = opt.potencial_min; i <= 5; i++) sum += potCounts[String(i)] ?? 0;
+                      return ` (${sum})`;
+                    }
+                    return null;
+                  })();
+                  return (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}{countStr && <span className="ml-1 text-gray-400 text-xs">{countStr}</span>}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Ordenar" />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -367,17 +501,15 @@ export default function OfficerDashboard() {
                   <SelectItem value="xlsx">Excel</SelectItem>
                 </SelectContent>
               </Select>
-              {exportFormat === "csv" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowColumnPicker((v) => !v)}
-                  disabled={isLoading || suppliers.length === 0}
-                  className="text-xs h-8"
-                >
-                  Columnas
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColumnPicker((v) => !v)}
+                disabled={isLoading || suppliers.length === 0}
+                className="text-xs h-8"
+              >
+                Columnas
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -397,7 +529,7 @@ export default function OfficerDashboard() {
             </div>
           </div>
 
-          {showColumnPicker && exportFormat === "csv" && (
+          {showColumnPicker && (
             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
               <p className="text-xs font-semibold text-gray-600">Seleccionar columnas para exportar:</p>
               <div className="flex flex-wrap gap-3">
@@ -417,8 +549,8 @@ export default function OfficerDashboard() {
                 disabled={isExporting || selectedColumns.length === 0}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
               >
-                {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                Exportar CSV
+                {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : exportFormat === "xlsx" ? <FileSpreadsheet className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+                {exportFormat === "xlsx" ? "Exportar Excel" : "Exportar CSV"}
               </Button>
             </div>
           )}

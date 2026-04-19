@@ -783,6 +783,14 @@ export default function Onboarding() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-green-700 underline underline-offset-2 hover:text-green-800"
+                  onClick={() => {
+                    const whatsapp = form.getValues("whatsapp_number");
+                    fetch(`${getApiBase()}/api/events/track`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ whatsapp_number: whatsapp, event_type: "whatsapp_support_click", metadata: { trigger: "duplicate_error" } }),
+                    }).catch(() => {});
+                  }}
                 >
                   Contactar oficial por WhatsApp
                 </a>

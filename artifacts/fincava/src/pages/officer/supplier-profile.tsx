@@ -5,6 +5,10 @@ import { type LucideIcon, Loader2, ShieldCheck, ArrowLeft, User, Sprout, Trendin
 import { Badge } from "@/components/ui/badge";
 import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
 import { useOfficerInactivity } from "@/hooks/useOfficerInactivity";
+import { useSessionExpiryWarning } from "@/hooks/useSessionExpiryWarning";
+import { SessionRenewalModal } from "@/components/SessionRenewalModal";
+import { AlertTriangle, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import SupplierEditModal from "./supplier-edit-modal";
 
 interface Supplier {
@@ -188,8 +192,11 @@ function InteractionHistory({ interactions }: { interactions: Interaction[] }) {
       ) : (
         <ol className="relative border-l border-gray-200 ml-2 space-y-4">
           {visible.map((interaction) => {
-            const officerMeta = (interaction.metadata as Record<string, unknown> | null)?.officer as Record<string, unknown> | null | undefined;
+            const meta = (interaction.metadata as Record<string, unknown> | null);
+            const officerMeta = meta?.officer as Record<string, unknown> | null | undefined;
             const potencial = officerMeta?.potencial_general as number | undefined;
+            const changes = meta?.changes as Record<string, { before: unknown; after: unknown }> | null | undefined;
+            const isCustomNote = interaction.notes && interaction.notes !== "Perfil actualizado por officer";
             return (
               <li key={interaction.id} className="ml-4">
                 <span className="absolute -left-1.5 mt-1 flex h-3 w-3 rounded-full border-2 border-blue-400 bg-white" />
@@ -208,8 +215,27 @@ function InteractionHistory({ interactions }: { interactions: Interaction[] }) {
                     </span>
                   )}
                 </div>
-                {interaction.notes && (
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">{interaction.notes}</p>
+                {isCustomNote && (
+                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 mb-2 italic">"{interaction.notes}"</p>
+                )}
+                {changes && Object.keys(changes).length > 0 && (
+                  <div className="mt-1 rounded-lg border border-gray-100 bg-gray-50 divide-y divide-gray-100 text-xs overflow-hidden">
+                    {Object.entries(changes).map(([field, { before, after }]) => {
+                      const bStr = before === null || before === undefined ? "—" : String(before);
+                      const aStr = after === null || after === undefined ? "—" : String(after);
+                      return (
+                        <div key={field} className="px-3 py-1.5 flex flex-wrap gap-x-3 gap-y-0.5 items-start">
+                          <span className="text-gray-500 font-medium w-32 shrink-0">{field}</span>
+                          <span className="line-through text-red-500 opacity-70">{bStr}</span>
+                          <span className="text-gray-300">→</span>
+                          <span className="text-green-700 font-medium">{aStr}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {!isCustomNote && !changes && interaction.notes && (
+                  <p className="text-sm text-gray-400 text-xs">{interaction.notes}</p>
                 )}
               </li>
             );
@@ -237,6 +263,8 @@ export default function OfficerSupplierProfile() {
   const [editOpen, setEditOpen] = useState(false);
 
   useOfficerInactivity();
+  const { showWarning, dismiss, onRenewed, remaining } = useSessionExpiryWarning();
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
 
   function handleUnauthorized() {
     clearOfficerToken();
@@ -287,7 +315,30 @@ export default function OfficerSupplierProfile() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
+      {showRenewalModal && (
+        <SessionRenewalModal
+          onRenewed={() => { onRenewed(); setShowRenewalModal(false); }}
+          onClose={() => setShowRenewalModal(false)}
+        />
+      )}
       <div className="max-w-3xl mx-auto space-y-5">
+
+        {showWarning && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-amber-800">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+            <div className="flex-1 text-sm">
+              <span className="font-semibold">Tu sesión expira pronto.</span>{" "}
+              {remaining && (remaining.hours > 0 || remaining.minutes > 0) ? (
+                <span>Tiempo restante: {remaining.hours > 0 ? `${remaining.hours}h ` : ""}{remaining.minutes}min. </span>
+              ) : null}
+              Renuévala para no perder tu trabajo.
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setShowRenewalModal(true)}>Renovar sesión</Button>
+              <button type="button" onClick={dismiss} className="text-amber-500 hover:text-amber-700 transition-colors" aria-label="Descartar aviso"><X className="h-4 w-4" /></button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

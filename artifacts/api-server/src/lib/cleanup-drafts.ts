@@ -260,6 +260,37 @@ export async function sendExpiryReminders(): Promise<void> {
   }
 }
 
+const EVENT_LOG_RETENTION_DAYS = 90;
+const CLEANUP_LOG_RETENTION_DAYS = 365;
+
+async function purgeOldEventLogs(): Promise<void> {
+  try {
+    const result = await pool.query(
+      `DELETE FROM registration_events WHERE created_at < NOW() - INTERVAL '${EVENT_LOG_RETENTION_DAYS} days'`,
+    );
+    const count = result.rowCount ?? 0;
+    if (count > 0) {
+      logger.info({ count, retentionDays: EVENT_LOG_RETENTION_DAYS }, "Purged old registration events");
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to purge old registration events");
+  }
+}
+
+async function purgeOldCleanupLogs(): Promise<void> {
+  try {
+    const result = await pool.query(
+      `DELETE FROM draft_cleanup_log WHERE swept_at < NOW() - INTERVAL '${CLEANUP_LOG_RETENTION_DAYS} days'`,
+    );
+    const count = result.rowCount ?? 0;
+    if (count > 0) {
+      logger.info({ count, retentionDays: CLEANUP_LOG_RETENTION_DAYS }, "Purged old draft cleanup logs");
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to purge old draft cleanup logs");
+  }
+}
+
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export function scheduleDraftCleanup(): void {
@@ -269,6 +300,12 @@ export function scheduleDraftCleanup(): void {
   void sendExpiryReminders().catch((err) => {
     logger.error({ err }, "Unhandled error in initial sendExpiryReminders");
   });
+  void purgeOldEventLogs().catch((err) => {
+    logger.error({ err }, "Unhandled error in initial purgeOldEventLogs");
+  });
+  void purgeOldCleanupLogs().catch((err) => {
+    logger.error({ err }, "Unhandled error in initial purgeOldCleanupLogs");
+  });
 
   const handle = setInterval(() => {
     void cleanupStaleDrafts().catch((err) => {
@@ -276,6 +313,12 @@ export function scheduleDraftCleanup(): void {
     });
     void sendExpiryReminders().catch((err) => {
       logger.error({ err }, "Unhandled error in scheduled sendExpiryReminders");
+    });
+    void purgeOldEventLogs().catch((err) => {
+      logger.error({ err }, "Unhandled error in scheduled purgeOldEventLogs");
+    });
+    void purgeOldCleanupLogs().catch((err) => {
+      logger.error({ err }, "Unhandled error in scheduled purgeOldCleanupLogs");
     });
   }, CLEANUP_INTERVAL_MS);
   handle.unref();

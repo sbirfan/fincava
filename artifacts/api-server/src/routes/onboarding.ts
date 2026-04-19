@@ -188,4 +188,25 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
   });
 });
 
+router.post("/events/track", async (req, res): Promise<void> => {
+  try {
+    const { whatsapp_number, event_type, metadata } = req.body as {
+      whatsapp_number?: string;
+      event_type?: string;
+      metadata?: Record<string, unknown>;
+    };
+
+    if (!whatsapp_number || !event_type) {
+      res.status(400).json({ error: "whatsapp_number and event_type are required" });
+      return;
+    }
+
+    await logRegistrationEvent(whatsapp_number, event_type, metadata);
+    res.status(204).end();
+  } catch {
+    res.status(500).json({ error: "Failed to log event" });
+  }
+});
+
 export default router;
+

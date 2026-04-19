@@ -330,6 +330,12 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
   const [potencialGeneral, setPotencialGeneral] = useState<number>(o?.potencial_general ?? 0);
   const [notasOfficer, setNotasOfficer] = useState(o?.notas_officer ?? "");
 
+  const [changeNote, setChangeNote] = useState("");
+  const [showEvalWarning, setShowEvalWarning] = useState(false);
+
+  const evalComplete = saludPlantas && infra && accesoVial && disposicionAgr && potencialGeneral > 0;
+  const liveWhatsappOk = WHATSAPP_RE.test(whatsappNumber) || whatsappNumber === "";
+
   function validate(): ValidationErrors {
     const errors: ValidationErrors = {};
     if (!nombreCompleto.trim() || nombreCompleto.trim().length < 2) {
@@ -416,6 +422,7 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
           potencial_general: potencialGeneral || null,
           notas_officer: notasOfficer || undefined,
         },
+        notes: changeNote.trim() || undefined,
       };
 
       const res = await fetch(`${base}/api/officer/suppliers/${supplierId}`, {
@@ -497,12 +504,14 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
               </Field>
               <Field label="WhatsApp">
                 <TextInput value={whatsappNumber} onChange={(v) => { setWhatsappNumber(v); if (validationErrors.whatsappNumber) setValidationErrors((prev) => ({ ...prev, whatsappNumber: undefined })); }} placeholder="+57..." />
-                {validationErrors.whatsappNumber && (
+                {validationErrors.whatsappNumber ? (
                   <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
                     <AlertCircle className="h-3 w-3 shrink-0" />
                     {validationErrors.whatsappNumber}
                   </p>
-                )}
+                ) : !liveWhatsappOk ? (
+                  <p className="mt-1 text-xs text-amber-600">Formato requerido: +57 seguido de 10 dígitos</p>
+                ) : null}
               </Field>
               <Field label="Municipio">
                 <TextInput value={municipio} onChange={setMunicipio} />
@@ -644,6 +653,11 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
 
           <div>
             <SectionHeader icon={ShieldCheck} title="F. Evaluación Officer" />
+            {!evalComplete && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Completa los campos de evaluación (salud de plantas, infraestructura, acceso vial, disposición y potencial general) para registrar una evaluación completa.
+              </div>
+            )}
             <FormRow>
               <Field label="Salud de plantas">
                 <SelectInput value={saludPlantas} onChange={setSaludPlantas} options={qualityOptions} />
@@ -669,6 +683,23 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
           </div>
         </div>
 
+        <div className="px-6 pb-4 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Motivo del cambio <span className="text-gray-400 font-normal">(opcional)</span></label>
+            <TextareaInput
+              value={changeNote}
+              onChange={setChangeNote}
+              rows={2}
+              placeholder="Ej: Corregí el tamaño de la finca después de visita de campo..."
+            />
+          </div>
+          {showEvalWarning && !evalComplete && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              La evaluación del officer está incompleta. Puedes guardar de todas formas — vuelve a pulsar «Guardar cambios» para confirmar.
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
           <button
             type="button"
@@ -687,6 +718,11 @@ export default function SupplierEditModal({ supplierId, initial, onClose, base }
                 return;
               }
               setValidationErrors({});
+              if (!evalComplete && !showEvalWarning) {
+                setShowEvalWarning(true);
+                return;
+              }
+              setShowEvalWarning(false);
               mutation.mutate();
             }}
             disabled={mutation.isPending}

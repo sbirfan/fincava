@@ -5,11 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { officerAuthHeaders, setOfficerToken } from "@/lib/officer-auth";
 import { useOfficerInactivity } from "@/hooks/useOfficerInactivity";
+import { useSessionExpiryWarning } from "@/hooks/useSessionExpiryWarning";
+import { SessionRenewalModal } from "@/components/SessionRenewalModal";
+import { AlertTriangle, X, RotateCcw } from "lucide-react";
 
 export default function OfficerSettings() {
   const [, navigate] = useLocation();
 
   useOfficerInactivity();
+  const { showWarning, dismiss, onRenewed, remaining } = useSessionExpiryWarning();
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
+
   const [pinLastChanged, setPinLastChanged] = useState<string | null | undefined | "error">(undefined);
   const [currentPin, setCurrentPin] = useState("");
   const [showCurrentPin, setShowCurrentPin] = useState(false);
@@ -27,6 +33,7 @@ export default function OfficerSettings() {
   const [tokenWindowLoading, setTokenWindowLoading] = useState(false);
   const [tokenWindowError, setTokenWindowError] = useState("");
   const [tokenWindowSuccess, setTokenWindowSuccess] = useState(false);
+  const [tokenResetLoading, setTokenResetLoading] = useState(false);
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const PIN_STALE_DAYS = 90;
@@ -104,6 +111,33 @@ export default function OfficerSettings() {
     }
   }
 
+  async function handleResetTokenWindow() {
+    setTokenResetLoading(true);
+    setTokenWindowError("");
+    setTokenWindowSuccess(false);
+    try {
+      const res = await fetch(`${base}/api/officer/token-window/reset`, {
+        method: "POST",
+        headers: officerAuthHeaders(),
+      });
+      if (res.status === 401) { navigate("/officer/login"); return; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTokenWindowError((data as { error?: string }).error ?? "Error al restablecer");
+        return;
+      }
+      const data = await res.json() as { days: number };
+      setTokenWindowDays(data.days);
+      setTokenWindowInput(String(data.days));
+      setTokenWindowIsDefault(true);
+      setTokenWindowSuccess(true);
+    } catch {
+      setTokenWindowError("Error de conexión.");
+    } finally {
+      setTokenResetLoading(false);
+    }
+  }
+
   async function handleChangePin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -166,7 +200,30 @@ export default function OfficerSettings() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
+      {showRenewalModal && (
+        <SessionRenewalModal
+          onRenewed={() => { onRenewed(); setShowRenewalModal(false); }}
+          onClose={() => setShowRenewalModal(false)}
+        />
+      )}
       <div className="max-w-lg mx-auto space-y-6">
+
+        {showWarning && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-amber-800">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+            <div className="flex-1 text-sm">
+              <span className="font-semibold">Tu sesión expira pronto.</span>{" "}
+              {remaining && (remaining.hours > 0 || remaining.minutes > 0) ? (
+                <span>Tiempo restante: {remaining.hours > 0 ? `${remaining.hours}h ` : ""}{remaining.minutes}min. </span>
+              ) : null}
+              Renuévala para no perder tu trabajo.
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setShowRenewalModal(true)}>Renovar sesión</Button>
+              <button type="button" onClick={dismiss} className="text-amber-500 hover:text-amber-700 transition-colors" aria-label="Descartar aviso"><X className="h-4 w-4" /></button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           <button
@@ -382,6 +439,18 @@ export default function OfficerSettings() {
             >
               {tokenWindowLoading ? "Guardando..." : "Guardar"}
             </Button>
+            {!tokenWindowIsDefault && (
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0 text-gray-600 border-gray-300"
+                disabled={tokenResetLoading || tokenWindowLoading}
+                onClick={handleResetTokenWindow}
+                title="Restablecer al valor por defecto"
+              >
+                {tokenResetLoading ? <span className="text-xs">...</span> : <RotateCcw className="h-4 w-4" />}
+              </Button>
+            )}
           </form>
 
           <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
