@@ -103,6 +103,12 @@ router.post("/officer/pin/change", requireOfficerAuth, async (req: Request, res:
   }
 });
 
+function parsePotencialFilter(raw: unknown): number | null {
+  if (typeof raw !== "string") return null;
+  const n = parseInt(raw, 10);
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
+}
+
 function buildSupplierConditions(search: string, cultivo: string) {
   const conditions = [];
   if (cultivo) {
@@ -146,7 +152,7 @@ router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<v
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
-    const potencialFilter = typeof req.query.potencial === "string" ? parseInt(req.query.potencial, 10) : NaN;
+    const potencialFilter = parsePotencialFilter(req.query.potencial);
 
     const conditions = buildSupplierConditions(search, cultivo);
 
@@ -173,7 +179,7 @@ router.get("/officer/suppliers", requireOfficerAuth, async (req, res): Promise<v
       potencialGeneral: (officerMetaMap.get(s.id)?.potencial_general as number | null) ?? null,
     }));
 
-    if (!isNaN(potencialFilter) && potencialFilter >= 1 && potencialFilter <= 5) {
+    if (potencialFilter !== null) {
       results = results.filter((s) => s.potencialGeneral === potencialFilter);
     }
 
@@ -203,7 +209,7 @@ router.get("/officer/suppliers/export", requireOfficerAuth, async (req, res): Pr
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
-    const potencialFilter = typeof req.query.potencial === "string" ? parseInt(req.query.potencial, 10) : NaN;
+    const potencialFilter = parsePotencialFilter(req.query.potencial);
 
     const rawColumns = typeof req.query.columns === "string" ? req.query.columns.split(",").map((c) => c.trim()) : [];
     const selectedColumns: CsvColumn[] = rawColumns.length > 0
@@ -234,7 +240,7 @@ router.get("/officer/suppliers/export", requireOfficerAuth, async (req, res): Pr
       return { ...s, potencial };
     });
 
-    if (!isNaN(potencialFilter) && potencialFilter >= 1 && potencialFilter <= 5) {
+    if (potencialFilter !== null) {
       rows = rows.filter((r) => r.potencial === potencialFilter);
     }
 
@@ -281,7 +287,7 @@ router.get("/officer/suppliers/export.xlsx", requireOfficerAuth, async (req, res
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const cultivo = typeof req.query.cultivo === "string" ? req.query.cultivo.trim() : "";
-    const potencialFilter = typeof req.query.potencial === "string" ? parseInt(req.query.potencial, 10) : NaN;
+    const potencialFilter = parsePotencialFilter(req.query.potencial);
 
     const conditions = buildSupplierConditions(search, cultivo);
 
@@ -307,7 +313,7 @@ router.get("/officer/suppliers/export.xlsx", requireOfficerAuth, async (req, res
       return { ...s, potencial };
     });
 
-    if (!isNaN(potencialFilter) && potencialFilter >= 1 && potencialFilter <= 5) {
+    if (potencialFilter !== null) {
       rows = rows.filter((r) => r.potencial === potencialFilter);
     }
 

@@ -34,27 +34,21 @@ interface Stats {
   duplicateAttempts: number;
 }
 
+const POTENCIAL_COLORS: Record<number, string> = {
+  1: "bg-red-100 text-red-700",
+  2: "bg-orange-100 text-orange-700",
+  3: "bg-yellow-100 text-yellow-700",
+  4: "bg-blue-100 text-blue-700",
+  5: "bg-green-100 text-green-700",
+};
+
 function PotencialBadge({ score }: { score: number | null }) {
   if (score === null) return <span className="text-gray-400 text-xs">—</span>;
-  const colors: Record<number, string> = {
-    1: "bg-red-100 text-red-700",
-    2: "bg-orange-100 text-orange-700",
-    3: "bg-yellow-100 text-yellow-700",
-    4: "bg-blue-100 text-blue-700",
-    5: "bg-green-100 text-green-700",
-  };
-  const labels: Record<number, string> = {
-    1: "Muy bajo",
-    2: "Bajo",
-    3: "Medio",
-    4: "Alto",
-    5: "Muy alto",
-  };
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${colors[score] ?? "bg-gray-100 text-gray-600"}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${POTENCIAL_COLORS[score] ?? "bg-gray-100 text-gray-600"}`}
     >
-      {score}/5 · {labels[score] ?? "—"}
+      {score}/5 · {POTENCIAL_LABELS[score] ?? "—"}
     </span>
   );
 }
@@ -69,6 +63,13 @@ function formatDate(iso: string) {
 
 const CULTIVOS = ["Café", "Cacao", "Panela", "Otro"];
 const POTENCIAL_OPTIONS = [1, 2, 3, 4, 5];
+const POTENCIAL_LABELS: Record<number, string> = {
+  1: "Muy bajo",
+  2: "Bajo",
+  3: "Medio",
+  4: "Alto",
+  5: "Muy alto",
+};
 
 const ALL_CSV_COLUMNS = [
   { key: "nombre", label: "Nombre" },
@@ -271,7 +272,7 @@ export default function OfficerDashboard() {
               <SelectContent>
                 <SelectItem value="all">Todos los potenciales</SelectItem>
                 {POTENCIAL_OPTIONS.map((p) => (
-                  <SelectItem key={p} value={String(p)}>{p}/5 — {["Muy bajo","Bajo","Medio","Alto","Muy alto"][p-1]}</SelectItem>
+                  <SelectItem key={p} value={String(p)}>{p}/5 — {POTENCIAL_LABELS[p]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
