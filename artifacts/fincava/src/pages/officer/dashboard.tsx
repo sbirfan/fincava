@@ -95,14 +95,13 @@ export default function OfficerDashboard() {
 
   useOfficerInactivity();
 
-  function handleUnauthorized() {
+  function signOut() {
     clearOfficerToken();
     navigate("/officer/login");
   }
 
-  function handleSignOut() {
-    clearOfficerToken();
-    navigate("/officer/login");
+  function handleUnauthorized() {
+    signOut();
   }
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -217,7 +216,7 @@ export default function OfficerDashboard() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleSignOut}
+              onClick={signOut}
               className="text-red-600 hover:bg-red-50"
               title="Cerrar sesión"
             >
