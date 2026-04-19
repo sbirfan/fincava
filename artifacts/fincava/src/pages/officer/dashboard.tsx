@@ -10,9 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, ShieldCheck, Users, ChevronRight, Download, LogOut, Settings, FileSpreadsheet, BarChart3 } from "lucide-react";
+import { Loader2, Search, ShieldCheck, Users, ChevronRight, Download, LogOut, Settings, FileSpreadsheet, BarChart3, AlertTriangle, X } from "lucide-react";
 import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
 import { useOfficerInactivity } from "@/hooks/useOfficerInactivity";
+import { useSessionExpiryWarning } from "@/hooks/useSessionExpiryWarning";
+import { SessionRenewalModal } from "@/components/SessionRenewalModal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -112,8 +114,10 @@ export default function OfficerDashboard() {
   const [exportFormat, setExportFormat] = useState<"csv" | "xlsx">("csv");
 
   const [showStats, setShowStats] = useState(false);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
 
   useOfficerInactivity();
+  const { showWarning, dismiss, onRenewed } = useSessionExpiryWarning();
 
   function signOut() {
     clearOfficerToken();
@@ -207,7 +211,44 @@ export default function OfficerDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-6 px-4">
+      {showRenewalModal && (
+        <SessionRenewalModal
+          onRenewed={() => {
+            onRenewed();
+            setShowRenewalModal(false);
+          }}
+          onClose={() => setShowRenewalModal(false)}
+        />
+      )}
+
       <div className="max-w-5xl mx-auto space-y-6">
+
+        {showWarning && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-amber-800">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+            <div className="flex-1 text-sm">
+              <span className="font-semibold">Tu sesión expira pronto.</span>{" "}
+              Renuévala para no perder tu trabajo.
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => setShowRenewalModal(true)}
+              >
+                Renovar sesión
+              </Button>
+              <button
+                type="button"
+                onClick={dismiss}
+                className="text-amber-500 hover:text-amber-700 transition-colors"
+                aria-label="Descartar aviso"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

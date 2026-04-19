@@ -63,4 +63,15 @@ export function isTokenExpired(): boolean {
   return Date.now() - issuedAt > TOKEN_EXPIRY_MS;
 }
 
+const EXPIRY_WARNING_MS = 24 * 60 * 60 * 1000;
+
+export function isTokenExpiringSoon(): boolean {
+  const token = getOfficerToken();
+  if (!token) return false;
+  const issuedAt = parseIssuedAt(token);
+  if (issuedAt === null) return false;
+  const age = Date.now() - issuedAt;
+  return age > TOKEN_EXPIRY_MS - EXPIRY_WARNING_MS && age <= TOKEN_EXPIRY_MS;
+}
+
 export { INACTIVITY_TIMEOUT_MS };
