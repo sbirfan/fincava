@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@workspace/api-client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Users, ShoppingCart, Landmark, TrendingUp, AlertTriangle, DollarSign, ShieldCheck, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
@@ -175,6 +174,15 @@ function OfficerPinSection() {
   );
 }
 
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
 
@@ -183,6 +191,17 @@ export default function AdminDashboard() {
     queryFn: async () => {
       const token = localStorage.getItem("fincava_token");
       const res = await fetch("/api/admin/stats", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.json();
+    },
+  });
+
+  const { data: reminders } = useQuery({
+    queryKey: ["admin", "draft-reminders"],
+    queryFn: async () => {
+      const token = localStorage.getItem("fincava_token");
+      const res = await fetch("/api/admin/draft-reminders", {
         headers: { Authorization: `Bearer ${token}` },
       });
       return res.json();
@@ -274,6 +293,24 @@ export default function AdminDashboard() {
             </a>
           ))}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">
+          WhatsApp reminders
+        </h2>
+        {reminders?.reminders?.length ? (
+          <div className="space-y-2">
+            {reminders.reminders.map((item: { whatsappNumber: string; sentAt: string }) => (
+              <div key={`${item.whatsappNumber}-${item.sentAt}`} className="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3 text-sm text-white/80">
+                <span>{item.whatsappNumber}</span>
+                <span className="text-white/50">{formatDateTime(item.sentAt)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-white/50">No recent reminders.</p>
+        )}
       </div>
 
       <OfficerPinSection />

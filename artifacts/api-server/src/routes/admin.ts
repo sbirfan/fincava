@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
+import { db, usersTable, profilesTable, companiesTable, onboardingDraftsTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
@@ -166,6 +166,28 @@ router.post("/admin/officer-pin", ...adminOnly, async (req: Request, res: Respon
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al cambiar el PIN del officer" });
+  }
+});
+
+router.get("/admin/draft-reminders", ...adminOnly, async (_req, res): Promise<void> => {
+  try {
+    const result = await db
+      .select({
+        whatsappNumber: onboardingDraftsTable.whatsappNumber,
+        updatedAt: onboardingDraftsTable.updatedAt,
+      })
+      .from(onboardingDraftsTable)
+      .orderBy(desc(onboardingDraftsTable.updatedAt))
+      .limit(50);
+    res.json({
+      reminders: result.rows.map((row) => ({
+        whatsappNumber: row.whatsappNumber,
+        sentAt: row.updatedAt,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener recordatorios" });
   }
 });
 
