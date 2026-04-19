@@ -4,23 +4,31 @@ import { clearOfficerToken, setLastActivity, isSessionExpired, isTokenExpired, I
 
 const EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
 
+const CHECK_INTERVAL_MS = 30_000;
+
 export function useOfficerInactivity() {
   const [, navigate] = useLocation();
   const checkRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    function signOutIfExpired() {
+      if (isSessionExpired() || isTokenExpired()) {
+        clearOfficerToken();
+        navigate("/officer/login");
+        return true;
+      }
+      return false;
+    }
+
+    if (signOutIfExpired()) return;
+
     function recordActivity() {
       setLastActivity();
     }
 
     EVENTS.forEach((event) => window.addEventListener(event, recordActivity, { passive: true }));
 
-    checkRef.current = setInterval(() => {
-      if (isSessionExpired() || isTokenExpired()) {
-        clearOfficerToken();
-        navigate("/officer/login");
-      }
-    }, 60_000);
+    checkRef.current = setInterval(signOutIfExpired, CHECK_INTERVAL_MS);
 
     return () => {
       EVENTS.forEach((event) => window.removeEventListener(event, recordActivity));

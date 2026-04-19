@@ -4,9 +4,12 @@ import { ShieldCheck, ArrowLeft, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { officerAuthHeaders, setOfficerToken } from "@/lib/officer-auth";
+import { useOfficerInactivity } from "@/hooks/useOfficerInactivity";
 
 export default function OfficerSettings() {
   const [, navigate] = useLocation();
+
+  useOfficerInactivity();
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [showNewPin, setShowNewPin] = useState(false);

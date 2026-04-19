@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type LucideIcon, Loader2, ShieldCheck, ArrowLeft, User, Sprout, TrendingUp, Banknote, Target, Star, Pencil, Clock, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { officerAuthHeaders, clearOfficerToken } from "@/lib/officer-auth";
+import { useOfficerInactivity } from "@/hooks/useOfficerInactivity";
 import SupplierEditModal from "./supplier-edit-modal";
 
 interface Supplier {
@@ -234,6 +235,8 @@ export default function OfficerSupplierProfile() {
   const id = params?.id;
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const [editOpen, setEditOpen] = useState(false);
+
+  useOfficerInactivity();
 
   function handleUnauthorized() {
     clearOfficerToken();
