@@ -10,6 +10,7 @@ export const onboardingDraftsTable = pgTable(
     restoreToken: uuid("restore_token").notNull().default(sql`uuid_generate_v4()`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
   },
   (t) => [
     index("onboarding_drafts_whatsapp_idx").on(t.whatsappNumber),

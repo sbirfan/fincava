@@ -161,7 +161,7 @@ router.put("/drafts/onboarding", rateLimit, async (req, res): Promise<void> => {
   const now = new Date();
   await db
     .update(onboardingDraftsTable)
-    .set({ data, updatedAt: now })
+    .set({ data, updatedAt: now, reminderSentAt: null })
     .where(eq(onboardingDraftsTable.whatsappNumber, whatsapp_number));
 
   res.json({ success: true, restore_token, updatedAt: now.toISOString() });
