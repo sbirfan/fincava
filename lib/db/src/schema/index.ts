@@ -15,3 +15,4 @@ export * from "./economics";
 export * from "./compliance_docs";
 export * from "./ai_outputs";
 export * from "./interactions";
+export * from "./onboarding_drafts";

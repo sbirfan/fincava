@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, suppliersTable, farmsTable, economicsTable, interactionsTable } from "@workspace/db";
+import { db, suppliersTable, farmsTable, economicsTable, interactionsTable, onboardingDraftsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -161,6 +161,11 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       ...(hasOfficerData ? { officer: officerMeta } : {}),
     },
   });
+
+  await db
+    .delete(onboardingDraftsTable)
+    .where(eq(onboardingDraftsTable.whatsappNumber, data.whatsapp_number))
+    .catch(() => {});
 
   res.status(201).json({
     success: true,

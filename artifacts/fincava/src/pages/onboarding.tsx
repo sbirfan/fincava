@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -110,6 +110,8 @@ type DraftBanner = {
   nombre: string;
   whatsapp: string;
   savedStep: number;
+  source: "local" | "server";
+  canFullRestore: boolean;
 };
 
 const DRAFT_PREFIX = "fincava_onboarding_";
@@ -125,13 +127,119 @@ function findExistingDraft(): DraftBanner | null {
         const nombre = parsed.nombre_completo || "";
         const whatsapp = parsed.whatsapp_number || key.replace(DRAFT_PREFIX, "");
         if (nombre || whatsapp.length > 6) {
-          return { key, nombre, whatsapp, savedStep: parsed._step ?? 0 };
+          return { key, nombre, whatsapp, savedStep: parsed._step ?? 0, source: "local", canFullRestore: true };
         }
       }
     }
   } catch {
   }
   return null;
+}
+
+const WHATSAPP_REGEX = /^\+57[0-9]{10}$/;
+
+async function fetchServerDraftMeta(
+  whatsapp: string,
+  base: string,
+): Promise<{ savedStep: number; updatedAt: string } | null> {
+  try {
+    const res = await fetch(
+      `${base}/api/drafts/onboarding?whatsapp=${encodeURIComponent(whatsapp)}`,
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.found) return null;
+    return { savedStep: (json.savedStep as number) ?? 0, updatedAt: json.updatedAt as string };
+  } catch {
+    return null;
+  }
+}
+
+function getDraftTokenKey(whatsapp: string) {
+  return `fincava_draft_token_${whatsapp}`;
+}
+
+function getDraftToken(whatsapp: string): string | null {
+  try {
+    return localStorage.getItem(getDraftTokenKey(whatsapp));
+  } catch {
+    return null;
+  }
+}
+
+function setDraftToken(whatsapp: string, token: string) {
+  try {
+    localStorage.setItem(getDraftTokenKey(whatsapp), token);
+  } catch {
+  }
+}
+
+function clearDraftToken(whatsapp: string) {
+  try {
+    localStorage.removeItem(getDraftTokenKey(whatsapp));
+  } catch {
+  }
+}
+
+async function restoreServerDraft(
+  whatsapp: string,
+  token: string,
+  base: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(`${base}/api/drafts/onboarding/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ whatsapp_number: whatsapp, restore_token: token }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.found) return null;
+    return json.data as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function saveServerDraft(
+  whatsapp: string,
+  data: Record<string, unknown>,
+  base: string,
+): Promise<void> {
+  try {
+    const existingToken = getDraftToken(whatsapp);
+    const res = await fetch(`${base}/api/drafts/onboarding`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        whatsapp_number: whatsapp,
+        data,
+        ...(existingToken ? { restore_token: existingToken } : {}),
+      }),
+    });
+    if (res.ok) {
+      const json = await res.json().catch(() => ({}));
+      if (json.restore_token) {
+        setDraftToken(whatsapp, json.restore_token as string);
+      }
+    }
+  } catch {
+  }
+}
+
+async function deleteServerDraft(whatsapp: string, base: string): Promise<void> {
+  const token = getDraftToken(whatsapp);
+  if (!token) return;
+  try {
+    const res = await fetch(
+      `${base}/api/drafts/onboarding?whatsapp=${encodeURIComponent(whatsapp)}&restore_token=${encodeURIComponent(token)}`,
+      { method: "DELETE" },
+    );
+    if (res.ok) {
+      clearDraftToken(whatsapp);
+    }
+  } catch {
+  }
 }
 
 export default function Onboarding() {
@@ -142,6 +250,8 @@ export default function Onboarding() {
   const [duplicateError, setDuplicateError] = useState<{ supplierId: string } | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [draftBanner, setDraftBanner] = useState<DraftBanner | null>(null);
+  const [checkingServerDraft, setCheckingServerDraft] = useState(false);
+  const checkedWhatsappRef = React.useRef<string>("");
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -195,39 +305,116 @@ export default function Onboarding() {
     }
   }, [watchWhatsapp]);
 
+  const getApiBase = useCallback(() => {
+    return (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+  }, []);
+
+  const serverDraftDataRef = React.useRef<Record<string, unknown> | null>(null);
+  const [restoringServer, setRestoringServer] = useState(false);
+
+  const checkServerDraft = useCallback(async (whatsapp: string) => {
+    if (!WHATSAPP_REGEX.test(whatsapp)) return;
+    if (checkedWhatsappRef.current === whatsapp) return;
+    if (draftBanner) return;
+    checkedWhatsappRef.current = whatsapp;
+    setCheckingServerDraft(true);
+    try {
+      const base = getApiBase();
+      const meta = await fetchServerDraftMeta(whatsapp, base);
+      if (!meta) return;
+
+      const token = getDraftToken(whatsapp);
+      if (token) {
+        setRestoringServer(true);
+        const fullData = await restoreServerDraft(whatsapp, token, base);
+        setRestoringServer(false);
+        if (fullData) {
+          serverDraftDataRef.current = fullData;
+          setDraftBanner({
+            key: getStorageKey(whatsapp),
+            nombre: "",
+            whatsapp,
+            savedStep: meta.savedStep,
+            source: "server",
+            canFullRestore: true,
+          });
+          return;
+        }
+      }
+
+      setDraftBanner({
+        key: getStorageKey(whatsapp),
+        nombre: "",
+        whatsapp,
+        savedStep: meta.savedStep,
+        source: "server",
+        canFullRestore: false,
+      });
+    } finally {
+      setCheckingServerDraft(false);
+      setRestoringServer(false);
+    }
+  }, [draftBanner, getApiBase]);
+
   const restoreDraft = useCallback(() => {
     if (!draftBanner) return;
-    try {
-      const raw = localStorage.getItem(draftBanner.key);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<FormData> & { _step?: number };
-        const { _step, ...formValues } = parsed;
+    if (draftBanner.source === "server") {
+      if (draftBanner.canFullRestore) {
+        const data = serverDraftDataRef.current;
+        if (!data) {
+          console.warn("[onboarding] Server draft data not yet loaded");
+          return;
+        }
+        const { _step, ...formValues } = data as Partial<FormData> & { _step?: number };
         form.reset({ ...form.getValues(), ...formValues }, { keepDefaultValues: true });
-        setStep(Math.min(Math.max(_step ?? 0, 0), STEPS.length - 1));
-        window.scrollTo(0, 0);
+        setStep(Math.min(Math.max((_step as number) ?? 0, 0), STEPS.length - 1));
+      } else {
+        setStep(Math.min(Math.max(draftBanner.savedStep, 0), STEPS.length - 1));
       }
-    } catch (err) {
-      console.warn("[onboarding] Could not restore draft:", err);
+    } else {
+      try {
+        const raw = localStorage.getItem(draftBanner.key);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<FormData> & { _step?: number };
+          const { _step, ...formValues } = parsed;
+          form.reset({ ...form.getValues(), ...formValues }, { keepDefaultValues: true });
+          setStep(Math.min(Math.max(_step ?? 0, 0), STEPS.length - 1));
+        }
+      } catch (err) {
+        console.warn("[onboarding] Could not restore local draft:", err);
+      }
     }
+    serverDraftDataRef.current = null;
+    window.scrollTo(0, 0);
     setDraftBanner(null);
   }, [draftBanner, form]);
 
   const discardDraft = useCallback(() => {
     if (!draftBanner) return;
-    localStorage.removeItem(draftBanner.key);
+    if (draftBanner.source === "server") {
+      deleteServerDraft(draftBanner.whatsapp, getApiBase());
+    } else {
+      localStorage.removeItem(draftBanner.key);
+    }
+    serverDraftDataRef.current = null;
     form.reset();
     setStep(0);
     setDraftBanner(null);
-  }, [draftBanner, form]);
+    checkedWhatsappRef.current = "";
+  }, [draftBanner, form, getApiBase]);
 
   const saveToStorage = useCallback(() => {
     const whatsapp = form.getValues("whatsapp_number");
     if (whatsapp && whatsapp.length > 6) {
       const values = form.getValues();
-      localStorage.setItem(getStorageKey(whatsapp), JSON.stringify({ ...values, _step: step }));
+      const payload = { ...values, _step: step };
+      localStorage.setItem(getStorageKey(whatsapp), JSON.stringify(payload));
       setLastSaved(new Date());
+      if (WHATSAPP_REGEX.test(whatsapp)) {
+        saveServerDraft(whatsapp, payload as Record<string, unknown>, getApiBase());
+      }
     }
-  }, [form, step]);
+  }, [form, step, getApiBase]);
 
   useEffect(() => {
     const interval = setInterval(saveToStorage, 30000);
@@ -323,6 +510,7 @@ export default function Onboarding() {
       }
 
       localStorage.removeItem(getStorageKey(values.whatsapp_number));
+      deleteServerDraft(values.whatsapp_number, getApiBase());
       setSuccessName(values.nombre_completo.split(" ")[0]);
       setSubmitted(true);
       window.scrollTo(0, 0);
@@ -377,12 +565,17 @@ export default function Onboarding() {
                   ¿Continuar donde lo dejó?
                 </p>
                 <p className="text-xs text-amber-800 mt-0.5 leading-snug">
-                  {draftBanner.nombre
+                  {draftBanner.source === "local" && draftBanner.nombre
                     ? <><span className="font-medium">{draftBanner.nombre}</span> · </>
                     : null}
                   {draftBanner.whatsapp}
                   {" · "}
                   Sección {draftBanner.savedStep + 1} de {STEPS.length} — {STEPS[draftBanner.savedStep]}
+                  {draftBanner.source === "server" && !draftBanner.canFullRestore && (
+                    <span className="block mt-0.5 text-amber-700">
+                      (Este dispositivo no tiene el borrador; puede continuar desde esa sección)
+                    </span>
+                  )}
                 </p>
                 <div className="flex gap-2 mt-3">
                   <Button
@@ -390,8 +583,18 @@ export default function Onboarding() {
                     size="sm"
                     className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1 h-auto"
                     onClick={restoreDraft}
+                    disabled={restoringServer}
                   >
-                    Restaurar borrador
+                    {restoringServer ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Cargando...
+                      </>
+                    ) : draftBanner.source === "server" && !draftBanner.canFullRestore ? (
+                      `Ir a Sección ${draftBanner.savedStep + 1}`
+                    ) : (
+                      "Restaurar borrador"
+                    )}
                   </Button>
                   <Button
                     type="button"
@@ -399,6 +602,7 @@ export default function Onboarding() {
                     variant="outline"
                     className="text-xs px-3 py-1 h-auto border-amber-400 text-amber-800 hover:bg-amber-100"
                     onClick={discardDraft}
+                    disabled={restoringServer}
                   >
                     Empezar de nuevo
                   </Button>
@@ -519,9 +723,21 @@ export default function Onboarding() {
                               if (!val.startsWith("+57")) val = "+57" + val.replace(/^\+57/, "");
                               field.onChange(val);
                             }}
+                            onBlur={(e) => {
+                              field.onBlur();
+                              checkServerDraft(e.target.value);
+                            }}
                           />
                         </FormControl>
-                        <p className="text-xs text-muted-foreground">Formato: +57 seguido de 10 dígitos</p>
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs text-muted-foreground">Formato: +57 seguido de 10 dígitos</p>
+                          {checkingServerDraft && (
+                            <span className="text-xs text-green-600 flex items-center gap-1">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Verificando...
+                            </span>
+                          )}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}

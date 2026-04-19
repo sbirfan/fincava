@@ -101,6 +101,21 @@ V3 origin stories seeded for all 8 products using script run via `scripts/node_m
 - `GET /orders/:id/milestones` — payment milestone list
 - `POST /orders/:orderId/milestones/:milestoneId/release` — release payment
 
+### Farmer Onboarding — Cross-Device Draft Recovery
+- **Server-side draft persistence** — `onboarding_drafts` table (whatsapp_number unique, data jsonb, restore_token UUID)
+- **Token-based access control** — A `restore_token` UUID is generated on first PUT and returned to the client; all mutating operations (update PUT, POST /restore, DELETE) require the correct token or return 403
+- **Draft API** (`artifacts/api-server/src/routes/drafts.ts`):
+  - `GET /api/drafts/onboarding` — metadata only (found, savedStep, updatedAt), no token required, no PII
+  - `PUT /api/drafts/onboarding` — upsert; returns restore_token on first create; requires token for updates
+  - `POST /api/drafts/onboarding/restore` — returns full draft data; requires valid restore_token
+  - `DELETE /api/drafts/onboarding` — deletes only if token matches
+  - Rate-limited (15 req/min per IP) on all four endpoints
+- **WhatsApp blur check** — Queries GET for metadata; if token exists in localStorage, also calls POST /restore to prefetch full data
+- **Same-device full restore** — Token in localStorage → "Restaurar borrador" button; all form fields restored
+- **Cross-device navigate-only** — No token (different device/browser) → "Ir a Sección X" button; navigates to saved step but does not pre-fill form fields
+- **Auto-save** — pushes to server (and localStorage) on each step advance and every 30-second interval; stores returned token
+- **Cleanup on submission** — Successful onboarding deletes server draft via token-authenticated DELETE
+
 ### Seeded Suppliers
 - id=1 Café Huilas Premium (PREMIUM, trustScore=87)
 - id=2 Cooperativa Cacao del Pacífico (PRO, trustScore=79)
