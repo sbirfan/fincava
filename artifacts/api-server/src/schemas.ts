@@ -1,0 +1,45 @@
+import { z } from "zod";
+
+// ── Admin user edit ──────────────────────────────────────────────────────────
+export const AdminUserEditBody = z.object({
+  email: z.string().email().optional(),
+  role: z.enum(["BUYER", "SUPPLIER", "ADMIN"]).optional(),
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  country: z.string().max(100).optional().nullable(),
+  phone: z.string().max(30).optional().nullable(),
+  companyName: z.string().min(1).max(200).optional(),
+});
+
+// ── Admin reset password ─────────────────────────────────────────────────────
+export const AdminResetPasswordBody = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+// ── Officer registration ─────────────────────────────────────────────────────
+export const OfficerRegistrationBody = z.object({
+  full_name: z.string().min(2).max(150),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().min(7).max(30),
+  department: z.string().min(1).max(100),
+  municipio: z.string().min(1).max(100),
+  languages: z.array(z.string()).optional().default([]),
+  experience_years: z.number().int().min(0).max(50).optional().nullable(),
+  has_motorcycle: z.boolean().optional().nullable(),
+  available_days: z.array(z.string()).optional().nullable(),
+  motivation: z.string().max(2000).optional().nullable(),
+  referral_code: z.string().max(50).optional().nullable(),
+});
+
+// ── Pagination query params ──────────────────────────────────────────────────
+export const PaginationQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export type PaginationParams = z.infer<typeof PaginationQuery>;
+
+export function parsePagination(query: unknown): { page: number; limit: number; offset: number } {
+  const { page, limit } = PaginationQuery.parse(query);
+  return { page, limit, offset: (page - 1) * limit };
+}

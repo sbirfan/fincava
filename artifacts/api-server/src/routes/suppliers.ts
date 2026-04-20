@@ -11,7 +11,8 @@ import {
 import { requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
-import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
+import { parsePagination } from "../schemas";
+import { desc, eq, and, gte, lte, sql, count } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -149,10 +150,8 @@ router.get(
   requireAuth,
   requireAdmin,
   async (req, res): Promise<void> => {
-    const { pathway, municipio, from, to } = req.query as Record<
-      string,
-      string
-    >;
+    const { pathway, municipio, from, to } = req.query as Record<string, string>;
+    const { page, limit, offset } = parsePagination(req.query);
 
     const latestScores = db
       .selectDistinctOn([aiOutputsTable.supplierId], {
@@ -167,6 +166,12 @@ router.get(
       .from(aiOutputsTable)
       .orderBy(aiOutputsTable.supplierId, desc(aiOutputsTable.createdAt))
       .as("latest_scores");
+
+    const conditions = [];
+    if (pathway) conditions.push(eq(latestScores.pathway, pathway));
+    if (municipio) conditions.push(eq(suppliersTable.municipio, municipio));
+    if (from) conditions.push(gte(suppliersTable.createdAt, new Date(from)));
+    if (to) conditions.push(lte(suppliersTable.createdAt, new Date(to)));
 
     let query = db
       .select({
@@ -187,28 +192,25 @@ router.get(
       .orderBy(desc(suppliersTable.createdAt))
       .$dynamic();
 
-    const conditions = [];
-    if (pathway) conditions.push(eq(latestScores.pathway, pathway));
-    if (municipio) conditions.push(eq(suppliersTable.municipio, municipio));
-    if (from) conditions.push(gte(suppliersTable.createdAt, new Date(from)));
-    if (to) conditions.push(lte(suppliersTable.createdAt, new Date(to)));
     if (conditions.length) query = query.where(and(...conditions));
 
-    const suppliers = await query;
+    const [data, [{ total }], [summary]] = await Promise.all([
+      query.limit(limit).offset(offset),
+      db.select({ total: count() }).from(suppliersTable),
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          totalCapital: sql<number>`coalesce(sum(${latestScores.capitalCapacityCop}), 0)::int`,
+          pathwayA: sql<number>`count(*) filter (where ${latestScores.pathway} = 'A')::int`,
+          pathwayB: sql<number>`count(*) filter (where ${latestScores.pathway} = 'B')::int`,
+          pathwayC: sql<number>`count(*) filter (where ${latestScores.pathway} = 'C')::int`,
+          pathwayD: sql<number>`count(*) filter (where ${latestScores.pathway} = 'D')::int`,
+        })
+        .from(suppliersTable)
+        .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id)),
+    ]);
 
-    const [totals] = await db
-      .select({
-        total: sql<number>`count(*)::int`,
-        totalCapital: sql<number>`coalesce(sum(ls.capital_capacity_cop), 0)::int`,
-        pathwayA: sql<number>`count(*) filter (where ls.pathway = 'A')::int`,
-        pathwayB: sql<number>`count(*) filter (where ls.pathway = 'B')::int`,
-        pathwayC: sql<number>`count(*) filter (where ls.pathway = 'C')::int`,
-        pathwayD: sql<number>`count(*) filter (where ls.pathway = 'D')::int`,
-      })
-      .from(suppliersTable)
-      .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id));
-
-    res.json({ summary: totals, suppliers });
+    res.json({ summary, data, total: Number(total), page, limit, totalPages: Math.max(1, Math.ceil(Number(total) / limit)) });
   },
 );
 

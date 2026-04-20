@@ -13,7 +13,7 @@ const statusColor: Record<string, string> = {
 export default function AdminOrders() {
   const [filter, setFilter] = useState("ALL");
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: resp, isLoading } = useQuery({
     queryKey: ["admin", "orders"],
     queryFn: async () => {
       const token = localStorage.getItem("fincava_token");
@@ -23,6 +23,8 @@ export default function AdminOrders() {
       return res.json();
     },
   });
+  const orders: any[] = resp?.data ?? [];
+  const totalOrders: number = resp?.total ?? orders.length;
 
   const statuses = ["ALL", "INQUIRY", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"];
   const filtered = filter === "ALL" ? orders : orders.filter((o: any) => o.status === filter);
@@ -34,7 +36,7 @@ export default function AdminOrders() {
       <div>
         <h1 className="text-2xl font-bold text-white">Orders</h1>
         <p className="text-white/50 text-sm mt-1">
-          {isLoading ? "Loading…" : `${filtered.length} orders — GMV $${totalGMV.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+          {isLoading ? "Loading…" : `${totalOrders} orders — GMV $${totalGMV.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
         </p>
       </div>
 

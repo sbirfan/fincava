@@ -64,7 +64,7 @@ export default function AdminSuppliersPage() {
       const res = await fetch(`/api/suppliers/admin-list?${params}`, { headers: authHeader() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSuppliers(data.suppliers || []);
+      setSuppliers(data.data || data.suppliers || []);
     } catch (e: any) {
       setError(e.message || "Failed to load");
     } finally {

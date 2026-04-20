@@ -4,10 +4,12 @@ import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { adminOnly } from "../middleware/admin";
+import { AdminUserEditBody, AdminResetPasswordBody, parsePagination } from "../schemas";
 import { desc, eq, inArray, count, sum } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+// ── GET /api/admin/stats ─────────────────────────────────────────────────────
 router.get("/admin/stats", ...adminOnly, async (_req, res): Promise<void> => {
   const [userCount] = await db.select({ count: count() }).from(usersTable);
   const [orderCount] = await db.select({ count: count() }).from(ordersTable);
@@ -47,8 +49,13 @@ router.get("/admin/stats", ...adminOnly, async (_req, res): Promise<void> => {
   });
 });
 
-router.get("/admin/users", ...adminOnly, async (_req, res): Promise<void> => {
-  const users = await db
+// ── GET /api/admin/users ─────────────────────────────────────────────────────
+router.get("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
+  const { page, limit, offset } = parsePagination(req.query);
+
+  const [{ total }] = await db.select({ total: count() }).from(usersTable);
+
+  const data = await db
     .select({
       id: usersTable.id,
       email: usersTable.email,
@@ -63,12 +70,19 @@ router.get("/admin/users", ...adminOnly, async (_req, res): Promise<void> => {
     .from(usersTable)
     .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
     .leftJoin(companiesTable, eq(companiesTable.userId, usersTable.id))
-    .orderBy(desc(usersTable.createdAt));
+    .orderBy(desc(usersTable.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  res.json(users);
+  res.json({ data, total: Number(total), page, limit, totalPages: Math.max(1, Math.ceil(Number(total) / limit)) });
 });
 
-router.get("/admin/loans", ...adminOnly, async (_req, res): Promise<void> => {
+// ── GET /api/admin/loans ─────────────────────────────────────────────────────
+router.get("/admin/loans", ...adminOnly, async (req, res): Promise<void> => {
+  const { page, limit, offset } = parsePagination(req.query);
+
+  const [{ total }] = await db.select({ total: count() }).from(loansTable);
+
   const loans = await db
     .select({
       id: loansTable.id,
@@ -89,7 +103,9 @@ router.get("/admin/loans", ...adminOnly, async (_req, res): Promise<void> => {
     .from(loansTable)
     .leftJoin(usersTable, eq(usersTable.id, loansTable.buyerId))
     .leftJoin(profilesTable, eq(profilesTable.userId, loansTable.buyerId))
-    .orderBy(desc(loansTable.createdAt));
+    .orderBy(desc(loansTable.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   const loanIds = loans.map((l) => l.id);
   const repayments =
@@ -105,16 +121,17 @@ router.get("/admin/loans", ...adminOnly, async (_req, res): Promise<void> => {
     repaidByLoan[r.loanId] = (repaidByLoan[r.loanId] ?? 0) + r.amountUSD;
   }
 
-  res.json(
-    loans.map((l) => ({
-      ...l,
-      totalRepaid: repaidByLoan[l.id] ?? 0,
-    }))
-  );
+  const data = loans.map((l) => ({ ...l, totalRepaid: repaidByLoan[l.id] ?? 0 }));
+  res.json({ data, total: Number(total), page, limit, totalPages: Math.max(1, Math.ceil(Number(total) / limit)) });
 });
 
-router.get("/admin/orders", ...adminOnly, async (_req, res): Promise<void> => {
-  const orders = await db
+// ── GET /api/admin/orders ────────────────────────────────────────────────────
+router.get("/admin/orders", ...adminOnly, async (req, res): Promise<void> => {
+  const { page, limit, offset } = parsePagination(req.query);
+
+  const [{ total }] = await db.select({ total: count() }).from(ordersTable);
+
+  const data = await db
     .select({
       id: ordersTable.id,
       status: ordersTable.status,
@@ -131,9 +148,11 @@ router.get("/admin/orders", ...adminOnly, async (_req, res): Promise<void> => {
     .from(ordersTable)
     .leftJoin(usersTable, eq(usersTable.id, ordersTable.buyerId))
     .leftJoin(profilesTable, eq(profilesTable.userId, ordersTable.buyerId))
-    .orderBy(desc(ordersTable.createdAt));
+    .orderBy(desc(ordersTable.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  res.json(orders);
+  res.json({ data, total: Number(total), page, limit, totalPages: Math.max(1, Math.ceil(Number(total) / limit)) });
 });
 
 // ── PATCH /api/admin/users/:id ───────────────────────────────────────────────
@@ -141,12 +160,18 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
   const userId = parseInt(req.params.id, 10);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
-  const { email, role, firstName, lastName, country, phone, companyName } = req.body;
+  const parsed = AdminUserEditBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { email, role, firstName, lastName, country, phone, companyName } = parsed.data;
 
   if (email || role) {
     const updates: Record<string, any> = {};
     if (email) updates.email = email;
-    if (role && ["BUYER", "SUPPLIER", "ADMIN"].includes(role)) updates.role = role;
+    if (role) updates.role = role;
     await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
   }
 
@@ -179,13 +204,13 @@ router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): P
   const userId = parseInt(req.params.id, 10);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
-  const { password } = req.body;
-  if (!password || password.length < 6) {
-    res.status(400).json({ error: "Password must be at least 6 characters" });
+  const parsed = AdminResetPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
     return;
   }
 
-  await db.update(usersTable).set({ passwordHash: hashPassword(password) }).where(eq(usersTable.id, userId));
+  await db.update(usersTable).set({ passwordHash: hashPassword(parsed.data.password) }).where(eq(usersTable.id, userId));
   res.json({ success: true });
 });
 

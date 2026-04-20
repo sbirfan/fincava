@@ -18,7 +18,7 @@ function riskLabel(score: number) {
 export default function AdminLoans() {
   const [filter, setFilter] = useState("ALL");
 
-  const { data: loans = [], isLoading } = useQuery({
+  const { data: resp, isLoading } = useQuery({
     queryKey: ["admin", "loans"],
     queryFn: async () => {
       const token = localStorage.getItem("fincava_token");
@@ -28,6 +28,8 @@ export default function AdminLoans() {
       return res.json();
     },
   });
+  const loans: any[] = resp?.data ?? [];
+  const totalLoans: number = resp?.total ?? loans.length;
 
   const statuses = ["ALL", "ACTIVE", "REPAID", "DEFAULTED", "CANCELLED"];
   const filtered = filter === "ALL" ? loans : loans.filter((l: any) => l.status === filter);
@@ -47,7 +49,7 @@ export default function AdminLoans() {
           <p className="text-white/50 text-sm mt-1">
             {isLoading
               ? "Loading…"
-              : `${filtered.length} loans — $${totalDeployed.toLocaleString("en-US", { maximumFractionDigits: 0 })} deployed`}
+              : `${totalLoans} loans — $${totalDeployed.toLocaleString("en-US", { maximumFractionDigits: 0 })} deployed`}
           </p>
         </div>
         {defaulted > 0 && (
@@ -74,7 +76,7 @@ export default function AdminLoans() {
         <div className="rounded-lg border border-white/10 bg-white/5 p-4 col-span-2 sm:col-span-1">
           <p className="text-xs text-white/40 mb-1">Default Rate</p>
           <p className="text-xl font-bold text-red-400">
-            {loans.length > 0 ? ((defaulted / loans.length) * 100).toFixed(1) : "0.0"}%
+            {totalLoans > 0 ? ((defaulted / totalLoans) * 100).toFixed(1) : "0.0"}%
           </p>
         </div>
       </div>

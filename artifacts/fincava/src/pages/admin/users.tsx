@@ -198,13 +198,15 @@ function EditModal({ user, onClose }: EditModalProps) {
 export default function AdminUsers() {
   const [editing, setEditing] = useState<UserRow | null>(null);
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: resp, isLoading } = useQuery({
     queryKey: ["admin", "users"],
     queryFn: async () => {
       const res = await fetch("/api/admin/users", { headers: authHeader() });
       return res.json();
     },
   });
+  const users: UserRow[] = resp?.data ?? [];
+  const totalUsers: number = resp?.total ?? users.length;
 
   return (
     <div className="space-y-6">
@@ -214,7 +216,7 @@ export default function AdminUsers() {
         <div>
           <h1 className="text-2xl font-bold text-white">Users</h1>
           <p className="text-white/50 text-sm mt-1">
-            {isLoading ? "Loading…" : `${users.length} registered accounts`}
+            {isLoading ? "Loading…" : `${totalUsers} registered accounts`}
           </p>
         </div>
       </div>
