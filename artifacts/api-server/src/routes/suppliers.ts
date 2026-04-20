@@ -138,7 +138,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     });
   } catch (err: any) {
     console.error("Onboard error:", err);
-    if (err.code === "23505") {
+    if (err.code === "23505" || err.cause?.code === "23505") {
       res
         .status(409)
         .json({ error: "This phone number is already registered" });
