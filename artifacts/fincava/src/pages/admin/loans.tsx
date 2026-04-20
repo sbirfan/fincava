@@ -1,6 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
+
+const LOAN_STATUSES = ["ACTIVE", "REPAID", "DEFAULTED", "CANCELLED"] as const;
+type LoanStatus = typeof LOAN_STATUSES[number];
 
 const statusColor: Record<string, string> = {
   ACTIVE: "bg-blue-500/15 text-blue-300 border-blue-500/20",
@@ -9,10 +12,56 @@ const statusColor: Record<string, string> = {
   CANCELLED: "bg-white/10 text-white/50 border-white/10",
 };
 
+function authHeader() {
+  const token = localStorage.getItem("fincava_token");
+  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+}
+
 function riskLabel(score: number) {
   if (score >= 750) return { label: "Low", cls: "text-emerald-400" };
   if (score >= 600) return { label: "Medium", cls: "text-amber-400" };
   return { label: "High", cls: "text-red-400" };
+}
+
+function StatusSelect({ loanId, current }: { loanId: number; current: string }) {
+  const qc = useQueryClient();
+  const [localStatus, setLocalStatus] = useState(current);
+
+  const mutation = useMutation({
+    mutationFn: async (status: LoanStatus) => {
+      const res = await fetch(`/api/admin/loans/${loanId}/status`, {
+        method: "PATCH",
+        headers: authHeader(),
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      return status;
+    },
+    onSuccess: (status) => {
+      setLocalStatus(status);
+      qc.invalidateQueries({ queryKey: ["admin", "loans"] });
+      qc.invalidateQueries({ queryKey: ["admin", "stats"] });
+    },
+    onError: () => setLocalStatus(current),
+  });
+
+  return (
+    <select
+      value={localStatus}
+      disabled={mutation.isPending}
+      onChange={(e) => {
+        const next = e.target.value as LoanStatus;
+        setLocalStatus(next);
+        mutation.mutate(next);
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 focus:outline-none focus:border-white/30 hover:border-white/20 disabled:opacity-50 cursor-pointer"
+    >
+      {LOAN_STATUSES.map((s) => (
+        <option key={s} value={s} className="bg-[#111]">{s}</option>
+      ))}
+    </select>
+  );
 }
 
 export default function AdminLoans() {
@@ -31,7 +80,7 @@ export default function AdminLoans() {
   const loans: any[] = resp?.data ?? [];
   const totalLoans: number = resp?.total ?? loans.length;
 
-  const statuses = ["ALL", "ACTIVE", "REPAID", "DEFAULTED", "CANCELLED"];
+  const statuses = ["ALL", ...LOAN_STATUSES];
   const filtered = filter === "ALL" ? loans : loans.filter((l: any) => l.status === filter);
 
   const totalDeployed = filtered.reduce((s: number, l: any) => s + (l.principalUSD ?? 0), 0);
@@ -109,17 +158,18 @@ export default function AdminLoans() {
               <th className="text-left px-4 py-3 text-white/50 font-medium">Status</th>
               <th className="text-left px-4 py-3 text-white/50 font-medium hidden lg:table-cell">Risk</th>
               <th className="text-left px-4 py-3 text-white/50 font-medium hidden xl:table-cell">Due</th>
+              <th className="text-left px-4 py-3 text-white/50 font-medium">Change Status</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-white/40">Loading loans…</td>
+                <td colSpan={9} className="px-4 py-8 text-center text-white/40">Loading loans…</td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-white/40">No loans found.</td>
+                <td colSpan={9} className="px-4 py-8 text-center text-white/40">No loans found.</td>
               </tr>
             )}
             {filtered.map((l: any, i: number) => {
@@ -145,10 +195,7 @@ export default function AdminLoans() {
                   <td className="px-4 py-3 hidden md:table-cell">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1.5 rounded-full bg-white/10 w-20">
-                        <div
-                          className="h-1.5 rounded-full bg-emerald-500"
-                          style={{ width: `${pct}%` }}
-                        />
+                        <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-white/50 text-xs">{pct.toFixed(0)}%</span>
                     </div>
@@ -162,6 +209,9 @@ export default function AdminLoans() {
                   <td className={`px-4 py-3 text-xs font-semibold hidden lg:table-cell ${risk.cls}`}>{risk.label}</td>
                   <td className="px-4 py-3 text-white/40 text-xs hidden xl:table-cell">
                     {new Date(l.dueAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusSelect loanId={l.id} current={l.status} />
                   </td>
                 </tr>
               );

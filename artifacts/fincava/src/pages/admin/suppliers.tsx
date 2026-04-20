@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 
 function authHeader(): Record<string, string> {
@@ -21,12 +21,12 @@ interface Supplier {
   primaryProduct?: string | null;
 }
 
+const SUPPLIER_STATUSES = ["PENDING", "ACTIVE", "INACTIVE"] as const;
+
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  qualified: "bg-green-100 text-green-800",
-  active: "bg-blue-100 text-blue-800",
-  rejected: "bg-red-100 text-red-800",
-  suspended: "bg-gray-100 text-gray-700",
+  PENDING: "bg-yellow-100 text-yellow-800",
+  ACTIVE: "bg-green-100 text-green-800",
+  INACTIVE: "bg-gray-100 text-gray-700",
 };
 
 const PATHWAY_COLORS: Record<string, string> = {
@@ -50,6 +50,7 @@ export default function AdminSuppliersPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [generating, setGenerating] = useState<number | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -76,6 +77,26 @@ export default function AdminSuppliersPage() {
       setError(e.message || "Failed to load");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function updateSupplierStatus(supplierId: number, status: string) {
+    setStatusUpdating(true);
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSuppliers((prev) =>
+        prev.map((s) => (s.id === supplierId ? { ...s, status } : s))
+      );
+      setSelected((prev) => (prev && prev.id === supplierId ? { ...prev, status } : prev));
+    } catch (e) {
+      // silently reset — select will revert on next render
+    } finally {
+      setStatusUpdating(false);
     }
   }
 
@@ -386,11 +407,16 @@ export default function AdminSuppliersPage() {
               <Row
                 label={lang === "es" ? "Estado" : "Status"}
                 value={
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLORS[selected.status]}`}
+                  <select
+                    value={selected.status}
+                    disabled={statusUpdating}
+                    onChange={(e) => updateSupplierStatus(selected.id, e.target.value)}
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-60 ${STATUS_COLORS[selected.status] ?? "bg-gray-100 text-gray-700"}`}
                   >
-                    {selected.status}
-                  </span>
+                    {SUPPLIER_STATUSES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 }
               />
               <Row

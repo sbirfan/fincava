@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
-import { ordersTable, staffRolesTable } from "@workspace/db";
+import { ordersTable, staffRolesTable, suppliersTable } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { adminOnly } from "../middleware/admin";
-import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
+import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -265,6 +265,45 @@ router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> 
   await db.delete(usersTable).where(eq(usersTable.id, userId));
 
   res.json({ success: true });
+});
+
+// ── PATCH /api/admin/orders/:id/status ───────────────────────────────────────
+router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
+
+  const parsed = AdminOrderStatusBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
+
+  const [updated] = await db.update(ordersTable).set({ status: parsed.data.status as any }).where(eq(ordersTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Order not found" }); return; }
+  res.json({ success: true, status: updated.status });
+});
+
+// ── PATCH /api/admin/loans/:id/status ────────────────────────────────────────
+router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid loan id" }); return; }
+
+  const parsed = AdminLoanStatusBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
+
+  const [updated] = await db.update(loansTable).set({ status: parsed.data.status as any }).where(eq(loansTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Loan not found" }); return; }
+  res.json({ success: true, status: updated.status });
+});
+
+// ── PATCH /api/admin/suppliers/:id/status ────────────────────────────────────
+router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+
+  const parsed = AdminSupplierStatusBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
+
+  const [updated] = await db.update(suppliersTable).set({ status: parsed.data.status as any }).where(eq(suppliersTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Supplier not found" }); return; }
+  res.json({ success: true, status: updated.status });
 });
 
 // ── GET /api/admin/team ───────────────────────────────────────────────────────

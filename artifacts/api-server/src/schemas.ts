@@ -50,6 +50,19 @@ export const StaffRoleBody = z.object({
   role: z.enum(STAFF_ROLE_VALUES),
 });
 
+// ── Admin status updates ──────────────────────────────────────────────────────
+export const AdminOrderStatusBody = z.object({
+  status: z.enum(["INQUIRY", "SAMPLE_REQUESTED", "QUOTED", "CONFIRMED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "COMPLETED", "CANCELLED"]),
+});
+
+export const AdminLoanStatusBody = z.object({
+  status: z.enum(["ACTIVE", "REPAID", "DEFAULTED", "CANCELLED"]),
+});
+
+export const AdminSupplierStatusBody = z.object({
+  status: z.enum(["PENDING", "ACTIVE", "INACTIVE"]),
+});
+
 // ── Pagination query params ──────────────────────────────────────────────────
 export const PaginationQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
