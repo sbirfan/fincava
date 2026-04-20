@@ -30,10 +30,17 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const PATHWAY_COLORS: Record<string, string> = {
-  fast_track: "bg-emerald-100 text-emerald-800",
-  standard: "bg-blue-100 text-blue-800",
-  needs_support: "bg-orange-100 text-orange-800",
-  not_ready: "bg-red-100 text-red-700",
+  A: "bg-emerald-100 text-emerald-800",
+  B: "bg-blue-100 text-blue-800",
+  C: "bg-orange-100 text-orange-800",
+  D: "bg-red-100 text-red-700",
+};
+
+const PATHWAY_LABELS: Record<string, string> = {
+  A: "Fast Track",
+  B: "Standard",
+  C: "Needs Support",
+  D: "Not Ready",
 };
 
 export default function AdminSuppliersPage() {
@@ -169,18 +176,10 @@ export default function AdminSuppliersPage() {
           <option value="">
             {lang === "es" ? "Todos los pathways" : "All pathways"}
           </option>
-          <option value="fast_track">
-            {lang === "es" ? "Fast Track" : "Fast Track"}
-          </option>
-          <option value="standard">
-            {lang === "es" ? "Estándar" : "Standard"}
-          </option>
-          <option value="needs_support">
-            {lang === "es" ? "Necesita Apoyo" : "Needs Support"}
-          </option>
-          <option value="not_ready">
-            {lang === "es" ? "No Listo" : "Not Ready"}
-          </option>
+          <option value="A">A · Fast Track</option>
+          <option value="B">B · Standard</option>
+          <option value="C">C · Needs Support</option>
+          <option value="D">D · Not Ready</option>
         </select>
         <select
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none"
@@ -308,9 +307,10 @@ export default function AdminSuppliersPage() {
                     <td className="px-4 py-3">
                       {s.pathway ? (
                         <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${PATHWAY_COLORS[s.pathway] || "bg-gray-100 text-gray-600"}`}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${PATHWAY_COLORS[s.pathway] || "bg-gray-100 text-gray-600"}`}
+                          title={PATHWAY_LABELS[s.pathway]}
                         >
-                          {s.pathway.replace("_", " ")}
+                          {s.pathway} · {PATHWAY_LABELS[s.pathway] ?? s.pathway}
                         </span>
                       ) : (
                         "—"
@@ -408,9 +408,9 @@ export default function AdminSuppliersPage() {
                 value={
                   selected.pathway ? (
                     <span
-                      className={`px-2 py-0.5 rounded-full text-xs ${PATHWAY_COLORS[selected.pathway]}`}
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${PATHWAY_COLORS[selected.pathway] || "bg-gray-100 text-gray-600"}`}
                     >
-                      {selected.pathway.replace("_", " ")}
+                      {selected.pathway} · {PATHWAY_LABELS[selected.pathway] ?? selected.pathway}
                     </span>
                   ) : (
                     "—"
