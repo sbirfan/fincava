@@ -312,8 +312,9 @@ async function scoreSupplier(supplierId: number): Promise<void> {
     ],
   });
 
-  const raw = (message.content[0] as any).text;
-  const parsed = JSON.parse(raw);
+  const raw = (message.content[0] as any).text as string;
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+  const parsed = JSON.parse(jsonStr);
 
   await db.insert(aiOutputsTable).values({
     supplierId,
