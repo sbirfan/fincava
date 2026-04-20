@@ -19,6 +19,7 @@ interface Supplier {
   exportReadinessScore: number | null;
   pathway: string | null;
   primaryProduct?: string | null;
+  whatsappMessageSent?: string | null;
 }
 
 const SUPPLIER_STATUSES = ["PENDING", "ACTIVE", "INACTIVE"] as const;
@@ -114,6 +115,8 @@ export default function AdminSuppliersPage() {
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [generating, setGenerating] = useState<number | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [sendingWa, setSendingWa] = useState<number | null>(null);
+  const [waStatus, setWaStatus] = useState<Record<number, { state: "sent" | "failed"; msg?: string }>>({});
   const [docModalOpen, setDocModalOpen] = useState(false);
   const [docContent, setDocContent] = useState<string | null>(null);
   const [docSupplierName, setDocSupplierName] = useState<string | null>(null);
@@ -206,6 +209,47 @@ export default function AdminSuppliersPage() {
       setDocModalOpen(true);
     } catch (e: any) {
       alert(`Error: ${e.message}`);
+    }
+  }
+
+  async function sendWhatsapp(supplierId: number) {
+    setSendingWa(supplierId);
+    try {
+      const res = await fetch(`/api/suppliers/${supplierId}/send-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+      });
+      if (!res.ok) {
+        const j = await res.json();
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setWaStatus((prev) => ({ ...prev, [supplierId]: { state: "sent" } }));
+      setSuppliers((prev) =>
+        prev.map((s) =>
+          s.id === supplierId ? { ...s, whatsappMessageSent: "sent" } : s,
+        ),
+      );
+      setTimeout(() => {
+        setWaStatus((prev) => {
+          const next = { ...prev };
+          delete next[supplierId];
+          return next;
+        });
+      }, 3000);
+    } catch (e: any) {
+      setWaStatus((prev) => ({
+        ...prev,
+        [supplierId]: { state: "failed", msg: e.message },
+      }));
+      setTimeout(() => {
+        setWaStatus((prev) => {
+          const next = { ...prev };
+          delete next[supplierId];
+          return next;
+        });
+      }, 4000);
+    } finally {
+      setSendingWa(null);
     }
   }
 
@@ -452,6 +496,36 @@ export default function AdminSuppliersPage() {
                         >
                           {lang === "es" ? "Ver Último" : "View Last"}
                         </button>
+                        {(() => {
+                          const ws = waStatus[s.id];
+                          const alreadySent = !!s.whatsappMessageSent;
+                          return (
+                            <button
+                              onClick={() => sendWhatsapp(s.id)}
+                              disabled={sendingWa === s.id}
+                              title={ws?.state === "failed" ? ws.msg : undefined}
+                              className={`text-xs px-2 py-1 border rounded transition whitespace-nowrap disabled:opacity-50 ${
+                                ws?.state === "sent"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                  : ws?.state === "failed"
+                                    ? "bg-red-50 text-red-600 border-red-200"
+                                    : alreadySent
+                                      ? "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                              }`}
+                            >
+                              {sendingWa === s.id
+                                ? "..."
+                                : ws?.state === "sent"
+                                  ? "Sent ✓"
+                                  : ws?.state === "failed"
+                                    ? "Failed"
+                                    : lang === "es"
+                                      ? "Enviar WA"
+                                      : "Send WA"}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>

@@ -23,6 +23,7 @@
     "jsonwebtoken": "^9.0.3",
     "pino": "^9",
     "pino-http": "^10",
+    "twilio": "^5.13.1",
     "zod": "catalog:"
   },
   "devDependencies": {

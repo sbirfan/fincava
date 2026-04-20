@@ -11,6 +11,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
+import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
 import { desc, eq, and, gte, lte, sql, count } from "drizzle-orm";
 
@@ -163,6 +164,7 @@ router.get(
         complianceGaps: aiOutputsTable.complianceGaps,
         gapAnalysis: aiOutputsTable.gapAnalysis,
         scoredAt: aiOutputsTable.createdAt,
+        whatsappMessageSent: aiOutputsTable.whatsappMessageSent,
       })
       .from(aiOutputsTable)
       .where(eq(aiOutputsTable.callType, "ONBOARD_SCORE"))
@@ -192,6 +194,7 @@ router.get(
         capitalCapacityCop: latestScores.capitalCapacityCop,
         complianceGaps: latestScores.complianceGaps,
         gapAnalysis: latestScores.gapAnalysis,
+        whatsappMessageSent: latestScores.whatsappMessageSent,
       })
       .from(suppliersTable)
       .leftJoin(farmsTable, eq(farmsTable.supplierId, suppliersTable.id))
@@ -356,16 +359,86 @@ async function scoreSupplier(supplierId: number): Promise<void> {
   const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
   const parsed = JSON.parse(jsonStr);
 
-  await db.insert(aiOutputsTable).values({
-    supplierId,
-    aiModel: SCORING_MODEL,
-    callType: "ONBOARD_SCORE",
-    exportReadinessScore: parsed.export_readiness_score,
-    pathway: parsed.pathway,
-    capitalCapacityCop: parsed.capital_capacity_cop,
-    complianceGaps: parsed.compliance_gaps?.join(", "),
-    gapAnalysis: parsed.gap_analysis,
-  });
+  const [scoreRow] = await db
+    .insert(aiOutputsTable)
+    .values({
+      supplierId,
+      aiModel: SCORING_MODEL,
+      callType: "ONBOARD_SCORE",
+      exportReadinessScore: parsed.export_readiness_score,
+      pathway: parsed.pathway,
+      capitalCapacityCop: parsed.capital_capacity_cop,
+      complianceGaps: parsed.compliance_gaps?.join(", "),
+      gapAnalysis: parsed.gap_analysis,
+    })
+    .returning();
+
+  try {
+    const waBody =
+      `Hola ${supplier.nombreCompleto}, tu registro en Fincava fue exitoso ✅\n` +
+      `Puntaje de exportación: ${parsed.export_readiness_score}/100\n` +
+      `Camino asignado: ${parsed.pathway}\n` +
+      `Nos pondremos en contacto pronto. — Equipo Fincava`;
+    const sid = await sendWhatsAppMessage(supplier.whatsappNumber, waBody);
+    await db
+      .update(aiOutputsTable)
+      .set({ whatsappMessageSent: sid })
+      .where(eq(aiOutputsTable.id, scoreRow.id));
+  } catch (waErr) {
+    console.error("WhatsApp send failed for supplier", supplierId, waErr);
+  }
 }
+
+// ── POST /api/suppliers/:id/send-whatsapp ────────────────────────────────────
+router.post(
+  "/suppliers/:id/send-whatsapp",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+
+    const [supplier] = await db
+      .select()
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, supplierId));
+    if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+
+    const [scoreRow] = await db
+      .select()
+      .from(aiOutputsTable)
+      .where(
+        and(
+          eq(aiOutputsTable.supplierId, supplierId),
+          eq(aiOutputsTable.callType, "ONBOARD_SCORE"),
+        ),
+      )
+      .orderBy(desc(aiOutputsTable.createdAt))
+      .limit(1);
+
+    const score = scoreRow?.exportReadinessScore ?? "N/A";
+    const pathway = scoreRow?.pathway ?? "N/A";
+
+    const waBody =
+      `Hola ${supplier.nombreCompleto}, tu registro en Fincava fue exitoso ✅\n` +
+      `Puntaje de exportación: ${score}/100\n` +
+      `Camino asignado: ${pathway}\n` +
+      `Nos pondremos en contacto pronto. — Equipo Fincava`;
+
+    try {
+      const sid = await sendWhatsAppMessage(supplier.whatsappNumber, waBody);
+      if (scoreRow) {
+        await db
+          .update(aiOutputsTable)
+          .set({ whatsappMessageSent: sid })
+          .where(eq(aiOutputsTable.id, scoreRow.id));
+      }
+      res.json({ success: true, messageSid: sid });
+    } catch (err: any) {
+      console.error("Manual WA send failed for supplier", supplierId, err);
+      res.status(500).json({ error: err.message || "Failed to send WhatsApp message" });
+    }
+  },
+);
 
 export default router;
