@@ -44,6 +44,7 @@ interface CreateForm {
   lastName: string;
   country: string;
   phone: string;
+  companyName: string;
 }
 
 function TextField({
@@ -233,6 +234,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
     lastName: "",
     country: "",
     phone: "",
+    companyName: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -250,6 +252,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           lastName: form.lastName || undefined,
           country: form.country || null,
           phone: form.phone || null,
+          companyName: form.companyName || undefined,
         }),
       });
       if (!res.ok) {
@@ -309,6 +312,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
             <TextField label="Country" value={form.country} onChange={set("country")} />
             <TextField label="Phone" value={form.phone} onChange={set("phone")} type="tel" />
           </div>
+          <TextField label="Company Name" value={form.companyName} onChange={set("companyName")} />
 
           {error && <p className="text-red-400 text-xs">{error}</p>}
 

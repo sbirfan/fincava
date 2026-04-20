@@ -25,6 +25,7 @@ export const AdminCreateUserBody = z.object({
   lastName: z.string().min(1).max(100).optional(),
   country: z.string().max(100).optional().nullable(),
   phone: z.string().max(30).optional().nullable(),
+  companyName: z.string().min(1).max(200).optional(),
 });
 
 // ── Officer registration ─────────────────────────────────────────────────────

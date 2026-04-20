@@ -64,6 +64,7 @@ router.get("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
       firstName: profilesTable.firstName,
       lastName: profilesTable.lastName,
       country: profilesTable.country,
+      phone: profilesTable.phone,
       companyName: companiesTable.name,
       companyVerified: companiesTable.verified,
     })
@@ -190,9 +191,19 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
   }
 
   if (companyName !== undefined) {
-    const [existingCo] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+    const [existingCo] = await db.select({ id: companiesTable.id }).from(companiesTable).where(eq(companiesTable.userId, userId));
     if (existingCo) {
       await db.update(companiesTable).set({ name: companyName }).where(eq(companiesTable.userId, userId));
+    } else {
+      // Need a country for the NOT NULL column — fall back to profile country or empty string
+      const [profile] = await db.select({ country: profilesTable.country }).from(profilesTable).where(eq(profilesTable.userId, userId));
+      await db.insert(companiesTable).values({
+        userId,
+        name: companyName,
+        country: profile?.country ?? "",
+        type: "EXPORTER",
+        description: "",
+      });
     }
   }
 
@@ -222,7 +233,7 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
     return;
   }
 
-  const { email, password, role, firstName, lastName, country, phone } = parsed.data;
+  const { email, password, role, firstName, lastName, country, phone, companyName } = parsed.data;
 
   const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
   if (existing) {
@@ -243,6 +254,16 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
       country: country ?? null,
       phone: phone ?? null,
       language: "en",
+    });
+  }
+
+  if (companyName) {
+    await db.insert(companiesTable).values({
+      userId: user.id,
+      name: companyName,
+      country: country ?? "",
+      type: "EXPORTER",
+      description: "",
     });
   }
 
