@@ -96,7 +96,11 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         body.working_capital_needed?.toString() ||
         body.economics?.deudaActual ||
         null,
-      usoCapital: body.export_blocker || body.economics?.usoCapital || null,
+      usoCapital: Array.isArray(body.economics?.usoCapital)
+        ? body.economics.usoCapital
+        : body.export_blocker
+          ? [body.export_blocker]
+          : null,
       comodidadPagos: body.economics?.comodidadPagos ?? null,
       personasDependientes: body.economics?.personasDependientes ?? null,
       otrasFuentesIngreso: body.economics?.otrasFuentesIngreso ?? null,
