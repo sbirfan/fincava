@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable } from "@workspace/db";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, hashPassword } from "../lib/auth";
 import { desc, eq, inArray, count, sum } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
 
@@ -145,6 +145,59 @@ router.get("/admin/orders", ...adminOnly, async (_req, res): Promise<void> => {
     .orderBy(desc(ordersTable.createdAt));
 
   res.json(orders);
+});
+
+// ── PATCH /api/admin/users/:id ───────────────────────────────────────────────
+router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> => {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const { email, role, firstName, lastName, country, phone, companyName } = req.body;
+
+  if (email || role) {
+    const updates: Record<string, any> = {};
+    if (email) updates.email = email;
+    if (role && ["BUYER", "SUPPLIER", "ADMIN"].includes(role)) updates.role = role;
+    await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
+  }
+
+  if (firstName !== undefined || lastName !== undefined || country !== undefined || phone !== undefined) {
+    const [existing] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
+    const profileUpdates: Record<string, any> = {};
+    if (firstName !== undefined) profileUpdates.firstName = firstName;
+    if (lastName !== undefined) profileUpdates.lastName = lastName;
+    if (country !== undefined) profileUpdates.country = country;
+    if (phone !== undefined) profileUpdates.phone = phone;
+    if (existing) {
+      await db.update(profilesTable).set(profileUpdates).where(eq(profilesTable.userId, userId));
+    } else {
+      await db.insert(profilesTable).values({ userId, firstName: firstName ?? "", lastName: lastName ?? "", ...profileUpdates });
+    }
+  }
+
+  if (companyName !== undefined) {
+    const [existingCo] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+    if (existingCo) {
+      await db.update(companiesTable).set({ name: companyName }).where(eq(companiesTable.userId, userId));
+    }
+  }
+
+  res.json({ success: true });
+});
+
+// ── POST /api/admin/users/:id/reset-password ─────────────────────────────────
+router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): Promise<void> => {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const { password } = req.body;
+  if (!password || password.length < 6) {
+    res.status(400).json({ error: "Password must be at least 6 characters" });
+    return;
+  }
+
+  await db.update(usersTable).set({ passwordHash: hashPassword(password) }).where(eq(usersTable.id, userId));
+  res.json({ success: true });
 });
 
 export default router;
