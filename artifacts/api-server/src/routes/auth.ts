@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -80,6 +81,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const result = user ? verifyPassword(password, user.passwordHash) : { valid: false };
   if (!user || !result.valid) {
+    logger.warn({ email, ip: req.ip }, "Login failed: invalid credentials");
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
@@ -87,7 +89,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   // Transparently upgrade legacy SHA-256 hashes to bcrypt on first login
   if (result.newHash) {
     await db.update(usersTable).set({ passwordHash: result.newHash }).where(eq(usersTable.id, user.id));
+    logger.info({ userId: user.id, email }, "Password hash upgraded: SHA-256 → bcrypt");
   }
+  logger.info({ userId: user.id, email, role: user.role, ip: req.ip }, "Login success");
 
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, user.id));
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, user.id));

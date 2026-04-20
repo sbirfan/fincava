@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
-import { ordersTable } from "@workspace/db";
+import { ordersTable, staffRolesTable } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { adminOnly } from "../middleware/admin";
-import { AdminUserEditBody, AdminResetPasswordBody, parsePagination } from "../schemas";
-import { desc, eq, inArray, count, sum } from "drizzle-orm";
+import { AdminUserEditBody, AdminResetPasswordBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
+import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -211,6 +211,129 @@ router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): P
   }
 
   await db.update(usersTable).set({ passwordHash: hashPassword(parsed.data.password) }).where(eq(usersTable.id, userId));
+  res.json({ success: true });
+});
+
+// ── GET /api/admin/team ───────────────────────────────────────────────────────
+router.get("/admin/team", ...adminOnly, async (_req, res): Promise<void> => {
+  const allRoles = await db
+    .select({
+      userId: staffRolesTable.userId,
+      role: staffRolesTable.role,
+      createdAt: staffRolesTable.createdAt,
+      assignedByEmail: usersTable.email,
+    })
+    .from(staffRolesTable)
+    .leftJoin(usersTable, eq(usersTable.id, staffRolesTable.assignedBy));
+
+  const rolesByUser: Record<number, { role: string; assignedByEmail: string | null; createdAt: Date }[]> = {};
+  for (const r of allRoles) {
+    if (!rolesByUser[r.userId]) rolesByUser[r.userId] = [];
+    rolesByUser[r.userId].push({ role: r.role, assignedByEmail: r.assignedByEmail, createdAt: r.createdAt });
+  }
+
+  const userIds = Object.keys(rolesByUser).map(Number);
+  if (userIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const members = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      role: usersTable.role,
+      createdAt: usersTable.createdAt,
+      firstName: profilesTable.firstName,
+      lastName: profilesTable.lastName,
+    })
+    .from(usersTable)
+    .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+    .where(inArray(usersTable.id, userIds))
+    .orderBy(desc(usersTable.createdAt));
+
+  res.json(members.map((m) => ({ ...m, staffRoles: rolesByUser[m.id] ?? [] })));
+});
+
+// ── GET /api/admin/team/users ─────────────────────────────────────────────────
+// Returns all users (for the assignment dropdown)
+router.get("/admin/team/users", ...adminOnly, async (req, res): Promise<void> => {
+  const { page, limit, offset } = parsePagination(req.query);
+  const [{ total }] = await db.select({ total: count() }).from(usersTable);
+
+  const data = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      role: usersTable.role,
+      firstName: profilesTable.firstName,
+      lastName: profilesTable.lastName,
+    })
+    .from(usersTable)
+    .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+    .orderBy(usersTable.email)
+    .limit(limit)
+    .offset(offset);
+
+  const existingRoles = await db
+    .select({ userId: staffRolesTable.userId, role: staffRolesTable.role })
+    .from(staffRolesTable)
+    .where(inArray(staffRolesTable.userId, data.map((u) => u.id)));
+
+  const roleMap: Record<number, string[]> = {};
+  for (const r of existingRoles) {
+    if (!roleMap[r.userId]) roleMap[r.userId] = [];
+    roleMap[r.userId].push(r.role);
+  }
+
+  res.json({
+    data: data.map((u) => ({ ...u, staffRoles: roleMap[u.id] ?? [] })),
+    total: Number(total),
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(Number(total) / limit)),
+  });
+});
+
+// ── POST /api/admin/team/:userId/roles ─────────────────────────────────────────
+router.post("/admin/team/:userId/roles", ...adminOnly, async (req, res): Promise<void> => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const parsed = StaffRoleBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const adminId = (req as any).userId;
+
+  await db
+    .insert(staffRolesTable)
+    .values({ userId, role: parsed.data.role, assignedBy: adminId })
+    .onConflictDoNothing();
+
+  res.json({ success: true });
+});
+
+// ── DELETE /api/admin/team/:userId/roles/:role ────────────────────────────────
+router.delete("/admin/team/:userId/roles/:role", ...adminOnly, async (req, res): Promise<void> => {
+  const userId = parseInt(req.params.userId, 10);
+  const { role } = req.params;
+
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  if (!(STAFF_ROLE_VALUES as readonly string[]).includes(role)) {
+    res.status(400).json({ error: `Invalid role. Must be one of: ${STAFF_ROLE_VALUES.join(", ")}` });
+    return;
+  }
+
+  await db
+    .delete(staffRolesTable)
+    .where(and(eq(staffRolesTable.userId, userId), eq(staffRolesTable.role, role as any)));
+
   res.json({ success: true });
 });
 

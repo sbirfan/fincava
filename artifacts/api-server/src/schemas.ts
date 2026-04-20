@@ -31,6 +31,14 @@ export const OfficerRegistrationBody = z.object({
   referral_code: z.string().max(50).optional().nullable(),
 });
 
+// ── Staff role assignment ────────────────────────────────────────────────────
+export const STAFF_ROLE_VALUES = ["employee", "field_officer", "admin"] as const;
+export type StaffRoleValue = typeof STAFF_ROLE_VALUES[number];
+
+export const StaffRoleBody = z.object({
+  role: z.enum(STAFF_ROLE_VALUES),
+});
+
 // ── Pagination query params ──────────────────────────────────────────────────
 export const PaginationQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),

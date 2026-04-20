@@ -4,8 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
   Users,
+  UsersRound,
   ShoppingCart,
   Landmark,
+  Sprout,
   LogOut,
   Menu,
   ShieldAlert,
@@ -16,8 +18,10 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Users", href: "/admin/users", icon: Users },
+  { name: "Suppliers", href: "/admin/suppliers", icon: Sprout },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Loans", href: "/admin/loans", icon: Landmark },
+  { name: "Team", href: "/admin/team", icon: UsersRound },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {

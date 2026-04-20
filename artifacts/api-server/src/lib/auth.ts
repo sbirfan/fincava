@@ -20,7 +20,8 @@ function getJwtSecret(): string {
 
 /** Legacy SHA-256 hash used before bcrypt migration — for comparison only. */
 function legacyHash(password: string): string {
-  return crypto.createHash("sha256").update(password + "fincava_salt_2025").digest("hex");
+  const salt = process.env["LEGACY_HASH_SALT"] ?? "fincava_salt_2025";
+  return crypto.createHash("sha256").update(password + salt).digest("hex");
 }
 
 /** Returns true if the hash looks like a legacy SHA-256 hex string (64 chars). */
