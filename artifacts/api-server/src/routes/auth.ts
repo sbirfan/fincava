@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
-import { hashPassword, generateToken, requireAuth, getUserWithProfile, verifyToken } from "../lib/auth";
+import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -78,9 +78,15 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const { email, password } = parsed.data;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
 
-  if (!user || user.passwordHash !== hashPassword(password)) {
+  const result = user ? verifyPassword(password, user.passwordHash) : { valid: false };
+  if (!user || !result.valid) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
+  }
+
+  // Transparently upgrade legacy SHA-256 hashes to bcrypt on first login
+  if (result.newHash) {
+    await db.update(usersTable).set({ passwordHash: result.newHash }).where(eq(usersTable.id, user.id));
   }
 
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, user.id));

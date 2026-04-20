@@ -2,22 +2,11 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable } from "@workspace/db";
-import { requireAuth, hashPassword } from "../lib/auth";
+import { hashPassword } from "../lib/auth";
+import { adminOnly } from "../middleware/admin";
 import { desc, eq, inArray, count, sum } from "drizzle-orm";
-import type { Request, Response, NextFunction } from "express";
 
 const router: IRouter = Router();
-
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  const role = (req as any).userRole;
-  if (role !== "ADMIN") {
-    res.status(403).json({ error: "Admin only" });
-    return;
-  }
-  next();
-}
-
-const adminOnly = [requireAuth, requireAdmin];
 
 router.get("/admin/stats", ...adminOnly, async (_req, res): Promise<void> => {
   const [userCount] = await db.select({ count: count() }).from(usersTable);

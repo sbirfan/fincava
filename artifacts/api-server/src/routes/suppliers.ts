@@ -9,20 +9,11 @@ import {
   interactionsTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
+import { requireAdmin } from "../middleware/admin";
+import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
-import type { Request, Response, NextFunction } from "express";
-import Anthropic from "@anthropic-ai/sdk";
 
 const router: IRouter = Router();
-
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  const role = (req as any).userRole;
-  if (role !== "ADMIN") {
-    res.status(403).json({ error: "Admin only" });
-    return;
-  }
-  next();
-}
 
 // ── POST /api/suppliers/onboard ─────────────────────────────────────────────
 router.post("/suppliers/onboard", async (req, res): Promise<void> => {
@@ -253,9 +244,9 @@ router.post(
         .orderBy(desc(aiOutputsTable.createdAt))
         .limit(1);
 
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const client = getAnthropicClient();
       const message = await client.messages.create({
-        model: "claude-sonnet-4-6",
+        model: DOCUMENT_MODEL,
         max_tokens: 1500,
         system: `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide in plain Spanish for a smallholder farmer. Use usted. Maximum 800 words. Structure: greeting with name, their score summary, missing documents, numbered steps with WHERE/WHAT/COST for each step, total cost estimate, next Fincava contact.`,
         messages: [
@@ -274,7 +265,7 @@ router.post(
       const documentContent = (message.content[0] as any).text;
       await db.insert(aiOutputsTable).values({
         supplierId,
-        aiModel: "claude-sonnet-4-6",
+        aiModel: DOCUMENT_MODEL,
         callType: "DOCUMENT_GENERATION",
         documentContent,
       });
@@ -306,9 +297,9 @@ async function scoreSupplier(supplierId: number): Promise<void> {
     .from(complianceDocsTable)
     .where(eq(complianceDocsTable.supplierId, supplierId));
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = getAnthropicClient();
   const message = await client.messages.create({
-    model: "claude-haiku-4-5",
+    model: SCORING_MODEL,
     max_tokens: 512,
     system: `You are a Colombian agricultural export readiness scoring system. Score the supplier on: land rights (20pts), production volume (20pts), post-harvest quality (20pts), compliance docs (20pts), commitment (20pts). Return ONLY valid JSON: {"export_readiness_score": integer, "pathway": "A"|"B"|"C"|"D", "pathway_label": string, "capital_capacity_cop": integer, "compliance_gaps": string[], "gap_analysis": string, "primary_recommendation": string}`,
     messages: [
@@ -324,7 +315,7 @@ async function scoreSupplier(supplierId: number): Promise<void> {
 
   await db.insert(aiOutputsTable).values({
     supplierId,
-    aiModel: "claude-haiku-4-5",
+    aiModel: SCORING_MODEL,
     callType: "ONBOARD_SCORE",
     exportReadinessScore: parsed.export_readiness_score,
     pathway: parsed.pathway,

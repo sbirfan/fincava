@@ -1,26 +1,73 @@
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { db, usersTable, profilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
-export function hashPassword(password: string): string {
+const BCRYPT_ROUNDS = 12;
+const JWT_EXPIRY = "7d";
+
+function getJwtSecret(): string {
+  const secret = process.env["JWT_SECRET"];
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is required but not set.");
+  }
+  return secret;
+}
+
+// ── Password hashing ─────────────────────────────────────────────────────────
+
+/** Legacy SHA-256 hash used before bcrypt migration — for comparison only. */
+function legacyHash(password: string): string {
   return crypto.createHash("sha256").update(password + "fincava_salt_2025").digest("hex");
 }
 
+/** Returns true if the hash looks like a legacy SHA-256 hex string (64 chars). */
+function isLegacyHash(hash: string): boolean {
+  return /^[0-9a-f]{64}$/.test(hash);
+}
+
+export function hashPassword(password: string): string {
+  return bcrypt.hashSync(password, BCRYPT_ROUNDS);
+}
+
+/**
+ * Verify a password against its stored hash.
+ * Supports both bcrypt hashes and legacy SHA-256 hashes (transparent migration).
+ * Returns the new bcrypt hash when the legacy hash matches, so the caller can
+ * upgrade the stored hash in the database.
+ */
+export function verifyPassword(
+  password: string,
+  storedHash: string,
+): { valid: boolean; newHash?: string } {
+  if (isLegacyHash(storedHash)) {
+    const valid = legacyHash(password) === storedHash;
+    return valid
+      ? { valid: true, newHash: hashPassword(password) }
+      : { valid: false };
+  }
+  return { valid: bcrypt.compareSync(password, storedHash) };
+}
+
+// ── Token generation / verification ──────────────────────────────────────────
+
 export function generateToken(userId: number): string {
-  const payload = JSON.stringify({ userId, iat: Date.now() });
-  return Buffer.from(payload).toString("base64url");
+  return jwt.sign({ userId }, getJwtSecret(), { expiresIn: JWT_EXPIRY });
 }
 
 export function verifyToken(token: string): { userId: number } | null {
   try {
-    const payload = JSON.parse(Buffer.from(token, "base64url").toString());
+    const payload = jwt.verify(token, getJwtSecret()) as { userId: number };
     if (!payload.userId) return null;
     return { userId: payload.userId };
   } catch {
     return null;
   }
 }
+
+// ── Middleware ────────────────────────────────────────────────────────────────
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
@@ -31,7 +78,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const token = authHeader.slice(7);
   const payload = verifyToken(token);
   if (!payload) {
-    res.status(401).json({ error: "Invalid token" });
+    res.status(401).json({ error: "Invalid or expired token" });
     return;
   }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId));
