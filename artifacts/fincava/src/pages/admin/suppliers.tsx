@@ -43,6 +43,69 @@ const PATHWAY_LABELS: Record<string, string> = {
   D: "Not Ready",
 };
 
+function DocModal({
+  supplierName,
+  content,
+  onClose,
+}: {
+  supplierName: string;
+  content: string;
+  onClose: () => void;
+}) {
+  function download() {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${supplierName.replace(/\s+/g, "_")}_document.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl flex flex-col max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+          <h2 className="text-base font-semibold text-gray-800">
+            Generated Document — {supplierName}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition text-xl leading-none"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+          <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
+            {content}
+          </pre>
+        </div>
+        <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
+          <button
+            onClick={download}
+            className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition"
+          >
+            Download as TXT
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminSuppliersPage() {
   const { lang } = useLanguage();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -51,6 +114,9 @@ export default function AdminSuppliersPage() {
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [generating, setGenerating] = useState<number | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [docModalOpen, setDocModalOpen] = useState(false);
+  const [docContent, setDocContent] = useState<string | null>(null);
+  const [docSupplierName, setDocSupplierName] = useState<string | null>(null);
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -100,29 +166,46 @@ export default function AdminSuppliersPage() {
     }
   }
 
-  async function generateDocument(supplierId: number) {
+  async function generateDocument(supplierId: number, supplierName: string) {
     setGenerating(supplierId);
     try {
-      const res = await fetch(
-        `/api/suppliers/${supplierId}/generate-document`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeader() },
-          body: JSON.stringify({ doc_type: "supplier_profile" }),
-        },
-      );
+      const res = await fetch(`/api/suppliers/${supplierId}/generate-document`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ doc_type: "supplier_profile" }),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      alert(
-        lang === "es"
-          ? "Documento generado correctamente."
-          : "Document generated successfully.",
-      );
-      console.log("Generated doc:", data);
+      setDocContent(data.documentContent);
+      setDocSupplierName(supplierName);
+      setDocModalOpen(true);
     } catch (e: any) {
       alert(`Error: ${e.message}`);
     } finally {
       setGenerating(null);
+    }
+  }
+
+  async function viewLastDoc(supplierId: number, supplierName: string) {
+    try {
+      const res = await fetch(`/api/suppliers/${supplierId}/document`, {
+        headers: authHeader(),
+      });
+      if (res.status === 404) {
+        alert(
+          lang === "es"
+            ? "No se encontró ningún documento generado para este proveedor."
+            : "No document has been generated for this supplier yet.",
+        );
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setDocContent(data.documentContent);
+      setDocSupplierName(supplierName);
+      setDocModalOpen(true);
+    } catch (e: any) {
+      alert(`Error: ${e.message}`);
     }
   }
 
@@ -156,6 +239,13 @@ export default function AdminSuppliersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {docModalOpen && docContent && docSupplierName && (
+        <DocModal
+          supplierName={docSupplierName}
+          content={docContent}
+          onClose={() => setDocModalOpen(false)}
+        />
+      )}
       {/* Top bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div>
@@ -344,17 +434,25 @@ export default function AdminSuppliersPage() {
                       className="px-4 py-3"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        onClick={() => generateDocument(s.id)}
-                        disabled={generating === s.id}
-                        className="text-xs px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 disabled:opacity-50 transition"
-                      >
-                        {generating === s.id
-                          ? "..."
-                          : lang === "es"
-                            ? "Generar Doc"
-                            : "Gen Doc"}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => generateDocument(s.id, s.nombreCompleto)}
+                          disabled={generating === s.id}
+                          className="text-xs px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 disabled:opacity-50 transition whitespace-nowrap"
+                        >
+                          {generating === s.id
+                            ? "..."
+                            : lang === "es"
+                              ? "Generar Doc"
+                              : "Gen Doc"}
+                        </button>
+                        <button
+                          onClick={() => viewLastDoc(s.id, s.nombreCompleto)}
+                          className="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition whitespace-nowrap"
+                        >
+                          {lang === "es" ? "Ver Último" : "View Last"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -451,7 +549,7 @@ export default function AdminSuppliersPage() {
 
             <div className="mt-8 space-y-3">
               <button
-                onClick={() => generateDocument(selected.id)}
+                onClick={() => generateDocument(selected.id, selected.nombreCompleto)}
                 disabled={generating === selected.id}
                 className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition"
               >
@@ -462,6 +560,12 @@ export default function AdminSuppliersPage() {
                   : lang === "es"
                     ? "Generar Perfil de Proveedor"
                     : "Generate Supplier Profile"}
+              </button>
+              <button
+                onClick={() => viewLastDoc(selected.id, selected.nombreCompleto)}
+                className="w-full py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 transition"
+              >
+                {lang === "es" ? "Ver Último Documento" : "View Last Document"}
               </button>
               <a
                 href={`https://wa.me/${selected.phone.replace(/\D/g, "")}`}

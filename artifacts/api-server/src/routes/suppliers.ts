@@ -287,6 +287,39 @@ router.post(
   },
 );
 
+// ── GET /api/suppliers/:id/document ──────────────────────────────────────────
+router.get(
+  "/suppliers/:id/document",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+
+    const [row] = await db
+      .select({
+        documentContent: aiOutputsTable.documentContent,
+        createdAt: aiOutputsTable.createdAt,
+      })
+      .from(aiOutputsTable)
+      .where(
+        and(
+          eq(aiOutputsTable.supplierId, supplierId),
+          eq(aiOutputsTable.callType, "DOCUMENT_GENERATION"),
+        ),
+      )
+      .orderBy(desc(aiOutputsTable.createdAt))
+      .limit(1);
+
+    if (!row?.documentContent) {
+      res.status(404).json({ error: "No document found for this supplier" });
+      return;
+    }
+
+    res.json({ documentContent: row.documentContent, createdAt: row.createdAt });
+  },
+);
+
 // ── Internal: Score supplier with Claude Haiku ───────────────────────────────
 async function scoreSupplier(supplierId: number): Promise<void> {
   const [supplier] = await db
