@@ -165,6 +165,7 @@ router.get(
         scoredAt: aiOutputsTable.createdAt,
       })
       .from(aiOutputsTable)
+      .where(eq(aiOutputsTable.callType, "ONBOARD_SCORE"))
       .orderBy(aiOutputsTable.supplierId, desc(aiOutputsTable.createdAt))
       .as("latest_scores");
 
