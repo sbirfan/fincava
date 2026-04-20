@@ -177,10 +177,14 @@ router.get(
       .select({
         id: suppliersTable.id,
         nombreCompleto: suppliersTable.nombreCompleto,
+        contactName: suppliersTable.nombreCompleto,
+        phone: suppliersTable.whatsappNumber,
+        department: sql<string | null>`null`,
         municipio: suppliersTable.municipio,
         supplierType: suppliersTable.supplierType,
         status: suppliersTable.status,
         createdAt: suppliersTable.createdAt,
+        primaryProduct: farmsTable.cultivoPrincipal,
         exportReadinessScore: latestScores.exportReadinessScore,
         pathway: latestScores.pathway,
         capitalCapacityCop: latestScores.capitalCapacityCop,
@@ -188,6 +192,7 @@ router.get(
         gapAnalysis: latestScores.gapAnalysis,
       })
       .from(suppliersTable)
+      .leftJoin(farmsTable, eq(farmsTable.supplierId, suppliersTable.id))
       .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id))
       .orderBy(desc(suppliersTable.createdAt))
       .$dynamic();

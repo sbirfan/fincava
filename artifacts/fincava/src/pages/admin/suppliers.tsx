@@ -8,17 +8,17 @@ function authHeader(): Record<string, string> {
 
 interface Supplier {
   id: number;
-  business_name: string;
-  contact_name: string;
-  phone: string;
-  department: string;
+  nombreCompleto: string;
+  contactName?: string;
+  phone?: string;
+  department?: string | null;
   municipio: string;
-  supplier_type: string;
+  supplierType: string;
   status: string;
-  created_at: string;
-  ai_score: number | null;
-  ai_pathway: string | null;
-  primary_product: string | null;
+  createdAt: string;
+  exportReadinessScore: number | null;
+  pathway: string | null;
+  primaryProduct?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -64,7 +64,7 @@ export default function AdminSuppliersPage() {
       const res = await fetch(`/api/suppliers/admin-list?${params}`, { headers: authHeader() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSuppliers(data.data || data.suppliers || []);
+      setSuppliers(data.data ?? []);
     } catch (e: any) {
       setError(e.message || "Failed to load");
     } finally {
@@ -99,12 +99,12 @@ export default function AdminSuppliersPage() {
   }
 
   const filtered = suppliers.filter((s) => {
-    if (filterProduct && s.primary_product !== filterProduct) return false;
+    if (filterProduct && s.primaryProduct !== filterProduct) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
-        s.business_name?.toLowerCase().includes(q) ||
-        s.contact_name?.toLowerCase().includes(q) ||
+        s.nombreCompleto?.toLowerCase().includes(q) ||
+        s.contactName?.toLowerCase().includes(q) ||
         s.municipio?.toLowerCase().includes(q) ||
         s.phone?.includes(q)
       );
@@ -278,10 +278,10 @@ export default function AdminSuppliersPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-800">
-                        {s.business_name}
+                        {s.nombreCompleto}
                       </div>
                       <div className="text-xs text-gray-400">
-                        {s.contact_name}
+                        {s.contactName}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">
@@ -291,7 +291,7 @@ export default function AdminSuppliersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 capitalize">
-                      {s.primary_product || "—"}
+                      {s.primaryProduct || "—"}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -301,23 +301,23 @@ export default function AdminSuppliersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={scoreColor(s.ai_score)}>
-                        {s.ai_score !== null ? s.ai_score : "—"}
+                      <span className={scoreColor(s.exportReadinessScore)}>
+                        {s.exportReadinessScore !== null ? s.exportReadinessScore : "—"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {s.ai_pathway ? (
+                      {s.pathway ? (
                         <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${PATHWAY_COLORS[s.ai_pathway] || "bg-gray-100 text-gray-600"}`}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${PATHWAY_COLORS[s.pathway] || "bg-gray-100 text-gray-600"}`}
                         >
-                          {s.ai_pathway.replace("_", " ")}
+                          {s.pathway.replace("_", " ")}
                         </span>
                       ) : (
                         "—"
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">
-                      {formatDate(s.created_at)}
+                      {formatDate(s.createdAt)}
                     </td>
                     <td
                       className="px-4 py-3"
@@ -355,7 +355,7 @@ export default function AdminSuppliersPage() {
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-gray-800">
-                {selected.business_name}
+                {selected.nombreCompleto}
               </h2>
               <button
                 onClick={() => setSelected(null)}
@@ -368,20 +368,20 @@ export default function AdminSuppliersPage() {
             <div className="space-y-4 text-sm">
               <Row
                 label={lang === "es" ? "Contacto" : "Contact"}
-                value={selected.contact_name}
+                value={selected.contactName || "—"}
               />
-              <Row label="Phone" value={selected.phone} />
+              <Row label="Phone" value={selected.phone || "—"} />
               <Row
                 label={lang === "es" ? "Ubicación" : "Location"}
-                value={`${selected.municipio}, ${selected.department}`}
+                value={`${selected.municipio}${selected.department ? `, ${selected.department}` : ""}`}
               />
               <Row
                 label={lang === "es" ? "Producto" : "Product"}
-                value={selected.primary_product || "—"}
+                value={selected.primaryProduct || "—"}
               />
               <Row
                 label={lang === "es" ? "Tipo" : "Type"}
-                value={selected.supplier_type}
+                value={selected.supplierType}
               />
               <Row
                 label={lang === "es" ? "Estado" : "Status"}
@@ -396,9 +396,9 @@ export default function AdminSuppliersPage() {
               <Row
                 label={lang === "es" ? "Score IA" : "AI Score"}
                 value={
-                  <span className={scoreColor(selected.ai_score)}>
-                    {selected.ai_score !== null
-                      ? `${selected.ai_score}/100`
+                  <span className={scoreColor(selected.exportReadinessScore)}>
+                    {selected.exportReadinessScore !== null
+                      ? `${selected.exportReadinessScore}/100`
                       : "—"}
                   </span>
                 }
@@ -406,11 +406,11 @@ export default function AdminSuppliersPage() {
               <Row
                 label="Pathway"
                 value={
-                  selected.ai_pathway ? (
+                  selected.pathway ? (
                     <span
-                      className={`px-2 py-0.5 rounded-full text-xs ${PATHWAY_COLORS[selected.ai_pathway]}`}
+                      className={`px-2 py-0.5 rounded-full text-xs ${PATHWAY_COLORS[selected.pathway]}`}
                     >
-                      {selected.ai_pathway.replace("_", " ")}
+                      {selected.pathway.replace("_", " ")}
                     </span>
                   ) : (
                     "—"
@@ -419,7 +419,7 @@ export default function AdminSuppliersPage() {
               />
               <Row
                 label={lang === "es" ? "Registrado" : "Registered"}
-                value={formatDate(selected.created_at)}
+                value={formatDate(selected.createdAt)}
               />
             </div>
 
