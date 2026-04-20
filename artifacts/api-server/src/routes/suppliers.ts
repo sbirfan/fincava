@@ -1,8 +1,12 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
-  suppliersTable, farmsTable, economicsTable,
-  complianceDocsTable, aiOutputsTable, interactionsTable,
+  suppliersTable,
+  farmsTable,
+  economicsTable,
+  complianceDocsTable,
+  aiOutputsTable,
+  interactionsTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
@@ -13,7 +17,10 @@ const router: IRouter = Router();
 
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const role = (req as any).userRole;
-  if (role !== "ADMIN") { res.status(403).json({ error: "Admin only" }); return; }
+  if (role !== "ADMIN") {
+    res.status(403).json({ error: "Admin only" });
+    return;
+  }
   next();
 }
 
@@ -31,25 +38,35 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     const registeredBy = body.officer_name || body.registeredBy || null;
 
     if (!nombreCompleto || !whatsappNumber || !municipio) {
-      res.status(400).json({ error: "Missing required fields: contact_name, phone, municipio" });
+      res.status(400).json({
+        error: "Missing required fields: contact_name, phone, municipio",
+      });
       return;
     }
 
-    const [supplier] = await db.insert(suppliersTable).values({
-      nombreCompleto,
-      whatsappNumber,
-      municipio,
-      vereda,
-      supplierType: supplierType.toUpperCase(),
-      registeredBy,
-      consentGiven: body.consentGiven ?? true,
-      consentDate: new Date(),
-    }).returning();
+    const [supplier] = await db
+      .insert(suppliersTable)
+      .values({
+        nombreCompleto,
+        whatsappNumber,
+        municipio,
+        vereda,
+        supplierType: supplierType.toUpperCase(),
+        registeredBy,
+        consentGiven: body.consentGiven ?? true,
+        consentDate: new Date(),
+      })
+      .returning();
 
     // Farm data — map English or Spanish field names
-    const primaryProduct = body.primary_product || body.farm?.cultivoPrincipal || null;
-    const farmSize = body.farm_size_hectares?.toString() || body.farm?.hectareasProduccion?.toString() || null;
-    const annualVolume = body.annual_volume_kg || body.farm?.volumenKgUltimaCosecha || null;
+    const primaryProduct =
+      body.primary_product || body.farm?.cultivoPrincipal || null;
+    const farmSize =
+      body.farm_size_hectares?.toString() ||
+      body.farm?.hectareasProduccion?.toString() ||
+      null;
+    const annualVolume =
+      body.annual_volume_kg || body.farm?.volumenKgUltimaCosecha || null;
 
     await db.insert(farmsTable).values({
       supplierId: supplier.id,
@@ -68,11 +85,17 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // Economics
     await db.insert(economicsTable).values({
       supplierId: supplier.id,
-      tipoComprador: body.currently_exporting === true ? "EXPORT" : body.economics?.tipoComprador ?? null,
+      tipoComprador:
+        body.currently_exporting === "yes"
+          ? "EXPORT"
+          : (body.economics?.tipoComprador ?? null),
       volumenKgUltimaCosecha: annualVolume ? String(annualVolume) : null,
       precioVentaBanda: body.economics?.precioVentaBanda ?? null,
       tiempoPagoDias: body.economics?.tiempoPagoDias ?? null,
-      deudaActual: body.working_capital_needed?.toString() || body.economics?.deudaActual || null,
+      deudaActual:
+        body.working_capital_needed?.toString() ||
+        body.economics?.deudaActual ||
+        null,
       usoCapital: body.export_blocker || body.economics?.usoCapital || null,
       comodidadPagos: body.economics?.comodidadPagos ?? null,
       personasDependientes: body.economics?.personasDependientes ?? null,
@@ -80,7 +103,12 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       situacionEconomica: body.economics?.situacionEconomica ?? null,
       interesCanalPremium: body.economics?.interesCanalPremium ?? null,
       conocePrecioExportacion: body.economics?.conocePrecioExportacion ?? null,
-      haIntentadoExportar: body.currently_exporting ?? body.economics?.haIntentadoExportar ?? null,
+      haIntentadoExportar:
+        body.currently_exporting === "yes"
+          ? true
+          : body.currently_exporting === "no"
+            ? false
+            : (body.economics?.haIntentadoExportar ?? null),
     });
 
     await db.insert(complianceDocsTable).values({ supplierId: supplier.id });
@@ -100,7 +128,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     });
 
     scoreSupplier(supplier.id).catch((err) =>
-      console.error("Claude scoring failed for supplier", supplier.id, err)
+      console.error("Claude scoring failed for supplier", supplier.id, err),
     );
 
     res.status(201).json({
@@ -111,7 +139,9 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
   } catch (err: any) {
     console.error("Onboard error:", err);
     if (err.code === "23505") {
-      res.status(409).json({ error: "This phone number is already registered" });
+      res
+        .status(409)
+        .json({ error: "This phone number is already registered" });
       return;
     }
     res.status(500).json({ error: err.message || "Error saving profile" });
@@ -119,9 +149,15 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
 });
 
 // ── GET /api/suppliers/admin-list ────────────────────────────────────────────
-router.get("/suppliers/admin-list", requireAuth, requireAdmin,
+router.get(
+  "/suppliers/admin-list",
+  requireAuth,
+  requireAdmin,
   async (req, res): Promise<void> => {
-    const { pathway, municipio, from, to } = req.query as Record<string, string>;
+    const { pathway, municipio, from, to } = req.query as Record<
+      string,
+      string
+    >;
 
     const latestScores = db
       .selectDistinctOn([aiOutputsTable.supplierId], {
@@ -165,43 +201,70 @@ router.get("/suppliers/admin-list", requireAuth, requireAdmin,
 
     const suppliers = await query;
 
-    const [totals] = await db.select({
-      total: sql<number>`count(*)::int`,
-      totalCapital: sql<number>`coalesce(sum(ls.capital_capacity_cop), 0)::int`,
-      pathwayA: sql<number>`count(*) filter (where ls.pathway = 'A')::int`,
-      pathwayB: sql<number>`count(*) filter (where ls.pathway = 'B')::int`,
-      pathwayC: sql<number>`count(*) filter (where ls.pathway = 'C')::int`,
-      pathwayD: sql<number>`count(*) filter (where ls.pathway = 'D')::int`,
-    }).from(suppliersTable)
+    const [totals] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        totalCapital: sql<number>`coalesce(sum(ls.capital_capacity_cop), 0)::int`,
+        pathwayA: sql<number>`count(*) filter (where ls.pathway = 'A')::int`,
+        pathwayB: sql<number>`count(*) filter (where ls.pathway = 'B')::int`,
+        pathwayC: sql<number>`count(*) filter (where ls.pathway = 'C')::int`,
+        pathwayD: sql<number>`count(*) filter (where ls.pathway = 'D')::int`,
+      })
+      .from(suppliersTable)
       .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id));
 
     res.json({ summary: totals, suppliers });
-  }
+  },
 );
 
 // ── POST /api/suppliers/:id/generate-document ────────────────────────────────
-router.post("/suppliers/:id/generate-document", requireAuth, requireAdmin,
+router.post(
+  "/suppliers/:id/generate-document",
+  requireAuth,
+  requireAdmin,
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
     try {
-      const [supplier] = await db.select().from(suppliersTable)
+      const [supplier] = await db
+        .select()
+        .from(suppliersTable)
         .where(eq(suppliersTable.id, supplierId));
-      if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+      if (!supplier) {
+        res.status(404).json({ error: "Supplier not found" });
+        return;
+      }
 
-      const [farm] = await db.select().from(farmsTable)
+      const [farm] = await db
+        .select()
+        .from(farmsTable)
         .where(eq(farmsTable.supplierId, supplierId));
-      const [compliance] = await db.select().from(complianceDocsTable)
+      const [compliance] = await db
+        .select()
+        .from(complianceDocsTable)
         .where(eq(complianceDocsTable.supplierId, supplierId));
-      const [latestScore] = await db.select().from(aiOutputsTable)
+      const [latestScore] = await db
+        .select()
+        .from(aiOutputsTable)
         .where(eq(aiOutputsTable.supplierId, supplierId))
-        .orderBy(desc(aiOutputsTable.createdAt)).limit(1);
+        .orderBy(desc(aiOutputsTable.createdAt))
+        .limit(1);
 
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const message = await client.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 1500,
         system: `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide in plain Spanish for a smallholder farmer. Use usted. Maximum 800 words. Structure: greeting with name, their score summary, missing documents, numbered steps with WHERE/WHAT/COST for each step, total cost estimate, next Fincava contact.`,
-        messages: [{ role: "user", content: JSON.stringify({ supplier, farm, compliance, latestScore }) }],
+        messages: [
+          {
+            role: "user",
+            content: JSON.stringify({
+              supplier,
+              farm,
+              compliance,
+              latestScore,
+            }),
+          },
+        ],
       });
 
       const documentContent = (message.content[0] as any).text;
@@ -217,18 +280,26 @@ router.post("/suppliers/:id/generate-document", requireAuth, requireAdmin,
       console.error("Document generation error:", err);
       res.status(500).json({ error: "Document generation failed" });
     }
-  }
+  },
 );
 
 // ── Internal: Score supplier with Claude Haiku ───────────────────────────────
 async function scoreSupplier(supplierId: number): Promise<void> {
-  const [supplier] = await db.select().from(suppliersTable)
+  const [supplier] = await db
+    .select()
+    .from(suppliersTable)
     .where(eq(suppliersTable.id, supplierId));
-  const [farm] = await db.select().from(farmsTable)
+  const [farm] = await db
+    .select()
+    .from(farmsTable)
     .where(eq(farmsTable.supplierId, supplierId));
-  const [economics] = await db.select().from(economicsTable)
+  const [economics] = await db
+    .select()
+    .from(economicsTable)
     .where(eq(economicsTable.supplierId, supplierId));
-  const [compliance] = await db.select().from(complianceDocsTable)
+  const [compliance] = await db
+    .select()
+    .from(complianceDocsTable)
     .where(eq(complianceDocsTable.supplierId, supplierId));
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -236,7 +307,12 @@ async function scoreSupplier(supplierId: number): Promise<void> {
     model: "claude-haiku-4-5",
     max_tokens: 512,
     system: `You are a Colombian agricultural export readiness scoring system. Score the supplier on: land rights (20pts), production volume (20pts), post-harvest quality (20pts), compliance docs (20pts), commitment (20pts). Return ONLY valid JSON: {"export_readiness_score": integer, "pathway": "A"|"B"|"C"|"D", "pathway_label": string, "capital_capacity_cop": integer, "compliance_gaps": string[], "gap_analysis": string, "primary_recommendation": string}`,
-    messages: [{ role: "user", content: JSON.stringify({ supplier, farm, economics, compliance }) }],
+    messages: [
+      {
+        role: "user",
+        content: JSON.stringify({ supplier, farm, economics, compliance }),
+      },
+    ],
   });
 
   const raw = (message.content[0] as any).text;
