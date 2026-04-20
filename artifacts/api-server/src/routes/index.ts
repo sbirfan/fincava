@@ -15,6 +15,7 @@ import analyticsRouter from "./analytics";
 import storiesRouter from "./stories";
 import financingRouter from "./financing";
 import adminRouter from "./admin";
+import officersRouter from "./officers";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(analyticsRouter);
 router.use(storiesRouter);
 router.use(financingRouter);
 router.use(adminRouter);
+router.use(officersRouter);
 
 export default router;

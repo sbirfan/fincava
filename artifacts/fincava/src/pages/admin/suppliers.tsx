@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLanguage } from "../../i18n/LanguageContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface Supplier {
   id: number;
@@ -17,18 +17,18 @@ interface Supplier {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  pending:    "bg-yellow-100 text-yellow-800",
-  qualified:  "bg-green-100 text-green-800",
-  active:     "bg-blue-100 text-blue-800",
-  rejected:   "bg-red-100 text-red-800",
-  suspended:  "bg-gray-100 text-gray-700",
+  pending: "bg-yellow-100 text-yellow-800",
+  qualified: "bg-green-100 text-green-800",
+  active: "bg-blue-100 text-blue-800",
+  rejected: "bg-red-100 text-red-800",
+  suspended: "bg-gray-100 text-gray-700",
 };
 
 const PATHWAY_COLORS: Record<string, string> = {
-  fast_track:   "bg-emerald-100 text-emerald-800",
-  standard:     "bg-blue-100 text-blue-800",
-  needs_support:"bg-orange-100 text-orange-800",
-  not_ready:    "bg-red-100 text-red-700",
+  fast_track: "bg-emerald-100 text-emerald-800",
+  standard: "bg-blue-100 text-blue-800",
+  needs_support: "bg-orange-100 text-orange-800",
+  not_ready: "bg-red-100 text-red-700",
 };
 
 export default function AdminSuppliersPage() {
@@ -70,14 +70,21 @@ export default function AdminSuppliersPage() {
   async function generateDocument(supplierId: number) {
     setGenerating(supplierId);
     try {
-      const res = await fetch(`/api/suppliers/${supplierId}/generate-document`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc_type: "supplier_profile" }),
-      });
+      const res = await fetch(
+        `/api/suppliers/${supplierId}/generate-document`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ doc_type: "supplier_profile" }),
+        },
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      alert(lang === "es" ? "Documento generado correctamente." : "Document generated successfully.");
+      alert(
+        lang === "es"
+          ? "Documento generado correctamente."
+          : "Document generated successfully.",
+      );
       console.log("Generated doc:", data);
     } catch (e: any) {
       alert(`Error: ${e.message}`);
@@ -109,7 +116,9 @@ export default function AdminSuppliersPage() {
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(lang === "es" ? "es-CO" : "en-US", {
-      day: "2-digit", month: "short", year: "numeric",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
     });
 
   return (
@@ -121,7 +130,9 @@ export default function AdminSuppliersPage() {
             {lang === "es" ? "Panel de Proveedores" : "Supplier Dashboard"}
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            {lang === "es" ? "Gestión y seguimiento de proveedores" : "Supplier management & tracking"}
+            {lang === "es"
+              ? "Gestión y seguimiento de proveedores"
+              : "Supplier management & tracking"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -150,29 +161,49 @@ export default function AdminSuppliersPage() {
           value={filterPathway}
           onChange={(e) => setFilterPathway(e.target.value)}
         >
-          <option value="">{lang === "es" ? "Todos los pathways" : "All pathways"}</option>
-          <option value="fast_track">{lang === "es" ? "Fast Track" : "Fast Track"}</option>
-          <option value="standard">{lang === "es" ? "Estándar" : "Standard"}</option>
-          <option value="needs_support">{lang === "es" ? "Necesita Apoyo" : "Needs Support"}</option>
-          <option value="not_ready">{lang === "es" ? "No Listo" : "Not Ready"}</option>
+          <option value="">
+            {lang === "es" ? "Todos los pathways" : "All pathways"}
+          </option>
+          <option value="fast_track">
+            {lang === "es" ? "Fast Track" : "Fast Track"}
+          </option>
+          <option value="standard">
+            {lang === "es" ? "Estándar" : "Standard"}
+          </option>
+          <option value="needs_support">
+            {lang === "es" ? "Necesita Apoyo" : "Needs Support"}
+          </option>
+          <option value="not_ready">
+            {lang === "es" ? "No Listo" : "Not Ready"}
+          </option>
         </select>
         <select
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none"
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
         >
-          <option value="">{lang === "es" ? "Todos los estados" : "All statuses"}</option>
-          <option value="pending">{lang === "es" ? "Pendiente" : "Pending"}</option>
-          <option value="qualified">{lang === "es" ? "Calificado" : "Qualified"}</option>
+          <option value="">
+            {lang === "es" ? "Todos los estados" : "All statuses"}
+          </option>
+          <option value="pending">
+            {lang === "es" ? "Pendiente" : "Pending"}
+          </option>
+          <option value="qualified">
+            {lang === "es" ? "Calificado" : "Qualified"}
+          </option>
           <option value="active">{lang === "es" ? "Activo" : "Active"}</option>
-          <option value="rejected">{lang === "es" ? "Rechazado" : "Rejected"}</option>
+          <option value="rejected">
+            {lang === "es" ? "Rechazado" : "Rejected"}
+          </option>
         </select>
         <select
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none"
           value={filterProduct}
           onChange={(e) => setFilterProduct(e.target.value)}
         >
-          <option value="">{lang === "es" ? "Todos los productos" : "All products"}</option>
+          <option value="">
+            {lang === "es" ? "Todos los productos" : "All products"}
+          </option>
           <option value="cacao">Cacao</option>
           <option value="cafe">{lang === "es" ? "Café" : "Coffee"}</option>
           <option value="bocadillo">Bocadillo</option>
@@ -199,7 +230,9 @@ export default function AdminSuppliersPage() {
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <div className="text-4xl mb-3">🌱</div>
             <p className="text-sm">
-              {lang === "es" ? "No se encontraron proveedores" : "No suppliers found"}
+              {lang === "es"
+                ? "No se encontraron proveedores"
+                : "No suppliers found"}
             </p>
           </div>
         ) : (
@@ -239,18 +272,26 @@ export default function AdminSuppliersPage() {
                     onClick={() => setSelected(s)}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-800">{s.business_name}</div>
-                      <div className="text-xs text-gray-400">{s.contact_name}</div>
+                      <div className="font-medium text-gray-800">
+                        {s.business_name}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {s.contact_name}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       <div>{s.municipio}</div>
-                      <div className="text-xs text-gray-400">{s.department}</div>
+                      <div className="text-xs text-gray-400">
+                        {s.department}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 capitalize">
                       {s.primary_product || "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || "bg-gray-100 text-gray-600"}`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || "bg-gray-100 text-gray-600"}`}
+                      >
                         {s.status}
                       </span>
                     </td>
@@ -261,15 +302,22 @@ export default function AdminSuppliersPage() {
                     </td>
                     <td className="px-4 py-3">
                       {s.ai_pathway ? (
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PATHWAY_COLORS[s.ai_pathway] || "bg-gray-100 text-gray-600"}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${PATHWAY_COLORS[s.ai_pathway] || "bg-gray-100 text-gray-600"}`}
+                        >
                           {s.ai_pathway.replace("_", " ")}
                         </span>
-                      ) : "—"}
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">
                       {formatDate(s.created_at)}
                     </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td
+                      className="px-4 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => generateDocument(s.id)}
                         disabled={generating === s.id}
@@ -277,7 +325,9 @@ export default function AdminSuppliersPage() {
                       >
                         {generating === s.id
                           ? "..."
-                          : lang === "es" ? "Generar Doc" : "Gen Doc"}
+                          : lang === "es"
+                            ? "Generar Doc"
+                            : "Gen Doc"}
                       </button>
                     </td>
                   </tr>
@@ -299,7 +349,9 @@ export default function AdminSuppliersPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-gray-800">{selected.business_name}</h2>
+              <h2 className="text-lg font-bold text-gray-800">
+                {selected.business_name}
+              </h2>
               <button
                 onClick={() => setSelected(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl"
@@ -309,15 +361,29 @@ export default function AdminSuppliersPage() {
             </div>
 
             <div className="space-y-4 text-sm">
-              <Row label={lang === "es" ? "Contacto" : "Contact"} value={selected.contact_name} />
+              <Row
+                label={lang === "es" ? "Contacto" : "Contact"}
+                value={selected.contact_name}
+              />
               <Row label="Phone" value={selected.phone} />
-              <Row label={lang === "es" ? "Ubicación" : "Location"} value={`${selected.municipio}, ${selected.department}`} />
-              <Row label={lang === "es" ? "Producto" : "Product"} value={selected.primary_product || "—"} />
-              <Row label={lang === "es" ? "Tipo" : "Type"} value={selected.supplier_type} />
+              <Row
+                label={lang === "es" ? "Ubicación" : "Location"}
+                value={`${selected.municipio}, ${selected.department}`}
+              />
+              <Row
+                label={lang === "es" ? "Producto" : "Product"}
+                value={selected.primary_product || "—"}
+              />
+              <Row
+                label={lang === "es" ? "Tipo" : "Type"}
+                value={selected.supplier_type}
+              />
               <Row
                 label={lang === "es" ? "Estado" : "Status"}
                 value={
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLORS[selected.status]}`}>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLORS[selected.status]}`}
+                  >
                     {selected.status}
                   </span>
                 }
@@ -326,7 +392,9 @@ export default function AdminSuppliersPage() {
                 label={lang === "es" ? "Score IA" : "AI Score"}
                 value={
                   <span className={scoreColor(selected.ai_score)}>
-                    {selected.ai_score !== null ? `${selected.ai_score}/100` : "—"}
+                    {selected.ai_score !== null
+                      ? `${selected.ai_score}/100`
+                      : "—"}
                   </span>
                 }
               />
@@ -334,10 +402,14 @@ export default function AdminSuppliersPage() {
                 label="Pathway"
                 value={
                   selected.ai_pathway ? (
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${PATHWAY_COLORS[selected.ai_pathway]}`}>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs ${PATHWAY_COLORS[selected.ai_pathway]}`}
+                    >
                       {selected.ai_pathway.replace("_", " ")}
                     </span>
-                  ) : "—"
+                  ) : (
+                    "—"
+                  )
                 }
               />
               <Row
@@ -353,16 +425,22 @@ export default function AdminSuppliersPage() {
                 className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition"
               >
                 {generating === selected.id
-                  ? lang === "es" ? "Generando..." : "Generating..."
-                  : lang === "es" ? "Generar Perfil de Proveedor" : "Generate Supplier Profile"}
+                  ? lang === "es"
+                    ? "Generando..."
+                    : "Generating..."
+                  : lang === "es"
+                    ? "Generar Perfil de Proveedor"
+                    : "Generate Supplier Profile"}
               </button>
-
+              <a
                 href={`https://wa.me/${selected.phone.replace(/\D/g, "")}`}
-                target="_blank"
+                target={"_blank"}
                 rel="noopener noreferrer"
                 className="block w-full py-2.5 bg-[#25D366] text-white rounded-lg text-sm font-medium text-center hover:bg-[#1ebe5d] transition"
               >
-                {lang === "es" ? "Contactar por WhatsApp" : "Contact via WhatsApp"}
+                {lang === "es"
+                  ? "Contactar por WhatsApp"
+                  : "Contact via WhatsApp"}
               </a>
             </div>
           </div>

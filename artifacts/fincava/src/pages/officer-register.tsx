@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useLanguage } from "../i18n/LanguageContext";
+import { useLocation } from "wouter";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const COLOMBIA_DEPARTMENTS = [
   "Antioquia",
@@ -74,7 +74,7 @@ const LANGUAGE_OPTIONS = [
 
 export default function OfficerRegisterPage() {
   const { lang } = useLanguage();
-  const navigate = useNavigate();
+  const [, setLocation] = useLocation();
   const [form, setForm] = useState<FormData>(INITIAL);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -163,7 +163,7 @@ export default function OfficerRegisterPage() {
               : "Thank you for applying to join the Fincava field team. We'll be in touch soon."}
           </p>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => setLocation("/")}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
           >
             {lang === "es" ? "Volver al Inicio" : "Back to Home"}

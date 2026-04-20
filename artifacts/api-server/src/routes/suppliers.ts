@@ -22,60 +22,81 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
   try {
     const body = req.body;
 
+    // Accept both English (new form) and Spanish (legacy) field names
+    const nombreCompleto = body.contact_name || body.nombreCompleto || "";
+    const whatsappNumber = body.phone || body.whatsappNumber || "";
+    const municipio = body.municipio || "";
+    const vereda = body.vereda ?? null;
+    const supplierType = body.supplier_type || body.supplierType || "FARMER";
+    const registeredBy = body.officer_name || body.registeredBy || null;
+
+    if (!nombreCompleto || !whatsappNumber || !municipio) {
+      res.status(400).json({ error: "Missing required fields: contact_name, phone, municipio" });
+      return;
+    }
+
     const [supplier] = await db.insert(suppliersTable).values({
-      nombreCompleto: body.nombreCompleto,
-      whatsappNumber: body.whatsappNumber,
-      municipio: body.municipio,
-      vereda: body.vereda ?? null,
-      supplierType: body.supplierType ?? "FARMER",
-      registeredBy: body.registeredBy ?? null,
-      consentGiven: body.consentGiven ?? false,
-      consentDate: body.consentGiven ? new Date() : null,
+      nombreCompleto,
+      whatsappNumber,
+      municipio,
+      vereda,
+      supplierType: supplierType.toUpperCase(),
+      registeredBy,
+      consentGiven: body.consentGiven ?? true,
+      consentDate: new Date(),
     }).returning();
 
-    if (body.farm) {
-      await db.insert(farmsTable).values({
-        supplierId: supplier.id,
-        cultivoPrincipal: body.farm.cultivoPrincipal ?? null,
-        variedadCafe: body.farm.variedadCafe ?? null,
-        hectareasProduccion: body.farm.hectareasProduccion?.toString() ?? null,
-        edadPlantasAnos: body.farm.edadPlantasAnos ?? null,
-        cosechasPorAno: body.farm.cosechasPorAno ?? null,
-        metodoSecado: body.farm.metodoSecado ?? null,
-        accesoAgua: body.farm.accesoAgua ?? null,
-        anosEnFinca: body.farm.anosEnFinca ?? null,
-        tenenciaTierra: body.farm.tenenciaTierra ?? null,
-        asistenciaTecnica: body.farm.asistenciaTecnica ?? null,
-      });
-    }
+    // Farm data — map English or Spanish field names
+    const primaryProduct = body.primary_product || body.farm?.cultivoPrincipal || null;
+    const farmSize = body.farm_size_hectares?.toString() || body.farm?.hectareasProduccion?.toString() || null;
+    const annualVolume = body.annual_volume_kg || body.farm?.volumenKgUltimaCosecha || null;
 
-    if (body.economics) {
-      await db.insert(economicsTable).values({
-        supplierId: supplier.id,
-        tipoComprador: body.economics.tipoComprador ?? null,
-        volumenKgUltimaCosecha: body.economics.volumenKgUltimaCosecha ?? null,
-        precioVentaBanda: body.economics.precioVentaBanda ?? null,
-        tiempoPagoDias: body.economics.tiempoPagoDias ?? null,
-        deudaActual: body.economics.deudaActual ?? null,
-        usoCapital: body.economics.usoCapital ?? null,
-        comodidadPagos: body.economics.comodidadPagos ?? null,
-        personasDependientes: body.economics.personasDependientes ?? null,
-        otrasFuentesIngreso: body.economics.otrasFuentesIngreso ?? null,
-        situacionEconomica: body.economics.situacionEconomica ?? null,
-        interesCanalPremium: body.economics.interesCanalPremium ?? null,
-        conocePrecioExportacion: body.economics.conocePrecioExportacion ?? null,
-        haIntentadoExportar: body.economics.haIntentadoExportar ?? null,
-      });
-    }
+    await db.insert(farmsTable).values({
+      supplierId: supplier.id,
+      cultivoPrincipal: primaryProduct,
+      variedadCafe: body.harvest_months || body.farm?.variedadCafe || null,
+      hectareasProduccion: farmSize,
+      edadPlantasAnos: body.farm?.edadPlantasAnos ?? null,
+      cosechasPorAno: body.farm?.cosechasPorAno ?? null,
+      metodoSecado: body.farm?.metodoSecado ?? null,
+      accesoAgua: body.farm?.accesoAgua ?? null,
+      anosEnFinca: body.farm?.anosEnFinca ?? null,
+      tenenciaTierra: body.farm?.tenenciaTierra ?? null,
+      asistenciaTecnica: body.farm?.asistenciaTecnica ?? null,
+    });
+
+    // Economics
+    await db.insert(economicsTable).values({
+      supplierId: supplier.id,
+      tipoComprador: body.currently_exporting === true ? "EXPORT" : body.economics?.tipoComprador ?? null,
+      volumenKgUltimaCosecha: annualVolume ? String(annualVolume) : null,
+      precioVentaBanda: body.economics?.precioVentaBanda ?? null,
+      tiempoPagoDias: body.economics?.tiempoPagoDias ?? null,
+      deudaActual: body.working_capital_needed?.toString() || body.economics?.deudaActual || null,
+      usoCapital: body.export_blocker || body.economics?.usoCapital || null,
+      comodidadPagos: body.economics?.comodidadPagos ?? null,
+      personasDependientes: body.economics?.personasDependientes ?? null,
+      otrasFuentesIngreso: body.economics?.otrasFuentesIngreso ?? null,
+      situacionEconomica: body.economics?.situacionEconomica ?? null,
+      interesCanalPremium: body.economics?.interesCanalPremium ?? null,
+      conocePrecioExportacion: body.economics?.conocePrecioExportacion ?? null,
+      haIntentadoExportar: body.currently_exporting ?? body.economics?.haIntentadoExportar ?? null,
+    });
 
     await db.insert(complianceDocsTable).values({ supplierId: supplier.id });
 
     await db.insert(interactionsTable).values({
       supplierId: supplier.id,
       interactionType: "FORM_SUBMISSION",
-      actor: body.registeredBy ?? "SELF",
-      notes: "Initial onboarding form submitted",
-      metadata: body.officerFields ?? null,
+      actor: registeredBy ?? "SELF",
+      notes: body.visit_notes || "Initial onboarding form submitted",
+      metadata: {
+        officer_code: body.officer_code ?? null,
+        department: body.department ?? null,
+        organic_certified: body.organic_certified ?? null,
+        has_rut: body.has_rut ?? null,
+        has_bank_account: body.has_bank_account ?? null,
+      },
     });
 
     scoreSupplier(supplier.id).catch((err) =>
@@ -85,15 +106,15 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     res.status(201).json({
       success: true,
       supplierId: supplier.id,
-      message: `Gracias ${supplier.nombreCompleto}, recibirá su evaluación por WhatsApp`,
+      message: `Registration successful for ${nombreCompleto}`,
     });
   } catch (err: any) {
     console.error("Onboard error:", err);
     if (err.code === "23505") {
-      res.status(409).json({ error: "Este número de WhatsApp ya está registrado" });
+      res.status(409).json({ error: "This phone number is already registered" });
       return;
     }
-    res.status(500).json({ error: "Error al guardar el perfil" });
+    res.status(500).json({ error: err.message || "Error saving profile" });
   }
 });
 
