@@ -33,6 +33,7 @@ export const suppliersTable = pgTable(
     nombreCompleto: text("nombre_completo").notNull(),
     whatsappNumber: text("whatsapp_number").notNull().unique(),
     municipio: text("municipio").notNull(),
+    department: text("department"),
     vereda: text("vereda"),
     supplierType: supplierTypeEnum("supplier_type").notNull().default("FARMER"),
     registeredBy: text("registered_by"),
