@@ -16,6 +16,17 @@ export const AdminResetPasswordBody = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+// ── Admin create user ─────────────────────────────────────────────────────────
+export const AdminCreateUserBody = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(["BUYER", "SUPPLIER", "ADMIN"]),
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  country: z.string().max(100).optional().nullable(),
+  phone: z.string().max(30).optional().nullable(),
+});
+
 // ── Officer registration ─────────────────────────────────────────────────────
 export const OfficerRegistrationBody = z.object({
   full_name: z.string().min(2).max(150),

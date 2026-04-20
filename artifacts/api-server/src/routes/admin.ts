@@ -4,7 +4,7 @@ import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, staffRolesTable } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { adminOnly } from "../middleware/admin";
-import { AdminUserEditBody, AdminResetPasswordBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
+import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -211,6 +211,59 @@ router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): P
   }
 
   await db.update(usersTable).set({ passwordHash: hashPassword(parsed.data.password) }).where(eq(usersTable.id, userId));
+  res.json({ success: true });
+});
+
+// ── POST /api/admin/users ─────────────────────────────────────────────────────
+router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
+  const parsed = AdminCreateUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { email, password, role, firstName, lastName, country, phone } = parsed.data;
+
+  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+  if (existing) {
+    res.status(409).json({ error: "Email already registered" });
+    return;
+  }
+
+  const [user] = await db
+    .insert(usersTable)
+    .values({ email, passwordHash: hashPassword(password), role })
+    .returning();
+
+  if (firstName || lastName || country || phone) {
+    await db.insert(profilesTable).values({
+      userId: user.id,
+      firstName: firstName ?? "",
+      lastName: lastName ?? "",
+      country: country ?? null,
+      phone: phone ?? null,
+      language: "en",
+    });
+  }
+
+  res.status(201).json({ success: true, id: user.id });
+});
+
+// ── DELETE /api/admin/users/:id ──────────────────────────────────────────────
+router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> => {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const requesterId = (req as any).userId;
+  if (userId === requesterId) {
+    res.status(400).json({ error: "You cannot delete your own account" });
+    return;
+  }
+
+  await db.delete(profilesTable).where(eq(profilesTable.userId, userId));
+  await db.delete(companiesTable).where(eq(companiesTable.userId, userId));
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+
   res.json({ success: true });
 });
 
