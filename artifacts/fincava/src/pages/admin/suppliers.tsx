@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 
+function authHeader(): Record<string, string> {
+  const token = localStorage.getItem("fincava_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 interface Supplier {
   id: number;
   business_name: string;
@@ -56,7 +61,7 @@ export default function AdminSuppliersPage() {
       const params = new URLSearchParams();
       if (filterPathway) params.set("pathway", filterPathway);
       if (filterStatus) params.set("status", filterStatus);
-      const res = await fetch(`/api/suppliers/admin-list?${params}`);
+      const res = await fetch(`/api/suppliers/admin-list?${params}`, { headers: authHeader() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSuppliers(data.suppliers || []);
@@ -74,7 +79,7 @@ export default function AdminSuppliersPage() {
         `/api/suppliers/${supplierId}/generate-document`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeader() },
           body: JSON.stringify({ doc_type: "supplier_profile" }),
         },
       );
