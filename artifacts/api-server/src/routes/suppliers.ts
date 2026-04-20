@@ -1,253 +1,236 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, inArray } from "drizzle-orm";
-import { db, companiesTable, productsTable, certificationsTable, reviewsTable, profilesTable, usersTable } from "@workspace/db";
+import { db } from "@workspace/db";
 import {
-  ListSuppliersQueryParams,
-  GetSupplierParams,
-  UpdateSupplierProfileBody,
-} from "@workspace/api-zod";
+  suppliersTable, farmsTable, economicsTable,
+  complianceDocsTable, aiOutputsTable, interactionsTable,
+} from "@workspace/db";
 import { requireAuth } from "../lib/auth";
+import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
+import type { Request, Response, NextFunction } from "express";
+import Anthropic from "@anthropic-ai/sdk";
 
 const router: IRouter = Router();
 
-async function buildSupplierResponse(company: any) {
-  const products = await db.select().from(productsTable)
-    .where(and(eq(productsTable.companyId, company.id), eq(productsTable.active, true)));
-
-  const certs = await db.select().from(certificationsTable)
-    .where(eq(certificationsTable.companyId, company.id));
-
-  const productIds = products.map(p => p.id);
-  const reviews = productIds.length > 0
-    ? await db.select().from(reviewsTable).where(inArray(reviewsTable.productId, productIds))
-    : [];
-
-  const categories = [...new Set(products.map(p => p.category))];
-  const certTypes = certs.map(c => c.type);
-  const avgRating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
-
-  return {
-    id: company.id,
-    userId: company.userId,
-    name: company.name,
-    type: company.type,
-    country: company.country,
-    region: company.region ?? null,
-    description: company.description,
-    logoUrl: company.logoUrl ?? null,
-    website: company.website ?? null,
-    verified: company.verified,
-    certifications: certTypes,
-    productCategories: categories,
-    productCount: products.length,
-    avgRating,
-    trustScore: company.trustScore ?? null,
-    subscriptionTier: company.subscriptionTier ?? null,
-    responseTimeHours: company.responseTimeHours ?? null,
-    memberSince: company.createdAt.toISOString(),
-  };
+function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const role = (req as any).userRole;
+  if (role !== "ADMIN") { res.status(403).json({ error: "Admin only" }); return; }
+  next();
 }
 
-router.get("/suppliers", async (req, res): Promise<void> => {
-  const parsed = ListSuppliersQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
+// ── POST /api/suppliers/onboard ─────────────────────────────────────────────
+router.post("/suppliers/onboard", async (req, res): Promise<void> => {
+  try {
+    const body = req.body;
+
+    const [supplier] = await db.insert(suppliersTable).values({
+      nombreCompleto: body.nombreCompleto,
+      whatsappNumber: body.whatsappNumber,
+      municipio: body.municipio,
+      vereda: body.vereda ?? null,
+      supplierType: body.supplierType ?? "FARMER",
+      registeredBy: body.registeredBy ?? null,
+      consentGiven: body.consentGiven ?? false,
+      consentDate: body.consentGiven ? new Date() : null,
+    }).returning();
+
+    if (body.farm) {
+      await db.insert(farmsTable).values({
+        supplierId: supplier.id,
+        cultivoPrincipal: body.farm.cultivoPrincipal ?? null,
+        variedadCafe: body.farm.variedadCafe ?? null,
+        hectareasProduccion: body.farm.hectareasProduccion?.toString() ?? null,
+        edadPlantasAnos: body.farm.edadPlantasAnos ?? null,
+        cosechasPorAno: body.farm.cosechasPorAno ?? null,
+        metodoSecado: body.farm.metodoSecado ?? null,
+        accesoAgua: body.farm.accesoAgua ?? null,
+        anosEnFinca: body.farm.anosEnFinca ?? null,
+        tenenciaTierra: body.farm.tenenciaTierra ?? null,
+        asistenciaTecnica: body.farm.asistenciaTecnica ?? null,
+      });
+    }
+
+    if (body.economics) {
+      await db.insert(economicsTable).values({
+        supplierId: supplier.id,
+        tipoComprador: body.economics.tipoComprador ?? null,
+        volumenKgUltimaCosecha: body.economics.volumenKgUltimaCosecha ?? null,
+        precioVentaBanda: body.economics.precioVentaBanda ?? null,
+        tiempoPagoDias: body.economics.tiempoPagoDias ?? null,
+        deudaActual: body.economics.deudaActual ?? null,
+        usoCapital: body.economics.usoCapital ?? null,
+        comodidadPagos: body.economics.comodidadPagos ?? null,
+        personasDependientes: body.economics.personasDependientes ?? null,
+        otrasFuentesIngreso: body.economics.otrasFuentesIngreso ?? null,
+        situacionEconomica: body.economics.situacionEconomica ?? null,
+        interesCanalPremium: body.economics.interesCanalPremium ?? null,
+        conocePrecioExportacion: body.economics.conocePrecioExportacion ?? null,
+        haIntentadoExportar: body.economics.haIntentadoExportar ?? null,
+      });
+    }
+
+    await db.insert(complianceDocsTable).values({ supplierId: supplier.id });
+
+    await db.insert(interactionsTable).values({
+      supplierId: supplier.id,
+      interactionType: "FORM_SUBMISSION",
+      actor: body.registeredBy ?? "SELF",
+      notes: "Initial onboarding form submitted",
+      metadata: body.officerFields ?? null,
+    });
+
+    scoreSupplier(supplier.id).catch((err) =>
+      console.error("Claude scoring failed for supplier", supplier.id, err)
+    );
+
+    res.status(201).json({
+      success: true,
+      supplierId: supplier.id,
+      message: `Gracias ${supplier.nombreCompleto}, recibirá su evaluación por WhatsApp`,
+    });
+  } catch (err: any) {
+    console.error("Onboard error:", err);
+    if (err.code === "23505") {
+      res.status(409).json({ error: "Este número de WhatsApp ya está registrado" });
+      return;
+    }
+    res.status(500).json({ error: "Error al guardar el perfil" });
   }
-
-  const { companyType, region, search } = parsed.data;
-
-  let companiesQuery = db.select().from(companiesTable).$dynamic();
-  
-  const conditions: any[] = [];
-  if (companyType) conditions.push(eq(companiesTable.type, companyType as any));
-  if (region) conditions.push(ilike(companiesTable.region, `%${region}%`));
-  if (search) conditions.push(ilike(companiesTable.name, `%${search}%`));
-
-  if (conditions.length > 0) {
-    companiesQuery = companiesQuery.where(and(...conditions)) as any;
-  }
-
-  const companies = await companiesQuery;
-  const suppliers = await Promise.all(companies.map(buildSupplierResponse));
-  res.json(suppliers);
 });
 
-router.get("/suppliers/:id", async (req, res): Promise<void> => {
-  const params = GetSupplierParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
+// ── GET /api/suppliers/admin-list ────────────────────────────────────────────
+router.get("/suppliers/admin-list", requireAuth, requireAdmin,
+  async (req, res): Promise<void> => {
+    const { pathway, municipio, from, to } = req.query as Record<string, string>;
+
+    const latestScores = db
+      .selectDistinctOn([aiOutputsTable.supplierId], {
+        supplierId: aiOutputsTable.supplierId,
+        exportReadinessScore: aiOutputsTable.exportReadinessScore,
+        pathway: aiOutputsTable.pathway,
+        capitalCapacityCop: aiOutputsTable.capitalCapacityCop,
+        complianceGaps: aiOutputsTable.complianceGaps,
+        gapAnalysis: aiOutputsTable.gapAnalysis,
+        scoredAt: aiOutputsTable.createdAt,
+      })
+      .from(aiOutputsTable)
+      .orderBy(aiOutputsTable.supplierId, desc(aiOutputsTable.createdAt))
+      .as("latest_scores");
+
+    let query = db
+      .select({
+        id: suppliersTable.id,
+        nombreCompleto: suppliersTable.nombreCompleto,
+        municipio: suppliersTable.municipio,
+        supplierType: suppliersTable.supplierType,
+        status: suppliersTable.status,
+        createdAt: suppliersTable.createdAt,
+        exportReadinessScore: latestScores.exportReadinessScore,
+        pathway: latestScores.pathway,
+        capitalCapacityCop: latestScores.capitalCapacityCop,
+        complianceGaps: latestScores.complianceGaps,
+        gapAnalysis: latestScores.gapAnalysis,
+      })
+      .from(suppliersTable)
+      .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id))
+      .orderBy(desc(suppliersTable.createdAt))
+      .$dynamic();
+
+    const conditions = [];
+    if (pathway) conditions.push(eq(latestScores.pathway, pathway));
+    if (municipio) conditions.push(eq(suppliersTable.municipio, municipio));
+    if (from) conditions.push(gte(suppliersTable.createdAt, new Date(from)));
+    if (to) conditions.push(lte(suppliersTable.createdAt, new Date(to)));
+    if (conditions.length) query = query.where(and(...conditions));
+
+    const suppliers = await query;
+
+    const [totals] = await db.select({
+      total: sql<number>`count(*)::int`,
+      totalCapital: sql<number>`coalesce(sum(ls.capital_capacity_cop), 0)::int`,
+      pathwayA: sql<number>`count(*) filter (where ls.pathway = 'A')::int`,
+      pathwayB: sql<number>`count(*) filter (where ls.pathway = 'B')::int`,
+      pathwayC: sql<number>`count(*) filter (where ls.pathway = 'C')::int`,
+      pathwayD: sql<number>`count(*) filter (where ls.pathway = 'D')::int`,
+    }).from(suppliersTable)
+      .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id));
+
+    res.json({ summary: totals, suppliers });
   }
+);
 
-  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, params.data.id));
-  if (!company) {
-    res.status(404).json({ error: "Supplier not found" });
-    return;
+// ── POST /api/suppliers/:id/generate-document ────────────────────────────────
+router.post("/suppliers/:id/generate-document", requireAuth, requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    try {
+      const [supplier] = await db.select().from(suppliersTable)
+        .where(eq(suppliersTable.id, supplierId));
+      if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+
+      const [farm] = await db.select().from(farmsTable)
+        .where(eq(farmsTable.supplierId, supplierId));
+      const [compliance] = await db.select().from(complianceDocsTable)
+        .where(eq(complianceDocsTable.supplierId, supplierId));
+      const [latestScore] = await db.select().from(aiOutputsTable)
+        .where(eq(aiOutputsTable.supplierId, supplierId))
+        .orderBy(desc(aiOutputsTable.createdAt)).limit(1);
+
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const message = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        system: `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide in plain Spanish for a smallholder farmer. Use usted. Maximum 800 words. Structure: greeting with name, their score summary, missing documents, numbered steps with WHERE/WHAT/COST for each step, total cost estimate, next Fincava contact.`,
+        messages: [{ role: "user", content: JSON.stringify({ supplier, farm, compliance, latestScore }) }],
+      });
+
+      const documentContent = (message.content[0] as any).text;
+      await db.insert(aiOutputsTable).values({
+        supplierId,
+        aiModel: "claude-sonnet-4-6",
+        callType: "DOCUMENT_GENERATION",
+        documentContent,
+      });
+
+      res.json({ success: true, documentContent });
+    } catch (err) {
+      console.error("Document generation error:", err);
+      res.status(500).json({ error: "Document generation failed" });
+    }
   }
+);
 
-  const base = await buildSupplierResponse(company);
+// ── Internal: Score supplier with Claude Haiku ───────────────────────────────
+async function scoreSupplier(supplierId: number): Promise<void> {
+  const [supplier] = await db.select().from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId));
+  const [farm] = await db.select().from(farmsTable)
+    .where(eq(farmsTable.supplierId, supplierId));
+  const [economics] = await db.select().from(economicsTable)
+    .where(eq(economicsTable.supplierId, supplierId));
+  const [compliance] = await db.select().from(complianceDocsTable)
+    .where(eq(complianceDocsTable.supplierId, supplierId));
 
-  const products = await db.select({
-    product: productsTable,
-    company: companiesTable,
-  })
-    .from(productsTable)
-    .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
-    .where(and(eq(productsTable.companyId, company.id), eq(productsTable.active, true)));
-
-  const certs = await db.select().from(certificationsTable)
-    .where(eq(certificationsTable.companyId, company.id));
-
-  const supplierProductIds = products.map(r => r.product.id);
-  const reviews = supplierProductIds.length > 0
-    ? await db
-        .select({ review: reviewsTable, profile: profilesTable })
-        .from(reviewsTable)
-        .leftJoin(profilesTable, eq(reviewsTable.authorId, profilesTable.userId))
-        .where(inArray(reviewsTable.productId, supplierProductIds))
-    : [];
-
-  const certDetails = certs.map(c => ({
-    id: c.id,
-    type: c.type,
-    issuer: c.issuer,
-    expiryDate: c.expiryDate?.toISOString() ?? null,
-    documentUrl: c.documentUrl ?? null,
-    verified: c.verified,
-  }));
-
-  const productList = products.map(r => ({
-    id: r.product.id,
-    companyId: r.product.companyId,
-    supplierName: company.name,
-    supplierVerified: company.verified,
-    supplierLogoUrl: company.logoUrl ?? null,
-    name: r.product.name,
-    category: r.product.category,
-    subCategory: r.product.subCategory ?? null,
-    description: r.product.description,
-    origin: r.product.origin,
-    altitude: r.product.altitude ?? null,
-    process: r.product.process ?? null,
-    variety: r.product.variety ?? null,
-    minOrderKg: r.product.minOrderKg,
-    maxOrderKg: r.product.maxOrderKg ?? null,
-    pricePerKgUSD: r.product.pricePerKgUSD,
-    availableKg: r.product.availableKg,
-    harvestSeason: r.product.harvestSeason ?? null,
-    images: r.product.images ?? [],
-    certifications: r.product.certifications ?? [],
-    cupping: r.product.cupping ?? null,
-    active: r.product.active,
-    featured: r.product.featured,
-    avgRating: null,
-    reviewCount: 0,
-    createdAt: r.product.createdAt.toISOString(),
-  }));
-
-  res.json({
-    ...base,
-    certificationDetails: certDetails,
-    products: productList,
-    reviews: [],
-    originStory: company.originStory ?? null,
-    farmerName: company.farmerName ?? null,
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await client.messages.create({
+    model: "claude-haiku-4-5",
+    max_tokens: 512,
+    system: `You are a Colombian agricultural export readiness scoring system. Score the supplier on: land rights (20pts), production volume (20pts), post-harvest quality (20pts), compliance docs (20pts), commitment (20pts). Return ONLY valid JSON: {"export_readiness_score": integer, "pathway": "A"|"B"|"C"|"D", "pathway_label": string, "capital_capacity_cop": integer, "compliance_gaps": string[], "gap_analysis": string, "primary_recommendation": string}`,
+    messages: [{ role: "user", content: JSON.stringify({ supplier, farm, economics, compliance }) }],
   });
-});
 
-router.get("/supplier/profile", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) {
-    res.status(404).json({ error: "Supplier profile not found" });
-    return;
-  }
+  const raw = (message.content[0] as any).text;
+  const parsed = JSON.parse(raw);
 
-  const base = await buildSupplierResponse(company);
-  const certs = await db.select().from(certificationsTable).where(eq(certificationsTable.companyId, company.id));
-
-  res.json({
-    ...base,
-    certificationDetails: certs.map(c => ({
-      id: c.id, type: c.type, issuer: c.issuer,
-      expiryDate: c.expiryDate?.toISOString() ?? null,
-      documentUrl: c.documentUrl ?? null, verified: c.verified,
-    })),
-    products: [],
-    reviews: [],
-    originStory: company.originStory ?? null,
-    farmerName: company.farmerName ?? null,
+  await db.insert(aiOutputsTable).values({
+    supplierId,
+    aiModel: "claude-haiku-4-5",
+    callType: "ONBOARD_SCORE",
+    exportReadinessScore: parsed.export_readiness_score,
+    pathway: parsed.pathway,
+    capitalCapacityCop: parsed.capital_capacity_cop,
+    complianceGaps: parsed.compliance_gaps?.join(", "),
+    gapAnalysis: parsed.gap_analysis,
   });
-});
-
-router.patch("/supplier/profile", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) {
-    res.status(404).json({ error: "Supplier profile not found" });
-    return;
-  }
-
-  const parsed = UpdateSupplierProfileBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const updateData: any = {};
-  if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
-  if (parsed.data.type !== undefined) updateData.type = parsed.data.type;
-  if (parsed.data.country !== undefined) updateData.country = parsed.data.country;
-  if (parsed.data.region !== undefined) updateData.region = parsed.data.region;
-  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
-  if (parsed.data.logoUrl !== undefined) updateData.logoUrl = parsed.data.logoUrl;
-  if (parsed.data.website !== undefined) updateData.website = parsed.data.website;
-  if (parsed.data.originStory !== undefined) updateData.originStory = parsed.data.originStory;
-  if (parsed.data.farmerName !== undefined) updateData.farmerName = parsed.data.farmerName;
-
-  const [updated] = await db.update(companiesTable).set(updateData)
-    .where(eq(companiesTable.id, company.id)).returning();
-
-  const base = await buildSupplierResponse(updated);
-  const certs = await db.select().from(certificationsTable).where(eq(certificationsTable.companyId, updated.id));
-
-  res.json({
-    ...base,
-    certificationDetails: certs.map(c => ({
-      id: c.id, type: c.type, issuer: c.issuer,
-      expiryDate: c.expiryDate?.toISOString() ?? null,
-      documentUrl: c.documentUrl ?? null, verified: c.verified,
-    })),
-    products: [],
-    reviews: [],
-    originStory: updated.originStory ?? null,
-    farmerName: updated.farmerName ?? null,
-  });
-});
-
-// Origin stories
-router.get("/origin-stories", async (_req, res): Promise<void> => {
-  const companies = await db.select().from(companiesTable)
-    .where(eq(companiesTable.verified, true))
-    .limit(6);
-
-  const stories = companies
-    .filter(c => c.farmerName || c.originStory)
-    .map(c => ({
-      id: c.id,
-      supplierId: c.id,
-      supplierName: c.name,
-      farmerName: c.farmerName ?? c.name,
-      region: c.region ?? c.country,
-      product: "Coffee",
-      elevation: null,
-      story: c.originStory ?? `${c.name} is a ${c.type.toLowerCase()} based in ${c.region ?? c.country}, producing premium Colombian agricultural goods for international markets.`,
-      imageUrl: c.logoUrl ?? null,
-      logoUrl: c.logoUrl ?? null,
-    }));
-
-  res.json(stories);
-});
+}
 
 export default router;

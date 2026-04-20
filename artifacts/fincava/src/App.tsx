@@ -44,6 +44,9 @@ import AdminDashboard from "@/pages/admin/index";
 import AdminUsers from "@/pages/admin/users";
 import AdminOrders from "@/pages/admin/orders";
 import AdminLoans from "@/pages/admin/loans";
+import OnboardingPage from "@/pages/onboarding";
+import OfficerRegisterPage from "@/pages/officer-register";
+import AdminSuppliers from "@/pages/admin/suppliers";
 
 // Supplier Dashboard
 import SupplierDashboard from "@/pages/supplier-dashboard/index";
@@ -135,6 +138,9 @@ function Router() {
       <Route path="/admin/users" component={() => <PrivateRoute component={AdminUsers} roles={["ADMIN"]} layout={AdminLayout} />} />
       <Route path="/admin/orders" component={() => <PrivateRoute component={AdminOrders} roles={["ADMIN"]} layout={AdminLayout} />} />
       <Route path="/admin/loans" component={() => <PrivateRoute component={AdminLoans} roles={["ADMIN"]} layout={AdminLayout} />} />
+      <Route path="/onboarding" component={() => <AppLayout><OnboardingPage /></AppLayout>} />
+      <Route path="/officer/register" component={() => <AppLayout><OfficerRegisterPage /></AppLayout>} />
+      <Route path="/admin/suppliers" component={() => <PrivateRoute component={AdminSuppliers} roles={["ADMIN"]} layout={AdminLayout} />} />
 
       <Route component={() => <AppLayout><NotFound /></AppLayout>} />
     </Switch>
