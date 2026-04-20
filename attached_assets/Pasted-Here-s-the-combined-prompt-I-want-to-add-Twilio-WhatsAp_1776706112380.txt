@@ -1,0 +1,59 @@
+Here's the combined prompt:
+
+---
+
+I want to add Twilio WhatsApp integration to the supplier onboarding flow. Before building, review the codebase and confirm this approach makes sense given the existing architecture, then build everything in one pass.
+
+**Review first:**
+- Check how the onboarding POST handler in `artifacts/api-server/src/routes/suppliers.ts` is structured — specifically where the supplier insert and AI scoring happen, so the WhatsApp send fits naturally in the flow
+- Check `artifacts/fincava/src/pages/admin/suppliers.tsx` to see how the existing action buttons (Gen Doc, View Last) are implemented — so the new Send WA button matches the same pattern
+- Confirm `whatsappNumber` is available on the supplier object after insert and `whatsappMessageSent` exists in `aiOutputsTable`
+- Flag anything that looks like it would break this approach before building
+
+**If the approach is sound, build everything:**
+
+**1. Install dependency** in `artifacts/api-server`:
+```bash
+npm install twilio
+```
+
+**2. Create `artifacts/api-server/src/lib/whatsapp.ts`:**
+```typescript
+import twilio from "twilio";
+
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+export async function sendWhatsAppMessage(to: string, body: string) {
+  return client.messages.create({
+    from: `whatsapp:${process.env.TWILIO_WHATSAPP_FROM}`,
+    to: `whatsapp:${to}`,
+    body,
+  });
+}
+```
+
+**3. In the onboarding POST handler** — after supplier is inserted and scored, send this message to `whatsappNumber`:
+```
+Hola {nombreCompleto}, tu registro en Fincava fue exitoso ✅
+Puntaje de exportación: {score}/100
+Camino asignado: {pathway}
+Nos pondremos en contacto pronto. — Equipo Fincava
+```
+After sending, update the `ai_outputs` record for this supplier's `ONBOARD_SCORE`: set `whatsappMessageSent` to the Twilio message SID. Wrap the entire WhatsApp block in try/catch — if it fails, log the error but do NOT fail the onboarding request.
+
+**4. New manual trigger endpoint:**
+```
+POST /api/suppliers/:id/send-whatsapp
+```
+Fetches supplier's `whatsappNumber` and most recent `ONBOARD_SCORE` from `aiOutputsTable`, sends the same message template, updates `whatsappMessageSent`. Returns `{ success: true, messageSid }` or error.
+
+**5. "Send WA" button in the admin dashboard** — add to each supplier row next to "Gen Doc" and "View Last", following the same button pattern already in use:
+- On click, calls `POST /api/suppliers/:id/send-whatsapp`
+- While pending, show loading spinner
+- On success, show green "Sent ✓" state that resets after 3 seconds
+- On failure, show red "Failed" with error message
+- If `whatsappMessageSent` is already populated for that supplier, style the button as outline (previously sent) — but still allow resending
+
+All secrets are already set in Replit: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`. Confirmed DB columns: `whatsappNumber` on `suppliersTable`, `whatsappMessageSent` on `aiOutputsTable`.
+
+---
