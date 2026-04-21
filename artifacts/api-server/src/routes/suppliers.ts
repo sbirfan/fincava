@@ -117,11 +117,17 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       actor: registeredBy ?? "SELF",
       notes: body.visit_notes || "Initial onboarding form submitted",
       metadata: {
-        officer_code: body.officer_code ?? null,
-        department: body.department ?? null,
-        organic_certified: body.organic_certified ?? null,
-        has_rut: body.has_rut ?? null,
-        has_bank_account: body.has_bank_account ?? null,
+        officer_code:        body.officer_code        ?? null,
+        department:          body.department          ?? null,
+        organic_certified:   body.organic_certified   ?? null,
+        has_rut:             body.has_rut             ?? null,
+        has_bank_account:    body.has_bank_account    ?? null,
+        business_structure:  body.business_structure  ?? null,
+        part_of_cooperative: body.part_of_cooperative ?? null,
+        vuce_registered:     body.vuce_registered     ?? null,
+        invima_required:     body.invima_required     ?? null,
+        invima_approved:     body.invima_approved     ?? null,
+        ica_registered:      body.ica_registered      ?? null,
       },
     });
 

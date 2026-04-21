@@ -26,6 +26,12 @@ interface FormData {
   currently_exporting: string;
   has_rut: string;
   has_bank_account: string;
+  business_structure: string;
+  part_of_cooperative: string;
+  vuce_registered: string;
+  invima_required: string;
+  invima_approved: string;
+  ica_registered: string;
   working_capital_needed: string;
   export_blocker: string;
   officer_name: string;
@@ -39,6 +45,8 @@ const INITIAL: FormData = {
   primary_product: "", other_product: "", farm_size_hectares: "",
   annual_volume_kg: "", harvest_months: "", organic_certified: "",
   currently_exporting: "", has_rut: "", has_bank_account: "",
+  business_structure: "", part_of_cooperative: "", vuce_registered: "",
+  invima_required: "", invima_approved: "", ica_registered: "",
   working_capital_needed: "", export_blocker: "",
   officer_name: "", officer_code: "", visit_notes: "",
 };
@@ -81,8 +89,14 @@ export default function OnboardingPage() {
         currently_exporting: form.currently_exporting === "yes",
         working_capital_needed: form.working_capital_needed ? parseFloat(form.working_capital_needed) : undefined,
         export_blocker: form.export_blocker || undefined,
-        has_rut: form.has_rut === "yes",
-        has_bank_account: form.has_bank_account === "yes",
+        has_rut: form.has_rut || undefined,
+        has_bank_account: form.has_bank_account || undefined,
+        business_structure: form.business_structure || undefined,
+        part_of_cooperative: form.part_of_cooperative || undefined,
+        vuce_registered: form.vuce_registered || undefined,
+        invima_required: form.invima_required || undefined,
+        invima_approved: form.invima_approved || undefined,
+        ica_registered: form.ica_registered || undefined,
         officer_name: form.officer_name || undefined,
         officer_code: form.officer_code || undefined,
         visit_notes: form.visit_notes || undefined,
@@ -145,8 +159,23 @@ export default function OnboardingPage() {
     return opt ? (lang === "es" ? opt.labelEs : opt.labelEn) : raw;
   };
 
-  const yesNo = (v: string) =>
-    v === "yes" ? (lang === "es" ? "Sí" : "Yes") : v === "no" ? "No" : "—";
+  const displayChoice = (v: string) => {
+    const map: Record<string, { en: string; es: string }> = {
+      yes:              { en: "Yes",          es: "Sí" },
+      no:               { en: "No",           es: "No" },
+      in_progress:      { en: "In progress",  es: "En proceso" },
+      not_required:     { en: "Not required", es: "No requerido" },
+      not_sure:         { en: "Not sure",     es: "No estoy seguro/a" },
+      informal:         { en: "Informal",     es: "Informal" },
+      individual:       { en: "Individual",   es: "Individual" },
+      cooperative:      { en: "Cooperative",  es: "Cooperativa" },
+      registered_company: { en: "Registered Company", es: "Empresa registrada" },
+    };
+    const entry = map[v];
+    if (!entry) return v || "—";
+    return lang === "es" ? entry.es : entry.en;
+  };
+  const yesNo = (v: string) => displayChoice(v);
 
   const reviewSections: ReviewSection[] = [
     {
@@ -176,11 +205,17 @@ export default function OnboardingPage() {
       title: lang === "es" ? "Preparación Exportación" : "Export Readiness",
       onEdit: () => setStep(3),
       rows: [
-        { label: lang === "es" ? "Exporta actualmente" : "Currently Exporting", value: yesNo(form.currently_exporting) },
-        { label: "RUT", value: yesNo(form.has_rut) },
-        { label: lang === "es" ? "Cuenta Bancaria" : "Bank Account", value: yesNo(form.has_bank_account) },
-        { label: lang === "es" ? "Capital Necesario (USD)" : "Capital Needed (USD)", value: form.working_capital_needed },
-        { label: lang === "es" ? "Obstáculo" : "Blocker", value: form.export_blocker },
+        { label: lang === "es" ? "Exporta actualmente" : "Currently Exporting",          value: displayChoice(form.currently_exporting) },
+        { label: "RUT (DIAN)",                                                            value: displayChoice(form.has_rut) },
+        { label: lang === "es" ? "Cuenta Bancaria" : "Bank Account",                     value: displayChoice(form.has_bank_account) },
+        { label: lang === "es" ? "Estructura empresarial" : "Business Structure",        value: displayChoice(form.business_structure) },
+        { label: lang === "es" ? "Cooperativa / Asociación" : "Cooperative / Assoc.",    value: displayChoice(form.part_of_cooperative) },
+        { label: "VUCE",                                                                  value: displayChoice(form.vuce_registered) },
+        { label: lang === "es" ? "Registro INVIMA requerido" : "INVIMA Required",        value: displayChoice(form.invima_required) },
+        { label: lang === "es" ? "Aprobación INVIMA" : "INVIMA Approval",                value: displayChoice(form.invima_approved) },
+        { label: "ICA",                                                                   value: displayChoice(form.ica_registered) },
+        { label: lang === "es" ? "Capital Necesario (COP)" : "Capital Needed (COP)",     value: form.working_capital_needed },
+        { label: lang === "es" ? "Obstáculo" : "Blocker",                               value: form.export_blocker },
       ],
     },
     {
