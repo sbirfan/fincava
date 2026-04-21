@@ -53,7 +53,7 @@ const TEAM = [
   },
   {
     name: "Technical Infrastructure",
-    role: "Full-stack trade platform — live in production",
+    role: "Full-stack trade platform, live in production",
     detail: "Not a deck. A working Commerce OS with live order flow, RFQs, producer stories, and real data.",
   },
 ];
@@ -73,7 +73,7 @@ export default function Investors() {
               <span className="text-primary">for Emerging Market Commerce.</span>
             </h1>
             <p className="text-lg text-white/70 max-w-2xl mx-auto mb-10">
-              Fincava is the infrastructure layer connecting Colombian agricultural producers to $180B in annual demand across the Middle East, Asia, and Africa — with embedded finance, distribution, and compliance built in.
+              Fincava is the infrastructure layer connecting Colombian agricultural producers to $180B in annual demand across the Middle East, Asia, and Africa, with embedded finance, distribution, and compliance built in.
             </p>
             <div className="flex justify-center gap-4 flex-wrap">
               <Link href="/contact">
@@ -95,7 +95,7 @@ export default function Investors() {
       <section className="py-20 container mx-auto px-4">
         <div className="text-center mb-14">
           <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Market Opportunity</h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">Three converging forces — Colombia's production surplus, MENA/Asia demand explosion, and broken B2B infrastructure — create a structural arbitrage opportunity.</p>
+          <p className="text-muted-foreground max-w-xl mx-auto">Three converging forces: Colombia's production surplus, MENA/Asia demand explosion, and broken B2B infrastructure, creating a structural arbitrage opportunity.</p>
         </div>
         <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {METRICS.map(m => (
@@ -161,14 +161,14 @@ export default function Investors() {
                 number: "02",
                 icon: Zap,
                 title: "Proven in Adjacent Markets",
-                body: "Dastgyr (Pakistan) built a $500M commerce infrastructure business in 3 years by digitizing the same broken supply chain dynamics. The model is validated. Colombia is structurally identical but earlier stage — with higher product value floors.",
+                body: "Dastgyr (Pakistan) built a $500M commerce infrastructure business in 3 years by digitizing the same broken supply chain dynamics. The model is validated. Colombia is structurally identical but earlier stage, with higher product value floors.",
                 highlight: "$500M validated playbook",
               },
               {
                 number: "03",
                 icon: Globe,
                 title: "Emerging Market Demand Surge",
-                body: "The Middle East, Asia, and Africa are importing $180B in agricultural commodities annually — with growing preference for traceability and direct sourcing. Traditional brokers cannot provide what modern buyers demand. Fincava can.",
+                body: "The Middle East, Asia, and Africa are importing $180B in agricultural commodities annually, with growing preference for traceability and direct sourcing. Traditional brokers cannot provide what modern buyers demand. Fincava can.",
                 highlight: "$180B annual import market",
               },
             ].map(r => (
@@ -200,7 +200,7 @@ export default function Investors() {
                 Built as a modular<br />agentic system.
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                Every component of Fincava is a discrete, composable service. AI agents coordinate across layers in real time — matching supply to demand, triggering financing events, and managing compliance — without human bottlenecks.
+                Every component of Fincava is a discrete, composable service. AI agents coordinate across layers in real time, matching supply to demand, triggering financing events, and managing compliance without human bottlenecks.
               </p>
               <div className="space-y-4">
                 {[
@@ -307,7 +307,7 @@ export default function Investors() {
                   "Risk scored per transaction",
                   "Scales with producer creditworthiness",
                 ],
-                note: "Highest margin layer — unlocked at scale",
+                note: "Highest margin layer, unlocked at scale",
               },
               {
                 icon: Package,
@@ -321,7 +321,7 @@ export default function Investors() {
                   "Analytics & market intelligence",
                   "White-label infrastructure licensing",
                 ],
-                note: "Platform flywheel — activates at network depth",
+                note: "Platform flywheel, activates at network depth",
               },
             ].map(m => (
               <motion.div
@@ -378,7 +378,7 @@ export default function Investors() {
                 Advantages that compound. Moats that deepen over time.
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed">
-                Fincava's competitive position is not a single feature — it is the combination of local depth, architectural superiority, and execution timing that creates durable defensibility.
+                Fincava's competitive position is not a single feature; it is the combination of local depth, architectural superiority, and execution timing that creates durable defensibility.
               </p>
             </div>
 
@@ -397,7 +397,7 @@ export default function Investors() {
                 {
                   icon: TrendingUp,
                   title: "Data Flywheel",
-                  body: "Every transaction enriches our risk models, demand signals, and logistics intelligence. The platform gets stronger with each trade — creating compounding advantages over later entrants.",
+                  body: "Every transaction enriches our risk models, demand signals, and logistics intelligence. The platform gets stronger with each trade, creating compounding advantages over later entrants.",
                 },
                 {
                   icon: Building2,

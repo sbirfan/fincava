@@ -41,7 +41,7 @@ export function TrustBadge({ score, size = "md", showLabel = false, className }:
         </div>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[200px] p-3">
-        <p className="font-semibold text-sm mb-1">{tier.label} Exporter — Trust Score: {score}/100</p>
+        <p className="font-semibold text-sm mb-1">{tier.label} Exporter · Trust Score: {score}/100</p>
         <div className="space-y-1 text-xs text-muted-foreground">
           <p>Calculated from completed orders, certifications, response time, profile completeness, and verified trade history.</p>
         </div>

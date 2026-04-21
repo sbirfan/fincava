@@ -32,7 +32,7 @@ const en = {
       headline1: "Colombia's best producers.",
       headline2: "The world's best buyers.",
       headline3: "One platform.",
-      sub: "Fincava connects verified Colombian agricultural producers with global buyers — with embedded finance, compliance documentation, and distribution built in.",
+      sub: "Fincava connects verified Colombian agricultural producers with global buyers, with embedded finance, compliance documentation, and distribution built in.",
       ctaBuy: "Start Buying",
       ctaSupply: "Join as a Supplier",
       stats: {
@@ -68,7 +68,7 @@ const en = {
     howItWorks: {
       label: "How It Works",
       heading: "Three layers. One seamless trade.",
-      sub: "Every trade on Fincava moves through three integrated layers — from finding each other to getting paid to receiving your goods.",
+      sub: "Every trade on Fincava moves through three integrated layers: from finding each other to getting paid to receiving your goods.",
       layers: [
         {
           step: "Step 01",
@@ -101,7 +101,7 @@ const en = {
       sub: "Every supplier on Fincava is verified. Every shipment is tracked. Every document is in order before your goods leave Colombia.",
       features: [
         { label: "Verified Producers", desc: "Every supplier is screened, certified, and quality-reviewed before listing on the platform." },
-        { label: "Compliance Ready", desc: "Origin certificates, phytosanitary docs, and customs paperwork — prepared for your destination market." },
+        { label: "Compliance Ready", desc: "Origin certificates, phytosanitary docs, and customs paperwork, prepared for your destination market." },
         { label: "Real-Time Tracking", desc: "Follow your shipment from farm gate to your port. Live milestones, no black boxes." },
         { label: "Competitive Sourcing", desc: "Post an RFQ and receive quotes from multiple verified Colombian producers within 48 hours." },
       ],
@@ -123,12 +123,12 @@ const en = {
     forSuppliers: {
       label: "For Suppliers",
       heading: "Reach global buyers. Get paid. Keep your margin.",
-      sub: "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers in 15+ countries — with financing to grow and logistics to deliver.",
+      sub: "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers in 15+ countries, with financing to grow and logistics to deliver.",
       features: [
         { label: "Global Buyer Network", desc: "Access vetted importers, distributors, and retail buyers across the Middle East, Asia, Europe, and North America." },
-        { label: "Trade Finance Access", desc: "Get credit against confirmed purchase orders — no land collateral required. Capital that follows your orders." },
+        { label: "Trade Finance Access", desc: "Get credit against confirmed purchase orders, with no land collateral required. Capital that follows your orders." },
         { label: "Logistics Handled", desc: "We coordinate cold chain, port clearance, and freight forwarding so you focus on growing and harvesting." },
-        { label: "Your Story, Professionally Presented", desc: "Origin documentation, certifications, and your farm's story — presented to buyers in a format they trust." },
+        { label: "Your Story, Professionally Presented", desc: "Origin documentation, certifications, and your farm's story, presented to buyers in a format they trust." },
       ],
       applyBtn: "Apply to Join",
       suppliersBtn: "See Our Producers",
@@ -160,7 +160,7 @@ const en = {
     products: {
       label: "What We Trade",
       heading: "Colombia's finest, export-ready.",
-      sub: "From specialty coffee to exotic superfoods — every product on Fincava is verified, traceable, and export-ready.",
+      sub: "From specialty coffee to exotic superfoods, every product on Fincava is verified, traceable, and export-ready.",
       browseBtn: "Browse Full Marketplace",
       items: [
         { name: "Specialty Coffee", origin: "Huila · Nariño · Cauca", icon: "☕", tag: "Most Traded" },
@@ -183,7 +183,7 @@ const en = {
       },
       supplierCard: {
         title: "I'm a Supplier",
-        sub: "Connect directly with international buyers, access trade financing, and export your products to 15+ countries — without intermediaries.",
+        sub: "Connect directly with international buyers, access trade financing, and export your products to 15+ countries, without intermediaries.",
         features: ["Reach buyers in 15+ countries", "Trade finance on your orders", "Logistics fully coordinated", "Keep more of your margin"],
         btn: "Join as a Supplier",
       },
@@ -225,7 +225,7 @@ const es: typeof en = {
       headline1: "Los mejores productores de Colombia.",
       headline2: "Los mejores compradores del mundo.",
       headline3: "Una sola plataforma.",
-      sub: "Fincava conecta productores agrícolas colombianos verificados con compradores globales — con financiación integrada, documentación de cumplimiento y distribución incluidas.",
+      sub: "Fincava conecta productores agrícolas colombianos verificados con compradores globales, con financiación integrada, documentación de cumplimiento y distribución incluidas.",
       ctaBuy: "Comenzar a Comprar",
       ctaSupply: "Unirse como Proveedor",
       stats: {
@@ -261,7 +261,7 @@ const es: typeof en = {
     howItWorks: {
       label: "Cómo Funciona",
       heading: "Tres capas. Una operación perfecta.",
-      sub: "Cada operación en Fincava fluye a través de tres capas integradas — desde encontrarse hasta cobrar y recibir los bienes.",
+      sub: "Cada operación en Fincava fluye a través de tres capas integradas: desde encontrarse hasta cobrar y recibir los bienes.",
       layers: [
         {
           step: "Paso 01",
@@ -294,7 +294,7 @@ const es: typeof en = {
       sub: "Cada proveedor en Fincava está verificado. Cada envío es rastreado. Cada documento está en orden antes de que tus bienes salgan de Colombia.",
       features: [
         { label: "Productores Verificados", desc: "Cada proveedor es evaluado, certificado y revisado en calidad antes de aparecer en la plataforma." },
-        { label: "Cumplimiento Garantizado", desc: "Certificados de origen, documentos fitosanitarios y papelería aduanera — preparados para tu mercado destino." },
+        { label: "Cumplimiento Garantizado", desc: "Certificados de origen, documentos fitosanitarios y papelería aduanera, preparados para tu mercado destino." },
         { label: "Seguimiento en Tiempo Real", desc: "Sigue tu envío desde la finca hasta tu puerto. Hitos en vivo, sin cajas negras." },
         { label: "Abastecimiento Competitivo", desc: "Publica una solicitud y recibe cotizaciones de múltiples productores colombianos verificados en 48 horas." },
       ],
@@ -316,12 +316,12 @@ const es: typeof en = {
     forSuppliers: {
       label: "Para Proveedores",
       heading: "Llega a compradores globales. Cobra. Conserva tu margen.",
-      sub: "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en más de 15 países — con financiamiento para crecer y logística para entregar.",
+      sub: "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en más de 15 países, con financiamiento para crecer y logística para entregar.",
       features: [
         { label: "Red Global de Compradores", desc: "Accede a importadores, distribuidores y compradores minoristas verificados en Medio Oriente, Asia, Europa y América del Norte." },
-        { label: "Acceso a Financiamiento", desc: "Obtén crédito contra órdenes de compra confirmadas — sin garantías de tierra requeridas. Capital que sigue tus pedidos." },
+        { label: "Acceso a Financiamiento", desc: "Obtén crédito contra órdenes de compra confirmadas, sin garantías de tierra requeridas. Capital que sigue tus pedidos." },
         { label: "Logística Gestionada", desc: "Coordinamos la cadena de frío, el despacho aduanero y el transporte para que te concentres en cultivar y cosechar." },
-        { label: "Tu Historia, Presentada Profesionalmente", desc: "Documentación de origen, certificaciones e historia de tu finca — presentadas a compradores en un formato en que confían." },
+        { label: "Tu Historia, Presentada Profesionalmente", desc: "Documentación de origen, certificaciones e historia de tu finca, presentadas a compradores en un formato en que confían." },
       ],
       applyBtn: "Aplicar para Unirse",
       suppliersBtn: "Ver Nuestros Productores",
@@ -353,7 +353,7 @@ const es: typeof en = {
     products: {
       label: "Lo Que Comerciamos",
       heading: "Lo mejor de Colombia, listo para exportar.",
-      sub: "Desde café especial hasta superalimentos exóticos — cada producto en Fincava está verificado, trazable y listo para exportar.",
+      sub: "Desde café especial hasta superalimentos exóticos, cada producto en Fincava está verificado, trazable y listo para exportar.",
       browseBtn: "Explorar Marketplace Completo",
       items: [
         { name: "Café Especial", origin: "Huila · Nariño · Cauca", icon: "☕", tag: "Más Comerciado" },
@@ -376,7 +376,7 @@ const es: typeof en = {
       },
       supplierCard: {
         title: "Soy Proveedor",
-        sub: "Conéctate directamente con compradores internacionales, accede a financiamiento comercial y exporta tus productos a más de 15 países — sin intermediarios.",
+        sub: "Conéctate directamente con compradores internacionales, accede a financiamiento comercial y exporta tus productos a más de 15 países, sin intermediarios.",
         features: ["Llega a compradores en más de 15 países", "Financiamiento comercial para tus pedidos", "Logística totalmente coordinada", "Conserva más de tu margen"],
         btn: "Unirme como Proveedor",
       },
