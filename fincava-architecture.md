@@ -1,12 +1,12 @@
 # Fincava — Architecture Document
 **Colombian Agricultural Marketplace**
-*April 2026*
+*Updated April 2026*
 
 ---
 
 ## 1. Project Overview
 
-Fincava is a B2B marketplace and supply-chain financing platform that connects Colombian smallholder farmers and cooperatives with international buyers. The platform covers the full commercial journey: supplier onboarding and AI scoring, product discovery, RFQ/inquiry management, order tracking, embedded trade finance, and post-sale communications via WhatsApp.
+Fincava is a B2B marketplace and supply-chain financing platform that connects Colombian smallholder farmers and cooperatives with international buyers. The platform covers the full commercial journey: supplier onboarding and AI scoring, product discovery, RFQ/inquiry management, order tracking, embedded trade finance, and post-sale communications via WhatsApp. The frontend is fully bilingual (English / Spanish) with device-language detection.
 
 ---
 
@@ -96,6 +96,11 @@ All tables live in `lib/db/src/schema/` and are managed by Drizzle ORM.
 |---|---|
 | `messages` | In-platform messaging between buyers and suppliers |
 
+### 4.8 Interactions / Extended Compliance
+| Table | Purpose |
+|---|---|
+| `interactions` | Officer-recorded field visits and onboarding interactions. Stores expanded compliance data in a `metadata` JSONB column (see Section 6.1). |
+
 ---
 
 ## 5. API Routes
@@ -151,7 +156,8 @@ Base path: `/api`
 ## 6. Feature Descriptions
 
 ### 6.1 Supplier Onboarding + AI Scoring
-New suppliers submit a multi-step registration form (personal info, location, products, certifications). On submission, `scoreSupplier()` calls Claude with a structured prompt. Claude returns:
+
+New suppliers submit a multi-step registration form (personal info, location, products, certifications, compliance). On submission, `scoreSupplier()` calls Claude with a structured prompt. Claude returns:
 - `export_readiness_score` (0–100)
 - `pathway` (READY_TO_EXPORT / NEEDS_PREPARATION / EARLY_STAGE)
 - `capital_capacity_cop` (estimated capital in Colombian pesos)
@@ -160,27 +166,64 @@ New suppliers submit a multi-step registration form (personal info, location, pr
 
 Results are stored in `ai_outputs`. On success, a WhatsApp message is automatically sent to the supplier's registered number via Twilio.
 
-### 6.2 Document Generation
+**Extended compliance fields (Step 3 — Export Readiness):**
+
+The Step 3 form was expanded from basic yes/no fields to a richer multi-choice compliance assessment. The following fields are captured and stored in `interactions.metadata` (JSONB):
+
+| Field | Type | Options |
+|---|---|---|
+| `has_rut` | 5-choice | Yes / In progress / Applied, awaiting / No — planning to / No — not aware |
+| `has_bank_account` | 3-choice | Yes, personal / Yes, business / No |
+| `business_structure` | choice | Persona natural / SAS / Ltda / Cooperativa / Asociación / Other |
+| `part_of_cooperative` | yes/no | Yes / No |
+| `vuce_registered` | yes/no | Yes / No |
+| `invima_required` | yes/no | Yes / No |
+| `invima_approved` | yes/no | Yes / No |
+| `ica_registered` | yes/no | Yes / No |
+| `working_capital_needed` | numeric | COP amount |
+| `export_blocker` | text | Free text description of main blocker |
+
+The `MultiChoice` UI component renders these as segmented button groups (no dropdowns), replacing the original RadioGroup pattern.
+
+### 6.2 Registration Flow UX
+
+The registration page (`/register`) supports two entry paths:
+
+- **With role param** (`/register?role=supplier` or `?role=buyer`): skips the role picker entirely and opens at Step 2 (Account Details). All home page CTAs and the "Join as a Supplier" / "Start Buying" buttons pass these params.
+- **Without param**: shows the role picker at Step 1. Cards are click-to-advance — clicking a card immediately moves to Step 2 with no separate "Continue" button.
+
+Supplier registration is a 6-step flow: Role → Account → Farm → Production → Readiness → Review. Buyer registration is 2 steps: Role → Account.
+
+### 6.3 Document Generation
 Admins can trigger a compliance document for any supplier via "Gen Doc". Claude generates a formatted document (stored as plain text in `ai_outputs.documentContent`). The admin can open it in the DocModal viewer (with Download-as-TXT), or re-open the last generated document via "View Last".
 
-### 6.3 WhatsApp Notifications (Twilio)
+### 6.4 WhatsApp Notifications (Twilio)
 - **Automatic**: fires immediately after successful AI scoring on onboarding
 - **Manual**: "Send WA" button in the admin supplier table — sends a Spanish-language summary with score and pathway
 - Phone normalisation: E.164 format, strips spaces, adds `+57` Colombia prefix if missing
 - The Twilio message SID is stored in `ai_outputs.whatsappMessageSent`; the admin table reflects sent/unsent state via button styling
 
-### 6.4 Admin Console
+### 6.5 Admin Console
 Full CRUD for users and suppliers:
 - **Users**: create (with company), edit (upserts company row), delete, role management
 - **Suppliers**: status controls (PENDING / ACTIVE / INACTIVE), pathway badge, AI score display, document viewer, WhatsApp trigger
 - Filtering by product type, status, search (name/location)
 - Pagination
 
-### 6.5 Embedded Trade Finance
+### 6.6 Embedded Trade Finance
 Buyers can apply for trade finance loans linked to specific orders. The finance dashboard tracks loan status, APR, outstanding balance, and repayment schedule.
 
-### 6.6 Multilingual Support
-All frontend UI strings are served from a `lang` context (English / Spanish toggle). Labels, buttons, and status values switch at runtime.
+### 6.7 Multilingual Support
+
+All frontend UI strings are served from `LanguageContext` (English / Spanish). Key behaviours:
+
+- **Device detection**: on first visit (no saved preference), `navigator.language` is checked. If it starts with `"es"`, Spanish is set automatically. Otherwise defaults to English.
+- **Persistence**: chosen language is saved to `localStorage` under key `"fincava_lang"` and restored on next visit.
+- **Toggle**: EN/ES pill in the navbar — switches language immediately across all pages.
+- **Registration steps**: `StepFarmIdentity`, `StepProduction`, `StepBusinessReadiness`, and `ReviewSummary` sub-components all receive the live `lang` prop and render fully bilingual content.
+- **Known gap**: the outer shell of `register.tsx` (card title, field labels, buttons, Zod validation messages) is not yet translated. This is documented as a planned improvement.
+
+Translation strings live in `src/i18n/translations.ts` (EN and ES objects with identical key shapes).
 
 ---
 
@@ -225,4 +268,21 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 
 ---
 
-*Document generated April 2026 — reflects codebase at commit `faeb902`*
+## 11. Known Gaps / Planned Work
+
+| Area | Description |
+|---|---|
+| Register page shell translations | Card title, field labels, button text, and Zod validation error messages in `register.tsx` are still English-only. Fixing Zod messages requires moving the schema inside the component. |
+| Mobile navbar | Language toggle and nav links not yet adapted for mobile viewports. |
+
+---
+
+## Changelog
+
+| Date | Change |
+|---|---|
+| Apr 2026 (initial) | Document created — reflects codebase at commit `faeb902` |
+| Apr 2026 | Step 3 Export Readiness expanded: 6 new compliance fields, MultiChoice component, COP capital label |
+| Apr 2026 | Registration flow UX: `?role=` params on all home CTAs, skip-role-picker logic, click-to-advance role cards |
+| Apr 2026 | Language system: device-language detection via `navigator.language`, live `lang` prop wired into all registration sub-components |
+| Apr 2026 | Copy audit: em dashes replaced with commas/colons across `translations.ts`, `investors.tsx`, and `trust-badge.tsx` |
