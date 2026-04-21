@@ -1,0 +1,75 @@
+Every Replit / engineering execution MUST follow this protocol:
+DO NOT EXECUTE IMMEDIATELY
+Before any implementation:
+1. Analyze existing system
+2. Compare with new requirements
+3. Identify:
+    * Overlaps
+    * Conflicts
+    * Redundancies
+    * Format mismatches
+
+REQUIRED STEP BEFORE CODING
+Replit MUST:
+1. Produce an Execution Plan
+2. Highlight:
+    * What will be reused
+    * What will be modified
+    * What will be newly created
+3. Ask clarifying questions
+4. WAIT for approval
+
+NON-BREAKING REQUIREMENT
+* Do NOT break existing features
+* Do NOT overwrite without mapping
+* Prefer:
+    * Extension over replacement
+    * Backward compatibility
+    * Schema evolution (not destruction)
+
+On supplier registration page (Export Readiness section) step 5, we need following updates
+
+Replace “Has RUT”
+* EN: Are you registered with the Colombian tax authority (RUT)?
+* ES: ¿Está registrado en el RUT ante la DIAN?
+* Type: Multiple Choice
+* Options: Yes / No / In progress / Not required / Not sure
+
+Replace “Has Bank Account”
+EN: Do you have a bank account in the business or personal name?
+ES: ¿Tiene una cuenta bancaria a nombre propio o del negocio?
+Type: Multiple Choice
+Options: Yes / No / In progress / Not required / Not sure
+
+Add following:
+* EN: What is your business structure?
+* ES: ¿Cuál es su estructura empresarial?
+* Type: Multiple Choice
+* Options: Informal / Individual / Cooperative / Registered Company
+
+* EN: Are you part of a cooperative or association?
+* ES: ¿Hace parte de una cooperativa o asociación?
+* Type: Multiple Choice
+* Options: Yes / No / In progress
+
+* EN: Are you registered to export through VUCE?
+* ES: ¿Está registrado para exportar en la VUCE?
+* Type: Multiple Choice
+* Options: Yes / No / In progress / Not required / Not sure
+
+* EN: Do your products require INVIMA registration?
+* ES: ¿Sus productos requieren registro INVIMA?
+* Type: Multiple Choice
+* Options: Yes / No / In progress / Not required / Not sure
+
+* EN: Do you currently have INVIMA approval (if required)?
+* ES: ¿Cuenta con aprobación INVIMA (si aplica)?
+* Type: Multiple Choice
+* Options: Yes / No / In progress / Not required
+
+* EN: Are your farms registered with ICA?
+* ES: ¿Sus fincas están registradas ante el ICA?
+* Type: Multiple Choice
+* Options: Yes / No / In progress / Not required / Not sure
+
+Change Capital Needed (USD) to Capital Needed (COP) 
