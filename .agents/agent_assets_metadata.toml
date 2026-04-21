@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "axrH5w9St4ShnwiSwzwrT"
@@ -24,3 +23,9 @@ id = "87fbPCHSm_bg0-KsTxazb"
 uri = "file://artifacts/fincava/public/images/avocado.png"
 type = "image"
 title = "Premium avocado export"
+
+[[outputs]]
+id = "4RD9eixdVt09x-chWDBSb"
+uri = "file://fincava-architecture.md"
+type = "text"
+title = "Fincava — Architecture Document"
