@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useRegisterUser } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft, Building2, ShoppingCart } from "lucide-react";
 import { RegisterUserBodyRole } from "@workspace/api-client-react";
@@ -63,8 +63,11 @@ const inputClass =
 const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
 export default function Register() {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
-  const [role, setRole] = useState<RegisterUserBodyRole>(RegisterUserBodyRole.BUYER);
+  const searchString = useSearch();
+  const roleParam = new URLSearchParams(searchString).get("role");
+  const initialRole = roleParam === "supplier" ? RegisterUserBodyRole.SUPPLIER : RegisterUserBodyRole.BUYER;
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(roleParam ? 2 : 1);
+  const [role, setRole] = useState<RegisterUserBodyRole>(initialRole);
   const [supplierForm, setSupplierForm] = useState<SupplierFormData>(SUPPLIER_INITIAL);
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -275,39 +278,28 @@ export default function Register() {
             <div className="space-y-8">
               <div className="text-center mb-6">
                 <h3 className="text-xl font-medium mb-2">How do you want to use Fincava?</h3>
-                <p className="text-sm text-muted-foreground">Select your account type to continue</p>
+                <p className="text-sm text-muted-foreground">Select your account type to get started</p>
               </div>
-              <RadioGroup
-                value={role}
-                onValueChange={(v) => setRole(v as RegisterUserBodyRole)}
-                className="grid grid-cols-1 md:grid-cols-2 gap-4"
-              >
-                <div>
-                  <RadioGroupItem value={RegisterUserBodyRole.BUYER} id="buyer" className="peer sr-only" />
-                  <label
-                    htmlFor="buyer"
-                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center"
-                  >
-                    <ShoppingCart className="mb-4 h-8 w-8 text-primary" />
-                    <span className="font-bold text-lg mb-2">I am a Buyer</span>
-                    <span className="text-sm text-muted-foreground">I want to source verified agricultural products from Colombia</span>
-                  </label>
-                </div>
-                <div>
-                  <RadioGroupItem value={RegisterUserBodyRole.SUPPLIER} id="supplier" className="peer sr-only" />
-                  <label
-                    htmlFor="supplier"
-                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center"
-                  >
-                    <Building2 className="mb-4 h-8 w-8 text-secondary" />
-                    <span className="font-bold text-lg mb-2">I am a Supplier</span>
-                    <span className="text-sm text-muted-foreground">I produce or export agricultural goods from Colombia</span>
-                  </label>
-                </div>
-              </RadioGroup>
-              <Button className="w-full h-12 text-lg mt-8" onClick={() => setStep(2)}>
-                Continue
-              </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => { setRole(RegisterUserBodyRole.BUYER); setStep(2); }}
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground hover:border-primary cursor-pointer text-center transition-colors w-full"
+                >
+                  <ShoppingCart className="mb-4 h-8 w-8 text-primary" />
+                  <span className="font-bold text-lg mb-2">I am a Buyer</span>
+                  <span className="text-sm text-muted-foreground">I want to source verified agricultural products from Colombia</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRole(RegisterUserBodyRole.SUPPLIER); setStep(2); }}
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground hover:border-primary cursor-pointer text-center transition-colors w-full"
+                >
+                  <Building2 className="mb-4 h-8 w-8 text-secondary" />
+                  <span className="font-bold text-lg mb-2">I am a Supplier</span>
+                  <span className="text-sm text-muted-foreground">I produce or export agricultural goods from Colombia</span>
+                </button>
+              </div>
             </div>
           )}
 

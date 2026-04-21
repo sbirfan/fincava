@@ -101,12 +101,12 @@ export default function Home() {
             variants={fadeUp} initial="hidden" animate="visible" custom={3}
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <Link href="/register">
+            <Link href="/register?role=buyer">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground h-14 px-8 text-base font-semibold rounded-lg">
                 {h.hero.ctaBuy} <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
-            <Link href="/register">
+            <Link href="/register?role=supplier">
               <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/8 h-14 px-8 text-base font-semibold rounded-lg bg-transparent">
                 {h.hero.ctaSupply}
               </Button>
@@ -394,7 +394,7 @@ export default function Home() {
                 })}
               </div>
               <div className="flex gap-3 mt-8">
-                <Link href="/register">
+                <Link href="/register?role=supplier">
                   <Button className="bg-primary hover:bg-primary/90">
                     {h.forSuppliers.applyBtn} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
@@ -512,7 +512,7 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register">
+              <Link href="/register?role=buyer">
                 <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white h-12">
                   {h.cta.buyerCard.btn} <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
@@ -534,7 +534,7 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register">
+              <Link href="/register?role=supplier">
                 <Button className="w-full bg-primary hover:bg-primary/90 h-12">
                   {h.cta.supplierCard.btn} <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
