@@ -14,7 +14,10 @@ const LanguageContext = createContext<LanguageContextType | null>(null);
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Language>(() => {
     try {
-      return (localStorage.getItem("fincava_lang") as Language) || "en";
+      const saved = localStorage.getItem("fincava_lang") as Language | null;
+      if (saved === "en" || saved === "es") return saved;
+      const browser = navigator.language || "";
+      return browser.toLowerCase().startsWith("es") ? "es" : "en";
     } catch {
       return "en";
     }

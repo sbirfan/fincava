@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -63,6 +64,7 @@ const inputClass =
 const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
 export default function Register() {
+  const { lang } = useLanguage();
   const searchString = useSearch();
   const roleParam = new URLSearchParams(searchString).get("role");
   const initialRole = roleParam === "supplier" ? RegisterUserBodyRole.SUPPLIER : RegisterUserBodyRole.BUYER;
@@ -362,7 +364,7 @@ export default function Register() {
               <StepFarmIdentity
                 form={supplierForm}
                 set={setField}
-                lang="en"
+                lang={lang}
                 inputClass={inputClass}
                 labelClass={labelClass}
               />
@@ -389,7 +391,7 @@ export default function Register() {
               <StepProduction
                 form={supplierForm}
                 set={setField}
-                lang="en"
+                lang={lang}
                 inputClass={inputClass}
                 labelClass={labelClass}
               />
@@ -416,7 +418,7 @@ export default function Register() {
               <StepBusinessReadiness
                 form={supplierForm}
                 set={setField}
-                lang="en"
+                lang={lang}
                 inputClass={inputClass}
                 labelClass={labelClass}
               />
@@ -442,7 +444,7 @@ export default function Register() {
               onSubmit={handleSupplierSubmit}
               submitting={isSubmitting}
               error={submitError}
-              lang="en"
+              lang={lang}
             />
           )}
         </CardContent>
