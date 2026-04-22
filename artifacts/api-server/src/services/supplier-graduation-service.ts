@@ -159,6 +159,11 @@ export async function evaluateSupplier(supplierId: number): Promise<{
         `No AI score found for supplier ${supplierId} — run scoring first`,
       );
     }
+    if (ai.exportReadinessScore == null) {
+      throw new NotFoundError(
+        `AI output missing or incomplete for supplier ${supplierId}`,
+      );
+    }
 
     // 3. Fetch compliance_docs.
     //    If row is missing → treat all required fields as absent (eligibility FAIL).
@@ -173,7 +178,7 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       supplier,
       compliance,
     );
-    const commercialScore = ai.exportReadinessScore ?? 0;
+    const commercialScore = ai.exportReadinessScore;
     const sellableStatus = computeSellableStatus(eligibilityStatus, commercialScore);
     const pathway = parsePathway(ai.pathway);
     const nextActions = computeNextActions(missingFields, pathway);
