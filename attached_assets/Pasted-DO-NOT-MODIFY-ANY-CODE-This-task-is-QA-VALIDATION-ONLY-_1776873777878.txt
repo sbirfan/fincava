@@ -1,0 +1,217 @@
+DO NOT MODIFY ANY CODE.
+
+This task is QA VALIDATION ONLY for Ticket 1.5 (supplier-graduation-service).
+
+---
+
+OBJECTIVE
+Thoroughly validate evaluation logic, idempotency, transitions, and transaction integrity.
+
+---
+
+STEP 1 — Basic execution (happy path)
+
+* Call evaluateSupplier(supplierId) for a supplier with:
+
+  * valid ai_outputs
+  * valid compliance_docs
+
+Verify:
+
+* 1 supplier_evaluations row inserted
+* supplier updated with:
+
+  * eligibilityStatus
+  * commercialScore
+  * sellableStatus
+  * graduationPathway
+  * nextActions
+  * thresholdVersion
+* 1 transition row inserted (if first run)
+
+---
+
+STEP 2 — Idempotency check
+
+Call evaluateSupplier(supplierId) again immediately.
+
+Verify:
+
+* +1 new supplier_evaluations row
+* NO new supplier_state_transitions row
+* supplier values unchanged
+
+---
+
+STEP 3 — State change trigger
+
+Modify ai_outputs.exportReadinessScore (simulate improvement)
+
+Call evaluateSupplier again.
+
+Verify:
+
+* new evaluation row inserted
+* transition row inserted
+* sellableStatus updated correctly
+
+---
+
+STEP 4 — First evaluation edge case
+
+Run evaluateSupplier on a supplier with NO prior evaluations.
+
+Verify:
+
+* evaluation row created
+* transition row created (treated as state change)
+
+---
+
+STEP 5 — Missing ai_outputs
+
+Call evaluateSupplier on supplier with NO ai_outputs row.
+
+Verify:
+
+* throws NotFoundError
+* NO evaluation row inserted
+* NO supplier update
+* NO transition
+
+---
+
+STEP 6 — Missing compliance_docs
+
+Call evaluateSupplier where compliance_docs row is missing.
+
+Verify:
+
+* eligibilityStatus = FAIL
+* sellableStatus = NOT_READY
+* evaluation still created
+
+---
+
+STEP 7 — Pathway validation
+
+Set ai_outputs.pathway to invalid value.
+
+Run evaluateSupplier.
+
+Verify:
+
+* graduationPathway = null
+* no crash
+
+---
+
+STEP 8 — Transition rules (SYSTEM)
+
+Attempt backward transition via SYSTEM.
+
+Verify:
+
+* rejected / not inserted
+
+---
+
+STEP 9 — Transition rules (ADMIN)
+
+Call transitionTo with:
+
+* actor = 'ADMIN'
+* no justification
+
+Verify:
+
+* throws TypeError BEFORE DB write
+
+---
+
+STEP 10 — Transition with justification
+
+Call transitionTo with ADMIN + justification.
+
+Verify:
+
+* transition row inserted
+* justification stored
+
+---
+
+STEP 11 — markPublished
+
+Call markPublished with ADMIN + justification.
+
+Verify:
+
+* transition to PUBLISHED inserted
+* supplier updated
+
+---
+
+STEP 12 — evaluationId linkage
+
+Verify:
+
+* SYSTEM transitions include evaluationId
+* ADMIN transitions:
+
+  * include evaluationId if provided
+  * null if manual
+
+---
+
+STEP 13 — Transaction integrity
+
+Force an error mid-flow (e.g., throw after evaluation insert).
+
+Verify:
+
+* NO evaluation row persisted
+* NO supplier update
+* NO transition
+
+---
+
+STEP 14 — Threshold usage
+
+Verify:
+
+* NO hardcoded threshold values
+* All values read from THRESHOLDS config
+
+---
+
+STEP 15 — Logging / instrumentation
+
+Verify:
+
+* logs include:
+  supplierId, fromState, toState, score, thresholdVersion
+
+* breadcrumb recorded (or console fallback used)
+
+---
+
+FINAL REPORT
+
+Return structured output:
+
+1. Evaluation logic → PASS / FAIL
+2. Idempotency → PASS / FAIL
+3. Transition logic → PASS / FAIL
+4. Edge cases → PASS / FAIL
+5. Transaction integrity → PASS / FAIL
+6. Threshold usage → PASS / FAIL
+
+If any FAIL:
+
+* explain root cause
+* DO NOT fix
+* WAIT for instructions
+
+---
+
+END OF TASK — DO NOT MAKE ANY CHANGES
