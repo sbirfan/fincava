@@ -165,7 +165,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
             // Retry only for NotFoundError. attempt < 3 = max 3 attempts total.
             if (isNotFound && attempt < 3) {
               const delay = Math.pow(2, attempt - 1) * 1000;
-              logger.debug(
+              logger.info(
                 { supplierId: sid, correlationId, attempt, delay },
                 "evaluateSupplier retry scheduled",
               );
