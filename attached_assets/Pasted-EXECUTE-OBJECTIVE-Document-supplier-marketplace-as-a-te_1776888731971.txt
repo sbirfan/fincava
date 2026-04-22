@@ -1,0 +1,126 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Document supplier marketplace as a temporary architectural exception with minimal duplication in Updates.
+
+---
+
+FILES
+
+* /ops/execution_map.md
+* /ops/post_mvp_plan.md
+
+---
+
+CHANGES — execution_map.md
+
+## 1. Locate:
+
+### Slice 3 — Buyer-ready supply
+
+---
+
+## 2. Append at end of Slice 3:
+
+#### ⚠ Temporary Validation Surface — Supplier Marketplace
+
+* A separate route `/supplier-marketplace` was introduced as a thin validation UI
+
+* Purpose: validate end-to-end flow (onboarding → evaluation → SELLABLE → UI visibility)
+
+* This surface is NOT part of the final marketplace architecture
+
+* It is intentionally isolated to avoid UX confusion with the product marketplace
+
+* Constraints:
+
+  * No filters, search, or pagination
+  * No integration with product marketplace
+  * No expansion allowed
+
+* Future action (MANDATORY):
+
+  * Remove OR redesign this surface in Phase II
+  * Re-evaluate whether supplier readiness should be:
+
+    * merged into product marketplace, OR
+    * exposed via a dedicated buyer-facing surface
+
+* Risk if ignored:
+
+  * Duplicate marketplace experiences
+  * UX inconsistency
+  * Increased refactor cost
+
+* Status:
+
+  * Active (temporary)
+
+---
+
+CHANGES — post_mvp_plan.md
+
+## 1. Locate:
+
+## 4. API & Service Enhancements
+
+---
+
+## 2. Append ONLY this bullet under "* Updates:"
+
+* Added requirement to remove or redesign supplier marketplace before full marketplace expansion
+
+---
+
+## 3. Add new section at bottom of file:
+
+## ⚠ Architectural Exceptions (Temporary)
+
+### Supplier Marketplace (Validation Surface)
+
+* Route: `/supplier-marketplace`
+* Purpose: Phase 1 validation only
+* Not part of final product design
+
+### Required Resolution (Phase II)
+
+* Decide:
+
+  * Merge into product marketplace, OR
+  * Build standalone supplier discovery experience
+
+* Must NOT:
+
+  * coexist long-term with product marketplace
+  * evolve into a second marketplace surface
+
+---
+
+CONSTRAINTS
+
+* DO NOT modify existing content
+* DO NOT duplicate existing Updates bullets
+* Only append
+
+---
+
+VALIDATION
+
+* Execution map contains new subsection
+* Post-MVP has exactly ONE new Updates bullet
+* Architectural Exceptions section present
+* No duplicate bullets introduced
+
+---
+
+OUTPUT
+
+* Confirmation
+* Snippet of new subsection (execution_map.md)
+* Snippet of Architectural Exceptions section
+
+---
+
+COMPLETE

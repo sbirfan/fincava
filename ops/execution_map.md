@@ -134,6 +134,35 @@ Create `GET /api/suppliers?sellable=true` filtering `sellableStatus=SELLABLE` or
 * Status:
   * Not Started
 
+#### ⚠ Temporary Validation Surface — Supplier Marketplace
+
+* A separate route `/supplier-marketplace` was introduced as a thin validation UI
+
+* Purpose: validate end-to-end flow (onboarding → evaluation → SELLABLE → UI visibility)
+
+* This surface is NOT part of the final marketplace architecture
+
+* It is intentionally isolated to avoid UX confusion with the product marketplace
+
+* Constraints:
+  * No filters, search, or pagination
+  * No integration with product marketplace
+  * No expansion allowed
+
+* Future action (MANDATORY):
+  * Remove OR redesign this surface in Phase II
+  * Re-evaluate whether supplier readiness should be:
+    * merged into product marketplace, OR
+    * exposed via a dedicated buyer-facing surface
+
+* Risk if ignored:
+  * Duplicate marketplace experiences
+  * UX inconsistency
+  * Increased refactor cost
+
+* Status:
+  * Active (temporary)
+
 ---
 
 ### Slice 4 — AI Scoring Reliability

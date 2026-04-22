@@ -99,6 +99,7 @@ Introduce a job queue system for durability and retries.
   * Deferred integration of supplier readiness into marketplace UX
   * Identified risk of premature merging with product marketplace
   * Confirmed validation-first approach
+  * Added requirement to remove or redesign supplier marketplace before full marketplace expansion
 
 ### Reliability
 
@@ -155,3 +156,23 @@ Introduce a job queue system for durability and retries.
 2. Monitoring dashboard
 3. Alerting
 4. Admin tools
+
+---
+
+## ⚠ Architectural Exceptions (Temporary)
+
+### Supplier Marketplace (Validation Surface)
+
+* Route: `/supplier-marketplace`
+* Purpose: Phase 1 validation only
+* Not part of final product design
+
+### Required Resolution (Phase II)
+
+* Decide:
+  * Merge into product marketplace, OR
+  * Build standalone supplier discovery experience
+
+* Must NOT:
+  * coexist long-term with product marketplace
+  * evolve into a second marketplace surface
