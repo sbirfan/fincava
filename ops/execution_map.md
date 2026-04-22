@@ -42,9 +42,16 @@ Implement `GET /api/suppliers` with `sellableStatus`, `eligibilityStatus`, `comm
 
 ### Slice 2 — Admin Control Layer
 
-* Status: Not Started
+* Status: Done
 * Last Updated: 2026-04-22
 * Changes:
+  * Implemented POST /api/admin/suppliers/:id/transition (manual override)
+  * Implemented POST /api/admin/suppliers/:id/publish (explicit publish action)
+  * Enforced justification requirement for ADMIN and FOUNDER actors
+  * Blocked SYSTEM actor usage at route layer
+  * Added SELLABLE → PUBLISHED gate validation
+  * Integrated requireAuth + requireAdmin guards for admin endpoints
+  * Confirmed transition audit integrity (actor, justification, fromState)
 
 **Goal:** Allow admin users to override supplier states with audit enforcement.
 

@@ -83,6 +83,11 @@ Introduce a job queue system for durability and retries.
   * Established separation of current state (suppliers table) vs historical state (evaluation + transition tables)
   * Confirmed lightweight history queries (no joins, capped results)
   * Deferred auth enforcement to future admin/security layer
+  * Added admin control endpoints for supplier state transitions and publishing
+  * Enforced publish gating logic (SELLABLE prerequisite)
+  * Introduced role-based access control for admin actions
+  * Confirmed strict separation between route validation and service logic
+  * Strengthened audit guarantees for manual overrides
 
 ### Reliability
 
