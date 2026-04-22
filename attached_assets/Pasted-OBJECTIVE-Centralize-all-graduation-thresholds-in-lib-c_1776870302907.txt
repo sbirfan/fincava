@@ -1,0 +1,101 @@
+OBJECTIVE
+Centralize all graduation thresholds in lib/config/thresholds.ts so the graduation service does not hardcode them.
+
+---
+
+PREFLIGHT (MANDATORY — read before writing any code)
+
+* Confirm lib/config/ exists; create if needed
+* If lib/config/thresholds.ts already exists, STOP and surface diff
+* Read memo §5.1 (Sellable Supply v0 schema) for threshold values
+
+---
+
+CHANGES
+
+Create file:
+lib/config/thresholds.ts
+
+Define a TypeScript type:
+
+type Thresholds = {
+version: string;
+updatedAt: string;
+note: string;
+commercial: {
+sellableMin: number;
+partialMin: number;
+};
+eligibility: {
+requiredFields: readonly string[];
+};
+};
+
+Export thresholds:
+
+export const THRESHOLDS_V0: Thresholds = {
+version: 'v0_pre_buyer_calls',
+updatedAt: '2026-04-21',
+note: 'Pre-buyer-call assumptions. Loose by design (EP6). Revisit after 3 buyer conversations.',
+commercial: { sellableMin: 60, partialMin: 30 },
+eligibility: {
+requiredFields: ['rutDian','icaRegistration','fitosanitario','consentGiven'] as const
+}
+};
+
+Freeze the object to prevent runtime mutation:
+
+Object.freeze(THRESHOLDS_V0);
+
+Export active pointer:
+
+export const THRESHOLDS: Thresholds = THRESHOLDS_V0;
+
+Add docstring at top of file:
+
+/**
+
+* NEVER mutate an existing version.
+* Bump and add a new export.
+* Old versions remain so re-grading is replayable.
+  */
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* EP2: thresholds live here. Nowhere else
+* EP6: v0 values are intentionally loose. Do NOT tighten
+
+---
+
+TACTICAL CONSTRAINTS
+
+* All numeric values must be type `number`, not string
+* version string format: 'v{N}_{shortLabel}'
+* Use named exports only (no default export)
+
+---
+
+SAFETY
+
+* If lib/config/ exists with other files, do not overwrite — extend
+* Do not modify any other files in this ticket
+
+---
+
+ACCEPTANCE
+
+* File exists at lib/config/thresholds.ts
+* No TypeScript errors
+* Service code in Ticket 1.5 can import:
+
+  import { THRESHOLDS } from 'lib/config/thresholds'
+
+---
+
+IMPORTANT
+
+* DO NOT execute code yet
+* Produce execution plan first
+* WAIT for approval before making any changes
