@@ -11,4 +11,5 @@ export * from "./analytics";
 export * from "./financing";
 export * from "./suppliers";
 export * from "./supplier-evaluations";
+export * from "./supplier-state-transitions";
 export * from "./staff-roles";
