@@ -1,0 +1,125 @@
+DO NOT MODIFY ANY CODE OR DATABASE STRUCTURE.
+
+This task is QA VALIDATION ONLY for Ticket 1.1 (supplier schema extension).
+
+OBJECTIVE
+Verify that the schema changes for Ticket 1.1 were applied correctly and that the application remains stable.
+
+STEP 1 — Database verification
+Connect to the database and run:
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'suppliers';
+
+Confirm the presence of the following columns:
+
+* eligibility_status
+* commercial_score
+* sellable_status
+* graduation_pathway
+* next_actions
+* commercial_score_at_onboarding
+* last_evaluated_at
+* threshold_version
+
+Report:
+
+* Missing columns (if any)
+* Incorrect types (if any)
+
+---
+
+STEP 2 — Data sanity check
+Run:
+
+SELECT id, sellable_status, commercial_score
+FROM suppliers
+ORDER BY id DESC
+LIMIT 5;
+
+Report:
+
+* Whether sellable_status is NULL or populated
+* Any unexpected values
+
+---
+
+STEP 3 — Backfill status
+Run:
+
+SELECT COUNT(*) FILTER (WHERE sellable_status IS NULL) AS null_count,
+COUNT(*) AS total_count
+FROM suppliers;
+
+Report:
+
+* null_count vs total_count
+* Whether backfill has been executed
+
+DO NOT run the backfill script.
+
+---
+
+STEP 4 — Enum verification
+Run:
+
+SELECT t.typname AS enum_name, e.enumlabel AS enum_value
+FROM pg_type t
+JOIN pg_enum e ON t.oid = e.enumtypid
+WHERE t.typname IN ('eligibility_status', 'sellable_status', 'graduation_pathway')
+ORDER BY enum_name, enumsortorder;
+
+Confirm:
+
+* eligibility_status → PASS, FAIL
+* sellable_status → NOT_READY, ELIGIBLE, SELLABLE, PUBLISHED
+* graduation_pathway → A, B, C, D
+
+---
+
+STEP 5 — Type generation check
+Check if Drizzle types reflect new fields:
+
+* Inspect inferred Supplier type
+* Confirm presence of:
+
+  * sellableStatus
+  * commercialScore
+  * eligibilityStatus
+  * graduationPathway
+
+If missing, recommend running:
+pnpm --filter @workspace/db run generate
+
+DO NOT run it automatically.
+
+---
+
+STEP 6 — Application stability
+Start the app in dev mode and verify:
+
+* Server compiles without TypeScript errors
+* Supplier API endpoint responds successfully
+* Admin supplier page loads without crashing
+
+DO NOT modify code if errors appear — only report.
+
+---
+
+STEP 7 — Final report
+Provide a structured summary:
+
+1. Schema status (correct / issues)
+2. Data status (null vs populated)
+3. Enum correctness
+4. Type generation status
+5. App stability status
+
+If any issue is found:
+
+* Clearly explain the root cause
+* DO NOT attempt to fix it
+* WAIT for instructions
+
+END OF TASK — DO NOT MAKE ANY CHANGES
