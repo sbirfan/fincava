@@ -1,0 +1,166 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Expose a minimal buyer-facing endpoint that returns SELLABLE/PUBLISHED suppliers only.
+
+This is a validation endpoint — NOT a full marketplace implementation.
+
+---
+
+SCOPE (STRICT)
+
+Add:
+
+GET /api/suppliers/marketplace
+
+DO NOT modify existing endpoints
+DO NOT add pagination, search, ranking, or filters
+DO NOT introduce new data models
+
+---
+
+PREFLIGHT (MANDATORY)
+
+1. Read:
+
+* lib/db/src/schema/suppliers.ts
+* artifacts/api-server/src/routes/suppliers.ts
+
+2. Confirm fields exist:
+
+* sellableStatus
+* nombreCompleto (or equivalent name field)
+* municipio / department
+
+3. Confirm enum values:
+
+* SELLABLE
+* PUBLISHED
+
+IF ANY MISSING → STOP
+
+---
+
+CHANGES
+
+## 1. Add GET /api/suppliers/marketplace
+
+Behavior:
+
+* Query suppliers table
+
+* Filter:
+
+  sellableStatus IN ('SELLABLE', 'PUBLISHED')
+
+* Order by:
+
+  lastEvaluatedAt DESC NULLS LAST
+
+* Limit:
+
+  20
+
+---
+
+## 2. Response shape (STRICT)
+
+Return ONLY:
+
+{
+"suppliers": [
+{
+"id": number,
+"name": string,
+"location": string,
+"sellableStatus": "SELLABLE | PUBLISHED"
+}
+]
+}
+
+---
+
+## 3. Field mapping
+
+* name → nombreCompleto
+* location → municipio + ", " + department
+
+---
+
+## 4. Explicit exclusions (CRITICAL)
+
+DO NOT include:
+
+* eligibilityStatus
+* commercialScore
+* graduationPathway
+* thresholdVersion
+* any audit/history fields
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* READ ONLY
+* DO NOT call evaluateSupplier
+* DO NOT modify service layer
+* DO NOT modify schema
+
+---
+
+TACTICAL CONSTRAINTS
+
+* Single table query (suppliers only)
+* No joins
+* No subqueries
+
+---
+
+EDGE CASES
+
+1. No SELLABLE suppliers:
+   → return { "suppliers": [] }
+
+2. Missing location parts:
+   → fallback gracefully (no crash)
+
+---
+
+EMBEDDED QA
+
+### Test 1 — Happy path
+
+* only SELLABLE/PUBLISHED returned
+* max 20
+* correct ordering
+
+### Test 2 — Field filtering
+
+* ONLY id, name, location, sellableStatus
+
+### Test 3 — No leakage
+
+* no internal fields
+
+### Test 4 — Empty state
+
+* returns []
+
+---
+
+OUTPUT
+
+* Files modified
+* Route created
+* Sample response
+* QA results (PASS/FAIL)
+
+---
+
+IF ANY TEST FAILS → STOP
+
+---
+
+COMPLETE

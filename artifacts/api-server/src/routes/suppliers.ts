@@ -16,7 +16,7 @@ import { requireAdmin } from "../middleware/admin";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
-import { desc, eq, and, gte, lte, sql, count } from "drizzle-orm";
+import { desc, eq, and, gte, lte, sql, count, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   evaluateSupplier,
@@ -519,6 +519,33 @@ router.get("/suppliers", async (req, res): Promise<void> => {
     })
     .from(suppliersTable)
     .orderBy(desc(suppliersTable.createdAt));
+
+  res.json({ suppliers });
+});
+
+// ── GET /api/suppliers/marketplace ───────────────────────────────────────────
+router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: suppliersTable.id,
+      nombreCompleto: suppliersTable.nombreCompleto,
+      municipio: suppliersTable.municipio,
+      department: suppliersTable.department,
+      sellableStatus: suppliersTable.sellableStatus,
+    })
+    .from(suppliersTable)
+    .where(inArray(suppliersTable.sellableStatus, ["SELLABLE", "PUBLISHED"]))
+    .orderBy(sql`${suppliersTable.lastEvaluatedAt} DESC NULLS LAST`)
+    .limit(20);
+
+  const suppliers = rows.map((r) => ({
+    id: r.id,
+    name: r.nombreCompleto,
+    location: r.department
+      ? `${r.municipio}, ${r.department}`
+      : r.municipio,
+    sellableStatus: r.sellableStatus,
+  }));
 
   res.json({ suppliers });
 });
