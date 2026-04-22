@@ -96,6 +96,9 @@ Introduce a job queue system for durability and retries.
   * Connected to marketplace endpoint
   * Confirmed Phase 1 (UI + API) complete
   * Phase 2 remains unchanged (no expansion yet)
+  * Deferred integration of supplier readiness into marketplace UX
+  * Identified risk of premature merging with product marketplace
+  * Confirmed validation-first approach
 
 ### Reliability
 

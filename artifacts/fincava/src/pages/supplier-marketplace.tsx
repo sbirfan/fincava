@@ -1,3 +1,8 @@
+// TEMP: Supplier marketplace validation surface
+// Purpose: Validate readiness pipeline (Phase 1)
+// NOT part of product marketplace
+// Will be removed or redesigned in Phase II
+
 import { useEffect, useState } from "react";
 
 interface Supplier {
@@ -35,6 +40,10 @@ export default function SupplierMarketplace() {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
+      <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-medium text-amber-800">
+        Internal Validation Page — Not part of public marketplace
+      </div>
+
       <h1 className="text-3xl font-serif font-bold text-foreground mb-2">
         Supplier Marketplace
       </h1>

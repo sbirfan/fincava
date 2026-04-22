@@ -79,6 +79,9 @@ Expose `POST /api/admin/suppliers/:id/transition` using `transitionTo`. Enforce 
   * Connected to marketplace endpoint
   * Confirmed Phase 1 (UI + API) complete
   * Phase 2 remains unchanged (no expansion yet)
+  * Supplier marketplace implemented as isolated validation surface
+  * Explicitly not merged into product marketplace to avoid UX confusion
+  * Marked for redesign or removal in Phase II
 
 **Goal:** Expose SELLABLE suppliers for external consumption.
 
