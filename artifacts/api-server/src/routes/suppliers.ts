@@ -745,7 +745,7 @@ router.post(
     }
 
     if (supplier.sellableStatus !== "SELLABLE") {
-      res.status(400).json({ error: "Supplier must be SELLABLE before publishing" });
+      res.status(409).json({ error: "Supplier must be SELLABLE before publishing" });
       return;
     }
 
