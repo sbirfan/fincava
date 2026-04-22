@@ -1,0 +1,156 @@
+DO NOT MODIFY ANY CODE OR DATABASE STRUCTURE.
+
+This task is QA VALIDATION ONLY for Ticket 1.3 (supplier_state_transitions table).
+
+---
+
+OBJECTIVE
+Verify that the supplier_state_transitions audit table is implemented correctly, with proper enums, foreign keys, indexing, and no destructive side effects.
+
+---
+
+STEP 1 — Table existence & columns
+
+Run:
+
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'supplier_state_transitions'
+ORDER BY ordinal_position;
+
+Confirm presence and correctness of:
+
+* id (serial / integer, NOT NULL, PK)
+* supplier_id (integer, NOT NULL)
+* from_state (enum, nullable)
+* to_state (enum, NOT NULL)
+* threshold_version (varchar(64), NOT NULL)
+* commercial_score_at_transition (integer, nullable)
+* actor (enum: SYSTEM, ADMIN, FOUNDER, NOT NULL)
+* justification (text, nullable)
+* evaluation_id (integer, nullable, FK)
+* created_at (timestamp with timezone, default now())
+
+Report any missing columns or type mismatches.
+
+---
+
+STEP 2 — Enum verification
+
+Run:
+
+SELECT t.typname AS enum_name, e.enumlabel AS enum_value
+FROM pg_type t
+JOIN pg_enum e ON t.oid = e.enumtypid
+WHERE t.typname IN ('sellable_status', 'actor')
+ORDER BY enum_name, enumsortorder;
+
+Confirm:
+
+* sellable_status → NOT_READY, ELIGIBLE, SELLABLE, PUBLISHED
+* actor → SYSTEM, ADMIN, FOUNDER
+
+Verify:
+
+* No duplicate or unexpected enum types created
+* Total enum count unchanged from previous snapshot
+
+---
+
+STEP 3 — Foreign key checks
+
+Run:
+
+SELECT
+tc.constraint_name,
+kcu.column_name,
+ccu.table_name AS foreign_table,
+ccu.column_name AS foreign_column
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage ccu
+ON ccu.constraint_name = tc.constraint_name
+WHERE tc.table_name = 'supplier_state_transitions'
+AND tc.constraint_type = 'FOREIGN KEY';
+
+Confirm:
+
+* supplier_id → suppliers.id (ON DELETE CASCADE)
+* evaluation_id → supplier_evaluations.id (nullable FK)
+
+---
+
+STEP 4 — Index verification
+
+Run:
+
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE tablename = 'supplier_state_transitions';
+
+Confirm:
+
+* Composite index exists on (supplier_id, created_at DESC)
+* DESC ordering explicitly present
+
+---
+
+STEP 5 — Data integrity smoke test (read-only safe insert + rollback)
+
+BEGIN;
+
+INSERT INTO supplier_state_transitions
+(supplier_id, to_state, threshold_version, actor)
+VALUES (1, 'NOT_READY', 'v0_test', 'SYSTEM')
+RETURNING id;
+
+ROLLBACK;
+
+Confirm:
+
+* Insert succeeds
+* No constraint errors
+* No persistence after rollback
+
+---
+
+STEP 6 — Cascade behavior (dry-run check)
+
+Do NOT delete data.
+
+Instead verify FK definition includes ON DELETE CASCADE via constraint metadata.
+
+Report whether cascade is correctly configured.
+
+---
+
+STEP 7 — Application stability
+
+* Ensure API server compiles without errors
+* Ensure no routes crash on startup
+* Ensure no unexpected schema errors in logs
+
+---
+
+STEP 8 — Final report
+
+Provide structured output:
+
+1. Table schema status (PASS / FAIL)
+2. Enum correctness (PASS / FAIL)
+3. Foreign key correctness (PASS / FAIL)
+4. Index correctness (PASS / FAIL)
+5. Insert smoke test (PASS / FAIL)
+6. Enum duplication check (PASS / FAIL)
+7. App stability (PASS / FAIL)
+
+If any issue is found:
+
+* Explain root cause
+* DO NOT attempt to fix
+* WAIT for instructions
+
+---
+
+END OF TASK — DO NOT MAKE ANY CHANGES
