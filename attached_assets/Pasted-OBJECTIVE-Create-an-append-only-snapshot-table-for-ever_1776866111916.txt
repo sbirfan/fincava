@@ -1,0 +1,119 @@
+OBJECTIVE
+Create an append-only snapshot table for every supplier evaluation,
+indexed for re-grading and audit.
+
+---
+
+PREFLIGHT (MANDATORY — read before writing any code)
+
+1. Read lib/db/src/schema/suppliers.ts
+
+   * Identify existing pgEnum definitions:
+     eligibilityStatusEnum
+     sellableStatusEnum
+     pathwayEnum
+   * Observe how foreign keys are defined in existing tables
+
+2. Read lib/db/src/schema/index.ts
+
+   * Understand how tables are exported and registered
+
+---
+
+CHANGES
+
+Create file:
+lib/db/src/schema/supplier-evaluations.ts
+
+---
+
+ENUM RULE (CRITICAL — DO NOT SKIP)
+
+DO NOT create new PostgreSQL enum types.
+
+Import and reuse enums from suppliers.ts:
+
+import { eligibilityStatusEnum, sellableStatusEnum, pathwayEnum } from './suppliers'
+
+Use these directly for the corresponding columns.
+
+---
+
+TABLE DEFINITION
+
+* id: serial primary key
+
+* supplierId: integer, not null
+  Must be defined as:
+  references(() => suppliers.id, { onDelete: 'cascade' })
+
+* eligibilityStatus: eligibilityStatusEnum (imported, not redefined)
+
+* commercialScore: integer
+
+* sellableStatus: sellableStatusEnum (imported, not redefined)
+
+* pathway: pathwayEnum (imported, not redefined)
+
+* scoreSnapshot: jsonb
+  (NOT text — this field will be queried)
+
+* thresholdVersion: varchar(64), not null
+  EP4: every row must record which threshold set produced it
+
+* evaluatedAt: timestamp, default now()
+
+---
+
+INDEX REQUIREMENT
+
+Add composite index on:
+(supplierId, evaluatedAt DESC)
+
+Must explicitly use:
+evaluatedAt.desc()
+
+---
+
+REGISTRATION
+
+Register the new table in:
+lib/db/src/schema/index.ts
+
+---
+
+SAFETY
+
+* Do not modify suppliers.ts in this ticket
+* If supplier-evaluations.ts already exists with a different shape,
+  STOP and surface the diff
+* If drizzle-kit proposes creating ANY new enum types,
+  STOP and surface the diff
+* No UPDATE or DELETE paths allowed on this table (append-only invariant)
+
+---
+
+INSTRUMENTATION
+
+Add this comment at the top of the file:
+
+// Append-only. One row per evaluateSupplier() call.
+// Source of truth for re-grading on threshold change.
+// EP4: thresholdVersion is mandatory — never nullable.
+
+---
+
+ACCEPTANCE
+
+* Table exists in DB after db:push
+* Index exists with DESC ordering
+* A single drizzle insert smoke test passes
+* No new pgEnum types created (verify with \dT in psql)
+
+---
+
+IMPORTANT
+
+* DO NOT execute db:push yet
+* Produce an execution plan first
+* WAIT for approval before making any changes
