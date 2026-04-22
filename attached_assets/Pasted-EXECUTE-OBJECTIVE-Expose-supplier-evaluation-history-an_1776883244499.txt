@@ -1,0 +1,222 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Expose supplier evaluation history and state transition history via read-only APIs for audit and debugging.
+
+---
+
+SCOPE (STRICT)
+
+Add:
+
+* GET /api/suppliers/:id/evaluations
+* GET /api/suppliers/:id/transitions
+
+DO NOT modify existing endpoints from 1.7
+
+---
+
+PREFLIGHT (MANDATORY)
+
+1. Read:
+
+* lib/db/src/schema/supplier-evaluations.ts
+* lib/db/src/schema/supplier-state-transitions.ts
+* artifacts/api-server/src/routes/suppliers.ts
+
+2. Confirm tables exist:
+
+supplier_evaluations:
+
+* supplierId
+* eligibilityStatus
+* commercialScore
+* sellableStatus
+* pathway
+* scoreSnapshot
+* thresholdVersion
+* evaluatedAt
+
+supplier_state_transitions:
+
+* supplierId
+* fromState
+* toState
+* actor
+* justification
+* evaluationId
+* createdAt
+
+IF ANY FIELD MISSING → STOP
+
+---
+
+CHANGES
+
+## 1. GET /api/suppliers/:id/evaluations
+
+Behavior:
+
+* Fetch rows from supplier_evaluations
+* Filter by supplierId
+* Order by evaluatedAt DESC
+* Limit 20
+
+Return:
+
+{
+evaluations: [
+{
+id,
+eligibilityStatus,
+commercialScore,
+sellableStatus,
+pathway,
+thresholdVersion,
+evaluatedAt
+}
+]
+}
+
+Rules:
+
+* DO NOT return scoreSnapshot (too heavy)
+* DO NOT join other tables
+* DO NOT compute anything
+
+---
+
+## 2. GET /api/suppliers/:id/transitions
+
+Behavior:
+
+* Fetch rows from supplier_state_transitions
+* Filter by supplierId
+* Order by createdAt DESC
+* Limit 20
+
+Return:
+
+{
+transitions: [
+{
+id,
+fromState,
+toState,
+actor,
+justification,
+evaluationId,
+createdAt
+}
+]
+}
+
+Rules:
+
+* fromState may be null → return as null
+* DO NOT enrich with evaluation data
+* DO NOT compute anything
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* READ ONLY
+* DO NOT call evaluateSupplier
+* DO NOT modify service layer
+* DO NOT modify schema
+
+---
+
+TACTICAL CONSTRAINTS
+
+* Use existing DB access pattern (Drizzle)
+* Avoid joins
+* Ensure ORDER BY DESC is applied in DB (not in JS)
+* Limit results to 20 (hard cap)
+
+---
+
+EDGE CASES
+
+1. Supplier exists but has no history:
+   → return empty array
+
+2. Supplier does not exist:
+   → return 404
+
+3. fromState is null:
+   → return null (do not coerce)
+
+---
+
+EMBEDDED QA (MANDATORY)
+
+### Test 1 — Evaluations endpoint
+
+GET /api/suppliers/:id/evaluations
+
+Verify:
+
+* returns array
+* ordered DESC by evaluatedAt
+* max 20 rows
+* no scoreSnapshot field
+
+---
+
+### Test 2 — Transitions endpoint
+
+GET /api/suppliers/:id/transitions
+
+Verify:
+
+* returns array
+* ordered DESC by createdAt
+* max 20 rows
+* includes actor, justification, evaluationId
+
+---
+
+### Test 3 — Empty state
+
+Use supplier with no history:
+
+* evaluations = []
+* transitions = []
+
+---
+
+### Test 4 — Data integrity
+
+* Values match DB exactly
+* No transformation
+
+---
+
+OUTPUT
+
+Provide:
+
+1. Files modified
+2. Routes created
+3. Sample responses (evaluations + transitions)
+4. QA results:
+
+   * Test 1: PASS/FAIL
+   * Test 2: PASS/FAIL
+   * Test 3: PASS/FAIL
+   * Test 4: PASS/FAIL
+
+---
+
+IF ANY TEST FAILS
+
+* Identify root cause
+* STOP (do not auto-fix)
+
+---
+
+COMPLETE

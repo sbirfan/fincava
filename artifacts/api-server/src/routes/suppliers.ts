@@ -8,6 +8,8 @@ import {
   complianceDocsTable,
   aiOutputsTable,
   interactionsTable,
+  supplierEvaluationsTable,
+  supplierStateTransitionsTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
@@ -514,6 +516,80 @@ router.get("/suppliers", async (req, res): Promise<void> => {
     .orderBy(desc(suppliersTable.createdAt));
 
   res.json({ suppliers });
+});
+
+// ── GET /api/suppliers/:id/evaluations ───────────────────────────────────────
+router.get("/suppliers/:id/evaluations", async (req, res): Promise<void> => {
+  const supplierId = Number(req.params.id);
+  if (isNaN(supplierId)) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: suppliersTable.id })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  const evaluations = await db
+    .select({
+      id: supplierEvaluationsTable.id,
+      eligibilityStatus: supplierEvaluationsTable.eligibilityStatus,
+      commercialScore: supplierEvaluationsTable.commercialScore,
+      sellableStatus: supplierEvaluationsTable.sellableStatus,
+      pathway: supplierEvaluationsTable.pathway,
+      thresholdVersion: supplierEvaluationsTable.thresholdVersion,
+      evaluatedAt: supplierEvaluationsTable.evaluatedAt,
+    })
+    .from(supplierEvaluationsTable)
+    .where(eq(supplierEvaluationsTable.supplierId, supplierId))
+    .orderBy(desc(supplierEvaluationsTable.evaluatedAt))
+    .limit(20);
+
+  res.json({ evaluations });
+});
+
+// ── GET /api/suppliers/:id/transitions ───────────────────────────────────────
+router.get("/suppliers/:id/transitions", async (req, res): Promise<void> => {
+  const supplierId = Number(req.params.id);
+  if (isNaN(supplierId)) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: suppliersTable.id })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  const transitions = await db
+    .select({
+      id: supplierStateTransitionsTable.id,
+      fromState: supplierStateTransitionsTable.fromState,
+      toState: supplierStateTransitionsTable.toState,
+      actor: supplierStateTransitionsTable.actor,
+      justification: supplierStateTransitionsTable.justification,
+      evaluationId: supplierStateTransitionsTable.evaluationId,
+      createdAt: supplierStateTransitionsTable.createdAt,
+    })
+    .from(supplierStateTransitionsTable)
+    .where(eq(supplierStateTransitionsTable.supplierId, supplierId))
+    .orderBy(desc(supplierStateTransitionsTable.createdAt))
+    .limit(20);
+
+  res.json({ transitions });
 });
 
 // ── GET /api/suppliers/:id ────────────────────────────────────────────────────
