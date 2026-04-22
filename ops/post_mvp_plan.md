@@ -92,6 +92,10 @@ Introduce a job queue system for durability and retries.
   * Identified dependency on product-level and certification data
   * Separated validation endpoint (Phase 1) from production marketplace (Phase 2)
   * Deferred full marketplace build until buyer requirements validated
+  * Thin marketplace UI implemented for validation
+  * Connected to marketplace endpoint
+  * Confirmed Phase 1 (UI + API) complete
+  * Phase 2 remains unchanged (no expansion yet)
 
 ### Reliability
 

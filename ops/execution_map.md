@@ -72,9 +72,13 @@ Expose `POST /api/admin/suppliers/:id/transition` using `transitionTo`. Enforce 
 
 ### Slice 3 — Buyer-Ready Supply
 
-* Status: Not Started
+* Status: Phase 1 Done
 * Last Updated: 2026-04-22
 * Changes:
+  * Thin marketplace UI implemented for validation
+  * Connected to marketplace endpoint
+  * Confirmed Phase 1 (UI + API) complete
+  * Phase 2 remains unchanged (no expansion yet)
 
 **Goal:** Expose SELLABLE suppliers for external consumption.
 

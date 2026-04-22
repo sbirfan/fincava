@@ -1,0 +1,185 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Build a thin marketplace UI for validation, wire it to the existing endpoint, update Phase II docs, and run technical QA.
+
+---
+
+SCOPE (STRICT)
+
+1. Build minimal UI page
+2. Connect to GET /api/suppliers/marketplace
+3. Update docs (Phase II already defined — ensure consistency)
+4. Run technical QA only (NOT user conversations)
+
+DO NOT:
+
+* Add filters
+* Add search
+* Add pagination
+* Add new backend endpoints
+* Modify existing APIs
+
+---
+
+PREFLIGHT
+
+1. Confirm endpoint exists:
+
+GET /api/suppliers/marketplace
+
+2. Confirm response shape:
+
+{
+suppliers: [
+{ id, name, location, sellableStatus }
+]
+}
+
+IF NOT → STOP
+
+---
+
+CHANGES
+
+## 1. Create UI page
+
+Location:
+
+artifacts/frontend/src/pages/Marketplace.tsx
+
+---
+
+## 2. UI behavior
+
+* On load → fetch /api/suppliers/marketplace
+* Display list of suppliers
+
+Each item shows:
+
+* name
+* location
+* sellableStatus badge
+
+---
+
+## 3. Empty state
+
+If no suppliers:
+
+Display:
+
+"No suppliers available yet"
+
+---
+
+## 4. Loading state
+
+Display:
+
+"Loading..."
+
+---
+
+## 5. Error state
+
+Display:
+
+"Failed to load suppliers"
+
+---
+
+## 6. Styling (minimal)
+
+* simple list or cards
+* no design system required
+* no complex layout
+
+---
+
+## 7. Add route
+
+Wire page into existing frontend router:
+
+/marketplace
+
+---
+
+## 8. Docs update (Phase II alignment)
+
+Files:
+
+/ops/execution_map.md
+/ops/post_mvp_plan.md
+
+Append under Slice 3:
+
+* Thin marketplace UI implemented for validation
+* Connected to marketplace endpoint
+* Confirmed Phase 1 (UI + API) complete
+* Phase 2 remains unchanged (no expansion yet)
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* UI only consumes API
+* No business logic duplication
+* No new services
+
+---
+
+TACTICAL CONSTRAINTS
+
+* Single fetch call
+* No state management libraries
+* No caching
+
+---
+
+EMBEDDED QA
+
+### Test 1 — Load page
+
+* /marketplace renders
+* API call succeeds
+
+---
+
+### Test 2 — Data render
+
+* suppliers displayed correctly
+
+---
+
+### Test 3 — Empty state
+
+* shows message when no suppliers
+
+---
+
+### Test 4 — No feature creep
+
+* no filters
+* no search
+* no pagination
+
+---
+
+OUTPUT
+
+Provide:
+
+1. Files created/modified
+2. Screenshot or rendered output
+3. QA results (PASS/FAIL)
+
+---
+
+IF ANY TEST FAILS → STOP
+
+---
+
+COMPLETE

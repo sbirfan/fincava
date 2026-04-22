@@ -29,6 +29,7 @@ const Contact = lazy(() => import("@/pages/contact"));
 const RFQs = lazy(() => import("@/pages/rfqs"));
 const RFQDetail = lazy(() => import("@/pages/rfq-detail"));
 const Impact = lazy(() => import("@/pages/impact"));
+const SupplierMarketplace = lazy(() => import("@/pages/supplier-marketplace"));
 const OnboardingPage = lazy(() => import("@/pages/onboarding"));
 const OfficerRegisterPage = lazy(() => import("@/pages/officer-register"));
 
@@ -102,6 +103,7 @@ function Router() {
         {/* Public */}
         <Route path="/" component={() => <AppLayout><Home /></AppLayout>} />
         <Route path="/marketplace" component={() => <AppLayout><Marketplace /></AppLayout>} />
+        <Route path="/supplier-marketplace" component={() => <AppLayout><SupplierMarketplace /></AppLayout>} />
         <Route path="/product/:id" component={() => <AppLayout><ProductDetail /></AppLayout>} />
         <Route path="/suppliers" component={() => <AppLayout><Suppliers /></AppLayout>} />
         <Route path="/supplier/:id" component={() => <AppLayout><SupplierDetail /></AppLayout>} />
