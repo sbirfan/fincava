@@ -1,0 +1,249 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Run full pre-production validation of the system (Tickets 1.1 → 1.10 + Slice 3).
+
+---
+
+SCOPE
+
+Test ALL critical flows:
+
+1. Supplier onboarding
+2. AI scoring + ai_outputs
+3. evaluateSupplier()
+4. State transitions
+5. Admin controls (transition + publish)
+6. Marketplace exposure
+7. Validation surface (/supplier-marketplace)
+8. Data integrity + audit tables
+
+---
+
+PREFLIGHT
+
+1. Ensure API server is running
+2. Ensure frontend is running
+3. Confirm DB is accessible
+
+IF ANY FAIL → STOP
+
+---
+
+TEST PLAN
+
+## 1. Supplier onboarding
+
+POST /api/suppliers/onboard
+
+Verify:
+
+* supplier row created
+* scoring triggered (async)
+* no API delay (response immediate)
+
+---
+
+## 2. AI scoring + evaluation
+
+Wait for scoring OR trigger manually
+
+Then:
+
+* ai_outputs row exists
+* evaluateSupplier executed
+* supplier updated:
+
+  * eligibilityStatus
+  * commercialScore
+  * sellableStatus
+  * pathway
+  * thresholdVersion
+
+---
+
+## 3. Idempotency
+
+Call evaluateSupplier twice
+
+Verify:
+
+* +1 evaluation row
+* NO duplicate transition
+
+---
+
+## 4. Edge cases
+
+### 4a — Missing ai_outputs
+
+* evaluateSupplier throws NotFoundError
+* no DB writes
+
+### 4b — null exportReadinessScore
+
+* throws NotFoundError
+* no DB writes
+
+### 4c — missing compliance
+
+* eligibilityStatus = FAIL
+* sellableStatus = NOT_READY
+
+---
+
+## 5. State transitions
+
+Lower score → ELIGIBLE
+Raise score → SELLABLE
+
+Verify:
+
+* transition rows created
+* fromState correct
+
+---
+
+## 6. Admin controls
+
+### transition endpoint
+
+POST /api/admin/suppliers/:id/transition
+
+Verify:
+
+* justification required
+* SYSTEM actor rejected
+* DB row created
+
+---
+
+### publish endpoint
+
+POST /api/admin/suppliers/:id/publish
+
+Verify:
+
+* only SELLABLE allowed
+* toState = PUBLISHED
+* blocked otherwise
+
+---
+
+## 7. Marketplace API
+
+GET /api/suppliers/marketplace
+
+Verify:
+
+* only SELLABLE / PUBLISHED
+* correct shape:
+
+  * id
+  * name
+  * location
+  * sellableStatus
+
+---
+
+## 8. Product marketplace (regression)
+
+GET /api/products (or UI)
+
+Verify:
+
+* unchanged behavior
+* no interference from supplier slice
+
+---
+
+## 9. Supplier validation UI
+
+Open:
+
+/supplier-marketplace
+
+Verify:
+
+* loads correctly
+* displays suppliers
+* has banner: "Internal Validation Page"
+
+---
+
+## 10. Data integrity
+
+Verify:
+
+* supplier_evaluations rows created per evaluation
+* supplier_state_transitions correct
+* evaluationId linked for SYSTEM
+* thresholdVersion present everywhere
+
+---
+
+## 11. Transaction safety
+
+Force failure mid-flow
+
+Verify:
+
+* no partial writes
+
+---
+
+## 12. Performance sanity
+
+Measure:
+
+* onboarding response time
+* marketplace API response time
+
+(No strict thresholds — just detect anomalies)
+
+---
+
+## 13. No duplication
+
+Verify:
+
+* only one product marketplace UI
+* supplier marketplace not in navigation
+
+---
+
+OUTPUT
+
+Provide:
+
+### Summary
+
+* PASS / FAIL
+
+### Detailed results:
+
+* Each test (1–13): PASS / FAIL
+
+### Issues (if any):
+
+* Root cause
+* File location
+
+### Key metrics:
+
+* onboarding response time
+* marketplace API latency
+
+---
+
+RULES
+
+* DO NOT modify code
+* DO NOT auto-fix
+* REPORT ONLY
+
+---
+
+COMPLETE
