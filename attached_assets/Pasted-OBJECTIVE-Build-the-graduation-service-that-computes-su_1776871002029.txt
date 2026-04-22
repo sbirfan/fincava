@@ -1,0 +1,217 @@
+OBJECTIVE
+Build the graduation service that computes supplier state, writes evaluation snapshots, records transitions, and guarantees idempotency.
+
+---
+
+PREFLIGHT (MANDATORY — read before writing code)
+
+* Read lib/config/thresholds.ts
+* Read suppliers.ts, supplier-evaluations.ts, supplier-state-transitions.ts
+* Read artifacts/api-server/src/routes/suppliers.ts (understand AI scoring — DO NOT duplicate logic)
+
+---
+
+IMPORT RULE
+
+* Use relative import:
+  import { THRESHOLDS } from '../../../lib/config/thresholds'
+
+* DO NOT use 'lib/config/thresholds' unless path alias exists
+
+---
+
+CHANGES
+
+Create file:
+artifacts/api-server/src/services/supplier-graduation-service.ts
+
+Exports:
+
+evaluateSupplier(supplierId: number): { supplier, evaluation, transition? }
+
+transitionTo(
+supplierId: number,
+toState,
+actor: 'SYSTEM' | 'ADMIN' | 'FOUNDER',
+opts?: { justification?: string; evaluationId?: number }
+): { transition }
+
+markPublished(
+supplierId: number,
+actor: 'ADMIN' | 'FOUNDER',
+justification: string
+): { transition }
+
+---
+
+CRITICAL INVARIANT — SNAPSHOT FIRST
+
+Inside evaluateSupplier():
+
+1. Compute evaluation outputs
+2. INSERT supplier_evaluations row FIRST (full snapshot)
+3. THEN perform transition logic
+4. THEN update supplier
+
+If any step fails → rollback entire transaction
+
+Never update suppliers without a corresponding evaluation snapshot.
+
+---
+
+TRANSACTION REQUIREMENT
+
+Wrap ALL operations in a single DB transaction:
+
+* evaluation insert
+* transition insert (if any)
+* supplier update
+
+No partial writes allowed.
+
+---
+
+EVALUATION LOGIC
+
+1. Fetch supplier
+
+   * If not found → throw NotFoundError
+
+2. Fetch latest ai_outputs row
+
+   * If NOT found:
+     → throw NotFoundError (or domain-specific error)
+     → DO NOT insert supplier_evaluations row
+     → DO NOT update supplier
+     → DO NOT create transition
+
+3. Read THRESHOLDS
+
+4. Compute eligibilityStatus:
+   PASS if all requiredFields present, else FAIL
+
+5. Compute commercialScore from ai_outputs
+
+6. Compute sellableStatus:
+
+   FAIL → NOT_READY
+   PASS + score < partialMin → NOT_READY
+   PASS + partialMin ≤ score < sellableMin → ELIGIBLE
+   PASS + score ≥ sellableMin → SELLABLE
+
+   NEVER auto-set PUBLISHED (EP6)
+
+7. Compute pathway (A–D)
+
+8. Compute nextActions from:
+
+   * missing requiredFields
+   * pathway
+
+---
+
+IDEMPOTENCY RULE
+
+* ALWAYS insert supplier_evaluations row
+* Compare against LAST evaluation snapshot
+
+If (eligibilityStatus, commercialScore, sellableStatus) unchanged:
+→ DO NOT insert transition
+Else:
+→ insert transition
+
+---
+
+TRANSITION LOGIC
+
+transitionTo():
+
+* Read current supplier.sellableStatus as fromState
+
+* Allowed forward transitions:
+  NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED
+
+* ADMIN / FOUNDER override:
+  Backward transitions are allowed
+  BUT justification is ALWAYS REQUIRED (no exceptions)
+
+* Global rule:
+  actor !== 'SYSTEM' → justification REQUIRED
+  (applies to ALL transitions, including overrides)
+
+* Insert supplier_state_transitions row with:
+  supplierId, fromState, toState, actor, justification,
+  thresholdVersion, evaluationId
+
+---
+
+SUPPLIER UPDATE
+
+After evaluation + optional transition:
+
+Update suppliers:
+
+* eligibilityStatus
+* commercialScore
+* sellableStatus
+* graduationPathway
+* nextActions
+* lastEvaluatedAt
+* thresholdVersion
+
+---
+
+MARK PUBLISHED
+
+* Only ADMIN or FOUNDER allowed
+* justification REQUIRED
+* Calls transitionTo(..., 'PUBLISHED')
+
+---
+
+ERROR HANDLING
+
+* supplier not found → NotFoundError
+* ai_outputs missing → NotFoundError (no writes)
+* missing justification → TypeError BEFORE DB writes
+
+---
+
+INSTRUMENTATION
+
+* Log evaluation:
+  supplierId, fromState, toState, score, thresholdVersion
+
+* Add Sentry breadcrumb for every transition
+
+---
+
+SAFETY
+
+* Do NOT modify routes
+* Do NOT call service yet (wired in 1.6)
+* Do NOT inline thresholds
+
+---
+
+ACCEPTANCE
+
+* 1 evaluateSupplier call:
+  → 1 supplier_evaluations row
+  → 1 supplier update
+  → (if changed) 1 transition row
+
+* Repeated call:
+  → new evaluation row
+  → NO new transition
+
+* transitionTo without justification (ADMIN/FOUNDER):
+  → throws before DB write
+
+* evaluateSupplier with no ai_outputs:
+  → throws NotFoundError
+  → NO evaluation row
+  → NO supplier update
+  → NO transition
+
+* No partial writes under failure (transaction enforced)
