@@ -1,3 +1,31 @@
+/**
+ * ENUM VOCABULARY — Phase 1 State Machine (memo v1.0)
+ *
+ * supplier_status      ACTIVE | INACTIVE | PENDING
+ *   Legacy operational flag. Preserved for backward compatibility.
+ *   Do NOT use for the Phase 1 graduation flow.
+ *
+ * eligibility_status   PASS | FAIL
+ *   Output of the eligibility gate. Set by the scoring engine after
+ *   evaluating compliance docs and farm data.
+ *
+ * sellable_status      NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED
+ *   Canonical Phase 1 state machine. Drives which suppliers appear
+ *   on the marketplace and at what commercial readiness level.
+ *     NOT_READY  — onboarded but not yet evaluated
+ *     ELIGIBLE   — passed eligibility gate, not yet commercially scored
+ *     SELLABLE   — commercially scored, ready for buyer matching
+ *     PUBLISHED  — live on marketplace
+ *
+ * graduation_pathway   A | B | C | D
+ *   Pathway assigned by the scoring engine. Determines the graduation
+ *   roadmap and financing products available to the supplier.
+ *   Distinct from ai_outputs.pathway (free-text AI rationale field).
+ *
+ * Rationale: canonical vocabulary avoids VERIFIED, SCORING_COMPLETE,
+ * IN_PROGRESS, EXPORT_READY — those terms are NOT part of this model.
+ */
+
 import {
   pgTable,
   text,
@@ -10,6 +38,7 @@ import {
   jsonb,
   pgEnum,
   index,
+  varchar,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -25,6 +54,29 @@ export const supplierStatusEnum = pgEnum("supplier_status", [
   "INACTIVE",
   "PENDING",
 ]);
+
+// ── Phase 1 state machine enums ───────────────────────────────────────────────
+
+export const eligibilityStatusEnum = pgEnum("eligibility_status", [
+  "PASS",
+  "FAIL",
+]);
+
+export const sellableStatusEnum = pgEnum("sellable_status", [
+  "NOT_READY",
+  "ELIGIBLE",
+  "SELLABLE",
+  "PUBLISHED",
+]);
+
+export const graduationPathwayEnum = pgEnum("graduation_pathway", [
+  "A",
+  "B",
+  "C",
+  "D",
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const suppliersTable = pgTable(
   "suppliers",
@@ -46,6 +98,16 @@ export const suppliersTable = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+
+    // ── Phase 1 state machine columns (all nullable for existing rows) ─────
+    eligibilityStatus: eligibilityStatusEnum("eligibility_status"),
+    commercialScore: integer("commercial_score"),
+    sellableStatus: sellableStatusEnum("sellable_status"),
+    graduationPathway: graduationPathwayEnum("graduation_pathway"),
+    nextActions: jsonb("next_actions"),
+    commercialScoreAtOnboarding: integer("commercial_score_at_onboarding"),
+    lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
+    thresholdVersion: varchar("threshold_version", { length: 64 }),
   },
   (t) => [index("suppliers_whatsapp_idx").on(t.whatsappNumber)],
 );
