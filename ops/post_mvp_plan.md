@@ -1,8 +1,14 @@
 # Post-MVP System Plan: Monitoring, Queue Architecture, and Roadmap
 
+## Current Epic: 1
+## Status: In Progress
+## Last Updated: 2026-04-22
+
 ---
 
 ## 2. Monitoring Dashboard
+
+* Updates:
 
 ### Core Metrics
 
@@ -27,6 +33,8 @@
 ---
 
 ## 3. Queue-Based V2 (Durability Upgrade)
+
+* Updates:
 
 ### Problem
 
@@ -66,6 +74,8 @@ Introduce a job queue system for durability and retries.
 ---
 
 ## 4. Post-MVP Roadmap (V2)
+
+* Updates:
 
 ### Reliability
 
@@ -108,11 +118,15 @@ Introduce a job queue system for durability and retries.
 
 ## Known Limitations (MVP)
 
+* Updates:
+
 - In-memory async execution
 - Limited retry window
 - No guaranteed execution on crash
 
 ## Upgrade Priority
+
+* Updates:
 
 1. Queue system
 2. Monitoring dashboard

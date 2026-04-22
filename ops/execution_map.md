@@ -2,9 +2,17 @@
 
 Purpose: Define end-to-end capability slices across epics. This document guides execution order, ensures user-visible value delivery, and must be updated after each ticket or slice completion.
 
+## Current Epic: 1
+## Status: In Progress
+## Last Updated: 2026-04-22
+
 ---
 
-## Slice 1 — Supplier Visibility
+### Slice 1 — Supplier Visibility
+
+* Status: Not Started
+* Last Updated: 2026-04-22
+* Changes:
 
 **Goal:** Expose supplier evaluation results and status via API for internal/admin visibility.
 
@@ -23,7 +31,11 @@ Implement `GET /api/suppliers` with `sellableStatus`, `eligibilityStatus`, `comm
 
 ---
 
-## Slice 2 — Admin Control Layer
+### Slice 2 — Admin Control Layer
+
+* Status: Not Started
+* Last Updated: 2026-04-22
+* Changes:
 
 **Goal:** Allow admin users to override supplier states with audit enforcement.
 
@@ -42,7 +54,11 @@ Expose `POST /api/admin/suppliers/:id/transition` using `transitionTo`. Enforce 
 
 ---
 
-## Slice 3 — Buyer-Ready Supply
+### Slice 3 — Buyer-Ready Supply
+
+* Status: Not Started
+* Last Updated: 2026-04-22
+* Changes:
 
 **Goal:** Expose SELLABLE suppliers for external consumption.
 
@@ -61,7 +77,11 @@ Create `GET /api/suppliers?sellable=true` filtering `sellableStatus=SELLABLE` or
 
 ---
 
-## Slice 4 — AI Scoring Reliability
+### Slice 4 — AI Scoring Reliability
+
+* Status: Not Started
+* Last Updated: 2026-04-22
+* Changes:
 
 **Goal:** Improve robustness of AI scoring pipeline.
 
@@ -81,7 +101,11 @@ Add retry logic to `scoreSupplier`. Validate `exportReadinessScore` is non-null.
 
 ---
 
-## Slice 5 — System Durability (V2)
+### Slice 5 — System Durability (V2)
+
+* Status: Not Started
+* Last Updated: 2026-04-22
+* Changes:
 
 **Goal:** Ensure no evaluation jobs are lost using a queue-based architecture.
 
