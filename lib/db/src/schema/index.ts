@@ -10,4 +10,5 @@ export * from "./shipments";
 export * from "./analytics";
 export * from "./financing";
 export * from "./suppliers";
+export * from "./supplier-evaluations";
 export * from "./staff-roles";
