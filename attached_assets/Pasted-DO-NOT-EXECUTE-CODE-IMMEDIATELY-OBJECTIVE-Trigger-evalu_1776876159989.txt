@@ -1,0 +1,170 @@
+DO NOT EXECUTE CODE IMMEDIATELY.
+
+---
+
+OBJECTIVE
+Trigger evaluateSupplier asynchronously after onboarding, without blocking the API response and without breaking onboarding if evaluation fails.
+
+---
+
+WHAT WE ARE BUILDING
+
+After onboarding completes:
+
+* Schedule evaluateSupplier(supplier.id)
+* Run asynchronously (fire-and-forget)
+* Never block API response
+* Never fail onboarding if evaluation fails
+
+---
+
+PREFLIGHT (MANDATORY)
+
+1. Read:
+   artifacts/api-server/src/routes/suppliers.ts (FULL FILE)
+
+2. Identify:
+
+   * onboarding handler
+   * supplier creation
+   * ai_outputs insert
+
+3. Confirm:
+
+   * evaluateSupplier is NOT already called
+   * scoring logic exists — DO NOT duplicate it
+
+4. Read:
+   supplier-graduation-service.ts
+
+---
+
+INSERTION POINT (CRITICAL)
+
+Insert AFTER:
+
+* supplier created
+* ai_outputs successfully inserted
+
+---
+
+IMPLEMENTATION
+
+Generate correlationId at route level:
+
+const correlationId = crypto.randomUUID();
+
+Use fire-and-forget:
+
+setImmediate(() => {
+(async () => {
+const supplierId = supplier.id;
+
+```
+const attemptEvaluate = async (attempt = 1) => {
+  try {
+    await evaluateSupplier(supplierId);
+
+    logger.info(
+      { supplierId, correlationId, attempt },
+      'evaluateSupplier succeeded'
+    );
+
+  } catch (err) {
+    // Retry ONLY for NotFoundError (ai_outputs not ready)
+    if (err.name === 'NotFoundError' && attempt <= 3) {
+      const delay = Math.pow(2, attempt - 1) * 1000;
+
+      logger.debug(
+        { supplierId, correlationId, attempt, delay },
+        'evaluateSupplier retry scheduled'
+      );
+
+      await new Promise(r => setTimeout(r, delay));
+      return attemptEvaluate(attempt + 1);
+    }
+
+    // Final failure (or non-retryable error)
+    logger.warn(
+      { supplierId, correlationId, err },
+      'evaluateSupplier failed'
+    );
+
+    try {
+      Sentry.captureException(err);
+    } catch {}
+  }
+};
+
+await attemptEvaluate();
+```
+
+})();
+});
+
+---
+
+CONSTRAINTS
+
+* DO NOT await evaluateSupplier
+* DO NOT modify API response
+* DO NOT duplicate scoring logic
+* DO NOT re-fetch supplier
+* DO NOT call AI scoring again
+* DO NOT introduce global retry loops
+* Retry ONLY for NotFoundError
+* Max 3 retries (1s, 2s, 4s)
+
+---
+
+INSTRUMENTATION
+
+* Log "evaluateSupplier scheduled"
+* Include supplierId + correlationId
+* Log retries and success
+* Sentry must NEVER throw
+
+---
+
+SAFETY
+
+* No response delay
+* No change to response shape
+* No crash on failure
+
+---
+
+ACCEPTANCE
+
+1. API response unchanged in latency
+
+2. After onboarding:
+
+   * supplier.sellableStatus appears within ~3–5s
+
+3. If ai_outputs delayed:
+
+   * retries occur
+   * eventually succeeds OR logs warning
+
+4. If evaluateSupplier throws non-NotFoundError:
+
+   * no retry
+   * error logged
+
+5. No duplicate logic introduced
+
+---
+
+VERIFICATION
+
+Provide:
+
+* exact insertion location
+* confirmation evaluateSupplier called once per onboarding
+* confirmation no await used
+* confirmation retry logic scoped correctly
+
+---
+
+WAIT FOR APPROVAL BEFORE WRITING CODE
