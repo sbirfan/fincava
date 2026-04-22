@@ -1,0 +1,124 @@
+DO NOT EXECUTE CODE IMMEDIATELY.
+
+---
+
+OBJECTIVE
+Fix a data integrity gap in supplier-graduation-service:
+
+If ai_outputs.exportReadinessScore is null → treat as missing AI output and throw NotFoundError.
+
+---
+
+WHAT WE ARE FIXING (CRITICAL CONTEXT)
+
+Current bug:
+
+* ai_outputs row exists
+* exportReadinessScore = null
+
+Current behavior:
+
+* null flows into evaluation logic
+* threshold comparisons become unreliable
+* may silently produce incorrect sellableStatus
+
+Correct behavior:
+
+* Treat null score as invalid AI output
+* Throw NotFoundError
+* DO NOT perform any DB writes
+
+---
+
+PREFLIGHT (MANDATORY — read before writing any code)
+
+1. Read:
+   artifacts/api-server/src/services/supplier-graduation-service.ts
+
+2. Locate:
+
+   * where ai_outputs row is fetched
+   * where commercialScore is assigned
+   * where NotFoundError is currently thrown
+
+3. Confirm:
+
+   * how null exportReadinessScore is currently handled
+
+---
+
+REQUIRED CHANGE
+
+Update logic so that:
+
+* If ai_outputs is missing OR
+* If ai_outputs.exportReadinessScore is null
+
+→ throw NotFoundError BEFORE any:
+
+* evaluation insert
+* transition logic
+* supplier update
+
+---
+
+IMPLEMENTATION DETAILS
+
+Replace or extend guard with:
+
+if (!aiOutput || aiOutput.exportReadinessScore == null) {
+throw new NotFoundError(
+`AI output missing or incomplete for supplier ${supplierId}`
+);
+}
+
+Then ensure:
+
+const commercialScore = aiOutput.exportReadinessScore;
+
+(no fallback values)
+
+---
+
+CONSTRAINTS
+
+* DO NOT modify other files
+* DO NOT change function signatures
+* DO NOT use default values (e.g., ?? 0)
+* DO NOT move logic outside existing transaction structure
+* Keep patch minimal
+
+---
+
+SAFETY
+
+If similar guard already exists but behaves differently:
+→ show diff
+→ explain difference
+→ WAIT for approval
+
+---
+
+VERIFICATION (REQUIRED)
+
+1. Guard executes BEFORE any DB writes
+2. commercialScore is never null downstream
+3. No new TypeScript errors
+4. Provide code diff + line numbers
+
+---
+
+TEST SCENARIO (describe only)
+
+ai_outputs.exportReadinessScore = null
+
+Expected:
+
+* NotFoundError thrown
+* NO evaluation row
+* NO transition
+* NO supplier update
+
+---
+
+WAIT FOR APPROVAL BEFORE FINALIZING
