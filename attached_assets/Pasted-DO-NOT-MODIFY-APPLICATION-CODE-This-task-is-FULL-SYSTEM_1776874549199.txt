@@ -1,0 +1,298 @@
+DO NOT MODIFY APPLICATION CODE.
+
+This task is FULL SYSTEM QA VALIDATION for Tickets 1.1 → 1.5.
+
+You may insert and delete TEST DATA only. No schema or service changes.
+
+---
+
+OBJECTIVE
+Validate end-to-end behavior of:
+
+* suppliers (state)
+* supplier_evaluations (history)
+* supplier_state_transitions (audit)
+* thresholds config
+* supplier-graduation-service
+
+---
+
+SETUP
+
+1. Create a fresh test supplier (Supplier A)
+
+2. Insert:
+
+   * compliance_docs row (all required fields TRUE)
+   * ai_outputs row:
+
+     * callType = 'ONBOARD_SCORE'
+     * exportReadinessScore = 65
+     * pathway = 'A'
+
+---
+
+STEP 1 — First evaluation (baseline)
+
+Call evaluateSupplier(Supplier A)
+
+VERIFY:
+
+* suppliers:
+
+  * eligibilityStatus = PASS
+  * commercialScore = 65
+  * sellableStatus = SELLABLE
+  * graduationPathway = 'A'
+
+* supplier_evaluations:
+
+  * 1 row inserted
+  * thresholdVersion matches THRESHOLDS.version
+
+* supplier_state_transitions:
+
+  * 1 row inserted
+  * fromState = null
+  * toState = SELLABLE
+  * actor = SYSTEM
+  * evaluationId NOT NULL
+
+---
+
+STEP 2 — Idempotency
+
+Call evaluateSupplier(Supplier A) again
+
+VERIFY:
+
+* supplier_evaluations:
+
+  * +1 row
+
+* supplier_state_transitions:
+
+  * NO new row
+
+* suppliers unchanged
+
+---
+
+STEP 3 — Score downgrade (state change)
+
+Update ai_outputs.exportReadinessScore → 45
+
+Call evaluateSupplier again
+
+VERIFY:
+
+* suppliers.sellableStatus = ELIGIBLE
+
+* new evaluation row inserted
+
+* new transition row:
+
+  * fromState = SELLABLE
+  * toState = ELIGIBLE
+
+---
+
+STEP 4 — Score upgrade (state change)
+
+Update score → 70
+
+Call evaluateSupplier
+
+VERIFY:
+
+* sellableStatus = SELLABLE
+
+* new transition row:
+
+  * fromState = ELIGIBLE
+  * toState = SELLABLE
+
+---
+
+STEP 5 — Missing compliance
+
+Delete compliance_docs row
+
+Call evaluateSupplier
+
+VERIFY:
+
+* eligibilityStatus = FAIL
+* sellableStatus = NOT_READY
+* evaluation row inserted
+* transition inserted
+
+---
+
+STEP 6 — Invalid pathway
+
+Update ai_outputs.pathway = 'INVALID'
+
+Call evaluateSupplier
+
+VERIFY:
+
+* graduationPathway = NULL
+* no crash
+
+---
+
+STEP 7 — Missing AI score
+
+Delete ai_outputs row
+
+Call evaluateSupplier
+
+VERIFY:
+
+* throws NotFoundError
+* NO evaluation row
+* NO transition
+* NO supplier update
+
+---
+
+STEP 8 — Manual transition (ADMIN)
+
+Call transitionTo:
+
+* toState = SELLABLE
+* actor = ADMIN
+* justification = "manual override"
+
+VERIFY:
+
+* transition row inserted
+* justification stored
+* supplier updated
+
+---
+
+STEP 9 — Missing justification
+
+Call transitionTo with ADMIN and no justification
+
+VERIFY:
+
+* throws TypeError
+* NO DB write
+
+---
+
+STEP 10 — markPublished
+
+Call markPublished:
+
+* actor = ADMIN
+* justification provided
+
+VERIFY:
+
+* supplier.sellableStatus = PUBLISHED
+* transition row inserted
+
+---
+
+STEP 11 — SYSTEM backward transition (invalid)
+
+Attempt SYSTEM transition backwards
+
+VERIFY:
+
+* rejected
+* no transition inserted
+
+---
+
+STEP 12 — Evaluation ↔ Transition linkage
+
+VERIFY:
+
+* SYSTEM transitions:
+  → evaluationId always present
+
+* ADMIN transitions:
+  → evaluationId present if passed
+  → null if manual
+
+---
+
+STEP 13 — Full history integrity
+
+Query:
+
+* supplier_evaluations ORDER BY evaluated_at DESC
+* supplier_state_transitions ORDER BY created_at DESC
+
+VERIFY:
+
+* chronological consistency
+* no missing transitions for state changes
+
+---
+
+STEP 14 — Threshold enforcement
+
+VERIFY:
+
+* transitions reflect:
+
+  * <30 → NOT_READY
+  * 30–59 → ELIGIBLE
+  * ≥60 → SELLABLE
+
+* NO hardcoded numbers in service logic
+
+---
+
+STEP 15 — Transaction integrity
+
+Simulate failure mid-evaluation
+
+VERIFY:
+
+* NO partial writes:
+
+  * no evaluation row
+  * no supplier update
+  * no transition
+
+---
+
+STEP 16 — Cascade delete
+
+Delete Supplier A
+
+VERIFY:
+
+* supplier_evaluations rows deleted
+* supplier_state_transitions rows deleted
+
+---
+
+FINAL REPORT
+
+Return structured output:
+
+1. Evaluation logic → PASS / FAIL
+2. Idempotency → PASS / FAIL
+3. Transition system → PASS / FAIL
+4. Edge cases → PASS / FAIL
+5. Audit integrity → PASS / FAIL
+6. Transaction safety → PASS / FAIL
+7. Cascade behavior → PASS / FAIL
+
+If any FAIL:
+
+* explain root cause
+* DO NOT fix
+* WAIT for instructions
+
+---
+
+END OF TASK
