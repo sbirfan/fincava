@@ -1,0 +1,168 @@
+DO NOT MODIFY ANY CODE. QA + READ-ONLY VALIDATION ONLY.
+
+---
+
+OBJECTIVE
+Execute the full production deployment checklist for Tickets 1.1–1.6 and report results.
+
+---
+
+SCOPE
+
+* Database validation
+* Environment validation
+* Runtime behavior
+* Logging verification
+* Data integrity checks
+
+---
+
+STEP 1 — DATABASE SCHEMA
+
+Run:
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'suppliers';
+
+Confirm presence of:
+
+* eligibility_status
+* commercial_score
+* sellable_status
+* graduation_pathway
+* next_actions
+* commercial_score_at_onboarding
+* last_evaluated_at
+* threshold_version
+
+---
+
+STEP 2 — ENUM VALIDATION
+
+Run:
+
+SELECT t.typname, e.enumlabel
+FROM pg_type t
+JOIN pg_enum e ON t.oid = e.enumtypid
+ORDER BY t.typname;
+
+Confirm enums exist:
+
+* eligibility_status
+* sellable_status
+* graduation_pathway
+* actor
+
+---
+
+STEP 3 — BACKFILL CHECK
+
+Run:
+
+SELECT COUNT(*) FILTER (WHERE sellable_status IS NULL) AS null_count,
+COUNT(*) AS total
+FROM suppliers;
+
+---
+
+STEP 4 — CASCADE RULES
+
+Verify FK delete rules:
+
+SELECT
+tc.table_name,
+rc.delete_rule
+FROM information_schema.table_constraints tc
+JOIN information_schema.referential_constraints rc
+ON tc.constraint_name = rc.constraint_name
+WHERE tc.table_name IN ('supplier_evaluations','supplier_state_transitions');
+
+---
+
+STEP 5 — APPLICATION HEALTH
+
+* Confirm server starts
+* Confirm no TypeScript errors
+* Confirm no runtime errors
+
+---
+
+STEP 6 — SMOKE TEST (SIMULATED)
+
+Trigger onboarding flow (or simulate):
+
+Verify logs contain:
+
+* "evaluateSupplier scheduled"
+* "evaluateSupplier retry scheduled" (if applicable)
+* "evaluateSupplier succeeded" OR "failed"
+
+---
+
+STEP 7 — DATA VALIDATION
+
+Run:
+
+SELECT sellable_status, commercial_score
+FROM suppliers
+ORDER BY id DESC
+LIMIT 3;
+
+---
+
+STEP 8 — AUDIT TABLES
+
+SELECT COUNT(*) FROM supplier_evaluations;
+SELECT COUNT(*) FROM supplier_state_transitions;
+
+SELECT *
+FROM supplier_state_transitions
+ORDER BY created_at DESC
+LIMIT 5;
+
+---
+
+STEP 9 — LOGGING CHECK
+
+Confirm:
+
+* retry logs visible (info level)
+* correlationId present in logs
+* warn logs visible on failure
+
+---
+
+STEP 10 — FAILURE SIMULATION (SAFE)
+
+Describe behavior if:
+
+* ai_outputs missing
+* evaluateSupplier throws
+
+Expected:
+
+* onboarding still succeeds
+* errors logged
+* no partial DB writes
+
+---
+
+OUTPUT FORMAT
+
+Provide structured report:
+
+1. Schema — PASS / FAIL
+2. Enums — PASS / FAIL
+3. Backfill — PASS / FAIL
+4. Cascade — PASS / FAIL
+5. Runtime — PASS / FAIL
+6. Logs — PASS / FAIL
+7. Data integrity — PASS / FAIL
+8. Observability — PASS / FAIL
+
+Highlight ANY anomalies.
+
+---
+
+WAIT FOR REVIEW
