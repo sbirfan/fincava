@@ -76,6 +76,9 @@ Introduce a job queue system for durability and retries.
 ## 4. Post-MVP Roadmap (V2)
 
 * Updates:
+  * Added read APIs for supplier evaluation visibility (GET /api/suppliers, GET /api/suppliers/:id)
+  * Confirmed supplier table as source of truth for current evaluation state
+  * Deferred evaluation history endpoints to Ticket 1.8
 
 ### Reliability
 
