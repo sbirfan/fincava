@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
@@ -14,6 +15,8 @@ import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthro
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
 import { desc, eq, and, gte, lte, sql, count } from "drizzle-orm";
+import { logger } from "../lib/logger";
+import { evaluateSupplier } from "../services/supplier-graduation-service";
 
 const router: IRouter = Router();
 
@@ -139,6 +142,49 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       success: true,
       supplierId: supplier.id,
       message: `Registration successful for ${nombreCompleto}`,
+    });
+
+    // ── Ticket 1.6 — async supplier graduation (fire-and-forget) ─────────────
+    // Response is already sent. Capture supplierId before async boundary.
+    const sid = supplier.id;
+    const correlationId = crypto.randomUUID();
+
+    logger.info({ supplierId: sid, correlationId }, "evaluateSupplier scheduled");
+
+    setImmediate(() => {
+      (async () => {
+        const attemptEvaluate = async (attempt = 1): Promise<void> => {
+          try {
+            await evaluateSupplier(sid);
+            logger.info({ supplierId: sid, correlationId, attempt }, "evaluateSupplier succeeded");
+          } catch (err: any) {
+            const isNotFound =
+              err?.name === "NotFoundError" ||
+              err?.constructor?.name === "NotFoundError";
+
+            // Retry only for NotFoundError. attempt < 3 = max 3 attempts total.
+            if (isNotFound && attempt < 3) {
+              const delay = Math.pow(2, attempt - 1) * 1000;
+              logger.debug(
+                { supplierId: sid, correlationId, attempt, delay },
+                "evaluateSupplier retry scheduled",
+              );
+              await new Promise((r) => setTimeout(r, delay));
+              return attemptEvaluate(attempt + 1);
+            }
+
+            logger.warn({ supplierId: sid, correlationId, err }, "evaluateSupplier failed");
+            try { (globalThis as any).Sentry?.captureException?.(err); } catch {}
+          }
+        };
+
+        await attemptEvaluate();
+      })().catch((err) => {
+        logger.warn(
+          { supplierId: sid, correlationId, err },
+          "evaluateSupplier outer failure",
+        );
+      });
     });
   } catch (err: any) {
     console.error("Onboard error:", err);
