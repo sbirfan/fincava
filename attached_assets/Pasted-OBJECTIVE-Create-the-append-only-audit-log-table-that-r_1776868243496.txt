@@ -1,0 +1,135 @@
+OBJECTIVE
+Create the append-only audit log table that records every supplier state transition with actor, threshold version, and justification.
+
+---
+
+PREFLIGHT (MANDATORY — read before writing any code)
+
+1. Read lib/db/src/schema/suppliers.ts
+
+   * Identify existing enum:
+     sellableStatusEnum (DO NOT recreate this)
+   * Observe FK patterns and timestamp usage
+
+2. Read lib/db/src/schema/supplier-evaluations.ts
+
+   * Confirm evaluationId reference target and naming
+
+3. Read lib/db/src/schema/index.ts
+
+   * Confirm how tables are exported and registered
+
+---
+
+CHANGES
+
+Create file:
+lib/db/src/schema/supplier-state-transitions.ts
+
+---
+
+ENUM RULES (CRITICAL)
+
+1. Reuse existing enum:
+
+   * sellableStatusEnum (DO NOT create a new state enum)
+
+2. Create ONE new enum ONLY:
+   actorEnum = pgEnum('actor', ['SYSTEM','ADMIN','FOUNDER'])
+
+3. If drizzle-kit proposes creating ANY additional enum types beyond 'actor', STOP and surface the diff.
+
+---
+
+TABLE DEFINITION
+
+* id: serial primary key
+
+* supplierId: integer, not null
+  Must be defined as:
+  references(() => suppliers.id, { onDelete: 'cascade' })
+
+* fromState: sellableStatusEnum, nullable
+  (null = first transition)
+
+* toState: sellableStatusEnum, not null
+
+* thresholdVersion: varchar(64), not null
+  EP4: mandatory on every row
+
+* commercialScoreAtTransition: integer, nullable
+
+* actor: actorEnum, not null
+
+* justification: text, nullable
+  (Required when actor != 'SYSTEM' — enforced in application layer)
+
+* evaluationId: integer, nullable
+  Must be defined as:
+  references(() => supplierEvaluations.id, { onDelete: 'cascade' })
+
+* createdAt: timestamp, default now(), not null
+
+---
+
+INDEX REQUIREMENT
+
+Add composite index on:
+(supplierId, createdAt DESC)
+
+Must explicitly use:
+createdAt.desc()
+
+---
+
+REGISTRATION
+
+Register the table in:
+lib/db/src/schema/index.ts
+
+---
+
+SAFETY
+
+* Do not modify suppliers.ts
+* Do not modify supplier-evaluations.ts
+* If supplier-state-transitions.ts already exists with different shape:
+  STOP and surface diff
+* If drizzle-kit proposes:
+
+  * dropping columns
+  * altering existing enums
+  * creating unexpected enum types
+    → STOP immediately
+
+---
+
+INSTRUMENTATION
+
+Add this comment at the top of the file:
+
+// Append-only audit log. One row per state transition.
+// Required for memo §5.3 compliance.
+// EP4: thresholdVersion + actor are mandatory.
+
+---
+
+ACCEPTANCE
+
+* Table exists in DB after db:push
+* Composite index exists with DESC ordering
+* Insert works for all actor values (SYSTEM, ADMIN, FOUNDER)
+* FK cascade works for:
+
+  * supplierId → suppliers.id
+  * evaluationId → supplier_evaluations.id
+* Exactly ONE new enum created: actor
+  (verify using \dT in psql — enum count increases by +1 only)
+
+---
+
+IMPORTANT
+
+* DO NOT execute db:push yet
+* Produce execution plan first
+* WAIT for approval before making any changes
