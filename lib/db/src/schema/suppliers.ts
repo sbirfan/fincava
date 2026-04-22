@@ -156,6 +156,7 @@ export const complianceDocsTable = pgTable("compliance_docs", {
   id: serial("id").primaryKey(),
   supplierId: integer("supplier_id")
     .notNull()
+    .unique()
     .references(() => suppliersTable.id),
   rutDian: boolean("rut_dian").notNull().default(false),
   icaRegistro: boolean("ica_registro").notNull().default(false),

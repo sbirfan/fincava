@@ -165,12 +165,14 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       );
     }
 
-    // 3. Fetch compliance_docs.
+    // 3. Fetch compliance_docs (latest row by id — defensive against legacy duplicates).
     //    If row is missing → treat all required fields as absent (eligibility FAIL).
     const [complianceRow] = await tx
       .select()
       .from(complianceDocsTable)
-      .where(eq(complianceDocsTable.supplierId, supplierId));
+      .where(eq(complianceDocsTable.supplierId, supplierId))
+      .orderBy(desc(complianceDocsTable.id))
+      .limit(1);
     const compliance: ComplianceRow | null = complianceRow ?? null;
 
     // 4–8. Compute evaluation outputs.
