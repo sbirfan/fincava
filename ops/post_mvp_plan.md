@@ -79,6 +79,10 @@ Introduce a job queue system for durability and retries.
   * Added read APIs for supplier evaluation visibility (GET /api/suppliers, GET /api/suppliers/:id)
   * Confirmed supplier table as source of truth for current evaluation state
   * Deferred evaluation history endpoints to Ticket 1.8
+  * Added supplier evaluation and transition history APIs
+  * Established separation of current state (suppliers table) vs historical state (evaluation + transition tables)
+  * Confirmed lightweight history queries (no joins, capped results)
+  * Deferred auth enforcement to future admin/security layer
 
 ### Reliability
 

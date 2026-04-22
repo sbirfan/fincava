@@ -10,13 +10,18 @@ Purpose: Define end-to-end capability slices across epics. This document guides 
 
 ### Slice 1 — Supplier Visibility
 
-* Status: In Progress
+* Status: Done
 * Last Updated: 2026-04-22
 * Changes:
   * Implemented GET /api/suppliers (list endpoint with evaluation fields)
   * Implemented GET /api/suppliers/:id (detail endpoint with evaluation fields)
   * Verified null handling for non-evaluated suppliers
   * Preserved backward compatibility (no response shape changes)
+  * Added GET /api/suppliers/:id/evaluations (evaluation history, DESC, limit 20)
+  * Added GET /api/suppliers/:id/transitions (state transition history, DESC, limit 20)
+  * Ensured no joins and excluded scoreSnapshot for performance
+  * Confirmed empty array vs 404 behavior
+  * Completed full supplier visibility layer (current + historical state)
 
 **Goal:** Expose supplier evaluation results and status via API for internal/admin visibility.
 
