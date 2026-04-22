@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,7 +7,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useRegisterUser } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation, Link, useSearch } from "wouter";
@@ -20,16 +19,14 @@ import { StepBusinessReadiness } from "@/components/onboarding/StepBusinessReadi
 import { ReviewSummary, type ReviewSection } from "@/components/onboarding/ReviewSummary";
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
 
-const accountSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  firstName: z.string().min(2, "First name is required"),
-  lastName: z.string().min(2, "Last name is required"),
-  companyName: z.string().min(2, "Company name is required"),
-  country: z.string().min(2, "Country is required"),
-});
-
-type AccountData = z.infer<typeof accountSchema>;
+type AccountData = {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  country: string;
+};
 
 interface SupplierFormData {
   farm_name: string;
@@ -64,7 +61,9 @@ const inputClass =
 const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
 export default function Register() {
-  const { lang } = useLanguage();
+  const { lang, t } = useLanguage();
+  const tr = t.register;
+
   const searchString = useSearch();
   const roleParam = new URLSearchParams(searchString).get("role");
   const initialRole = roleParam === "supplier" ? RegisterUserBodyRole.SUPPLIER : RegisterUserBodyRole.BUYER;
@@ -79,6 +78,15 @@ export default function Register() {
   const { toast } = useToast();
   const registerMutation = useRegisterUser();
 
+  const accountSchema = useMemo(() => z.object({
+    email: z.string().email(tr.errors.invalidEmail),
+    password: z.string().min(6, tr.errors.passwordMin),
+    firstName: z.string().min(2, tr.errors.firstNameRequired),
+    lastName: z.string().min(2, tr.errors.lastNameRequired),
+    companyName: z.string().min(2, tr.errors.companyRequired),
+    country: z.string().min(2, tr.errors.countryRequired),
+  }), [lang]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const form = useForm<AccountData>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
@@ -86,16 +94,19 @@ export default function Register() {
     },
   });
 
+  useEffect(() => {
+    form.clearErrors();
+  }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const setField = (field: string, value: string) =>
     setSupplierForm((prev) => ({ ...prev, [field]: value }));
 
   const isBuyer = role === RegisterUserBodyRole.BUYER;
-
   const totalSteps = isBuyer ? 2 : 6;
 
   const stepLabels = isBuyer
-    ? ["Role", "Details"]
-    : ["Role", "Account", "Farm", "Production", "Readiness", "Review"];
+    ? [tr.steps.role, tr.steps.details]
+    : [tr.steps.role, tr.steps.account, tr.steps.farm, tr.steps.production, tr.steps.readiness, tr.steps.review];
 
   function canAdvanceSupplier() {
     if (step === 3) return !!(supplierForm.farm_name && supplierForm.owner_name && supplierForm.phone && supplierForm.department && supplierForm.municipio);
@@ -109,14 +120,14 @@ export default function Register() {
       {
         onSuccess: (data) => {
           login(data.token, data.user);
-          toast({ title: "Account created", description: "Welcome to Fincava!" });
+          toast({ title: tr.toasts.success, description: tr.toasts.welcome });
           setLocation("/dashboard");
         },
         onError: (error) => {
           toast({
             variant: "destructive",
-            title: "Registration failed",
-            description: error.data?.error || "Could not create account. Please try again.",
+            title: tr.toasts.failed,
+            description: (error as any).data?.error || tr.toasts.couldNotCreate,
           });
         },
       }
@@ -175,7 +186,7 @@ export default function Register() {
         throw new Error(err.error || "Profile submission failed");
       }
 
-      toast({ title: "Welcome to Fincava!", description: "Your supplier profile has been created." });
+      toast({ title: tr.toasts.welcome, description: tr.toasts.supplierCreated });
       setLocation("/supplier-dashboard");
     } catch (e: any) {
       setSubmitError(e.message || "Submission failed");
@@ -190,51 +201,54 @@ export default function Register() {
     return opt ? opt.labelEn : raw;
   };
 
-  const yesNo = (v: string) => (v === "yes" ? "Yes" : v === "no" ? "No" : "—");
+  const yesNo = (v: string) => (v === "yes" ? tr.yes : v === "no" ? tr.no : "—");
+
+  const rl = tr.reviewLabels;
+  const rs = tr.reviewSections;
 
   const reviewSections: ReviewSection[] = [
     {
-      title: "Account",
+      title: rs.account,
       onEdit: () => setStep(2),
       rows: [
-        { label: "Name", value: `${form.getValues("firstName")} ${form.getValues("lastName")}` },
-        { label: "Company", value: form.getValues("companyName") },
-        { label: "Country", value: form.getValues("country") },
-        { label: "Email", value: form.getValues("email") },
+        { label: rl.name, value: `${form.getValues("firstName")} ${form.getValues("lastName")}` },
+        { label: rl.company, value: form.getValues("companyName") },
+        { label: rl.country, value: form.getValues("country") },
+        { label: rl.email, value: form.getValues("email") },
       ],
     },
     {
-      title: "Farm Information",
+      title: rs.farmInfo,
       onEdit: () => setStep(3),
       rows: [
-        { label: "Farm Name", value: supplierForm.farm_name },
-        { label: "Owner", value: supplierForm.owner_name },
-        { label: "Phone", value: supplierForm.phone },
-        { label: "Department", value: supplierForm.department },
-        { label: "Municipality", value: supplierForm.municipio },
-        { label: "Vereda", value: supplierForm.vereda },
+        { label: rl.farmName, value: supplierForm.farm_name },
+        { label: rl.owner, value: supplierForm.owner_name },
+        { label: rl.phone, value: supplierForm.phone },
+        { label: rl.department, value: supplierForm.department },
+        { label: rl.municipality, value: supplierForm.municipio },
+        { label: rl.vereda, value: supplierForm.vereda },
       ],
     },
     {
-      title: "Production",
+      title: rs.production,
       onEdit: () => setStep(4),
       rows: [
-        { label: "Primary Product", value: productLabel() },
-        { label: "Farm Size (ha)", value: supplierForm.farm_size_hectares },
-        { label: "Annual Volume (kg)", value: supplierForm.annual_volume_kg },
-        { label: "Harvest Months", value: supplierForm.harvest_months },
-        { label: "Organic Certified", value: yesNo(supplierForm.organic_certified) },
+        { label: rl.primaryProduct, value: productLabel() },
+        { label: rl.farmSize, value: supplierForm.farm_size_hectares },
+        { label: rl.annualVolume, value: supplierForm.annual_volume_kg },
+        { label: rl.harvestMonths, value: supplierForm.harvest_months },
+        { label: rl.organicCertified, value: yesNo(supplierForm.organic_certified) },
       ],
     },
     {
-      title: "Export Readiness",
+      title: rs.exportReadiness,
       onEdit: () => setStep(5),
       rows: [
-        { label: "Currently Exporting", value: yesNo(supplierForm.currently_exporting) },
-        { label: "Has RUT", value: yesNo(supplierForm.has_rut) },
-        { label: "Has Bank Account", value: yesNo(supplierForm.has_bank_account) },
-        { label: "Capital Needed (USD)", value: supplierForm.working_capital_needed },
-        { label: "Export Blocker", value: supplierForm.export_blocker },
+        { label: rl.currentlyExporting, value: yesNo(supplierForm.currently_exporting) },
+        { label: rl.hasRut, value: yesNo(supplierForm.has_rut) },
+        { label: rl.hasBankAccount, value: yesNo(supplierForm.has_bank_account) },
+        { label: rl.capitalNeeded, value: supplierForm.working_capital_needed },
+        { label: rl.exportBlocker, value: supplierForm.export_blocker },
       ],
     },
   ];
@@ -243,10 +257,8 @@ export default function Register() {
     <div className="flex-1 flex items-center justify-center p-4 bg-muted/30 py-12">
       <Card className="w-full max-w-xl border-border shadow-md">
         <CardHeader className="text-center space-y-2 pb-6 border-b">
-          <CardTitle className="text-3xl font-serif font-bold text-primary">Create an Account</CardTitle>
-          <CardDescription>
-            Join Fincava to source or sell premium Colombian agricultural products
-          </CardDescription>
+          <CardTitle className="text-3xl font-serif font-bold text-primary">{tr.title}</CardTitle>
+          <CardDescription>{tr.description}</CardDescription>
           {totalSteps > 2 && (
             <div className="flex items-center justify-center gap-1 pt-2">
               {stepLabels.map((label, i) => (
@@ -279,8 +291,8 @@ export default function Register() {
           {step === 1 && (
             <div className="space-y-8">
               <div className="text-center mb-6">
-                <h3 className="text-xl font-medium mb-2">How do you want to use Fincava?</h3>
-                <p className="text-sm text-muted-foreground">Select your account type to get started</p>
+                <h3 className="text-xl font-medium mb-2">{tr.rolePicker.heading}</h3>
+                <p className="text-sm text-muted-foreground">{tr.rolePicker.sub}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
@@ -289,8 +301,8 @@ export default function Register() {
                   className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground hover:border-primary cursor-pointer text-center transition-colors w-full"
                 >
                   <ShoppingCart className="mb-4 h-8 w-8 text-primary" />
-                  <span className="font-bold text-lg mb-2">I am a Buyer</span>
-                  <span className="text-sm text-muted-foreground">I want to source verified agricultural products from Colombia</span>
+                  <span className="font-bold text-lg mb-2">{tr.rolePicker.buyerTitle}</span>
+                  <span className="text-sm text-muted-foreground">{tr.rolePicker.buyerSub}</span>
                 </button>
                 <button
                   type="button"
@@ -298,8 +310,8 @@ export default function Register() {
                   className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground hover:border-primary cursor-pointer text-center transition-colors w-full"
                 >
                   <Building2 className="mb-4 h-8 w-8 text-secondary" />
-                  <span className="font-bold text-lg mb-2">I am a Supplier</span>
-                  <span className="text-sm text-muted-foreground">I produce or export agricultural goods from Colombia</span>
+                  <span className="font-bold text-lg mb-2">{tr.rolePicker.supplierTitle}</span>
+                  <span className="text-sm text-muted-foreground">{tr.rolePicker.supplierSub}</span>
                 </button>
               </div>
             </div>
@@ -313,7 +325,7 @@ export default function Register() {
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <h3 className="font-bold text-xl">
-                  {isBuyer ? "Buyer" : "Supplier"} Account Details
+                  {isBuyer ? tr.form.headingBuyer : tr.form.headingSupplier}
                 </h3>
               </div>
               <Form {...form}>
@@ -323,35 +335,33 @@ export default function Register() {
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <FormField control={form.control} name="firstName" render={({ field }) => (
-                      <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{tr.form.firstName}</FormLabel><FormControl><Input placeholder={tr.form.firstNamePlaceholder} {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="lastName" render={({ field }) => (
-                      <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{tr.form.lastName}</FormLabel><FormControl><Input placeholder={tr.form.lastNamePlaceholder} {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <FormField control={form.control} name="companyName" render={({ field }) => (
-                      <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input placeholder="Acme Imports" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{tr.form.companyName}</FormLabel><FormControl><Input placeholder={tr.form.companyPlaceholder} {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="country" render={({ field }) => (
-                      <FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder={isBuyer ? "United Arab Emirates" : "Colombia"} {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>{tr.form.country}</FormLabel><FormControl><Input placeholder={isBuyer ? tr.form.countryBuyerPlaceholder : tr.form.countrySupplierPlaceholder} {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                   </div>
                   <FormField control={form.control} name="email" render={({ field }) => (
-                    <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="name@example.com" type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel>{tr.form.email}</FormLabel><FormControl><Input placeholder={tr.form.emailPlaceholder} type="email" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="password" render={({ field }) => (
-                    <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel>{tr.form.password}</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <Button
                     type="submit"
                     className="w-full h-12 text-lg mt-6"
                     disabled={registerMutation.isPending}
                   >
-                    {registerMutation.isPending
-                      ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      : null}
-                    {isBuyer ? "Create Account" : "Next →"}
+                    {registerMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isBuyer ? tr.form.createAccount : tr.form.next}
                   </Button>
                 </form>
               </Form>
@@ -370,16 +380,16 @@ export default function Register() {
               />
               <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button onClick={() => setStep(2)} className="flex-1 px-5 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">
-                  ← Back
+                  {tr.form.back}
                 </button>
                 <button
                   onClick={() => {
-                    if (!canAdvanceSupplier()) { alert("Please fill in all required fields."); return; }
+                    if (!canAdvanceSupplier()) { alert(lang === "es" ? "Por favor completa todos los campos requeridos." : "Please fill in all required fields."); return; }
                     setStep(4);
                   }}
                   className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
                 >
-                  Next →
+                  {tr.form.next}
                 </button>
               </div>
             </div>
@@ -397,16 +407,16 @@ export default function Register() {
               />
               <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button onClick={() => setStep(3)} className="flex-1 px-5 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">
-                  ← Back
+                  {tr.form.back}
                 </button>
                 <button
                   onClick={() => {
-                    if (!canAdvanceSupplier()) { alert("Please select a primary product."); return; }
+                    if (!canAdvanceSupplier()) { alert(lang === "es" ? "Por favor selecciona un producto principal." : "Please select a primary product."); return; }
                     setStep(5);
                   }}
                   className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
                 >
-                  Next →
+                  {tr.form.next}
                 </button>
               </div>
             </div>
@@ -424,13 +434,13 @@ export default function Register() {
               />
               <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button onClick={() => setStep(4)} className="flex-1 px-5 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">
-                  ← Back
+                  {tr.form.back}
                 </button>
                 <button
                   onClick={() => setStep(6)}
                   className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
                 >
-                  Next →
+                  {tr.form.next}
                 </button>
               </div>
             </div>
@@ -452,9 +462,9 @@ export default function Register() {
         {step !== 6 && (
           <CardFooter className="flex justify-center border-t p-6 bg-muted/20">
             <div className="text-sm text-muted-foreground text-center">
-              Already have an account?{" "}
+              {tr.footer.haveAccount}{" "}
               <Link href="/login" className="text-primary hover:underline font-medium">
-                Log in
+                {tr.footer.login}
               </Link>
             </div>
           </CardFooter>
