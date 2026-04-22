@@ -1,0 +1,280 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Add admin control endpoints for supplier state transitions and publishing, using the existing graduation service.
+
+---
+
+SCOPE (STRICT)
+
+Add:
+
+1. POST /api/admin/suppliers/:id/transition
+2. POST /api/admin/suppliers/:id/publish
+
+DO NOT modify existing endpoints
+DO NOT modify service logic
+
+---
+
+PREFLIGHT (MANDATORY)
+
+1. Read:
+
+* artifacts/api-server/src/services/supplier-graduation-service.ts
+* artifacts/api-server/src/routes/suppliers.ts
+
+2. Confirm exports exist:
+
+* transitionTo
+* markPublished
+* NotFoundError
+
+3. Confirm supplier table contains:
+
+* sellableStatus
+* thresholdVersion
+
+IF ANY MISSING → STOP
+
+---
+
+CHANGES
+
+## 1. POST /api/admin/suppliers/:id/transition
+
+Purpose:
+Manual state transition (admin override)
+
+---
+
+### Request body
+
+{
+"toState": "NOT_READY | ELIGIBLE | SELLABLE | PUBLISHED",
+"actor": "ADMIN | FOUNDER",
+"justification": "string (required)"
+}
+
+---
+
+### Behavior
+
+Call:
+
+transitionTo(
+supplierId,
+toState,
+actor,
+{
+justification
+}
+)
+
+---
+
+### Validation
+
+* justification REQUIRED for ADMIN and FOUNDER
+* actor must NOT be SYSTEM (reject if provided)
+* toState must be valid enum
+
+---
+
+### Response
+
+{
+"transition": { ...transitionRow }
+}
+
+---
+
+## 2. POST /api/admin/suppliers/:id/publish
+
+Purpose:
+Explicit publish action (EP3 enforcement)
+
+---
+
+### Request body
+
+{
+"actor": "ADMIN | FOUNDER",
+"justification": "string (required)"
+}
+
+---
+
+### Behavior
+
+Call:
+
+markPublished(
+supplierId,
+actor,
+justification
+)
+
+---
+
+### Additional validation (CRITICAL — 1.10)
+
+Before calling markPublished:
+
+1. Fetch supplier row
+2. Verify:
+
+* supplier.sellableStatus === "SELLABLE"
+
+IF NOT:
+
+→ return 400
+
+{
+"error": "Supplier must be SELLABLE before publishing"
+}
+
+---
+
+### Response
+
+{
+"transition": { ...transitionRow }
+}
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* DO NOT implement business logic in routes
+* All logic delegated to service
+* DO NOT modify supplier-graduation-service.ts
+* DO NOT modify schema
+
+---
+
+TACTICAL CONSTRAINTS
+
+* Use existing DB access pattern
+* Keep routes thin (validation + delegation only)
+* No joins or heavy queries
+
+---
+
+EDGE CASES
+
+1. Supplier not found:
+   → return 404
+
+2. Missing justification:
+   → return 400 BEFORE calling service
+
+3. Invalid actor:
+   → return 400
+
+4. SYSTEM actor passed:
+   → reject (400)
+
+5. Publishing non-SELLABLE:
+   → reject (400)
+
+---
+
+EMBEDDED QA (MANDATORY)
+
+### Test 1 — ADMIN transition
+
+POST /api/admin/suppliers/:id/transition
+
+Body:
+{
+"toState": "SELLABLE",
+"actor": "ADMIN",
+"justification": "Manual override"
+}
+
+Expect:
+
+* 200
+* transition row returned
+* justification stored
+
+---
+
+### Test 2 — Missing justification
+
+Expect:
+
+* 400
+* no DB write
+
+---
+
+### Test 3 — Invalid actor
+
+actor: "SYSTEM"
+
+Expect:
+
+* 400
+* no DB write
+
+---
+
+### Test 4 — Publish happy path
+
+Precondition:
+supplier.sellableStatus = SELLABLE
+
+POST /publish
+
+Expect:
+
+* 200
+* toState = PUBLISHED
+
+---
+
+### Test 5 — Publish blocked
+
+Precondition:
+supplier.sellableStatus != SELLABLE
+
+Expect:
+
+* 400
+* no DB write
+
+---
+
+### Test 6 — Data integrity
+
+* transition rows inserted correctly
+* evaluationId behavior preserved (service-level)
+* no unintended writes
+
+---
+
+OUTPUT
+
+Provide:
+
+1. Files modified
+2. Routes created
+3. Sample requests + responses
+4. QA results:
+
+   * Test 1–6 PASS/FAIL
+
+---
+
+IF ANY TEST FAILS
+
+* Identify root cause
+* STOP (do not auto-fix)
+
+---
+
+COMPLETE

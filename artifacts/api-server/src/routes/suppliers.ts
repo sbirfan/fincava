@@ -18,7 +18,12 @@ import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
 import { desc, eq, and, gte, lte, sql, count } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { evaluateSupplier } from "../services/supplier-graduation-service";
+import {
+  evaluateSupplier,
+  transitionTo,
+  markPublished,
+  NotFoundError,
+} from "../services/supplier-graduation-service";
 
 const router: IRouter = Router();
 
@@ -613,5 +618,130 @@ router.get("/suppliers/:id", async (req, res): Promise<void> => {
 
   res.json({ supplier });
 });
+
+// ── POST /api/admin/suppliers/:id/transition ─────────────────────────────────
+const VALID_SELLABLE_STATES = ["NOT_READY", "ELIGIBLE", "SELLABLE", "PUBLISHED"] as const;
+const VALID_ADMIN_ACTORS    = ["ADMIN", "FOUNDER"] as const;
+
+router.post(
+  "/admin/suppliers/:id/transition",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    const { toState, actor, justification } = req.body as Record<string, string>;
+
+    // Validate actor — SYSTEM is forbidden from this endpoint.
+    if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
+      res.status(400).json({ error: "actor must be ADMIN or FOUNDER" });
+      return;
+    }
+
+    // Validate justification — required for ADMIN and FOUNDER.
+    if (!justification || justification.trim() === "") {
+      res.status(400).json({ error: "justification is required" });
+      return;
+    }
+
+    // Validate toState.
+    if (!toState || !(VALID_SELLABLE_STATES as readonly string[]).includes(toState)) {
+      res.status(400).json({
+        error: `toState must be one of: ${VALID_SELLABLE_STATES.join(", ")}`,
+      });
+      return;
+    }
+
+    try {
+      const result = await transitionTo(
+        supplierId,
+        toState as (typeof VALID_SELLABLE_STATES)[number],
+        actor as "ADMIN" | "FOUNDER",
+        { justification },
+      );
+      res.json({ transition: result.transition });
+    } catch (err: any) {
+      if (err instanceof NotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof TypeError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      logger.error({ err, supplierId }, "admin transition failed");
+      res.status(500).json({ error: "Transition failed" });
+    }
+  },
+);
+
+// ── POST /api/admin/suppliers/:id/publish ────────────────────────────────────
+router.post(
+  "/admin/suppliers/:id/publish",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    const { actor, justification } = req.body as Record<string, string>;
+
+    // Validate actor — SYSTEM is forbidden from this endpoint.
+    if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
+      res.status(400).json({ error: "actor must be ADMIN or FOUNDER" });
+      return;
+    }
+
+    // Validate justification — required for publishing.
+    if (!justification || justification.trim() === "") {
+      res.status(400).json({ error: "justification is required" });
+      return;
+    }
+
+    // Preflight gate (1.10): supplier must be SELLABLE before publishing.
+    const [supplier] = await db
+      .select({ id: suppliersTable.id, sellableStatus: suppliersTable.sellableStatus })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, supplierId))
+      .limit(1);
+
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+
+    if (supplier.sellableStatus !== "SELLABLE") {
+      res.status(400).json({ error: "Supplier must be SELLABLE before publishing" });
+      return;
+    }
+
+    try {
+      const result = await markPublished(
+        supplierId,
+        actor as "ADMIN" | "FOUNDER",
+        justification,
+      );
+      res.json({ transition: result.transition });
+    } catch (err: any) {
+      if (err instanceof NotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof TypeError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      logger.error({ err, supplierId }, "admin publish failed");
+      res.status(500).json({ error: "Publish failed" });
+    }
+  },
+);
 
 export default router;
