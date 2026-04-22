@@ -493,4 +493,49 @@ router.post(
   },
 );
 
+// ── GET /api/suppliers ────────────────────────────────────────────────────────
+router.get("/suppliers", async (req, res): Promise<void> => {
+  const suppliers = await db
+    .select({
+      id: suppliersTable.id,
+      nombreCompleto: suppliersTable.nombreCompleto,
+      municipio: suppliersTable.municipio,
+      department: suppliersTable.department,
+      supplierType: suppliersTable.supplierType,
+      status: suppliersTable.status,
+      createdAt: suppliersTable.createdAt,
+      sellableStatus: suppliersTable.sellableStatus,
+      commercialScore: suppliersTable.commercialScore,
+      eligibilityStatus: suppliersTable.eligibilityStatus,
+      graduationPathway: suppliersTable.graduationPathway,
+      lastEvaluatedAt: suppliersTable.lastEvaluatedAt,
+    })
+    .from(suppliersTable)
+    .orderBy(desc(suppliersTable.createdAt));
+
+  res.json({ suppliers });
+});
+
+// ── GET /api/suppliers/:id ────────────────────────────────────────────────────
+router.get("/suppliers/:id", async (req, res): Promise<void> => {
+  const supplierId = Number(req.params.id);
+  if (isNaN(supplierId)) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+
+  const [supplier] = await db
+    .select()
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!supplier) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  res.json({ supplier });
+});
+
 export default router;

@@ -1,0 +1,172 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Expose supplier evaluation state via read-only APIs.
+
+---
+
+SCOPE (STRICT)
+
+* Extend GET /api/suppliers
+* Add GET /api/suppliers/:id
+* DO NOT implement evaluation/transition history endpoints
+
+---
+
+PREFLIGHT (MANDATORY)
+
+1. Read:
+
+   * lib/db/src/schema/suppliers.ts
+   * artifacts/api-server/src/routes/suppliers.ts
+
+2. Confirm:
+
+   * Fields exist:
+     sellableStatus
+     commercialScore
+     eligibilityStatus
+     graduationPathway
+     lastEvaluatedAt
+
+3. Confirm GET /api/suppliers exists
+
+IF ANY MISSING → STOP
+
+---
+
+CHANGES
+
+## 1. Extend GET /api/suppliers
+
+Add fields to response:
+
+* sellableStatus
+* commercialScore
+* eligibilityStatus
+* graduationPathway
+* lastEvaluatedAt
+
+Rules:
+
+* DO NOT remove existing fields
+* DO NOT rename existing fields
+* DO NOT restructure response
+* Only append fields
+
+---
+
+## 2. Add GET /api/suppliers/:id
+
+Behavior:
+
+* Fetch supplier by id
+* Return full supplier record INCLUDING evaluation fields
+
+Response shape:
+
+{
+supplier: { ...existingFields, evaluationFields }
+}
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* READ ONLY
+* DO NOT call evaluateSupplier
+* DO NOT modify service layer
+* DO NOT modify schema
+
+---
+
+TACTICAL CONSTRAINTS
+
+* Use existing DB access patterns
+* No joins to evaluation tables
+* Avoid N+1 queries
+* Keep query simple
+
+---
+
+EDGE CASES
+
+* Supplier exists but not evaluated:
+  → return null values (no defaults)
+
+* Supplier not found:
+  → return 404 (consistent with existing routes)
+
+---
+
+EMBEDDED QA (MANDATORY)
+
+### Test 1 — List endpoint
+
+GET /api/suppliers
+
+Verify:
+
+* array response
+* each item includes:
+  sellableStatus
+  commercialScore
+  eligibilityStatus
+
+---
+
+### Test 2 — Detail endpoint
+
+GET /api/suppliers/:id
+
+Verify:
+
+* response includes:
+  sellableStatus
+  commercialScore
+  eligibilityStatus
+  graduationPathway
+  lastEvaluatedAt
+
+---
+
+### Test 3 — Data integrity
+
+* Values match DB exactly
+* No transformations
+
+---
+
+### Test 4 — No regression
+
+* Existing fields unchanged
+* Response structure unchanged
+
+---
+
+OUTPUT
+
+Return:
+
+1. Files modified
+2. Routes created/updated
+3. Sample responses (list + detail)
+4. QA results:
+
+   * Test 1: PASS/FAIL
+   * Test 2: PASS/FAIL
+   * Test 3: PASS/FAIL
+   * Test 4: PASS/FAIL
+
+---
+
+IF ANY TEST FAILS
+
+* Identify root cause
+* STOP (do not auto-fix)
+
+---
+
+COMPLETE
