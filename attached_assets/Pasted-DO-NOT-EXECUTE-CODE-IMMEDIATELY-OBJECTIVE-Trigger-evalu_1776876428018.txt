@@ -1,0 +1,200 @@
+DO NOT EXECUTE CODE IMMEDIATELY.
+
+---
+
+OBJECTIVE
+Trigger evaluateSupplier asynchronously after onboarding, without blocking the API response and without breaking onboarding if evaluation fails.
+
+---
+
+WHAT WE ARE BUILDING
+
+After onboarding completes:
+
+* Schedule evaluateSupplier(supplier.id)
+* Run asynchronously (fire-and-forget)
+* Never block API response
+* Never fail onboarding if evaluation fails
+* Handle AI scoring race condition via bounded retry
+
+---
+
+PREFLIGHT (MANDATORY)
+
+1. Read:
+   artifacts/api-server/src/routes/suppliers.ts (FULL FILE)
+
+2. Identify:
+
+   * onboarding handler (POST /api/suppliers/onboard)
+   * supplier creation block
+   * scoreSupplier(supplier.id) call
+
+3. Confirm:
+
+   * evaluateSupplier is NOT currently called
+   * scoring logic already exists — DO NOT duplicate it
+
+4. Read:
+   artifacts/api-server/src/services/supplier-graduation-service.ts
+
+5. Locate exact response line:
+   res.status(201).json(...)
+
+---
+
+INSERTION POINT (CRITICAL)
+
+Insert async scheduling logic **AFTER**:
+
+* supplier is created
+* scoreSupplier is triggered
+* AND AFTER the API response is sent
+
+DO NOT place before res.status(...)
+
+---
+
+IMPLEMENTATION
+
+Add imports at top of file:
+
+import crypto from "node:crypto";
+import { logger } from "../lib/logger";
+import { evaluateSupplier } from "../services/supplier-graduation-service";
+
+---
+
+After res.status(201).json(...), add:
+
+const correlationId = crypto.randomUUID();
+
+logger.info(
+{ supplierId: supplier.id, correlationId },
+"evaluateSupplier scheduled"
+);
+
+setImmediate(() => {
+(async () => {
+const supplierId = supplier.id;
+
+```
+const attemptEvaluate = async (attempt = 1): Promise<void> => {
+  try {
+    await evaluateSupplier(supplierId);
+
+    logger.info(
+      { supplierId, correlationId, attempt },
+      "evaluateSupplier succeeded"
+    );
+
+  } catch (err: any) {
+    const isNotFound =
+      err?.name === "NotFoundError" ||
+      err?.constructor?.name === "NotFoundError";
+
+    // Retry ONLY for NotFoundError (AI scoring not ready)
+    if (isNotFound && attempt <= 3) {
+      const delay = Math.pow(2, attempt - 1) * 1000;
+
+      logger.debug(
+        { supplierId, correlationId, attempt, delay },
+        "evaluateSupplier retry scheduled"
+      );
+
+      await new Promise((r) => setTimeout(r, delay));
+      return attemptEvaluate(attempt + 1);
+    }
+
+    // Final failure
+    logger.warn(
+      { supplierId, correlationId, err },
+      "evaluateSupplier failed"
+    );
+
+    // Sentry must NEVER throw
+    try {
+      (globalThis as any).Sentry?.captureException?.(err);
+    } catch {}
+  }
+};
+
+await attemptEvaluate();
+```
+
+})().catch((err) => {
+logger.warn(
+{ supplierId: supplier.id, correlationId, err },
+"evaluateSupplier outer failure"
+);
+});
+});
+
+---
+
+CONSTRAINTS
+
+* DO NOT await evaluateSupplier
+* DO NOT modify API response
+* DO NOT change response shape
+* DO NOT duplicate scoring logic
+* DO NOT re-fetch supplier
+* DO NOT call AI scoring again
+* DO NOT introduce global retry loops
+* Retry ONLY for NotFoundError
+* Max retries: 3 (1s, 2s, 4s)
+* Keep logic localized to route
+
+---
+
+INSTRUMENTATION
+
+* Log "evaluateSupplier scheduled"
+* Log retries and success
+* Include supplierId + correlationId in ALL logs
+* Sentry optional and safe
+
+---
+
+SAFETY
+
+* API latency must remain unchanged
+* Onboarding must never fail due to evaluation
+* No synchronous blocking
+* No crashes if evaluation fails
+
+---
+
+ACCEPTANCE
+
+1. API response time unchanged
+
+2. After onboarding:
+
+   * supplier.sellableStatus appears within ~3–5 seconds
+
+3. If AI scoring is delayed:
+
+   * retries occur (1s, 2s, 4s)
+   * eventual success OR warning log
+
+4. If evaluateSupplier throws non-NotFoundError:
+
+   * no retry
+   * error logged
+
+5. No duplicate logic introduced
+
+---
+
+VERIFICATION (REQUIRED BEFORE COMPLETION)
+
+* Show exact code insertion location (file + line numbers)
+* Confirm evaluateSupplier is called exactly once per onboarding
+* Confirm no await is used
+* Confirm response code path unchanged
+* Confirm retry logic works as specified
+
+---
+
+WAIT FOR APPROVAL BEFORE WRITING CODE
