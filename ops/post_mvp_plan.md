@@ -88,6 +88,10 @@ Introduce a job queue system for durability and retries.
   * Introduced role-based access control for admin actions
   * Confirmed strict separation between route validation and service logic
   * Strengthened audit guarantees for manual overrides
+  * Defined Phase 2 marketplace expansion (pagination, filtering, search)
+  * Identified dependency on product-level and certification data
+  * Separated validation endpoint (Phase 1) from production marketplace (Phase 2)
+  * Deferred full marketplace build until buyer requirements validated
 
 ### Reliability
 

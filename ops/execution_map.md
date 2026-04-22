@@ -91,6 +91,42 @@ Expose `POST /api/admin/suppliers/:id/transition` using `transitionTo`. Enforce 
 **Replit Execution Prompt:**
 Create `GET /api/suppliers?sellable=true` filtering `sellableStatus=SELLABLE` or `PUBLISHED`. Ensure no unpublished suppliers leak.
 
+#### Phase 2 — Buyer-ready marketplace (post-validation)
+
+* Goal:
+  * Expand marketplace endpoint into a usable buyer-facing API
+
+* Scope:
+  * Pagination (limit + cursor/offset)
+  * Filtering (location, supplierType, readiness)
+  * Search (text-based)
+  * Sorting (recency, readiness)
+
+* Data enrichment (future):
+  * Product-level data
+  * Certifications mapped to buyers
+  * Simplified readiness signals
+
+* Access model:
+  * Public vs authenticated
+  * Role-based visibility (future)
+
+* Performance:
+  * Indexing (sellableStatus, lastEvaluatedAt)
+  * Query optimization
+  * Future caching
+
+* UI readiness:
+  * Stable response shape
+  * Predictable pagination
+
+* Dependencies:
+  * Epic 2 (data enrichment)
+  * Buyer requirement validation
+
+* Status:
+  * Not Started
+
 ---
 
 ### Slice 4 — AI Scoring Reliability
