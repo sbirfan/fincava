@@ -1,0 +1,104 @@
+OBJECTIVE
+Restrict GET /api/suppliers to ADMIN-only access to prevent exposure
+of internal supplier evaluation data before Epic 2 UI work begins.
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
+
+PREFLIGHT (MANDATORY)
+1. Read artifacts/api-server/src/routes/suppliers.ts
+   - Locate GET /api/suppliers handler
+   - Confirm current middleware (likely none)
+   - Identify response fields returned
+   - Identify any existing auth guards on this route
+
+2. Read artifacts/api-server/src/middleware/auth.ts
+   - Confirm requireAuth behavior → 401 if no valid token
+   - Confirm requireAdmin behavior → 403 if not ADMIN role
+   - Note exact function signatures for both
+
+3. Confirm buyer-safe surface
+   - GET /suppliers/marketplace exists and is separate
+   - Confirm it is public (no auth required)
+   - Confirm it returns only SELLABLE/PUBLISHED suppliers
+   - Confirm it does NOT return:
+     commercialScore, thresholdVersion, evaluationData,
+     eligibilityStatus, graduationPathway
+
+4. Frontend dependency check
+   Search artifacts/fincava/src/ for ALL references to /api/suppliers
+   Also search lib/api-client-react/ for generated hooks
+   For each match found:
+   - Identify the component name and file path
+   - Identify the exact endpoint called
+   - Check whether an Authorization header or admin role guard is present
+   - If non-admin usage found: REPORT as finding, DO NOT FIX here
+
+THE FIX
+Two targeted changes — no redesign.
+
+Change 1 — Add authentication guard
+Apply requireAuth middleware to GET /api/suppliers
+Result: no token → 401
+
+Change 2 — Restrict to ADMIN role
+Apply requireAdmin middleware to GET /api/suppliers
+Result: non-admin authenticated user → 403
+
+REQUIRED ROUTE SHAPE
+Before: router.get('/api/suppliers', handler)
+After:  router.get('/api/suppliers', requireAuth, requireAdmin, handler)
+
+Middleware order is MANDATORY: requireAuth first, requireAdmin second.
+Do not reverse. Do not combine into a single middleware.
+
+IMPORTANT DESIGN DECISION
+GET /api/suppliers becomes ADMIN-only.
+Full response payload remains unchanged — no field sanitization.
+The buyer-safe surface is GET /suppliers/marketplace (public, unchanged).
+
+CONSTRAINTS
+- DO NOT modify GET /suppliers/marketplace
+- DO NOT modify POST /suppliers/onboard
+- DO NOT modify GET /suppliers/:id (flag if unguarded — fix separately)
+- DO NOT modify evaluation logic
+- DO NOT change DB queries
+- DO NOT introduce new endpoints
+- DO NOT change the response shape for admin callers
+
+SAFETY
+- Admin console must continue to work after this change
+- If GET /suppliers/:id is unguarded → flag as finding, do not fix here
+- If GET /suppliers/admin-list lacks auth guard → flag as finding, do not fix here
+- If any non-admin frontend component calls GET /api/suppliers →
+  flag with component name and line number, do not fix here
+
+ACCEPTANCE
+1. GET /api/suppliers — no token → 401
+2. GET /api/suppliers — BUYER token → 403
+3. GET /api/suppliers — SUPPLIER token → 403
+4. GET /api/suppliers — ADMIN token → 200, full payload unchanged
+5. GET /suppliers/marketplace — no token → 200, behavior unchanged
+6. Admin console supplier list loads correctly after change
+
+DOCUMENTATION UPDATE (MANDATORY)
+Update Development/Source-Of-Truth/system_gap_analysis.md
+Under H4 — Public Supplier Dataset Exposure, add:
+
+  Fix Applied (P0.2 — Epic 2 Precondition)
+  - GET /api/suppliers restricted to ADMIN-only
+  - Middleware: requireAuth + requireAdmin (in that order)
+  - Public buyer access served via /suppliers/marketplace (unchanged)
+  - Internal evaluation fields no longer externally accessible
+  - Date: 2026-04-23
+
+VERIFICATION OUTPUT
+Provide:
+- Exact file + line number where middleware is added
+- Before/after route definition (one line each)
+- Confirmation GET /suppliers/marketplace is untouched
+- Full list of any other unguarded supplier endpoints found
+- Full list of any frontend components found calling this endpoint
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
