@@ -1,0 +1,156 @@
+OBJECTIVE
+Two corrections before Epic 2 begins:
+1. Replicate P0.2 fix record and H4-B finding to the canonical
+   Source-Of-Truth file (currently only in ops/system_gap_analysis.md)
+2. Apply all pending P0 fix records to all relevant Source-Of-Truth
+   .md files that were updated in Replit ops/ but not in
+   Development/Source-Of-Truth/
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
+
+PREFLIGHT (MANDATORY)
+1. Read ops/system_gap_analysis.md
+   - Find the H4 fix record added in P0.2
+   - Find the H4-B finding (GET /suppliers/:id unguarded)
+   - Copy exact text — do not paraphrase
+
+2. Read Development/Source-Of-Truth/system_gap_analysis.md
+   - Find H4 section
+   - Confirm fix record is absent (needs to be added)
+   - Confirm H4-B entry is absent (needs to be added)
+
+3. Read ops/onboarding_flow.md (if it exists)
+   - Find Section 14 — ICA Sync Fix added in P0.1
+   - Copy exact text
+
+4. Read Development/Source-Of-Truth/onboarding_flow.md
+   - Confirm Section 14 is absent or incomplete
+   - Confirm ICA sync fix record is absent (needs to be added)
+
+5. Read Development/Source-Of-Truth/fincava-architecture.md
+   - Find Section 11 (Known Gaps / Planned Work)
+   - Confirm H4 and H4-B are not yet reflected there
+   - Confirm ICA sync fix is not yet reflected there
+
+CHANGES
+
+Change 1 — system_gap_analysis.md (Source-Of-Truth)
+File: Development/Source-Of-Truth/system_gap_analysis.md
+
+Under H4 — Public Supplier Dataset Exposure, add:
+
+  Fix Applied (P0.2 — Epic 2 Precondition)
+  - GET /api/suppliers restricted to ADMIN-only
+  - Middleware: requireAuth + requireAdmin (in that order)
+  - Public buyer access served via /suppliers/marketplace (unchanged)
+  - Internal evaluation fields no longer externally accessible
+  - Date: 2026-04-23
+
+Add new entry H4-B immediately after H4:
+
+  ### H4-B — GET /suppliers/:id Unguarded (SECURITY)
+
+  CURRENT_STATE:
+  - GET /suppliers/:id has no auth middleware (line 691)
+  - Returns full supplier row via db.select() with no field restriction
+  - Exposes commercialScore, eligibilityStatus, graduationPathway
+    for any supplier by ID to any unauthenticated caller
+
+  GAP:
+  - Same class of exposure as H4
+  - Any caller with a valid supplier ID can retrieve internal data
+
+  TARGET_STATE:
+  - requireAuth + requireAdmin applied (same pattern as H4 fix)
+  - Fix before any external-facing supplier detail work in Epic 2
+
+  SEVERITY: High
+  STATUS: Open — fix in P0.4
+
+Change 2 — onboarding_flow.md (Source-Of-Truth)
+File: Development/Source-Of-Truth/onboarding_flow.md
+
+Add Section 14 — ICA Sync Fix (P0.1 — Epic 2 Precondition):
+
+  ## 14. ICA Sync Fix (P0.1 — Epic 2 Precondition)
+
+  PROBLEM:
+  - Onboarding Step 3 captures ica_registered in interactions.metadata
+  - compliance_docs.ica_registro defaulted to false and was never updated
+  - Eligibility gate reads compliance_docs — supplier ICA declaration
+    was silently ignored
+  - Eligibility was effectively admin-controlled only
+
+  FIX APPLIED (2026-04-23):
+  - POST /api/suppliers/onboard now syncs ica_registered to
+    compliance_docs after the interactions insert
+  - const icaRegisteredTrue = body.ica_registered === true
+      || body.ica_registered === "yes"
+  - If icaRegisteredTrue: UPDATE compliance_docs SET ica_registro = true
+    WHERE supplier_id = [new id]
+  - Fix is upgrade-only — never downgrades an admin-set value
+  - If UPDATE fails: logged as warning, onboarding still returns 201
+
+  SCOPE:
+  - Only ica_registered → ica_registro is synced
+  - rutDian, fitosanitarioCert remain admin-only (by design, v0)
+  - Re-onboarding not supported in v0 — single POST path only
+  - Full compliance unification deferred to Phase 4
+
+  BODY FIELD NOTE:
+  - Frontend submits body.ica_registered as string "yes" | "no"
+  - Direct API callers may send boolean true
+  - Both forms handled by icaRegisteredTrue const
+
+Change 3 — fincava-architecture.md (Source-Of-Truth)
+File: Development/Source-Of-Truth/fincava-architecture.md
+
+Under Section 11 — Known Gaps / Planned Work, update two rows:
+
+  Replace existing H4 row (if present as open):
+  | Public supplier dataset exposure | FIXED (P0.2) — GET /api/suppliers
+    now ADMIN-only. Buyer surface via /suppliers/marketplace. |
+
+  Add new row:
+  | GET /suppliers/:id unguarded | Returns full supplier row with no
+    auth. Fix in P0.4 before Epic 2 detail page work. |
+
+  Add new row:
+  | ICA sync disconnect | FIXED (P0.1) — ica_registered from onboarding
+    now syncs to compliance_docs.ica_registro. Upgrade-only. Full
+    compliance unification deferred to Phase 4. |
+
+Under Changelog, add entry:
+  | 2026-04-23 | P0.1 — ICA sync fix: ica_registered from onboarding
+    metadata now updates compliance_docs.ica_registro |
+  | 2026-04-23 | P0.2 — GET /api/suppliers restricted to ADMIN-only
+    (requireAuth + requireAdmin). Buyer surface via /suppliers/marketplace |
+  | 2026-04-23 | H4-B found: GET /suppliers/:id unguarded — fix in P0.4 |
+
+CONSTRAINTS
+- DO NOT modify ops/ files (already updated)
+- DO NOT modify any schema files
+- DO NOT modify any route files
+- DO NOT change content — replicate exact fix records from ops/ files
+- If a section already contains the correct content: skip it,
+  report as already present
+
+ACCEPTANCE
+1. Development/Source-Of-Truth/system_gap_analysis.md contains:
+   - H4 fix record (P0.2)
+   - H4-B entry (GET /suppliers/:id)
+2. Development/Source-Of-Truth/onboarding_flow.md contains:
+   - Section 14 ICA sync fix (P0.1)
+3. Development/Source-Of-Truth/fincava-architecture.md contains:
+   - Section 11 updated rows (H4 fixed, H4-B open, ICA fixed)
+   - Changelog entries for P0.1, P0.2, H4-B
+
+VERIFICATION OUTPUT
+Provide:
+- File + section for each change made
+- Confirmation of exact content added
+- Any sections found already correct (skipped)
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
