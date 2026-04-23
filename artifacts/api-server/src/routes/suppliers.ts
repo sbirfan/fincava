@@ -120,10 +120,15 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     });
 
     // Idempotent initialization:
-    // If onboarding is retried, do NOT overwrite existing compliance state
+    // If onboarding is retried, do NOT overwrite existing compliance state.
+    // ica_registered captured from onboarding body is synced here at creation time.
+    // ON CONFLICT DO NOTHING ensures this never overwrites a row that already exists.
     await db
       .insert(complianceDocsTable)
-      .values({ supplierId: supplier.id })
+      .values({
+        supplierId: supplier.id,
+        icaRegistro: body.ica_registered === true,
+      })
       .onConflictDoNothing({ target: complianceDocsTable.supplierId });
 
     await db.insert(interactionsTable).values({
