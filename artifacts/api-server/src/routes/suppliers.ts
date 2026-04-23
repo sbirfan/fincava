@@ -119,7 +119,12 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
             : (body.economics?.haIntentadoExportar ?? null),
     });
 
-    await db.insert(complianceDocsTable).values({ supplierId: supplier.id });
+    // Idempotent initialization:
+    // If onboarding is retried, do NOT overwrite existing compliance state
+    await db
+      .insert(complianceDocsTable)
+      .values({ supplierId: supplier.id })
+      .onConflictDoNothing({ target: complianceDocsTable.supplierId });
 
     await db.insert(interactionsTable).values({
       supplierId: supplier.id,
