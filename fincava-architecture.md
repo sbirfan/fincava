@@ -363,6 +363,9 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | Register page shell translations | Card title, field labels, button text, and Zod validation error messages in `register.tsx` are still English-only |
 | Mobile navbar | Language toggle and nav links not yet adapted for mobile viewports |
 | Compliance history | `compliance_docs` stores current state only. Audit history requires a separate `compliance_docs_history` table (do not remove UNIQUE constraint) |
+| Public supplier dataset exposure | FIXED (P0.2) — GET /api/suppliers now ADMIN-only. Buyer surface via /suppliers/marketplace. |
+| GET /suppliers/:id unguarded | Returns full supplier row with no auth. Fix in P0.4 before Epic 2 detail page work. |
+| ICA sync disconnect | FIXED (P0.1) — ica_registered from onboarding now syncs to compliance_docs.ica_registro. Upgrade-only. Full compliance unification deferred to Phase 4. |
 
 ---
 
@@ -383,3 +386,6 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | Apr 2026 | AI model split: scoring → `claude-haiku-4-5`, document generation → `claude-sonnet-4-6` |
 | Apr 2026 | `lib/config/thresholds.ts` introduced — versioned, immutable threshold definitions |
 | Apr 2026 | `ops/` directory: `execution_map.md`, `post_mvp_plan.md`, `epic_1_supplier_graduation.md`, `assets/` |
+| 2026-04-23 | P0.1 — ICA sync fix: ica_registered from onboarding metadata now updates compliance_docs.ica_registro |
+| 2026-04-23 | P0.2 — GET /api/suppliers restricted to ADMIN-only (requireAuth + requireAdmin). Buyer surface via /suppliers/marketplace |
+| 2026-04-23 | H4-B found: GET /suppliers/:id unguarded — fix in P0.4 |
