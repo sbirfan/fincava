@@ -805,4 +805,122 @@ router.post(
   },
 );
 
+// ── PATCH /api/admin/suppliers/:id/compliance ────────────────────────────────
+// Admin-only partial update of compliance_docs fields.
+// Unblocks the eligibility gate without triggering evaluation.
+// MUST: compliance_docs row already exists (created at onboarding).
+// MUST NOT: create a new compliance_docs row.
+// MUST NOT: trigger evaluation or modify any evaluation logic.
+router.patch(
+  "/admin/suppliers/:id/compliance",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown>;
+
+    // Build compliance_docs patch — only fields explicitly provided as booleans.
+    // Untyped or missing fields are silently skipped (partial update semantics).
+    const compliancePatch: Partial<{
+      rutDian: boolean;
+      icaRegistro: boolean;
+      fitosanitarioCert: boolean;
+      dianExportador: boolean;
+    }> = {};
+
+    if (typeof body.rutDian === "boolean")           compliancePatch.rutDian           = body.rutDian;
+    if (typeof body.icaRegistro === "boolean")       compliancePatch.icaRegistro       = body.icaRegistro;
+    if (typeof body.fitosanitarioCert === "boolean") compliancePatch.fitosanitarioCert = body.fitosanitarioCert;
+    if (typeof body.dianExportador === "boolean")    compliancePatch.dianExportador    = body.dianExportador;
+
+    // consentGiven lives on suppliers table — handled separately.
+    const consentGivenPatch: boolean | undefined =
+      typeof body.consentGiven === "boolean" ? body.consentGiven : undefined;
+
+    const complianceFieldCount = Object.keys(compliancePatch).length;
+
+    if (complianceFieldCount === 0 && consentGivenPatch === undefined) {
+      res.status(400).json({
+        error:
+          "No valid boolean fields provided. Accepted: rutDian, icaRegistro, fitosanitarioCert, dianExportador, consentGiven",
+      });
+      return;
+    }
+
+    // Validate supplier exists.
+    const [supplier] = await db
+      .select({ id: suppliersTable.id, consentGiven: suppliersTable.consentGiven })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, supplierId))
+      .limit(1);
+
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+
+    // Validate compliance_docs row exists — onboarding always creates it.
+    // Reject if missing; DO NOT create a new row here.
+    const [existing] = await db
+      .select({ id: complianceDocsTable.id })
+      .from(complianceDocsTable)
+      .where(eq(complianceDocsTable.supplierId, supplierId))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({
+        error: "Compliance record not found for this supplier — supplier may not have completed onboarding",
+      });
+      return;
+    }
+
+    // Update suppliers.consent_given if provided.
+    if (consentGivenPatch !== undefined) {
+      await db
+        .update(suppliersTable)
+        .set({ consentGiven: consentGivenPatch })
+        .where(eq(suppliersTable.id, supplierId));
+    }
+
+    // Update compliance_docs with only the provided fields.
+    // If only consentGiven was provided, re-select without updating compliance_docs.
+    let updatedDocs;
+    if (complianceFieldCount > 0) {
+      [updatedDocs] = await db
+        .update(complianceDocsTable)
+        .set(compliancePatch)
+        .where(eq(complianceDocsTable.supplierId, supplierId))
+        .returning();
+    } else {
+      [updatedDocs] = await db
+        .select()
+        .from(complianceDocsTable)
+        .where(eq(complianceDocsTable.supplierId, supplierId))
+        .limit(1);
+    }
+
+    const fieldsUpdated = [
+      ...Object.keys(compliancePatch),
+      ...(consentGivenPatch !== undefined ? ["consentGiven"] : []),
+    ];
+
+    logger.info(
+      { admin: (req as any).userId, supplierId, fieldsUpdated },
+      "admin compliance update",
+    );
+
+    res.json({
+      complianceDocs: updatedDocs,
+      consentGiven: consentGivenPatch ?? supplier.consentGiven,
+      fieldsUpdated,
+    });
+  },
+);
+
 export default router;
+
