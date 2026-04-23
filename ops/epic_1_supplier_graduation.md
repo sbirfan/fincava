@@ -2,75 +2,6 @@
 
 ## 1. Objective
 
-Build a reliable pipeline from supplier onboarding to marketplace readiness.
-
-## 2. System Overview
-
-[Insert summary]
-
-## 3. User Experience Flow
-
-(Placeholder — image to be added)
-
-Step-by-step:
-
-1. Supplier onboarding
-2. AI scoring
-3. Evaluation
-4. Transition
-5. Marketplace exposure
-
-## 4. Architecture
-
-(Placeholder — image to be added)
-
-## 5. Key Decisions
-
-* Async scoring (non-blocking)
-* Separation of scoring vs evaluation
-* Deterministic compliance model
-
-## 6. Data Model
-
-* suppliers
-* ai_outputs
-* supplier_evaluations
-* supplier_state_transitions
-* compliance_docs (1:1)
-
-## 7. API Surface
-
-* /api/suppliers
-* /api/suppliers/:id
-* /api/suppliers/marketplace
-* admin routes
-
-## 8. Reliability & Safeguards
-
-* Retry logic
-* Validation
-* Logging + Sentry
-* No silent failures
-
-## 9. Known Limitations
-
-* No queue (fire-and-forget)
-* Thin marketplace UI
-
-## 10. Phase II / Future Enhancements
-
-* Queue-based scoring
-* Marketplace expansion
-* Product-level data
-
-## 11. Status
-
-Completed
-
-# Epic 1 — Supplier Graduation System
-
-## 1. Objective
-
 Build a reliable, deterministic pipeline that takes a supplier from onboarding to marketplace readiness, with full auditability and no silent failures.
 
 ---
@@ -79,16 +10,11 @@ Build a reliable, deterministic pipeline that takes a supplier from onboarding t
 
 Epic 1 establishes the core supply pipeline:
 
-* Suppliers onboard through an API
-* AI scoring generates an export readiness score
-* A deterministic evaluation service decides eligibility and sellability
-* State transitions are recorded as an auditable history
-* Only qualified suppliers are exposed to the marketplace
+* Onboarding → async AI scoring → deterministic evaluation → state transitions → marketplace exposure
+* Clear separation:
 
-The system separates:
-
-* **Scoring (AI, probabilistic input)**
-* **Evaluation (rules-based, deterministic decision)**
+  * **Scoring (AI, probabilistic)**
+  * **Evaluation (rules-based, deterministic)**
 
 This ensures consistency, traceability, and operational reliability.
 
@@ -96,268 +22,302 @@ This ensures consistency, traceability, and operational reliability.
 
 ## 3. User Experience Flow
 
-![Supplier Flow](./assets/epic1-flow.png)
+Step-by-step:
 
-### Step-by-step
+1. Supplier submits onboarding form  
+2. System creates supplier record  
+3. System initializes compliance record (all fields set to false)  
+
+4. System triggers AI scoring asynchronously (non-blocking)  
+
+5. AI scoring process:
+   - Calls external AI service (Claude)
+   - Validates response (export_readiness_score must be a finite number)
+   - Stores result in `ai_outputs`
+
+6. Evaluation process (`evaluateSupplier`):
+   - Reads AI output
+   - Validates required fields exist
+   - Computes:
+     - eligibilityStatus
+     - commercialScore
+     - sellableStatus
+
+7. System writes evaluation result:
+   - Inserts row into `supplier_evaluations`
+   - Updates supplier fields
+
+8. System records state transition:
+   - Inserts row into `supplier_state_transitions`
+   - actor = SYSTEM
+   - evaluationId linked
+
+9. Outcome:
+   - If FAIL → supplier remains NOT_READY
+   - If PASS → supplier becomes SELLABLE
+
+10. Marketplace exposure:
+   - Only SELLABLE or PUBLISHED suppliers appear in marketplace API
+
+11. Optional admin actions:
+   - Admin can override status (transition)
+   - Admin can publish supplier (SELLABLE → PUBLISHED)
+
+---
+
+Flow Summary:
+
+Onboard  
+→ Async AI Scoring  
+→ AI Output Stored  
+→ Evaluate Supplier  
+→ State Transition  
+→ Marketplace Visibility
+
+### Steps
 
 1. Supplier submits onboarding form
-2. Supplier record is created
-3. Compliance record initialized (all false)
+2. Supplier record created
+3. Compliance initialized (all false, 1:1)
 4. AI scoring triggered asynchronously
 5. Score stored in `ai_outputs`
 6. `evaluateSupplier` runs
 7. Eligibility + sellable status computed
-8. State transition recorded (SYSTEM)
-9. Supplier becomes visible in marketplace if SELLABLE
-10. Admin can override or publish if needed
+8. SYSTEM transition recorded
+9. Supplier appears in marketplace if SELLABLE
+10. Admin can override/publish if needed
 
 ---
 
 ## 4. Architecture
 
-![Architecture Diagram](./assets/epic1-architecture.png)
+The system is organized into layered components with clear separation of concerns.
+
+### 1. Frontend Layer
+- Handles user interaction (onboarding, marketplace view)
+- Calls API endpoints
+- Does not contain business logic
+
+---
+
+### 2. API Layer
+- Entry point for all requests
+- Routes:
+  - /api/suppliers/onboard
+  - /api/suppliers
+  - /api/suppliers/:id
+  - /api/suppliers/marketplace
+  - admin routes
+
+Responsibilities:
+- Input validation
+- Authentication (for admin routes)
+- Delegation to services
+
+---
+
+### 3. Service Layer
+
+#### scoreSupplier (AI Scoring)
+- Triggered asynchronously after onboarding
+- Calls external AI (Claude)
+- Retries on failure (1s, 2s, 4s)
+- Validates output (Number.isFinite)
+- Stores result in ai_outputs
+- Logs latency and failures
+- No silent errors (Sentry + logger)
+
+---
+
+#### evaluateSupplier (Decision Engine)
+- Reads AI output
+- Validates presence of required fields
+- Applies business rules
+- Computes:
+  - eligibilityStatus
+  - commercialScore
+  - sellableStatus
+- Writes:
+  - supplier_evaluations
+  - supplier_state_transitions
+- Updates supplier record
+- Deterministic (no partial writes)
+
+---
+
+### 4. Database Layer
+
+Core tables:
+
+- suppliers
+  - main entity
+  - stores current state
+
+- ai_outputs
+  - stores AI scoring results
+  - filtered by call_type
+
+- compliance_docs
+  - 1:1 with supplier (UNIQUE constraint)
+  - represents current compliance state
+
+- supplier_evaluations
+  - snapshot of each evaluation
+
+- supplier_state_transitions
+  - audit log of state changes
+  - includes actor and justification
+
+---
+
+### 5. Async Execution Model
+
+- scoreSupplier runs in fire-and-forget mode
+- evaluateSupplier runs after scoring
+- Both include retry logic
+- API responses are never blocked by scoring
+
+---
+
+### 6. Observability Layer
+
+- Structured logging (info, warn, error)
+- Latency tracking for AI calls
+- Error capture via Sentry
+- No silent failures anywhere in pipeline
+
+---
+
+### Architecture Summary
+
+Frontend  
+→ API Layer  
+→ Service Layer (Scoring + Evaluation)  
+→ Database  
+
+Side components:
+- Async execution (non-blocking)
+- Logging + monitoring
 
 ### Components
 
-* **API Layer**
+* **API**
 
   * `/api/suppliers/onboard`
   * supplier read endpoints
   * admin endpoints
-
 * **Services**
 
-  * `scoreSupplier` (AI scoring, async)
-  * `evaluateSupplier` (decision engine)
-
+  * `scoreSupplier` (async, retries, validation, latency logs)
+  * `evaluateSupplier` (deterministic decision engine)
 * **Database**
 
-  * suppliers
-  * ai_outputs
-  * compliance_docs
-  * supplier_evaluations
-  * supplier_state_transitions
+  * suppliers, ai_outputs, compliance_docs (1:1), supplier_evaluations, supplier_state_transitions
+* **Async**
 
-* **Async Execution**
-
-  * fire-and-forget pattern
-  * retry + backoff
-
+  * fire-and-forget with bounded retries
 * **Observability**
 
-  * structured logging
-  * Sentry error capture
+  * structured logs + Sentry
 
 ---
 
 ## 5. Key Decisions
 
-### 1. Separation of Concerns
-
-* AI scoring does NOT decide outcomes
-* Evaluation service owns business logic
-
-### 2. Async Scoring (Non-blocking)
-
-* Onboarding response is immediate
-* Scoring happens in background
-
-### 3. Deterministic Evaluation
-
-* No evaluation without valid score
-* No silent fallbacks
-
-### 4. Compliance as 1:1 State
-
-* `compliance_docs` has UNIQUE(supplier_id)
-* Represents current state only (not history)
-
-### 5. Audit-First Design
-
-* Every decision → evaluation row
-* Every state change → transition row
-
-### 6. Failure Visibility
-
-* No silent drops
-* All failures logged and sent to Sentry
+* Separate scoring from evaluation
+* Async, non-blocking onboarding
+* No evaluation without valid AI output
+* Compliance as current state (UNIQUE supplier_id)
+* Audit-first: evaluations + transitions
+* No silent failures (logs + Sentry)
 
 ---
 
 ## 6. Data Model
 
-### Tables
-
-#### suppliers
-
-* core entity
-* includes sellableStatus, eligibilityStatus, commercialScore
-
-#### ai_outputs
-
-* stores AI scoring results
-* filtered by `call_type = ONBOARD_SCORE`
-
-#### compliance_docs
-
-* 1:1 with supplier
-* initialized at onboarding
-* updated via UPDATE (never re-inserted)
-
-#### supplier_evaluations
-
-* snapshot of each evaluation run
-* includes score, eligibility, pathway, thresholdVersion
-
-#### supplier_state_transitions
-
-* audit log of state changes
-* includes actor (SYSTEM / ADMIN)
-* linked to evaluationId
+* **suppliers** (status fields)
+* **ai_outputs** (call_type = ONBOARD_SCORE)
+* **compliance_docs** (1:1, UNIQUE supplier_id)
+* **supplier_evaluations** (snapshots)
+* **supplier_state_transitions** (audit log)
 
 ---
 
 ## 7. API Surface
 
-### Supplier APIs
-
 * `POST /api/suppliers/onboard`
 * `GET /api/suppliers`
 * `GET /api/suppliers/:id`
-
-### History APIs
-
 * `GET /api/suppliers/:id/evaluations`
 * `GET /api/suppliers/:id/transitions`
-
-### Marketplace API
-
 * `GET /api/suppliers/marketplace`
+* Admin:
 
-  * only SELLABLE / PUBLISHED
-  * minimal response shape
-
-### Admin APIs
-
-* `POST /api/admin/suppliers/:id/transition`
-* `POST /api/admin/suppliers/:id/publish`
+  * `POST /api/admin/suppliers/:id/transition`
+  * `POST /api/admin/suppliers/:id/publish`
 
 ---
 
 ## 8. Reliability & Safeguards
 
-### Scoring (scoreSupplier)
+* **scoreSupplier**
 
-* 3 retries with exponential backoff (1s, 2s, 4s)
-* latency logging for Claude API
-* output validation (`Number.isFinite`)
-* final failure → logger.error + Sentry
+  * 3 retries (1s/2s/4s), retry on all errors
+  * latency logging (Claude)
+  * `Number.isFinite` validation
+  * final failure → logger.error + Sentry
+* **evaluateSupplier**
 
-### Evaluation (evaluateSupplier)
+  * NotFoundError on missing/invalid AI output (no writes)
+  * idempotent, transactional
+* **Data integrity**
 
-* retry on missing AI output (NotFoundError)
-* no partial writes
-* idempotent behavior
+  * UNIQUE(compliance_docs.supplier_id)
+  * deterministic queries
+* **Async safety**
 
-### Data Integrity
-
-* UNIQUE constraint on compliance_docs(supplier_id)
-* deterministic query ordering
-* no duplicate compliance rows
-
-### Async Safety
-
-* fire-and-forget execution
-* no blocking API responses
+  * fire-and-forget, non-blocking
 
 ---
 
 ## 9. Known Limitations
 
-* No job queue (fire-and-forget only)
-* No automatic recovery if scoring fails permanently
-* Thin marketplace UI (validation only)
+* No durable queue (fire-and-forget)
+* Thin supplier marketplace (validation surface)
 * No product-level data yet
-* Compliance model is current-state only (no history)
+* Compliance is current-state only (no history)
 
 ---
 
-## 10. Phase II / Future Enhancements
+## 10. Phase II / Future
 
-### Reliability
-
-* Queue-based scoring (durable jobs)
-* Automatic retry/recovery pipeline
-
-### Marketplace
-
-* Pagination, filtering, search
-* Supplier + product integration
-
-### Data Enrichment
-
-* Product catalog
-* Certifications
-* Availability and pricing
-
-### Compliance Evolution
-
-* Introduce `compliance_docs_history` if versioning needed
+* Queue-based scoring
+* Marketplace expansion (filters/search)
+* Product + certification data
+* Optional compliance history table (separate, not replacing UNIQUE)
 
 ---
 
 ## 11. Status
 
-* Epic: Completed
-* Production: Deployed
+* Completed, deployed
 * Last Updated: 2026-04-23
 
 ---
 
-# Diagram Specifications
+## Diagram Specs
 
-## 1. Flow Diagram (epic1-flow.png)
+### epic1-flow.png
 
-Nodes:
+Onboard → AI Scoring → AI Output → Evaluate → Decision:
 
-Onboard → AI Scoring → AI Output Stored → Evaluate Supplier →
-[Decision: PASS / FAIL] →
-FAIL → NOT_READY
-PASS → SELLABLE → Marketplace
+* FAIL → NOT_READY
+* PASS → SELLABLE → Marketplace
+  Optional: SELLABLE → Admin Publish → PUBLISHED
 
-Optional branch:
-SELLABLE → Admin Publish → PUBLISHED
+### epic1-architecture.png
 
----
-
-## 2. Architecture Diagram (epic1-architecture.png)
-
-Layers:
-
-Frontend
-↓
-API Layer
-↓
-Services:
-
-* scoreSupplier
-* evaluateSupplier
-
-↓
-Database:
-
-* suppliers
-* ai_outputs
-* compliance_docs
-* evaluations
-* transitions
-
-Side components:
-
-* Logging
-* Sentry
-* Async execution (setImmediate)
-
----
+Frontend → API → Services (scoreSupplier, evaluateSupplier) → DB (suppliers, ai_outputs, compliance_docs, evaluations, transitions)
+Side: Logging, Sentry, Async execution
 
 END

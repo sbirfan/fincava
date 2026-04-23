@@ -1,0 +1,119 @@
+EXECUTE.
+
+OBJECTIVE Extract and validate a complete source-of-truth for Supplier Persona, Buyer Persona, and Onboarding Flow using:
+1. Existing architecture document
+2. Actual codebase (routes, schema, services)
+
+INPUT
+Primary reference: fincava-architecture.md 
+
+OUTPUT FILES
+1. ops/supplier_persona.md
+2. ops/buyer_persona.md
+3. ops/onboarding_flow.md
+4. ops/system_gap_analysis.md
+
+PHASE 1 — EXTRACT FROM DOCUMENT
+From architecture doc, extract:
+Supplier data
+* all fields (suppliers, compliance_docs, interactions.metadata, ai_outputs)
+* onboarding steps
+* lifecycle states
+Buyer data
+* marketplace exposure
+* visible fields
+Flow
+* onboarding steps
+* scoring
+* evaluation
+* transitions
+
+PHASE 2 — VALIDATE AGAINST CODE
+For each extracted item:
+Check in codebase:
+* schema (lib/db)
+* routes (suppliers.ts, products.ts, etc.)
+* services (scoreSupplier, evaluateSupplier)
+
+Mark each item:
+* CONFIRMED → exists in code
+* PARTIAL → exists but differs
+* MISSING → not found in code
+* DERIVED → computed (not stored)
+
+
+3. BUILD SUPPLIER PERSONA (SOURCE OF TRUTH)
+Structure:
+Identity
+Business Profile
+Compliance State
+AI Scoring Attributes
+Evaluation State
+Lifecycle States
+Visibility Matrix (who sees what)
+
+
+4. BUILD BUYER PERSONA (CURRENT + TARGET)
+Current
+* what buyer can see today
+Missing
+* products
+* certifications
+* pricing
+* engagement
+
+
+5. ONBOARDING FLOW (DETAILED)
+Include:
+Step-by-step
+Data collected per step
+Where stored (table/column)
+Who can access it
+What triggers next step
+
+
+6. ROLE MATRIX
+Roles:
+* Supplier
+* Buyer
+* Admin
+* System
+For each:
+* actions
+* data access
+* restrictions
+
+
+7. DATA LIFECYCLE
+Trace:
+Input → Storage → Processing → Output
+Example: export_readiness_score → ai_outputs → evaluation → marketplace visibility
+
+
+8. GAP ANALYSIS
+HIGH
+* mismatches between doc and code
+* unclear ownership
+* missing validation
+MEDIUM
+* redundancy
+* unclear visibility
+LOW
+* naming inconsistencies
+
+
+OUTPUT FORMAT
+* clean markdown
+* no assumptions without labeling
+* clearly separate:
+    * confirmed facts
+    * inferred items
+
+OUTPUT
+* files created
+* top 10 insights
+* top 5 risks
+
+DO NOT MODIFY CODE
+
+COMPLETE
