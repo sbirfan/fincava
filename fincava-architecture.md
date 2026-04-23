@@ -6,7 +6,7 @@
 
 ## 1. Project Overview
 
-Fincava is a B2B marketplace and supply-chain financing platform that connects Colombian smallholder farmers and cooperatives with international buyers. The platform covers the full commercial journey: supplier onboarding and AI scoring, product discovery, RFQ/inquiry management, order tracking, embedded trade finance, and post-sale communications via WhatsApp. The frontend is fully bilingual (English / Spanish) with device-language detection.
+Fincava is a B2B marketplace and supply-chain financing platform that connects Colombian smallholder farmers and cooperatives with international buyers. The platform covers the full commercial journey: supplier onboarding and AI scoring, a state machine that graduates suppliers to marketplace readiness, product discovery, RFQ/inquiry management, order tracking, embedded trade finance, and post-sale communications via WhatsApp. The frontend is fully bilingual (English / Spanish) with device-language detection.
 
 ---
 
@@ -22,9 +22,11 @@ The project is a **pnpm workspace** monorepo with the following top-level layout
 │   └── mockup-sandbox/   # Isolated UI component preview server
 ├── lib/
 │   ├── db/               # Drizzle ORM schema + migrations (shared)
+│   ├── config/           # Shared runtime config (graduation thresholds)
 │   ├── api-spec/         # OpenAPI / Swagger definitions
 │   ├── api-zod/          # Auto-generated Zod validation schemas
 │   └── api-client-react/ # Auto-generated TanStack Query hooks
+├── ops/                  # Execution maps, post-MVP plans, epic docs
 └── scripts/              # Build and maintenance utilities
 ```
 
@@ -41,7 +43,8 @@ Each artifact is an independent deployable unit, bound to a port via the `PORT` 
 | Backend | Node.js, Express 5, TypeScript, tsx/esbuild |
 | Database | PostgreSQL (Replit-managed), Drizzle ORM |
 | Validation | Zod (server-side schemas in `src/schemas.ts`; shared via `lib/api-zod`) |
-| AI | Anthropic Claude (`claude-sonnet-4-5`) — export readiness scoring + document generation |
+| AI — Scoring | Anthropic Claude (`claude-haiku-4-5`) — export readiness scoring |
+| AI — Documents | Anthropic Claude (`claude-sonnet-4-6`) — compliance document generation |
 | Messaging | Twilio WhatsApp Business API |
 | Auth | JWT (Bearer tokens), bcrypt password hashing |
 | Logging | Pino (structured JSON logs) |
@@ -58,48 +61,63 @@ All tables live in `lib/db/src/schema/` and are managed by Drizzle ORM.
 |---|---|
 | `users` | Authentication — email, bcrypt password, role (`BUYER`, `SUPPLIER`, `ADMIN`), phone |
 | `companies` | Company linked 1:1 to a user — name, tax ID, address |
+| `profiles` | Extended user profile data |
 
 ### 4.2 Suppliers
 | Table | Purpose |
 |---|---|
-| `suppliers` | Core profile — `nombreCompleto`, `whatsappNumber`, department, municipio, `supplierType` (`FARMER`, `COOPERATIVE`, `PROCESSOR`, `EXPORTER`), `status` (`PENDING`, `ACTIVE`, `INACTIVE`), primary product |
-| `supplier_certifications` | Certifications held (Fairtrade, Organic, RainForest Alliance, etc.) |
-| `supplier_products` | Products offered by a supplier with details (variety, altitude, cupping score) |
+| `suppliers` | Core profile — `nombreCompleto`, `whatsappNumber`, department, municipio, `supplierType` (`FARMER`, `COOPERATIVE`, `PROCESSOR`, `EXPORTER`), `status` (`PENDING`, `ACTIVE`, `INACTIVE`), graduation state fields: `sellableStatus`, `eligibilityStatus`, `commercialScore`, `graduationPathway`, `lastEvaluatedAt`, `thresholdVersion` |
+| `farms` | Farm detail — land size, coordinates, production practices, linked to supplier |
+| `economics` | Economic data — buyer types, export history, working capital, linked to supplier |
+| `compliance_docs` | Current compliance state (1:1 with supplier, UNIQUE constraint on `supplier_id`). Fields: `rutDian`, `icaRegistro`, `fitosanitarioCert`, `dianExportador`. NOT a history table — represents latest state only |
+| `certifications` | Certifications held (Fairtrade, Organic, RainForest Alliance, etc.) |
+| `interactions` | Officer-recorded field visits and onboarding interactions. Expanded compliance metadata stored in JSONB column (see Section 6.1) |
+| `trust_scores` | Supplier trust/reliability scores |
 
-### 4.3 AI Outputs
+### 4.3 Supplier Graduation (Epic 1)
 | Table | Purpose |
 |---|---|
-| `ai_outputs` | One row per Claude API call — `callType` (`ONBOARD_SCORE`, `DOCUMENT_GENERATION`), `exportReadinessScore` (0–100), `pathway` (`READY_TO_EXPORT`, `NEEDS_PREPARATION`, `EARLY_STAGE`), `capitalCapacityCop`, `complianceGaps`, `gapAnalysis`, `documentContent`, `whatsappMessageSent` (Twilio SID) |
+| `supplier_evaluations` | Append-only snapshot per evaluation run — `eligibilityStatus`, `commercialScore`, `sellableStatus`, `pathway`, `scoreSnapshot` (JSONB), `thresholdVersion`. Never mutated after insert |
+| `supplier_state_transitions` | Audit log of every state change — `fromState`, `toState`, `actor` (`SYSTEM`, `ADMIN`, `FOUNDER`), `justification`, `evaluationId` (FK to evaluation that triggered transition), `thresholdVersion` |
 
-### 4.4 Marketplace
+### 4.4 AI Outputs
+| Table | Purpose |
+|---|---|
+| `ai_outputs` | One row per Claude API call — `callType` (`ONBOARD_SCORE`, `DOCUMENT_GENERATION`), `exportReadinessScore` (0–100), `pathway` (`A`, `B`, `C`, `D`), `capitalCapacityCop`, `complianceGaps`, `gapAnalysis`, `documentContent`, `whatsappMessageSent` (Twilio SID) |
+
+### 4.5 Marketplace
 | Table | Purpose |
 |---|---|
 | `products` | Marketplace catalog — linked to supplier, category, price, certifications, origin story |
 | `origin_stories` | Human narrative behind a farm/cooperative |
+| `product_analytics` | Product view and engagement tracking |
 
-### 4.5 Transactions
+### 4.6 Transactions
 | Table | Purpose |
 |---|---|
 | `inquiries` | Buyer-to-supplier leads |
 | `rfqs` | Request-for-Quote documents |
+| `rfq_responses` | Supplier responses to RFQs |
 | `orders` | Order lifecycle — status (`PENDING`, `CONFIRMED`, `SHIPPED`, `COMPLETED`, `CANCELLED`) |
 | `order_items` | Line items per order |
+| `shipments` | Shipment tracking per order |
+| `trade_history` | Historical trade records |
 
-### 4.6 Finance
+### 4.7 Finance
 | Table | Purpose |
 |---|---|
 | `loans` | Trade finance loans — amount, APR, status (`PENDING`, `APPROVED`, `ACTIVE`, `REPAID`, `DEFAULTED`) |
 | `repayments` | Individual repayment records against a loan |
+| `payment_milestones` | Scheduled payment milestones |
+| `subscriptions` | Subscription / plan management |
 
-### 4.7 Communication
+### 4.8 Communication & Operations
 | Table | Purpose |
 |---|---|
 | `messages` | In-platform messaging between buyers and suppliers |
-
-### 4.8 Interactions / Extended Compliance
-| Table | Purpose |
-|---|---|
-| `interactions` | Officer-recorded field visits and onboarding interactions. Stores expanded compliance data in a `metadata` JSONB column (see Section 6.1). |
+| `reviews` | Buyer reviews of suppliers/products |
+| `staff_roles` | Staff role assignments |
+| `compliance_requirements` | Configurable compliance requirement definitions |
 
 ---
 
@@ -117,12 +135,22 @@ Base path: `/api`
 ### Suppliers — `src/routes/suppliers.ts`
 | Method | Path | Description |
 |---|---|---|
-| POST | `/suppliers/onboard` | Multi-step supplier registration, triggers Claude scoring |
+| POST | `/suppliers/onboard` | Multi-step supplier registration. Triggers Claude scoring (async, fire-and-forget with retry). Initialises `compliance_docs` row idempotently (`ON CONFLICT DO NOTHING`) |
+| GET | `/suppliers` | Paginated supplier list with evaluation fields (`sellableStatus`, `eligibilityStatus`, `commercialScore`) |
+| GET | `/suppliers/marketplace` | Buyer-facing listing — returns `SELLABLE` and `PUBLISHED` suppliers only |
 | GET | `/suppliers/admin-list` | Paginated admin list with AI scores + `whatsappMessageSent` |
-| GET | `/suppliers/:id` | Supplier detail (public) |
+| GET | `/suppliers/:id` | Supplier detail with evaluation fields |
+| GET | `/suppliers/:id/evaluations` | Full evaluation history (DESC, limit 20) |
+| GET | `/suppliers/:id/transitions` | State transition history (DESC, limit 20) |
 | GET | `/suppliers/:id/document` | Latest generated compliance document |
 | POST | `/suppliers/:id/generate-document` | Trigger Claude document generation |
 | POST | `/suppliers/:id/send-whatsapp` | Manual WhatsApp message trigger (admin only) |
+
+### Admin Graduation — `src/routes/suppliers.ts` (admin-guarded)
+| Method | Path | Description |
+|---|---|---|
+| POST | `/admin/suppliers/:id/transition` | Manual state override. Requires `actor` (`ADMIN` or `FOUNDER`) and `justification`. `SYSTEM` actor is blocked at route layer |
+| POST | `/admin/suppliers/:id/publish` | Explicit `SELLABLE → PUBLISHED` gate. Requires `justification`. Returns 409 if supplier is not `SELLABLE` |
 
 ### Admin — `src/routes/admin.ts`
 | Method | Path | Description |
@@ -157,18 +185,27 @@ Base path: `/api`
 
 ### 6.1 Supplier Onboarding + AI Scoring
 
-New suppliers submit a multi-step registration form (personal info, location, products, certifications, compliance). On submission, `scoreSupplier()` calls Claude with a structured prompt. Claude returns:
+New suppliers submit a multi-step registration form (personal info, location, farm, production, compliance). On submission, `scoreSupplier()` is called fire-and-forget. It calls Claude Haiku with a structured prompt and includes:
+
+- **Retry logic**: max 3 attempts, exponential backoff (1 s → 2 s → 4 s), retries on all error types
+- **Latency logging**: Claude API call duration logged via `logger.info { supplierId, duration }`
+- **Output validation**: `Number.isFinite(export_readiness_score)` enforced before insert — invalid responses throw and trigger retry
+- **Failure visibility**: after all retries exhausted, `logger.error` + Sentry capture. No silent drops
+
+Claude returns:
 - `export_readiness_score` (0–100)
-- `pathway` (READY_TO_EXPORT / NEEDS_PREPARATION / EARLY_STAGE)
+- `pathway` (`A` / `B` / `C` / `D`)
 - `capital_capacity_cop` (estimated capital in Colombian pesos)
-- `compliance_gaps` (array of gaps)
+- `compliance_gaps` (array)
 - `gap_analysis` (narrative)
 
-Results are stored in `ai_outputs`. On success, a WhatsApp message is automatically sent to the supplier's registered number via Twilio.
+Results are stored in `ai_outputs`. On success, a WhatsApp message is sent to the supplier's registered number via Twilio.
+
+The `compliance_docs` row is initialised with all fields set to `false` using `ON CONFLICT (supplier_id) DO NOTHING` — retrying onboarding never overwrites existing compliance state.
 
 **Extended compliance fields (Step 3 — Export Readiness):**
 
-The Step 3 form was expanded from basic yes/no fields to a richer multi-choice compliance assessment. The following fields are captured and stored in `interactions.metadata` (JSONB):
+The Step 3 form captures richer compliance assessment. The following fields are stored in `interactions.metadata` (JSONB):
 
 | Field | Type | Options |
 |---|---|---|
@@ -183,47 +220,90 @@ The Step 3 form was expanded from basic yes/no fields to a richer multi-choice c
 | `working_capital_needed` | numeric | COP amount |
 | `export_blocker` | text | Free text description of main blocker |
 
-The `MultiChoice` UI component renders these as segmented button groups (no dropdowns), replacing the original RadioGroup pattern.
+### 6.2 Supplier Graduation State Machine (Epic 1)
 
-### 6.2 Registration Flow UX
+After AI scoring, `evaluateSupplier()` in `src/services/supplier-graduation-service.ts` runs asynchronously (via `setImmediate`, max 3 retries). It computes the supplier's readiness state and writes an immutable snapshot.
+
+**States:**
+```
+NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED
+```
+
+**Transition rules:**
+
+| State | Condition |
+|---|---|
+| `NOT_READY` | eligibility FAIL, or `commercialScore < 30` |
+| `ELIGIBLE` | eligibility PASS + `30 ≤ score < 60` |
+| `SELLABLE` | eligibility PASS + `score ≥ 60` (SYSTEM auto-transition) |
+| `PUBLISHED` | ADMIN or FOUNDER explicit publish only (`SELLABLE → PUBLISHED` gate) |
+
+**Eligibility requirements** (all must be true):
+- `rutDian`
+- `icaRegistration`
+- `fitosanitario`
+- `consentGiven`
+
+**Thresholds** (`lib/config/thresholds.ts`, version `v0_pre_buyer_calls`):
+- `sellableMin`: 60
+- `partialMin`: 30
+
+Thresholds are versioned and immutable — bumping creates a new export, old versions are preserved for replay.
+
+**Actors:**
+- `SYSTEM` — automated, forward-only transitions, always linked to an `evaluationId`
+- `ADMIN` / `FOUNDER` — manual overrides, `justification` always required, no exceptions
+
+**Compliance model:**
+- `compliance_docs` is a 1:1 current-state table (UNIQUE constraint on `supplier_id`)
+- History is NOT tracked here — if audit history is needed in future, use a separate `compliance_docs_history` append-only table; do not remove the UNIQUE constraint
+
+### 6.3 Registration Flow UX
 
 The registration page (`/register`) supports two entry paths:
 
-- **With role param** (`/register?role=supplier` or `?role=buyer`): skips the role picker entirely and opens at Step 2 (Account Details). All home page CTAs and the "Join as a Supplier" / "Start Buying" buttons pass these params.
-- **Without param**: shows the role picker at Step 1. Cards are click-to-advance — clicking a card immediately moves to Step 2 with no separate "Continue" button.
+- **With role param** (`/register?role=supplier` or `?role=buyer`): skips the role picker entirely and opens at Step 2 (Account Details)
+- **Without param**: shows the role picker at Step 1. Clicking a card immediately advances to Step 2
 
 Supplier registration is a 6-step flow: Role → Account → Farm → Production → Readiness → Review. Buyer registration is 2 steps: Role → Account.
 
-### 6.3 Document Generation
-Admins can trigger a compliance document for any supplier via "Gen Doc". Claude generates a formatted document (stored as plain text in `ai_outputs.documentContent`). The admin can open it in the DocModal viewer (with Download-as-TXT), or re-open the last generated document via "View Last".
+### 6.4 Document Generation
+Admins can trigger a compliance document for any supplier via "Gen Doc". Claude Sonnet generates a formatted document (stored as plain text in `ai_outputs.documentContent`). The admin can open it in the DocModal viewer (with Download-as-TXT), or re-open the last generated document via "View Last".
 
-### 6.4 WhatsApp Notifications (Twilio)
+### 6.5 WhatsApp Notifications (Twilio)
 - **Automatic**: fires immediately after successful AI scoring on onboarding
 - **Manual**: "Send WA" button in the admin supplier table — sends a Spanish-language summary with score and pathway
 - Phone normalisation: E.164 format, strips spaces, adds `+57` Colombia prefix if missing
-- The Twilio message SID is stored in `ai_outputs.whatsappMessageSent`; the admin table reflects sent/unsent state via button styling
+- The Twilio message SID is stored in `ai_outputs.whatsappMessageSent`
 
-### 6.5 Admin Console
+### 6.6 Admin Console
 Full CRUD for users and suppliers:
 - **Users**: create (with company), edit (upserts company row), delete, role management
-- **Suppliers**: status controls (PENDING / ACTIVE / INACTIVE), pathway badge, AI score display, document viewer, WhatsApp trigger
+- **Suppliers**: status controls, graduation state controls (`transition`, `publish`), pathway badge, AI score display, document viewer, WhatsApp trigger
 - Filtering by product type, status, search (name/location)
 - Pagination
 
-### 6.6 Embedded Trade Finance
+### 6.7 Embedded Trade Finance
 Buyers can apply for trade finance loans linked to specific orders. The finance dashboard tracks loan status, APR, outstanding balance, and repayment schedule.
 
-### 6.7 Multilingual Support
+### 6.8 Multilingual Support
 
 All frontend UI strings are served from `LanguageContext` (English / Spanish). Key behaviours:
 
-- **Device detection**: on first visit (no saved preference), `navigator.language` is checked. If it starts with `"es"`, Spanish is set automatically. Otherwise defaults to English.
-- **Persistence**: chosen language is saved to `localStorage` under key `"fincava_lang"` and restored on next visit.
-- **Toggle**: EN/ES pill in the navbar — switches language immediately across all pages.
-- **Registration steps**: `StepFarmIdentity`, `StepProduction`, `StepBusinessReadiness`, and `ReviewSummary` sub-components all receive the live `lang` prop and render fully bilingual content.
-- **Known gap**: the outer shell of `register.tsx` (card title, field labels, buttons, Zod validation messages) is not yet translated. This is documented as a planned improvement.
+- **Device detection**: on first visit, `navigator.language` is checked. If it starts with `"es"`, Spanish is set automatically
+- **Persistence**: saved to `localStorage` under key `"fincava_lang"`
+- **Toggle**: EN/ES pill in the navbar
+- **Registration steps**: `StepFarmIdentity`, `StepProduction`, `StepBusinessReadiness`, and `ReviewSummary` all receive the live `lang` prop and render bilingual content
 
-Translation strings live in `src/i18n/translations.ts` (EN and ES objects with identical key shapes).
+Translation strings live in `src/i18n/translations.ts`.
+
+### 6.9 Supplier Marketplace (Validation Surface — Temporary)
+
+Route `/supplier-marketplace` is an isolated thin UI for internal validation of the graduation pipeline end-to-end. It is not part of the product marketplace and must not be expanded.
+
+- No filters, search, or pagination
+- Displays `SELLABLE` and `PUBLISHED` suppliers only
+- Marked for removal or redesign in Phase II
 
 ---
 
@@ -231,7 +311,8 @@ Translation strings live in `src/i18n/translations.ts` (EN and ES objects with i
 
 | Service | Purpose | Config |
 |---|---|---|
-| Anthropic Claude | AI scoring + document generation | `ANTHROPIC_API_KEY` |
+| Anthropic Claude Haiku | AI scoring | `ANTHROPIC_API_KEY`, `ANTHROPIC_SCORING_MODEL` |
+| Anthropic Claude Sonnet | Document generation | `ANTHROPIC_API_KEY`, `ANTHROPIC_DOCUMENT_MODEL` |
 | Twilio WhatsApp | Supplier notifications | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
 | PostgreSQL | Primary datastore | `DATABASE_URL` (Replit-managed) |
 
@@ -243,16 +324,20 @@ Translation strings live in `src/i18n/translations.ts` (EN and ES objects with i
 - Sessions managed via **JWT** — signed with `JWT_SECRET`, 7-day expiry
 - All admin and supplier-mutating routes are behind `requireAuth` + `requireAdmin` middleware
 - Request bodies validated with Zod schemas before reaching business logic
+- Admin graduation routes block `SYSTEM` actor usage at the route layer
 
 ---
 
 ## 9. Deployment
 
-The app is published via **Replit's native deployment system** (not GitHub Actions). Replit handles:
-- Build (`pnpm run build` per artifact)
-- Hosting and TLS
-- Health checks
-- Port routing (path-based, proxied iframe)
+The app is published via **Replit's native deployment system**.
+
+| Artifact | Production mode |
+|---|---|
+| `artifacts/fincava` | Static — built with Vite, served from `artifacts/fincava/dist/public` |
+| `artifacts/api-server` | Process — `node --enable-source-maps artifacts/api-server/dist/index.mjs` |
+
+Replit handles build, hosting, TLS, health checks (path: `/api/healthz`), and path-based routing.
 
 GitHub is used as a source-control mirror. The Replit project is the source of truth.
 
@@ -264,7 +349,8 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 |---|---|
 | API Server | `pnpm --filter @workspace/api-server run dev` |
 | Frontend | `pnpm --filter @workspace/fincava run dev` |
-| DB schema push | `pnpm --filter @workspace/db run db:push` |
+| Component Preview | `pnpm --filter @workspace/mockup-sandbox run dev` |
+| DB schema push | `psql $DATABASE_URL` (direct SQL — avoids interactive drizzle-kit prompts) |
 
 ---
 
@@ -272,8 +358,11 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 
 | Area | Description |
 |---|---|
-| Register page shell translations | Card title, field labels, button text, and Zod validation error messages in `register.tsx` are still English-only. Fixing Zod messages requires moving the schema inside the component. |
-| Mobile navbar | Language toggle and nav links not yet adapted for mobile viewports. |
+| No job queue | `scoreSupplier` and `evaluateSupplier` run via `setImmediate` (fire-and-forget). Jobs can be lost on process crash. Phase II: database-backed job queue |
+| Thin marketplace UI | `/supplier-marketplace` is a validation surface only — not buyer-ready. Phase II: pagination, filtering, search, sorting |
+| Register page shell translations | Card title, field labels, button text, and Zod validation error messages in `register.tsx` are still English-only |
+| Mobile navbar | Language toggle and nav links not yet adapted for mobile viewports |
+| Compliance history | `compliance_docs` stores current state only. Audit history requires a separate `compliance_docs_history` table (do not remove UNIQUE constraint) |
 
 ---
 
@@ -286,3 +375,11 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | Apr 2026 | Registration flow UX: `?role=` params on all home CTAs, skip-role-picker logic, click-to-advance role cards |
 | Apr 2026 | Language system: device-language detection via `navigator.language`, live `lang` prop wired into all registration sub-components |
 | Apr 2026 | Copy audit: em dashes replaced with commas/colons across `translations.ts`, `investors.tsx`, and `trust-badge.tsx` |
+| Apr 2026 | Epic 1 — Supplier Graduation State Machine: `evaluateSupplier`, `transitionTo`, `markPublished`, state machine (NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED), threshold versioning, `supplier_evaluations` + `supplier_state_transitions` tables |
+| Apr 2026 | Compliance model hardened: `compliance_docs` UNIQUE constraint on `supplier_id`, `ON CONFLICT DO NOTHING` on onboard insert, `ORDER BY id DESC LIMIT 1` defensive query |
+| Apr 2026 | `scoreSupplier` hardened: retry logic (3 attempts, exponential backoff), latency logging, `Number.isFinite` output validation, `logger.error` + Sentry on final failure, outer `.catch()` removed |
+| Apr 2026 | Admin graduation routes: `POST /admin/suppliers/:id/transition`, `POST /admin/suppliers/:id/publish` with SELLABLE gate (409) |
+| Apr 2026 | Marketplace API: `GET /suppliers/marketplace` (SELLABLE/PUBLISHED only), evaluation + transition history endpoints |
+| Apr 2026 | AI model split: scoring → `claude-haiku-4-5`, document generation → `claude-sonnet-4-6` |
+| Apr 2026 | `lib/config/thresholds.ts` introduced — versioned, immutable threshold definitions |
+| Apr 2026 | `ops/` directory: `execution_map.md`, `post_mvp_plan.md`, `epic_1_supplier_graduation.md`, `assets/` |
