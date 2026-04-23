@@ -2,7 +2,7 @@
 
 > Purpose: Define controlled evolution of Fincava platform after MVP validation
 > Status: Active
-> Owner: Syed (Irfan) Irfan
+> Owner: [Founder]
 > Last Updated: 2026-04-23
 
 ---
@@ -102,7 +102,7 @@ Introduce **structured intelligence**, not full automation.
 
 #### 3. Supplier Guidance
 
-* "Next best actions"
+* “Next best actions”
 * Gap resolution recommendations
 
 ---
@@ -190,7 +190,7 @@ Transition into **intelligent coordination system**
 ### Capabilities
 
 * AI agents (specialized roles)
-* Decision engine ("AI brain")
+* Decision engine (“AI brain”)
 * Continuous learning loops
 * Predictive scoring
 * Dynamic matching
