@@ -564,7 +564,7 @@ router.post(
 );
 
 // ── GET /api/suppliers ────────────────────────────────────────────────────────
-router.get("/suppliers", async (req, res): Promise<void> => {
+router.get("/suppliers", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const suppliers = await db
     .select({
       id: suppliersTable.id,

@@ -106,6 +106,19 @@ TARGET_STATE:
 
 * restrict or sanitize
 
+Fix Applied (P0.2 — Epic 2 Precondition)
+- GET /api/suppliers restricted to ADMIN-only
+- Middleware: requireAuth + requireAdmin (in that order)
+- Public buyer access served via /suppliers/marketplace (unchanged)
+- Internal evaluation fields no longer externally accessible
+- Date: 2026-04-23
+
+OPEN FINDINGS (not fixed in P0.2):
+- GET /suppliers/:id unguarded — exposes full supplier row by ID, fix separately
+- artifacts/fincava/src/pages/suppliers.tsx:15 calls useListSuppliers() (→ GET /api/suppliers)
+  with no auth header — public /suppliers page will 401 for all non-admin users
+  Must be migrated to /suppliers/marketplace before public re-enablement
+
 ---
 
 ### H5 — Compliance Fragmentation (ARCHITECTURE)
