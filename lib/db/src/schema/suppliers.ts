@@ -154,6 +154,11 @@ export const economicsTable = pgTable("economics", {
 
 export const complianceDocsTable = pgTable("compliance_docs", {
   id: serial("id").primaryKey(),
+  // 1:1 relationship with supplier
+  // This table represents the CURRENT compliance state (not historical)
+  // Enforced via UNIQUE constraint on supplier_id
+  // If compliance history is required in future:
+  // → introduce compliance_docs_history table instead of removing constraint
   supplierId: integer("supplier_id")
     .notNull()
     .unique()

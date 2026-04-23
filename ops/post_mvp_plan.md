@@ -176,3 +176,26 @@ Introduce a job queue system for durability and retries.
 * Must NOT:
   * coexist long-term with product marketplace
   * evolve into a second marketplace surface
+
+### Future Consideration — Compliance Versioning
+
+* Current model:
+  * compliance_docs is a single-row, current-state table (1:1 with supplier)
+
+* Rationale:
+  * Simplifies evaluation logic
+  * Ensures deterministic reads
+  * Prevents conflicting compliance states
+
+* If future requirements include:
+  * audit history of compliance changes
+  * version tracking
+  * temporal queries
+
+* Then evolve to:
+  * compliance_docs_history (append-only table)
+  * keep compliance_docs as current snapshot
+
+* IMPORTANT:
+  * Do NOT remove UNIQUE constraint to support history
+  * Use separate table instead
