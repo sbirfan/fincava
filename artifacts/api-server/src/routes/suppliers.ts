@@ -119,6 +119,13 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
             : (body.economics?.haIntentadoExportar ?? null),
     });
 
+    // ica_registered is submitted as body.ica_registered (flat, root level) from Step 3.
+    // Frontend sends string "yes" | "no" | undefined (ica_registered was not given the
+    // === "yes" boolean conversion that organic_certified and currently_exporting received).
+    // Direct API callers may send boolean true. Both forms are treated as positive intent.
+    const icaRegisteredTrue =
+      body.ica_registered === true || body.ica_registered === "yes";
+
     // Idempotent initialization:
     // ON CONFLICT DO NOTHING ensures this never clobbers an existing compliance row.
     // icaRegistro seeded from onboarding body for new rows.
@@ -126,20 +133,26 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       .insert(complianceDocsTable)
       .values({
         supplierId: supplier.id,
-        icaRegistro: body.ica_registered === true,
+        icaRegistro: icaRegisteredTrue,
       })
       .onConflictDoNothing({ target: complianceDocsTable.supplierId });
 
     // ICA sync — Epic 2 Precondition
-    // If the supplier declares ica_registered = true, ensure compliance_docs reflects
-    // this regardless of whether the row was just created or already existed.
+    // If the supplier declares ica_registered, ensure compliance_docs reflects this
+    // regardless of whether the row was just created or already existed.
     // Only syncs true → never downgrades an admin-set value.
-    if (body.ica_registered === true) {
+    // Re-onboarding not supported in v0.
+    // This UPDATE handles the case where compliance_docs row pre-existed from a
+    // prior admin operation. If re-onboarding is added in future, re-evaluate this path.
+    if (icaRegisteredTrue) {
       await db
         .update(complianceDocsTable)
         .set({ icaRegistro: true })
         .where(eq(complianceDocsTable.supplierId, supplier.id));
-      logger.info({ supplierId: supplier.id }, "ICA sync applied");
+      logger.info(
+        { supplierId: supplier.id, field: "ica_registered", source: "body.ica_registered" },
+        "ICA sync applied from onboarding metadata",
+      );
     }
 
     await db.insert(interactionsTable).values({
