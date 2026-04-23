@@ -1,0 +1,92 @@
+OBJECTIVE
+Harden the ICA sync fix from P0.1 against two specific risks:
+1. Body field path ambiguity — confirm ica_registered is read from
+   the correct nesting level in the request body
+2. Re-onboarding path — confirm behavior if compliance_docs row
+   already exists when ica_registered: true is submitted
+
+DO NOT EXECUTE CODE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
+
+PREFLIGHT (MANDATORY)
+1. Read artifacts/api-server/src/routes/suppliers.ts (FULL FILE)
+   - Find the ICA sync block added in P0.1
+   - Confirm the exact expression used: body.ica_registered
+     vs body.metadata.ica_registered vs body.step4.ica_registered
+   - Find where interactions row is inserted
+   - Confirm the exact metadata object shape written to interactions.metadata
+   - Note: the field stored in DB is interactions.metadata.ica_registered
+     but the question is what key name the request body uses at route level
+
+2. Read artifacts/fincava/src/pages/onboarding.tsx (or equivalent)
+   - Find Step 3 / Step 4 form field for ICA registration
+   - Note the exact field name submitted in the POST body
+   - Note whether it is nested under a key or flat at root level
+
+3. Cross-check
+   - Confirm body field path in routes/suppliers.ts matches
+     the field name submitted by the frontend form
+   - If they match: no change needed, document confirmation
+   - If they do not match: the sync silently never fires —
+     surface the mismatch and fix it
+
+GAP 1 — Body Field Path Fix (if mismatch found)
+If body.ica_registered does not match the actual submitted field path:
+  Update the ICA sync condition to use the correct path
+  Add a comment explaining the nesting:
+    // ica_registered is submitted as body.[exact.path] from Step N
+    // stored in interactions.metadata as ica_registered
+  Do NOT change the interactions insert or metadata structure
+
+GAP 2 — Re-onboarding / Update Path Documentation
+Confirm whether a re-onboarding or compliance update path exists
+that would re-submit Step 4 metadata for an existing supplier.
+
+Case A — No re-onboarding path exists (one-time POST only):
+  Add comment in the ICA sync block:
+    // Re-onboarding not supported in v0.
+    // This UPDATE handles the case where compliance_docs row
+    // pre-existed from a prior admin operation.
+    // If re-onboarding is added in future, re-evaluate this path.
+  No code change needed.
+
+Case B — Re-onboarding or update path exists:
+  Confirm the ICA sync UPDATE fires correctly on that path.
+  If the update path is a different route (PATCH, PUT):
+    Surface as a finding — do not fix in this ticket.
+    Log: "ICA sync only wired to POST /onboard — PATCH path
+    does not sync. Fix before re-onboarding UI is built."
+
+CONSTRAINTS
+- Do NOT change the compliance_docs schema
+- Do NOT change the ON CONFLICT DO NOTHING behavior
+- Do NOT change the UPDATE logic itself (already validated in P0.1)
+- Only fix the body field path if a mismatch is confirmed
+- Only add comments/documentation if no mismatch found
+- Onboarding response shape must remain unchanged
+
+INSTRUMENTATION
+If body field path is corrected:
+  Add log line:
+    logger.info({ supplierId, field: 'ica_registered', source: '[exact.path]' },
+      'ICA sync applied from onboarding metadata')
+  Replace the existing logger.info from P0.1.
+
+SAFETY
+- Do NOT modify any other sync logic
+- Do NOT touch graduation service
+- Do NOT touch schema files
+
+ACCEPTANCE
+1. Confirm body field path matches frontend submission (documented or fixed)
+2. Confirm T1 (new supplier, ica_registered: true) still passes
+3. Confirm T2 (new supplier, ica_registered: false) still passes
+4. Re-onboarding path: either confirmed out of scope with comment,
+   or flagged as a finding if a separate update route exists
+5. Zero change to onboarding response shape
+
+VERIFICATION
+Provide:
+- Exact body field path used (confirmed or corrected)
+- Statement on re-onboarding path (Case A or Case B)
+- Confirmation T1 and T2 still pass after any changes
