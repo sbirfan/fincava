@@ -1,0 +1,201 @@
+# System Gap Analysis — Source of Truth
+
+Derived from:
+
+* Codebase (schema, routes, services)
+* supplier_persona.md
+* onboarding_flow.md
+* buyer_persona.md
+* ops documents
+
+---
+
+## 0. Classification
+
+* CURRENT_STATE → validated from code
+* GAP → system deficiency or inconsistency
+* TARGET_STATE → desired behavior
+
+---
+
+## 1. Cross-Document Alignment
+
+This analysis consolidates:
+
+* Supplier persona (data + lifecycle)
+* Onboarding flow (execution pipeline)
+* Buyer persona (experience layer)
+
+---
+
+## 2. Gap Categories
+
+* SECURITY
+* DATA_INTEGRITY
+* PRODUCT_LOGIC
+* ARCHITECTURE
+* UX
+
+---
+
+## 3. HIGH Priority Gaps
+
+---
+
+### H1 — ICA Sync Mismatch (DATA_INTEGRITY)
+
+CURRENT_STATE:
+
+* `ica_registered` stored in interactions.metadata
+* `ica_registro` in compliance_docs remains false
+
+GAP:
+
+* onboarding input ignored by eligibility gate
+
+TARGET_STATE:
+
+* explicit mapping OR unified compliance model
+
+---
+
+### H2 — Marketplace / Graduation Disconnect (PRODUCT_LOGIC)
+
+CURRENT_STATE:
+
+* products visible regardless of supplier readiness
+
+GAP:
+
+* graduation system not used in buyer experience
+
+TARGET_STATE:
+
+* products gated or annotated by sellableStatus
+
+---
+
+### H3 — Async Job Durability (ARCHITECTURE)
+
+CURRENT_STATE:
+
+* scoring + evaluation run in-memory
+
+GAP:
+
+* process crash = permanent job loss
+
+TARGET_STATE:
+
+* durable job queue
+
+---
+
+### H4 — Public Supplier Dataset Exposure (SECURITY)
+
+CURRENT_STATE:
+
+* `/api/suppliers` publicly accessible
+* includes internal fields
+
+GAP:
+
+* unintended exposure of internal data
+
+TARGET_STATE:
+
+* restrict or sanitize
+
+---
+
+### H5 — Compliance Fragmentation (ARCHITECTURE)
+
+CURRENT_STATE:
+
+* compliance_docs
+* interactions.metadata
+* compliance_score (unused)
+
+GAP:
+
+* no single source of truth
+
+TARGET_STATE:
+
+* unified compliance model
+
+---
+
+## 4. MEDIUM Priority Gaps
+
+* Type mismatch (economics)
+* Pathway undefined (AI dependency)
+* Dual status fields
+* Supplier marketplace not integrated
+* Missing readiness in supplier detail
+
+---
+
+## 5. LOW Priority
+
+* Naming inconsistencies
+* Language duality
+* Free-text interaction types
+
+---
+
+## 6. Execution Priority
+
+### DO NOW (Before Epic 2)
+
+* ICA sync fix
+* Type mismatch fix
+* Define marketplace gating strategy (do not implement yet)
+
+---
+
+### DO NEXT (Epic 2)
+
+* Integrate readiness into marketplace
+* Improve supplier visibility
+
+---
+
+### DEFER (Post Epic 2)
+
+* Job queue
+* Compliance unification
+* Pathway standardization
+
+---
+
+## 7. Updated Top Risks
+
+| #  | Risk                                        | Severity    |
+| -- | ------------------------------------------- | ----------- |
+| R1 | ICA mismatch breaks eligibility correctness | Critical    |
+| R2 | No job durability                           | High        |
+| R3 | Marketplace ignores graduation              | High        |
+| R4 | Compliance fragmentation                    | High        |
+| R5 | Public supplier dataset exposure            | Medium-High |
+
+---
+
+## 8. Summary
+
+The system is:
+
+* Functionally correct
+* Operationally usable
+* Architecturally incomplete
+
+Key insight:
+
+```text
+The system produces high-quality signals (scoring, evaluation)
+but does not consistently use them (marketplace, UX, compliance).
+```
+
+---
+
+END
