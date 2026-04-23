@@ -181,3 +181,46 @@ NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED
 | Document content | — | — | — | Via `/suppliers/:id/document` |
 
 > **Risk**: `/suppliers`, `/suppliers/:id/evaluations`, and `/suppliers/:id/transitions` have no authentication guard. Commercial scores and evaluation history are publicly accessible.
+
+---
+## 10. Compliance Model — Structural Issue
+
+CURRENT_STATE:
+- Three independent representations
+- No synchronization
+- Eligibility depends on only one
+
+GAP:
+- No single source of truth
+- Conflicting signals possible
+
+TARGET_STATE:
+- Unified compliance model (future)
+- Clear ownership of each field
+
+---
+
+## 11. Supplier — Operational Reality
+
+CURRENT_STATE:
+
+- Supplier has NO visibility into:
+  - their evaluation
+  - their compliance status
+  - why they are NOT_READY
+
+- Supplier cannot:
+  - update compliance
+  - trigger re-evaluation
+  - view scoring output
+
+GAP:
+
+- Supplier is passive entity
+- System is admin-driven
+
+TARGET_STATE:
+
+- Supplier dashboard
+- Self-service visibility
+- Guided progression to SELLABLE
