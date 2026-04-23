@@ -363,4 +363,78 @@ BUT:
 
 ---
 
+## 14. ICA Sync Fix (Epic 2 Precondition)
+
+### Problem (PREVIOUS STATE)
+
+* Onboarding captured `ica_registered` from body
+* Stored only in `interactions.metadata` (JSONB)
+* `compliance_docs.ica_registro` defaulted to `false` for all new suppliers
+* Eligibility gate read `compliance_docs.ica_registro` — ignored onboarding input
+* Supplier declaring ICA registration still failed the eligibility gate
+
+---
+
+### Fix (CURRENT_STATE)
+
+Two-step sync in `POST /api/suppliers/onboard`:
+
+**Step 1 — INSERT seeds value for new rows**
+
+```
+INSERT INTO compliance_docs (supplier_id, ica_registro)
+VALUES (?, ica_registered === true)
+ON CONFLICT (supplier_id) DO NOTHING
+```
+
+**Step 2 — UPDATE enforces value for existing rows**
+
+```
+if (ica_registered === true) {
+  UPDATE compliance_docs
+  SET ica_registro = true
+  WHERE supplier_id = ?
+
+  log: "ICA sync applied", supplierId
+}
+```
+
+---
+
+### Behaviour
+
+| Scenario | ica_registered | Result |
+|---|---|---|
+| New supplier, ica_registered = true | true | ica_registro = true (INSERT + UPDATE) |
+| New supplier, ica_registered = false | false | ica_registro = false (INSERT, no UPDATE) |
+| Existing row, ica_registered = true | true | ica_registro = true (UPDATE only) |
+| Existing row, ica_registered = false | false | ica_registro unchanged (no UPDATE) |
+
+---
+
+### Safety
+
+* Never downgrades a value (only syncs `true`, never overwrites `true` → `false`)
+* Respects UNIQUE constraint on `compliance_docs.supplier_id`
+* No schema changes
+* Does not affect evaluation logic
+
+---
+
+### Scope
+
+* Applies at onboarding submission only
+* Admin can still override via `PATCH /api/admin/suppliers/:id/compliance`
+* Re-onboarding blocked by `suppliers.whatsapp_number` UNIQUE constraint
+
+---
+
+### Impact on Eligibility Gate
+
+Eligibility now reflects actual supplier-declared ICA status at onboarding time.
+Previously: gate always read `false` for ICA.
+Now: gate reads `true` if supplier declared `ica_registered: true`.
+
+---
+
 END

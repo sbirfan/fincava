@@ -120,9 +120,8 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     });
 
     // Idempotent initialization:
-    // If onboarding is retried, do NOT overwrite existing compliance state.
-    // ica_registered captured from onboarding body is synced here at creation time.
-    // ON CONFLICT DO NOTHING ensures this never overwrites a row that already exists.
+    // ON CONFLICT DO NOTHING ensures this never clobbers an existing compliance row.
+    // icaRegistro seeded from onboarding body for new rows.
     await db
       .insert(complianceDocsTable)
       .values({
@@ -130,6 +129,18 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         icaRegistro: body.ica_registered === true,
       })
       .onConflictDoNothing({ target: complianceDocsTable.supplierId });
+
+    // ICA sync — Epic 2 Precondition
+    // If the supplier declares ica_registered = true, ensure compliance_docs reflects
+    // this regardless of whether the row was just created or already existed.
+    // Only syncs true → never downgrades an admin-set value.
+    if (body.ica_registered === true) {
+      await db
+        .update(complianceDocsTable)
+        .set({ icaRegistro: true })
+        .where(eq(complianceDocsTable.supplierId, supplier.id));
+      logger.info({ supplierId: supplier.id }, "ICA sync applied");
+    }
 
     await db.insert(interactionsTable).values({
       supplierId: supplier.id,
