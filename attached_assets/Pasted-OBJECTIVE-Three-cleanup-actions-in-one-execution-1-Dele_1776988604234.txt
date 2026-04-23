@@ -1,0 +1,159 @@
+OBJECTIVE
+Three cleanup actions in one execution:
+1. Delete the incorrectly created Development/Source-Of-Truth/ directory
+2. Move ./fincava-architecture.md from repo root to ops/
+3. Update all canonical ops/ files with P0.1, P0.2, and H4-B records
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
+
+PREFLIGHT (MANDATORY)
+1. Confirm Development/Source-Of-Truth/ exists in the Replit repo
+   - List all files inside it
+   - Read each file to capture exact content that was written
+   - This content will be discarded — confirm it duplicates ops/ content
+
+2. Read ops/system_gap_analysis.md
+   - Find H4 section — confirm P0.2 fix record is present
+   - Confirm whether H4-B entry is present or absent
+   - Note exact line numbers
+
+3. Read ops/onboarding_flow.md
+   - Find Section 14
+   - Confirm whether ICA sync fix content is present or absent
+   - Note exact line numbers
+
+4. Confirm ./fincava-architecture.md exists at repo root
+   - Read Section 11 Known Gaps table
+   - Read Changelog
+   - Confirm whether P0.1, P0.2, H4-B entries are present or absent
+   - Confirm ops/fincava-architecture.md does NOT already exist
+     (if it does: surface as a finding before proceeding)
+
+CHANGES
+
+Change 1 — DELETE Development/Source-Of-Truth/ entirely
+Remove the directory and all files inside it.
+The canonical location for all Source-Of-Truth files is ops/.
+This directory was created in error and must not exist in the repo.
+
+Change 2 — MOVE ./fincava-architecture.md to ops/
+Move: ./fincava-architecture.md → ops/fincava-architecture.md
+This is a move, not a copy. The root file must not exist after this.
+The file already contains the Section 11 and Changelog updates
+from the previous execution — verify this during preflight.
+If those P0.1/P0.2/H4-B entries are already present in the file:
+Changes 4 rows and Changelog entries are already done — skip them,
+report as already correct.
+
+Change 3 — Update ops/system_gap_analysis.md
+Only if H4-B entry is NOT already present:
+Add H4-B entry immediately after the H4 section:
+
+  ### H4-B — GET /suppliers/:id Unguarded (SECURITY)
+
+  CURRENT_STATE:
+  - GET /suppliers/:id has no auth middleware (line 691)
+  - Returns full supplier row via db.select() with no field restriction
+  - Exposes commercialScore, eligibilityStatus, graduationPathway
+    for any supplier by ID to any unauthenticated caller
+
+  GAP:
+  - Same class of exposure as H4
+  - Any caller with a valid supplier ID can retrieve internal data
+
+  TARGET_STATE:
+  - requireAuth + requireAdmin applied (same pattern as H4 fix)
+  - Fix before any external-facing supplier detail work in Epic 2
+
+  SEVERITY: High
+  STATUS: Open — fix in P0.4
+
+If already present: skip, report as already correct.
+
+Change 4 — Update ops/onboarding_flow.md
+Only if Section 14 ICA Sync Fix is NOT already present:
+Append Section 14 at the end of the file:
+
+  ## 14. ICA Sync Fix (P0.1 — Epic 2 Precondition)
+
+  PROBLEM:
+  - Onboarding Step 3 captures ica_registered in interactions.metadata
+  - compliance_docs.ica_registro defaulted to false, never updated
+  - Eligibility gate reads compliance_docs — supplier ICA declaration
+    was silently ignored
+  - Eligibility was effectively admin-controlled only
+
+  FIX APPLIED (2026-04-23):
+  - POST /api/suppliers/onboard now syncs ica_registered to
+    compliance_docs after the interactions insert
+  - const icaRegisteredTrue = body.ica_registered === true
+      || body.ica_registered === "yes"
+  - If icaRegisteredTrue: UPDATE compliance_docs
+    SET ica_registro = true WHERE supplier_id = [new id]
+  - Fix is upgrade-only — never downgrades an admin-set value
+  - If UPDATE fails: logged as warning, onboarding returns 201
+
+  SCOPE:
+  - Only ica_registered → ica_registro is synced
+  - rutDian, fitosanitarioCert remain admin-only (by design, v0)
+  - Re-onboarding not supported in v0 — single POST path only
+  - Full compliance unification deferred to Phase 4
+
+  BODY FIELD NOTE:
+  - Frontend submits body.ica_registered as string "yes" | "no"
+  - Direct API callers may send boolean true
+  - Both forms handled by icaRegisteredTrue const
+
+If already present: skip, report as already correct.
+
+Change 5 — Update ops/fincava-architecture.md
+(This file is the moved version from Change 2)
+Only if P0.1/P0.2/H4-B entries are NOT already present:
+
+Under Section 11 Known Gaps table, add three rows:
+  | Public supplier dataset exposure | FIXED (P0.2) — GET /api/suppliers
+    now ADMIN-only. Buyer surface via /suppliers/marketplace. |
+  | GET /suppliers/:id unguarded | Returns full supplier row with no
+    auth. Fix in P0.4 before Epic 2 detail page work. |
+  | ICA sync disconnect | FIXED (P0.1) — ica_registered from onboarding
+    now syncs to compliance_docs.ica_registro. Upgrade-only.
+    Full compliance unification deferred to Phase 4. |
+
+Under Changelog, append three entries:
+  | 2026-04-23 | P0.1 — ICA sync fix: ica_registered from onboarding
+    metadata now updates compliance_docs.ica_registro |
+  | 2026-04-23 | P0.2 — GET /api/suppliers restricted to ADMIN-only
+    (requireAuth + requireAdmin). Buyer surface via /suppliers/marketplace |
+  | 2026-04-23 | H4-B found: GET /suppliers/:id unguarded — fix in P0.4 |
+
+If already present: skip, report as already correct.
+
+CONSTRAINTS
+- DO NOT create any new directories
+- DO NOT create any new files outside ops/
+- DO NOT modify any route files
+- DO NOT modify any schema files
+- DO NOT duplicate content already present in ops/ files
+- Change 2 is a move — root file must not exist after execution
+
+ACCEPTANCE
+1. Development/Source-Of-Truth/ does not exist in Replit repo
+2. ./fincava-architecture.md does not exist at repo root
+3. ops/fincava-architecture.md exists with full content intact
+4. ops/system_gap_analysis.md contains H4-B entry
+5. ops/onboarding_flow.md contains Section 14 ICA sync fix
+6. ops/fincava-architecture.md contains 3 new Section 11 rows
+   and 3 new Changelog entries
+7. No duplicate content in any ops/ file
+
+VERIFICATION OUTPUT
+Provide:
+- Confirmation Development/Source-Of-Truth/ deleted
+- Confirmation ./fincava-architecture.md moved to ops/
+- For each ops/ file: content added or skipped (already present)
+- Line numbers for each addition made
+- Any findings surfaced during preflight
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
