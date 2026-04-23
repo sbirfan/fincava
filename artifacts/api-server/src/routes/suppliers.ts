@@ -585,7 +585,7 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
 });
 
 // ── GET /api/suppliers/:id/evaluations ───────────────────────────────────────
-router.get("/suppliers/:id/evaluations", async (req, res): Promise<void> => {
+router.get("/suppliers/:id/evaluations", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
     res.status(400).json({ error: "Invalid supplier id" });
@@ -622,7 +622,7 @@ router.get("/suppliers/:id/evaluations", async (req, res): Promise<void> => {
 });
 
 // ── GET /api/suppliers/:id/transitions ───────────────────────────────────────
-router.get("/suppliers/:id/transitions", async (req, res): Promise<void> => {
+router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
     res.status(400).json({ error: "Invalid supplier id" });
