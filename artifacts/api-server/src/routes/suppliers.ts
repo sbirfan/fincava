@@ -146,9 +146,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       },
     });
 
-    scoreSupplier(supplier.id).catch((err) =>
-      console.error("Claude scoring failed for supplier", supplier.id, err),
-    );
+    scoreSupplier(supplier.id);
 
     res.status(201).json({
       success: true,
@@ -388,69 +386,100 @@ router.get(
 );
 
 // ── Internal: Score supplier with Claude Haiku ───────────────────────────────
+// Retry policy: max 3 attempts, exponential backoff (1s, 2s, 4s), ALL errors.
+// Handles its own failures internally — never throws to caller.
 async function scoreSupplier(supplierId: number): Promise<void> {
-  const [supplier] = await db
-    .select()
-    .from(suppliersTable)
-    .where(eq(suppliersTable.id, supplierId));
-  const [farm] = await db
-    .select()
-    .from(farmsTable)
-    .where(eq(farmsTable.supplierId, supplierId));
-  const [economics] = await db
-    .select()
-    .from(economicsTable)
-    .where(eq(economicsTable.supplierId, supplierId));
-  const [compliance] = await db
-    .select()
-    .from(complianceDocsTable)
-    .where(eq(complianceDocsTable.supplierId, supplierId));
+  const attemptScore = async (attempt = 1): Promise<void> => {
+    try {
+      const [supplier] = await db
+        .select()
+        .from(suppliersTable)
+        .where(eq(suppliersTable.id, supplierId));
+      const [farm] = await db
+        .select()
+        .from(farmsTable)
+        .where(eq(farmsTable.supplierId, supplierId));
+      const [economics] = await db
+        .select()
+        .from(economicsTable)
+        .where(eq(economicsTable.supplierId, supplierId));
+      const [compliance] = await db
+        .select()
+        .from(complianceDocsTable)
+        .where(eq(complianceDocsTable.supplierId, supplierId));
 
-  const client = getAnthropicClient();
-  const message = await client.messages.create({
-    model: SCORING_MODEL,
-    max_tokens: 512,
-    system: `You are a Colombian agricultural export readiness scoring system. Score the supplier on: land rights (20pts), production volume (20pts), post-harvest quality (20pts), compliance docs (20pts), commitment (20pts). Return ONLY valid JSON: {"export_readiness_score": integer, "pathway": "A"|"B"|"C"|"D", "pathway_label": string, "capital_capacity_cop": integer, "compliance_gaps": string[], "gap_analysis": string, "primary_recommendation": string}`,
-    messages: [
-      {
-        role: "user",
-        content: JSON.stringify({ supplier, farm, economics, compliance }),
-      },
-    ],
-  });
+      const client = getAnthropicClient();
+      const start = Date.now();
+      const message = await client.messages.create({
+        model: SCORING_MODEL,
+        max_tokens: 512,
+        system: `You are a Colombian agricultural export readiness scoring system. Score the supplier on: land rights (20pts), production volume (20pts), post-harvest quality (20pts), compliance docs (20pts), commitment (20pts). Return ONLY valid JSON: {"export_readiness_score": integer, "pathway": "A"|"B"|"C"|"D", "pathway_label": string, "capital_capacity_cop": integer, "compliance_gaps": string[], "gap_analysis": string, "primary_recommendation": string}`,
+        messages: [
+          {
+            role: "user",
+            content: JSON.stringify({ supplier, farm, economics, compliance }),
+          },
+        ],
+      });
+      const duration = Date.now() - start;
+      logger.info({ supplierId, duration }, "scoreSupplier latency");
 
-  const raw = (message.content[0] as any).text as string;
-  const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-  const parsed = JSON.parse(jsonStr);
+      const raw = (message.content[0] as any).text as string;
+      const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const parsed = JSON.parse(jsonStr);
 
-  const [scoreRow] = await db
-    .insert(aiOutputsTable)
-    .values({
-      supplierId,
-      aiModel: SCORING_MODEL,
-      callType: "ONBOARD_SCORE",
-      exportReadinessScore: parsed.export_readiness_score,
-      pathway: parsed.pathway,
-      capitalCapacityCop: parsed.capital_capacity_cop,
-      complianceGaps: parsed.compliance_gaps?.join(", "),
-      gapAnalysis: parsed.gap_analysis,
-    })
-    .returning();
+      if (!Number.isFinite(parsed.export_readiness_score)) {
+        throw new Error(
+          `Invalid export_readiness_score from Claude: ${JSON.stringify(parsed.export_readiness_score)}`,
+        );
+      }
 
-  try {
-    const waBody =
-      `Hola ${supplier.nombreCompleto}, tu registro en Fincava fue exitoso ✅\n` +
-      `Puntaje de exportación: ${parsed.export_readiness_score}/100\n` +
-      `Camino asignado: ${parsed.pathway}\n` +
-      `Nos pondremos en contacto pronto. — Equipo Fincava`;
-    const sid = await sendWhatsAppMessage(supplier.whatsappNumber, waBody);
-    await db
-      .update(aiOutputsTable)
-      .set({ whatsappMessageSent: sid })
-      .where(eq(aiOutputsTable.id, scoreRow.id));
-  } catch (waErr) {
-    console.error("WhatsApp send failed for supplier", supplierId, waErr);
-  }
+      const [scoreRow] = await db
+        .insert(aiOutputsTable)
+        .values({
+          supplierId,
+          aiModel: SCORING_MODEL,
+          callType: "ONBOARD_SCORE",
+          exportReadinessScore: parsed.export_readiness_score,
+          pathway: parsed.pathway,
+          capitalCapacityCop: parsed.capital_capacity_cop,
+          complianceGaps: parsed.compliance_gaps?.join(", "),
+          gapAnalysis: parsed.gap_analysis,
+        })
+        .returning();
+
+      try {
+        const waBody =
+          `Hola ${supplier.nombreCompleto}, tu registro en Fincava fue exitoso ✅\n` +
+          `Puntaje de exportación: ${parsed.export_readiness_score}/100\n` +
+          `Camino asignado: ${parsed.pathway}\n` +
+          `Nos pondremos en contacto pronto. — Equipo Fincava`;
+        const sid = await sendWhatsAppMessage(supplier.whatsappNumber, waBody);
+        await db
+          .update(aiOutputsTable)
+          .set({ whatsappMessageSent: sid })
+          .where(eq(aiOutputsTable.id, scoreRow.id));
+      } catch (waErr) {
+        console.error("WhatsApp send failed for supplier", supplierId, waErr);
+      }
+    } catch (err: any) {
+      if (attempt < 3) {
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        logger.info(
+          { supplierId, attempt, delay },
+          "scoreSupplier retry scheduled",
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        return attemptScore(attempt + 1);
+      }
+      logger.error({ supplierId, err }, "scoreSupplier failed after retries");
+      try {
+        (globalThis as any).Sentry?.captureException?.(err);
+      } catch {}
+    }
+  };
+
+  await attemptScore();
 }
 
 // ── POST /api/suppliers/:id/send-whatsapp ────────────────────────────────────
