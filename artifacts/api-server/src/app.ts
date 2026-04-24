@@ -9,8 +9,12 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+<<<<<<< HEAD
 // Trust Replit/reverse-proxy headers so req.ip is the real client IP,
 // which the rate limiter requires to work correctly behind a proxy.
+=======
+// Trust Replit's reverse proxy so req.ip and rate-limiting use the real client IP
+>>>>>>> ea18fc8 (Fix login redirect and password hash issues for admin access)
 app.set("trust proxy", 1);
 
 app.use(helmet());

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,10 +18,10 @@ const loginSchema = z.object({
 });
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
   const loginMutation = useLoginUser();
 
   const form = useForm<z.infer<typeof loginSchema>>({
@@ -31,6 +32,13 @@ export default function Login() {
     },
   });
 
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    if (user.role === "ADMIN") setLocation("/admin");
+    else if (user.role === "SUPPLIER") setLocation("/supplier-dashboard");
+    else setLocation("/dashboard");
+  }, [isAuthenticated, user, setLocation]);
+
   function onSubmit(values: z.infer<typeof loginSchema>) {
     loginMutation.mutate({ data: values }, {
       onSuccess: (data) => {
@@ -39,13 +47,6 @@ export default function Login() {
           title: "Welcome back",
           description: `Successfully logged in as ${data.user.firstName}`,
         });
-        if (data.user.role === "ADMIN") {
-          setLocation("/admin");
-        } else if (data.user.role === "SUPPLIER") {
-          setLocation("/supplier-dashboard");
-        } else {
-          setLocation("/dashboard");
-        }
       },
       onError: (error) => {
         toast({
@@ -95,8 +96,8 @@ export default function Login() {
                   </FormItem>
                 )}
               />
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full h-11 text-base"
                 disabled={loginMutation.isPending}
               >

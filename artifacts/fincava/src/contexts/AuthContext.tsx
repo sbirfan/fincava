@@ -23,8 +23,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
-  const login = (_token: string, _user: UserWithProfile) => {
-    queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+  const login = (_token: string, user: UserWithProfile) => {
+    queryClient.setQueryData(getGetMeQueryKey(), user);
   };
 
   const logout = () => {
