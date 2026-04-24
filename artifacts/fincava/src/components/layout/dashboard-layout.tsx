@@ -23,6 +23,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
 
+  const handleLogout = () => {
+    logout();
+  };
+
   const isSupplier = user?.role === "SUPPLIER";
   const basePath = isSupplier ? "/supplier-dashboard" : "/dashboard";
 
@@ -85,7 +89,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <p className="text-muted-foreground truncate text-xs">{user?.email}</p>
           </div>
         </div>
-        <Button variant="outline" className="w-full justify-start gap-2" onClick={() => logout()}>
+        <Button variant="outline" className="w-full justify-start gap-2" onClick={handleLogout}>
           <LogOut className="h-4 w-4" />
           Log out
         </Button>

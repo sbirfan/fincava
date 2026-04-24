@@ -26,7 +26,11 @@ const navigation = [
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+
+  const handleLogout = () => {
+    logout();
+  };
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col" style={{ background: "#050f0a" }}>
@@ -79,7 +83,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         <Button
           variant="outline"
           className="w-full justify-start gap-2 border-white/10 text-white/60 hover:text-white hover:bg-white/5 bg-transparent"
-          onClick={logout}
+          onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" />
           Log out

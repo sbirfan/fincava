@@ -9,6 +9,10 @@ export function Navbar() {
   const { lang, setLang, t } = useLanguage();
   const [location] = useLocation();
 
+  const handleLogout = () => {
+    logout();
+  };
+
   const NAV_LINKS = [
     { href: "/marketplace", label: t.nav.products },
     { href: "/platform", label: t.nav.platform },
@@ -87,7 +91,7 @@ export function Navbar() {
               >
                 {t.nav.dashboard}
               </Link>
-              <Button variant="outline" size="sm" onClick={() => logout()}>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
                 {t.nav.logout}
               </Button>
             </>

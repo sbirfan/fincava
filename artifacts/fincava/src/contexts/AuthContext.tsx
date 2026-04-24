@@ -7,7 +7,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (token: string, user: UserWithProfile) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,9 +27,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(getGetMeQueryKey(), user);
   };
 
-  const logout = () => {
-    fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // ignore network errors — still clear local state
+    }
+    queryClient.clear();
+    window.location.href = "/login";
   };
 
   return (
