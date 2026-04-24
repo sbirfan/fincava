@@ -119,9 +119,13 @@ export default function Login() {
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex justify-center border-t p-6">
+        <CardFooter className="flex flex-col items-center gap-3 border-t p-6">
           <div className="text-sm text-muted-foreground text-center">
             Don't have an account? <Link href="/register" className="text-primary hover:underline font-medium">Sign up</Link>
+          </div>
+          <div className="text-sm text-muted-foreground text-center">
+            Forgot your password? Change it after logging in or contact{" "}
+            <a href="mailto:info@fincava.com" className="text-primary hover:underline font-medium">info@fincava.com</a>
           </div>
         </CardFooter>
       </Card>
