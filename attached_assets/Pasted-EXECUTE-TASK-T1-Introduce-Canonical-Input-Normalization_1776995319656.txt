@@ -1,0 +1,303 @@
+EXECUTE.
+
+---
+
+TASK: T1 — Introduce Canonical Input Normalization Layer (Epic 2)
+
+---
+
+CONTEXT
+
+The onboard route at:
+
+artifacts/api-server/src/routes/suppliers.ts
+
+currently reads all fields directly from req.body using a mix of English snake_case, Spanish camelCase, and nested object properties.
+
+There is no typed extraction layer.
+
+This ticket introduces one — WITHOUT touching any existing logic.
+
+---
+
+ARCHITECTURAL INTENT
+
+T1 is NOT type enforcement.
+T1 is canonical model introduction.
+
+Pattern being introduced:
+
+LEGACY INPUT (rawBody)
+→ NORMALIZATION EXTRACTION (typedInput)
+→ FUTURE CONSUMERS (T2 scoring, T3 validation)
+
+---
+
+CRITICAL CONSTRAINTS — NON-NEGOTIABLE
+
+* rawBody continues to be used everywhere it is currently used
+* DO NOT remove or replace any rawBody reference
+* DB writes are untouched — all inserts must produce identical output for identical payloads
+* typedInput is additive ONLY — declared and populated but NOT consumed
+* No runtime behavior changes of ANY kind
+* If any execution path changes → STOP and report
+* TypeScript must pass: tsc --noEmit
+
+---
+
+RUNTIME SAFETY GUARANTEE
+
+* This introduces compile-time visibility only
+* No validation, coercion, parsing, or transformation
+* Existing onboarding behavior must remain IDENTICAL
+
+---
+
+NORMALIZATION SAFETY RULE
+
+* typedInput fields may resolve to undefined
+* DO NOT default, coerce, or transform values
+* Extraction only — no normalization logic
+
+---
+
+BOOLEAN HANDLING RULE
+
+* Values like "yes", "true", 1 must NOT be coerced
+* typedInput must reflect raw input exactly
+* Type inconsistencies handled later in T3
+
+---
+
+RENAME SAFETY RULE
+
+* Rename ONLY references originating from req.body
+* DO NOT rename unrelated variables named "body"
+* DO NOT rename inside strings or logs
+
+---
+
+ORDER PRESERVATION RULE
+
+* DO NOT reorder any existing lines
+* Changes must be additive only
+* Execution order must remain identical
+
+---
+
+DEBUG RULE
+
+* typedInput may be logged during smoke testing ONLY
+* DO NOT include typedInput in API response
+* Remove debug logs after verification
+
+---
+
+PREFLIGHT — READ FILES
+
+Read ALL:
+
+* artifacts/api-server/src/types/supplier-onboarding.ts
+* artifacts/api-server/src/routes/suppliers.ts
+* lib/db/src/schema/suppliers.ts
+* lib/db/src/schema/supplier-evaluations.ts
+* lib/db/src/schema/supplier-state-transitions.ts
+* ops/onboarding_flow.md
+
+If any file is missing:
+→ STOP and report "NOT PRESENT"
+
+---
+
+PREFLIGHT — HANDLER STRUCTURE CHECK
+
+* Verify req.body is NOT destructured before assignment
+* If destructured before typing:
+  → STOP and report
+
+---
+
+STEP 1 — DRIFT MAP CONFIRMATION
+
+Verify these mappings:
+
+fullName → rawBody.contact_name || rawBody.nombreCompleto
+phone → rawBody.phone || rawBody.whatsappNumber
+farmSizeHectares → rawBody.farm_size_hectares
+locationRegion → rawBody.municipio
+yearsOfExperience → rawBody.farm?.anosEnFinca
+productType → rawBody.primary_product
+monthlyVolumeKg → rawBody.annual_volume_kg
+harvestMonths → rawBody.harvest_months
+processingMethod → rawBody.farm?.metodoSecado
+rutDian → rawBody.has_rut
+icaRegistro → rawBody.ica_registered
+pricePerKg → rawBody.economics?.precioVentaBanda
+
+For each: CONFIRMED / CHANGED / NOT FOUND
+
+If more than 3 mismatches:
+→ STOP
+
+---
+
+STEP 2 — SAFE FIELD CONFIRMATION
+
+Confirm:
+
+phone, email, country, altitudeMeters, costPerKg, minimumOrderKg, fitosanitarioCert, dianExportador
+
+Mark CONFIRMED / CHANGED
+
+---
+
+STEP 3 — EXECUTION PLAN (REQUIRED BEFORE CODING)
+
+Show EXACT changes:
+
+---
+
+Change 1 — Declare rawBody
+
+Before:
+const body = req.body
+
+After:
+const rawBody = req.body
+
+Include line number.
+
+---
+
+Change 2 — Insert typedInput block
+
+Placement:
+
+* AFTER middleware
+* AFTER rawBody declaration
+* BEFORE any destructuring
+
+Code:
+
+const typedInput: Partial<SupplierOnboardingInput> = {
+fullName: rawBody.contact_name || rawBody.nombreCompleto,
+phone: rawBody.phone || rawBody.whatsappNumber,
+farmSizeHectares: rawBody.farm_size_hectares,
+locationRegion: rawBody.municipio,
+yearsOfExperience: rawBody.farm?.anosEnFinca,
+productType: rawBody.primary_product,
+monthlyVolumeKg: rawBody.annual_volume_kg,
+harvestMonths: rawBody.harvest_months,
+processingMethod: rawBody.farm?.metodoSecado,
+rutDian: rawBody.has_rut,
+icaRegistro: rawBody.ica_registered,
+pricePerKg: rawBody.economics?.precioVentaBanda,
+};
+
+Add comment above block:
+
+// T1: canonical input normalization — rawBody remains execution layer
+// typedInput is contract surface for T2 (scoring) and T3 (validation)
+// T4 will migrate DB writes
+
+---
+
+Change 3 — Update interface header
+
+Add:
+
+// T1 normalization layer introduced — [today’s date]
+
+---
+
+Change 4 — Rename body → rawBody
+
+* Provide count of replacements
+* Confirm NONE inside typedInput
+
+---
+
+STEP 4 — VERIFICATION CHECKLIST
+
+Confirm:
+
+* TypeScript passes
+* rawBody correctly declared
+* typedInput inserted in correct position
+* Zero body. references remain
+* DB inserts unchanged
+* typedInput unused
+* Header updated
+
+---
+
+STEP 5 — SMOKE TEST
+
+Run 3 payloads (provided earlier).
+
+Verify:
+
+* HTTP status 201
+* supplier row created
+* farms row (if applicable)
+* economics row (if applicable)
+* compliance_docs row
+* ai_outputs row
+
+ALL values must match baseline exactly.
+
+---
+
+STEP 6 — DOCUMENTATION UPDATE
+
+Update:
+
+ops/onboarding_flow.md
+→ add T1 normalization note
+
+ops/fincava-architecture.md
+→ add changelog entry
+
+---
+
+STEP 7 — SIMILAR CHECK (MANDATORY FINAL STEP)
+
+Before executing any code changes:
+
+* Compare this plan against previous failed attempt (type cast approach)
+* Explicitly list differences
+* Confirm:
+
+  ✔ No type casting of req.body
+  ✔ No replacement of existing logic
+  ✔ typedInput is additive only
+  ✔ No runtime behavior change risk
+  ✔ Drift handled via mapping, not suppression
+
+If ANY similarity to previous unsafe approach is found:
+→ STOP and explain risk
+
+---
+
+FINAL OUTPUT (REQUIRED)
+
+Provide:
+
+1. Drift confirmation table
+2. Safe field confirmation
+3. Full execution plan (with line numbers)
+4. Similar-check comparison
+5. Risk assessment (LOW / MEDIUM / HIGH)
+
+Then conclude with:
+
+"READY FOR EXECUTION — awaiting approval"
+
+---
+
+DO NOT EXECUTE CODE.
+WAIT FOR APPROVAL.
+
+---
+
+COMPLETE
