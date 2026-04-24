@@ -204,26 +204,38 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     return;
   }
 
+  // Atomically mark the token used in a single UPDATE to prevent concurrent replay
   const now = new Date();
   const [record] = await db
-    .select()
-    .from(passwordResetTokensTable)
+    .update(passwordResetTokensTable)
+    .set({ used: true })
     .where(
       and(
         eq(passwordResetTokensTable.token, token),
         eq(passwordResetTokensTable.used, false),
         gt(passwordResetTokensTable.expiresAt, now),
       ),
-    );
+    )
+    .returning();
 
   if (!record) {
     res.status(400).json({ error: "This reset link is invalid or has expired." });
     return;
   }
 
+  // Invalidate all other unused tokens for this user (defence in depth)
+  await db
+    .update(passwordResetTokensTable)
+    .set({ used: true })
+    .where(
+      and(
+        eq(passwordResetTokensTable.userId, record.userId),
+        eq(passwordResetTokensTable.used, false),
+      ),
+    );
+
   const passwordHash = await hashPassword(password);
   await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, record.userId));
-  await db.update(passwordResetTokensTable).set({ used: true }).where(eq(passwordResetTokensTable.id, record.id));
 
   logger.info({ userId: record.userId }, "Password reset successfully");
   res.json({ success: true });
