@@ -9,6 +9,10 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust Replit/reverse-proxy headers so req.ip is the real client IP,
+// which the rate limiter requires to work correctly behind a proxy.
+app.set("trust proxy", 1);
+
 app.use(helmet());
 
 app.use(
