@@ -227,7 +227,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // ── Post-onboard emails (fire-and-forget, runs after response) ───────────
     const appBaseUrl = process.env["FRONTEND_URL"]
       ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
-    const adminUrl = `${appBaseUrl}/dashboard/admin/suppliers`;
+    const adminUrl = `${appBaseUrl}/admin/suppliers`;
 
     if (supplierEmail) {
       const { html, text } = supplierApplicationConfirmationEmail({

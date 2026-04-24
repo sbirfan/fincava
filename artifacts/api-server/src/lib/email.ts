@@ -175,7 +175,7 @@ export function supplierStatusChangeEmail(opts: {
     <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${copy.headline}</h2>
     <p>${copy.body}</p>
     <p>${copy.nextSteps}</p>
-    ${opts.newStatus === "ACTIVE" ? `<p><a href="${opts.appUrl}" class="btn">Go to my account</a></p>` : ""}
+    ${opts.newStatus === "ACTIVE" ? `<p><a href="${opts.appUrl}/login" class="btn">Log in to my account</a></p>` : ""}
     <p class="note">If you have any questions, please reach out at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
   `);
   const text = `${copy.headline}\n\nEstimado/a ${opts.name},\n\n${copy.body.replace(/<[^>]+>/g, "")}\n\n${copy.nextSteps.replace(/<[^>]+>/g, "")}\n\n— Equipo Fincava`;
