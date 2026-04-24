@@ -204,38 +204,50 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     return;
   }
 
-  // Atomically mark the token used in a single UPDATE to prevent concurrent replay
+  // Hash password before transaction (CPU-intensive, no DB lock held)
+  const passwordHash = await hashPassword(password);
   const now = new Date();
-  const [record] = await db
-    .update(passwordResetTokensTable)
-    .set({ used: true })
-    .where(
-      and(
-        eq(passwordResetTokensTable.token, token),
-        eq(passwordResetTokensTable.used, false),
-        gt(passwordResetTokensTable.expiresAt, now),
-      ),
-    )
-    .returning();
+
+  // Wrap everything in a transaction: atomic token consumption + password update
+  // If the password update fails, the token remains unused so the user can retry
+  const record = await db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(passwordResetTokensTable)
+      .set({ used: true })
+      .where(
+        and(
+          eq(passwordResetTokensTable.token, token),
+          eq(passwordResetTokensTable.used, false),
+          gt(passwordResetTokensTable.expiresAt, now),
+        ),
+      )
+      .returning();
+
+    if (!claimed) return null;
+
+    // Invalidate all other unused tokens for this user (defence in depth)
+    await tx
+      .update(passwordResetTokensTable)
+      .set({ used: true })
+      .where(
+        and(
+          eq(passwordResetTokensTable.userId, claimed.userId),
+          eq(passwordResetTokensTable.used, false),
+        ),
+      );
+
+    await tx
+      .update(usersTable)
+      .set({ passwordHash })
+      .where(eq(usersTable.id, claimed.userId));
+
+    return claimed;
+  });
 
   if (!record) {
     res.status(400).json({ error: "This reset link is invalid or has expired." });
     return;
   }
-
-  // Invalidate all other unused tokens for this user (defence in depth)
-  await db
-    .update(passwordResetTokensTable)
-    .set({ used: true })
-    .where(
-      and(
-        eq(passwordResetTokensTable.userId, record.userId),
-        eq(passwordResetTokensTable.used, false),
-      ),
-    );
-
-  const passwordHash = await hashPassword(password);
-  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, record.userId));
 
   logger.info({ userId: record.userId }, "Password reset successfully");
   res.json({ success: true });
