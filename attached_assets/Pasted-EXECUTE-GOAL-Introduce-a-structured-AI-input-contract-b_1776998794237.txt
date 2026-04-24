@@ -1,0 +1,210 @@
+EXECUTE.
+
+---
+
+GOAL
+Introduce a structured AI input contract by extracting DB reads into:
+
+buildScoringInput(supplierId)
+
+This is a refactor ONLY.
+Scoring behavior MUST remain IDENTICAL.
+
+---
+
+RULES (STRICT)
+
+* DO NOT change scoring logic or output
+* DO NOT change DB schema
+* DO NOT add validation (T3)
+* DO NOT use rawBody
+* DO NOT change retry behavior
+* DO NOT change API responses
+* Output sent to AI MUST remain IDENTICAL
+
+---
+
+STEP 0 — BASELINE (MANDATORY)
+
+BEFORE making changes:
+
+Run onboarding once.
+
+Capture:
+
+* supplierId
+* export_readiness_score
+* pathway
+* FULL AI input payload/string sent to model
+
+Store as BASELINE.
+
+---
+
+STEP 1 — CREATE FUNCTION
+
+File:
+
+artifacts/api-server/src/services/scoring-input.ts
+
+Add:
+
+export async function buildScoringInput(supplierId: number)
+
+---
+
+STEP 2 — FETCH DATA
+
+Inside function, fetch EXACT same data currently used in scoreSupplier:
+
+* suppliers
+* farms
+* economics
+* compliance_docs
+
+Reuse existing queries.
+
+---
+
+STEP 3 — FIELD PARITY CHECK (MANDATORY)
+
+Before removing inline reads:
+
+* List ALL fields currently used in scoreSupplier
+* Ensure EVERY field exists in buildScoringInput output
+
+If ANY field is missing:
+→ STOP
+→ do not proceed
+
+---
+
+STEP 4 — BUILD INPUT OBJECT
+
+Construct input object.
+
+CRITICAL RULES:
+
+* Use DB values ONLY
+* DO NOT transform values
+* DO NOT rename fields unless already mapped in current logic
+* DO NOT introduce new nesting
+* DO NOT drop any field
+
+---
+
+VALUE PRESERVATION RULE
+
+* Preserve undefined exactly as-is
+* DO NOT convert undefined → null
+* DO NOT add missing fields
+* Match existing JSON shape EXACTLY
+
+---
+
+STRUCTURE RULE
+
+The object structure MUST match exactly what scoreSupplier currently builds.
+
+Do NOT introduce:
+
+* new nesting
+* new grouping (identity, farm, etc.)
+
+If current structure is flat → keep it flat.
+
+---
+
+STEP 5 — INTEGRATE INTO scoreSupplier
+
+* Replace inline DB reads with:
+
+const input = await buildScoringInput(supplierId);
+
+* Feed input into existing scoring logic
+* DO NOT modify prompt construction
+
+---
+
+STEP 6 — PROMPT EQUIVALENCE CHECK (MANDATORY)
+
+Log AI input BEFORE and AFTER change.
+
+Compare:
+
+* keys
+* structure
+* values
+* presence/absence of fields
+
+If ANY difference:
+→ STOP
+→ revert
+→ report mismatch
+
+---
+
+STEP 7 — RUN PIPELINE
+
+Run onboarding again.
+
+---
+
+STEP 8 — CONSISTENCY CHECK (STRICT)
+
+Compare AGAINST BASELINE:
+
+If ANY occur:
+
+* score differs
+* pathway differs
+* AI input differs
+* any field missing
+* any runtime/log error
+
+→ STOP immediately
+→ DO NOT proceed
+
+---
+
+STEP 9 — VERIFY PIPELINE
+
+Confirm:
+
+* ai_outputs row created
+* supplier_evaluations row created
+* supplier_state_transitions row created
+* suppliers updated correctly
+
+---
+
+STEP 10 — DOCUMENTATION
+
+Update:
+
+ops/fincava-architecture.md
+
+Add:
+
+T2 | Epic 2 | buildScoringInput abstraction layer introduced | Complete | [date]
+
+---
+
+OUTPUT
+
+* New file created
+* Field parity list
+* Sample AI input
+* Baseline vs after comparison
+
+Final line:
+
+"T2 COMPLETE — SCORING BEHAVIOR UNCHANGED"
+
+OR
+
+"T2 BLOCKED — [reason]"
+
+---
+
+COMPLETE
