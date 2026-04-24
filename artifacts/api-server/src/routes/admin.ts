@@ -243,7 +243,7 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
 
   const [user] = await db
     .insert(usersTable)
-    .values({ email, passwordHash: hashPassword(password), role })
+    .values({ email, passwordHash: await hashPassword(password), role })
     .returning();
 
   if (firstName || lastName || country || phone) {
