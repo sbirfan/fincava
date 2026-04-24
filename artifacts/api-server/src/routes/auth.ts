@@ -1,11 +1,21 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gt } from "drizzle-orm";
 import { randomBytes } from "crypto";
+import rateLimit from "express-rate-limit";
 import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendEmail, passwordResetEmail } from "../lib/email";
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+  skipSuccessfulRequests: false,
+});
 
 const router: IRouter = Router();
 
@@ -165,7 +175,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
 });
 
 // ── POST /api/auth/forgot-password ───────────────────────────────────────────
-router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+router.post("/auth/forgot-password", passwordResetLimiter, async (req, res): Promise<void> => {
   const email = (typeof req.body?.email === "string" ? req.body.email : "").toLowerCase().trim();
   // Always return 200 to prevent email enumeration
   res.json({ message: "If that email is registered, a reset link has been sent." });
@@ -192,7 +202,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
 });
 
 // ── POST /api/auth/reset-password ────────────────────────────────────────────
-router.post("/auth/reset-password", async (req, res): Promise<void> => {
+router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Promise<void> => {
   const { token, password } = req.body ?? {};
 
   if (!token || typeof token !== "string") {
@@ -204,9 +214,26 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     return;
   }
 
-  // Hash password before transaction (CPU-intensive, no DB lock held)
-  const passwordHash = await hashPassword(password);
+  // Cheap pre-flight check: reject obviously invalid/expired tokens before hashing
   const now = new Date();
+  const [preCheck] = await db
+    .select({ id: passwordResetTokensTable.id })
+    .from(passwordResetTokensTable)
+    .where(
+      and(
+        eq(passwordResetTokensTable.token, token),
+        eq(passwordResetTokensTable.used, false),
+        gt(passwordResetTokensTable.expiresAt, now),
+      ),
+    );
+
+  if (!preCheck) {
+    res.status(400).json({ error: "This reset link is invalid or has expired." });
+    return;
+  }
+
+  // Hash password only after confirming the token looks valid (CPU-intensive)
+  const passwordHash = await hashPassword(password);
 
   // Wrap everything in a transaction: atomic token consumption + password update
   // If the password update fails, the token remains unused so the user can retry
