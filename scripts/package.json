@@ -15,6 +15,7 @@
     "tsx": "catalog:"
   },
   "dependencies": {
+    "@workspace/db": "workspace:*",
     "html-to-docx": "^1.8.0",
     "marked": "^18.0.2"
   }
