@@ -206,55 +206,44 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       },
     });
 
-    scoreSupplier(supplier.id);
-
     res.status(201).json({
       success: true,
       supplierId: supplier.id,
       message: `Registration successful for ${nombreCompleto}`,
     });
 
-    // ── Ticket 1.6 — async supplier graduation (fire-and-forget) ─────────────
-    // Response is already sent. Capture supplierId before async boundary.
+    // ── Post-onboard pipeline (sequential, post-response) ────────────────────
+    // scoreSupplier must complete before evaluateSupplier runs — evaluation
+    // requires the ai_outputs row that scoring writes. Both run after the
+    // response is sent so handler latency is unaffected.
     const sid = supplier.id;
     const correlationId = crypto.randomUUID();
 
-    logger.info({ supplierId: sid, correlationId }, "evaluateSupplier scheduled");
+    logger.info({ supplierId: sid, correlationId }, "post-onboard pipeline starting");
 
     setImmediate(() => {
       (async () => {
-        const attemptEvaluate = async (attempt = 1): Promise<void> => {
-          try {
-            await evaluateSupplier(sid);
-            logger.info({ supplierId: sid, correlationId, attempt }, "evaluateSupplier succeeded");
-          } catch (err: any) {
-            const isNotFound =
-              err?.name === "NotFoundError" ||
-              err?.constructor?.name === "NotFoundError";
+        try {
+          await scoreSupplier(sid);
 
-            // Retry only for NotFoundError. attempt < 3 = max 3 attempts total.
-            if (isNotFound && attempt < 3) {
-              const delay = Math.pow(2, attempt - 1) * 1000;
-              logger.info(
-                { supplierId: sid, correlationId, attempt, delay },
-                "evaluateSupplier retry scheduled",
-              );
-              await new Promise((r) => setTimeout(r, delay));
-              return attemptEvaluate(attempt + 1);
-            }
+          const hasScore = await db
+            .select()
+            .from(aiOutputsTable)
+            .where(eq(aiOutputsTable.supplierId, sid))
+            .limit(1);
 
-            logger.warn({ supplierId: sid, correlationId, err }, "evaluateSupplier failed");
-            try { (globalThis as any).Sentry?.captureException?.(err); } catch {}
+          if (!hasScore.length) {
+            logger.warn({ supplierId: sid, correlationId }, "Skipping evaluation — no AI score");
+            return;
           }
-        };
 
-        await attemptEvaluate();
-      })().catch((err) => {
-        logger.warn(
-          { supplierId: sid, correlationId, err },
-          "evaluateSupplier outer failure",
-        );
-      });
+          await evaluateSupplier(sid);
+          logger.info({ supplierId: sid, correlationId }, "post-onboard pipeline succeeded");
+        } catch (err: any) {
+          logger.warn({ supplierId: sid, correlationId, err }, "post-onboard pipeline failed");
+          try { (globalThis as any).Sentry?.captureException?.(err); } catch {}
+        }
+      })();
     });
   } catch (err: any) {
     console.error("Onboard error:", err);
