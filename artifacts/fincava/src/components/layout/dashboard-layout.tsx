@@ -89,7 +89,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <p className="text-muted-foreground truncate text-xs">{user?.email}</p>
           </div>
         </div>
-        <Button variant="outline" className="w-full justify-start gap-2" onClick={handleLogout}>
+        <Button variant="outline" className="w-full justify-start gap-2 cursor-pointer" onClick={handleLogout}>
           <LogOut className="h-4 w-4" />
           Log out
         </Button>

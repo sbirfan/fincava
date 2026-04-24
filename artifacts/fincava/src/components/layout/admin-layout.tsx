@@ -82,7 +82,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </div>
         <Button
           variant="outline"
-          className="w-full justify-start gap-2 border-white/10 text-white/60 hover:text-white hover:bg-white/5 bg-transparent"
+          className="w-full justify-start gap-2 border-white/10 text-white/60 hover:text-white hover:bg-white/5 bg-transparent cursor-pointer"
           onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" />

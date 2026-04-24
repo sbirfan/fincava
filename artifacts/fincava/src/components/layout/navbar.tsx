@@ -91,7 +91,7 @@ export function Navbar() {
               >
                 {t.nav.dashboard}
               </Link>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
+              <Button variant="outline" size="sm" className="cursor-pointer" onClick={handleLogout}>
                 {t.nav.logout}
               </Button>
             </>
