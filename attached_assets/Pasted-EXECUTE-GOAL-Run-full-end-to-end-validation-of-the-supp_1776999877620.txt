@@ -1,0 +1,83 @@
+EXECUTE.
+
+GOAL Run full end-to-end validation of the supplier pipeline:
+Onboarding → AI Scoring → Evaluation → State Transition → DB persistence
+This is a TEST ONLY task. DO NOT modify any code.
+
+SCOPE
+Validate the full pipeline for a new supplier:
+1. POST /api/suppliers/onboard
+2. scoreSupplier executes
+3. ai_outputs row created
+4. evaluateSupplier executes
+5. supplier_evaluations row created
+6. supplier_state_transitions row created
+7. suppliers table updated
+
+STEP 1 — CREATE TEST SUPPLIER
+Send POST request:
+/api/suppliers/onboard
+Payload:
+{ "contact_name": "E2E Test Supplier", "phone": "3001111111", "farm_size_hectares": 3, "municipio": "Test Region", "primary_product": "cafe", "annual_volume_kg": 1000, "ica_registered": true, "has_rut": true, "officer_name": "Test Officer", "consent_given": true }
+Capture:
+* HTTP status
+* supplier_id (from response or DB)
+
+STEP 2 — WAIT FOR ASYNC PIPELINE
+Wait up to 10 seconds for scoring + evaluation to complete.
+Retry DB checks if needed (max 3 attempts).
+
+STEP 3 — VALIDATE DATABASE STATE
+Query:
+1. ai_outputs
+* row exists for supplier_id
+* export_readiness_score is NOT NULL
+1. supplier_evaluations
+* row exists
+* eligibility_status NOT NULL
+* commercial_score NOT NULL
+* sellable_status NOT NULL
+1. supplier_state_transitions
+* row exists
+* actor = SYSTEM
+* evaluation_id NOT NULL
+1. suppliers table
+* sellable_status updated
+* eligibility_status updated
+* last_evaluated_at NOT NULL
+
+STEP 4 — CONSISTENCY CHECK
+Confirm:
+* supplier_evaluations.commercial_score = ai_outputs.export_readiness_score
+* supplier_state_transitions.evaluation_id links correctly
+* suppliers table reflects latest evaluation
+
+STEP 5 — NEGATIVE CHECK
+Run onboarding with missing critical field:
+{ "phone": "3002222222" }
+Confirm:
+* request still succeeds (no validation yet)
+* BUT evaluation may fail or retry
+* system does NOT crash
+
+STEP 6 — OUTPUT RESULTS
+Return structured report:
+E2E VALIDATION REPORT
+* Supplier ID:
+* HTTP Status:
+* AI Output: PASS / FAIL
+* Evaluation: PASS / FAIL
+* State Transition: PASS / FAIL
+* Supplier Update: PASS / FAIL
+* Data Consistency: PASS / FAIL
+Issues (if any):
+* [list]
+Final Result: PASS or FAIL
+
+RULES
+* DO NOT change any code
+* DO NOT fix issues
+* ONLY observe and report
+* Use real DB queries (not assumptions)
+
+COMPLETE
