@@ -7,7 +7,18 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "strict" as const,
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: "/",
+};
+
 function buildUserResponse(user: any, profile: any, company: any) {
+  const createdAt = user.createdAt instanceof Date
+    ? user.createdAt.toISOString()
+    : String(user.createdAt ?? "");
   return {
     id: user.id,
     email: user.email,
@@ -20,7 +31,7 @@ function buildUserResponse(user: any, profile: any, company: any) {
     companyId: company?.id ?? null,
     companyName: company?.name ?? null,
     companyVerified: company?.verified ?? null,
-    createdAt: user.createdAt.toISOString(),
+    createdAt,
   };
 }
 
@@ -31,7 +42,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  const { email, password, firstName, lastName, role, companyName, country, region } = parsed.data;
+  const { password, firstName, lastName, role, companyName, country, region } = parsed.data;
+  const email = parsed.data.email.toLowerCase().trim();
 
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
   if (existing) {
@@ -39,9 +51,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  const passwordHash = hashPassword(password);
+  const passwordHash = await hashPassword(password);
   const [user] = await db.insert(usersTable).values({ email, passwordHash, role }).returning();
-  
+
   const [profile] = await db.insert(profilesTable).values({
     userId: user.id,
     firstName,
@@ -62,15 +74,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }).returning();
 
   const token = generateToken(user.id);
-
-  res.cookie("fincava_auth", token, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
-
+  res.cookie("fincava_auth", token, COOKIE_OPTIONS);
   res.status(201).json({
     token,
     user: buildUserResponse(user, profile, company),
@@ -84,10 +88,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const { email, password } = parsed.data;
+  const email = parsed.data.email.toLowerCase().trim();
+  const { password } = parsed.data;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
 
-  const result = user ? verifyPassword(password, user.passwordHash) : { valid: false };
+  const result = user ? await verifyPassword(password, user.passwordHash) : { valid: false as const };
   if (!user || !result.valid) {
     logger.warn({ email, ip: req.ip }, "Login failed: invalid credentials");
     res.status(401).json({ error: "Invalid email or password" });
@@ -105,15 +110,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, user.id));
 
   const token = generateToken(user.id);
-
-  res.cookie("fincava_auth", token, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
-
+  res.cookie("fincava_auth", token, COOKIE_OPTIONS);
   res.json({
     token,
     user: buildUserResponse(user, profile, company),
@@ -123,6 +120,36 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 router.post("/auth/logout", async (_req, res): Promise<void> => {
   res.clearCookie("fincava_auth", { path: "/" });
   res.json({ message: "Logged out successfully" });
+});
+
+router.put("/auth/change-password", requireAuth, async (req, res): Promise<void> => {
+  const { currentPassword, newPassword } = req.body ?? {};
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+  if (typeof newPassword !== "string" || newPassword.length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+
+  const userId = (req as any).userId as number;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const result = await verifyPassword(currentPassword, user.passwordHash);
+  if (!result.valid) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  await db.update(usersTable).set({ passwordHash: await hashPassword(newPassword) }).where(eq(usersTable.id, userId));
+  logger.info({ userId, email: user.email }, "Password changed successfully");
+  res.json({ success: true });
 });
 
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {

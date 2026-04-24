@@ -8,12 +8,14 @@ import { eq } from "drizzle-orm";
 const BCRYPT_ROUNDS = 12;
 const JWT_EXPIRY = "7d";
 
+// Validated at module load so a missing secret crashes at startup, not mid-request
+const JWT_SECRET = process.env["JWT_SECRET"];
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required but not set.");
+}
+
 function getJwtSecret(): string {
-  const secret = process.env["JWT_SECRET"];
-  if (!secret) {
-    throw new Error("JWT_SECRET environment variable is required but not set.");
-  }
-  return secret;
+  return JWT_SECRET!;
 }
 
 // ── Password hashing ─────────────────────────────────────────────────────────
@@ -29,8 +31,8 @@ function isLegacyHash(hash: string): boolean {
   return /^[0-9a-f]{64}$/.test(hash);
 }
 
-export function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, BCRYPT_ROUNDS);
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
 /**
@@ -39,17 +41,17 @@ export function hashPassword(password: string): string {
  * Returns the new bcrypt hash when the legacy hash matches, so the caller can
  * upgrade the stored hash in the database.
  */
-export function verifyPassword(
+export async function verifyPassword(
   password: string,
   storedHash: string,
-): { valid: boolean; newHash?: string } {
+): Promise<{ valid: boolean; newHash?: string }> {
   if (isLegacyHash(storedHash)) {
     const valid = legacyHash(password) === storedHash;
     return valid
-      ? { valid: true, newHash: hashPassword(password) }
+      ? { valid: true, newHash: await hashPassword(password) }
       : { valid: false };
   }
-  return { valid: bcrypt.compareSync(password, storedHash) };
+  return { valid: await bcrypt.compare(password, storedHash) };
 }
 
 // ── Token generation / verification ──────────────────────────────────────────

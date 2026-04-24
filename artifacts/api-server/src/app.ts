@@ -1,9 +1,9 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import { rateLimit } from "express-rate-limit";
-import cookieParser from "cookie-parser";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -35,9 +35,9 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN ?? true,
   credentials: true,
 }));
+app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-app.use(cookieParser());
 
 // Rate limiters ───────────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
