@@ -32,7 +32,8 @@ export default function RFQDetail() {
   const submitBid = useMutation({
     mutationFn: (data: any) => fetch(`/api/rfqs/${params.id}/respond`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("fincava_token")}` },
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(r => r.json()),
     onSuccess: () => {
@@ -45,7 +46,7 @@ export default function RFQDetail() {
   const awardBid = useMutation({
     mutationFn: (responseId: number) => fetch(`/api/rfqs/${params.id}/award/${responseId}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${localStorage.getItem("fincava_token")}` },
+      credentials: "include",
     }).then(r => r.json()),
     onSuccess: () => {
       toast({ title: "Bid awarded!", description: "The supplier has been notified." });

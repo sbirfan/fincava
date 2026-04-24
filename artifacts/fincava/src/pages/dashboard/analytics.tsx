@@ -7,8 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, ShoppingCart, DollarSign, Package } from "lucide-react";
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 const VOLUME_DATA = [
   { month: "Oct", orders: 2, value: 8400 },
   { month: "Nov", orders: 4, value: 18200 },
@@ -58,9 +56,7 @@ export default function AnalyticsDashboard() {
   const { data: trending, isLoading } = useQuery<TrendingProduct[]>({
     queryKey: ["/api/analytics/trending"],
     queryFn: () =>
-      fetch("/api/analytics/trending", {
-        headers: { Authorization: `Bearer ${TOKEN()}` },
-      }).then(r => r.json()),
+      fetch("/api/analytics/trending", { credentials: "include" }).then(r => r.json()),
   });
 
   const productPerformance = trending?.slice(0, 6).map(p => ({

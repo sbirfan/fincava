@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db, ordersTable, orderItemsTable, productsTable, usersTable, profilesTable, companiesTable, messagesTable } from "@workspace/db";
 import {
   CreateOrderBody,
@@ -146,6 +146,8 @@ router.get("/supplier/orders", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId;
+
   const params = UpdateOrderStatusParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -156,6 +158,23 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  // Ownership check: at least one item in the order must belong to this supplier
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+  if (!company) { res.status(403).json({ error: "Only suppliers can update order status" }); return; }
+
+  const orderItems = await db.select({ productId: orderItemsTable.productId })
+    .from(orderItemsTable)
+    .where(eq(orderItemsTable.orderId, params.data.id));
+  if (orderItems.length === 0) { res.status(404).json({ error: "Order not found" }); return; }
+
+  const productIds = orderItems.map(i => i.productId);
+  const supplierProducts = await db.select({ id: productsTable.id })
+    .from(productsTable)
+    .where(and(eq(productsTable.companyId, company.id), inArray(productsTable.id, productIds)));
+  if (supplierProducts.length === 0) {
+    res.status(403).json({ error: "Not authorized to update this order" }); return;
   }
 
   const [order] = await db.update(ordersTable)

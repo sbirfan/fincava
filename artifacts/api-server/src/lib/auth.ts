@@ -71,13 +71,17 @@ export function verifyToken(token: string): { userId: number } | null {
 // ── Middleware ────────────────────────────────────────────────────────────────
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Prefer httpOnly cookie (XSS-safe); fall back to Bearer for programmatic clients
+  const cookieToken = (req as any).cookies?.fincava_auth as string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+  const rawToken = cookieToken ?? bearerToken;
+
+  if (!rawToken) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  const token = authHeader.slice(7);
-  const payload = verifyToken(token);
+  const payload = verifyToken(rawToken);
   if (!payload) {
     res.status(401).json({ error: "Invalid or expired token" });
     return;

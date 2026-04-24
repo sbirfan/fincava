@@ -11,10 +11,6 @@ const roleConfig: Record<StaffRole, { label: string; icon: React.FC<any>; color:
   admin: { label: "Admin", icon: Shield, color: "bg-purple-500/15 text-purple-300 border-purple-500/20" },
 };
 
-function authHeader() {
-  const token = localStorage.getItem("fincava_token");
-  return { Authorization: `Bearer ${token}` };
-}
 
 function RoleBadge({ role, onRemove }: { role: StaffRole; onRemove?: () => void }) {
   const cfg = roleConfig[role];
@@ -44,7 +40,8 @@ function AssignModal({ user, existingRoles, onClose }: {
     mutationFn: async (role: StaffRole) => {
       const res = await fetch(`/api/admin/team/${user.id}/roles`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role }),
       });
       if (!res.ok) throw new Error("Failed to assign role");
@@ -184,7 +181,8 @@ export default function AdminTeam() {
   const { data: teamMembers = [], isLoading: loadingTeam } = useQuery({
     queryKey: ["admin", "team"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/team", { headers: authHeader() });
+      const res = await fetch("/api/admin/team", { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load team (HTTP ${res.status})`);
       return res.json();
     },
   });
@@ -192,7 +190,8 @@ export default function AdminTeam() {
   const { data: allUsersResp, isLoading: loadingAll } = useQuery({
     queryKey: ["admin", "team-users"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/team/users?limit=100", { headers: authHeader() });
+      const res = await fetch("/api/admin/team/users?limit=100", { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load users (HTTP ${res.status})`);
       return res.json();
     },
     enabled: tab === "all",
@@ -203,7 +202,7 @@ export default function AdminTeam() {
     mutationFn: async ({ userId, role }: { userId: number; role: StaffRole }) => {
       const res = await fetch(`/api/admin/team/${userId}/roles/${role}`, {
         method: "DELETE",
-        headers: authHeader(),
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to remove role");
     },

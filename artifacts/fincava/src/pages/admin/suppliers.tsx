@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 
-function authHeader(): Record<string, string> {
-  const token = localStorage.getItem("fincava_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 interface Supplier {
   id: number;
@@ -128,22 +124,26 @@ export default function AdminSuppliersPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetchSuppliers();
+    const controller = new AbortController();
+    fetchSuppliers(controller.signal);
+    return () => controller.abort();
   }, [filterPathway, filterStatus]);
 
-  async function fetchSuppliers() {
+  async function fetchSuppliers(signal?: AbortSignal) {
     setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams();
       if (filterPathway) params.set("pathway", filterPathway);
       if (filterStatus) params.set("status", filterStatus);
-      const res = await fetch(`/api/suppliers/admin-list?${params}`, { headers: authHeader() });
+      const res = await fetch(`/api/suppliers/admin-list?${params}`, { credentials: "include", signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSuppliers(data.data ?? []);
     } catch (e: any) {
-      setError(e.message || "Failed to load");
+      if (e.name !== "AbortError") {
+        setError(e.message || "Failed to load");
+      }
     } finally {
       setLoading(false);
     }
@@ -154,7 +154,8 @@ export default function AdminSuppliersPage() {
     try {
       const res = await fetch(`/api/admin/suppliers/${supplierId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -162,8 +163,8 @@ export default function AdminSuppliersPage() {
         prev.map((s) => (s.id === supplierId ? { ...s, status } : s))
       );
       setSelected((prev) => (prev && prev.id === supplierId ? { ...prev, status } : prev));
-    } catch (e) {
-      // silently reset — select will revert on next render
+    } catch (e: any) {
+      setError(e.message || "Failed to update supplier status");
     } finally {
       setStatusUpdating(false);
     }
@@ -174,7 +175,8 @@ export default function AdminSuppliersPage() {
     try {
       const res = await fetch(`/api/suppliers/${supplierId}/generate-document`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ doc_type: "supplier_profile" }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -192,7 +194,7 @@ export default function AdminSuppliersPage() {
   async function viewLastDoc(supplierId: number, supplierName: string) {
     try {
       const res = await fetch(`/api/suppliers/${supplierId}/document`, {
-        headers: authHeader(),
+        credentials: "include",
       });
       if (res.status === 404) {
         alert(
@@ -217,7 +219,8 @@ export default function AdminSuppliersPage() {
     try {
       const res = await fetch(`/api/suppliers/${supplierId}/send-whatsapp`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) {
         const j = await res.json();

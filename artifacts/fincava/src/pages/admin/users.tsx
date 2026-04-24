@@ -8,10 +8,6 @@ const roleBadge: Record<string, string> = {
   ADMIN: "bg-purple-500/15 text-purple-300 border-purple-500/20",
 };
 
-function authHeader() {
-  const token = localStorage.getItem("fincava_token");
-  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-}
 
 interface UserRow {
   id: number;
@@ -112,7 +108,8 @@ function EditModal({ user, onClose }: { user: UserRow; onClose: () => void }) {
     mutationFn: async () => {
       const res = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
-        headers: authHeader(),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: form.email,
           role: form.role,
@@ -139,7 +136,8 @@ function EditModal({ user, onClose }: { user: UserRow; onClose: () => void }) {
     mutationFn: async () => {
       const res = await fetch(`/api/admin/users/${user.id}/reset-password`, {
         method: "POST",
-        headers: authHeader(),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: newPassword }),
       });
       if (!res.ok) {
@@ -243,7 +241,8 @@ function CreateModal({ onClose }: { onClose: () => void }) {
     mutationFn: async () => {
       const res = await fetch("/api/admin/users", {
         method: "POST",
-        headers: authHeader(),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: form.email,
           password: form.password,
@@ -337,7 +336,7 @@ function DeleteConfirm({ user, onClose }: { user: UserRow; onClose: () => void }
     mutationFn: async () => {
       const res = await fetch(`/api/admin/users/${user.id}`, {
         method: "DELETE",
-        headers: authHeader(),
+        credentials: "include",
       });
       if (!res.ok) {
         const j = await res.json();
@@ -402,7 +401,8 @@ export default function AdminUsers() {
   const { data: resp, isLoading } = useQuery({
     queryKey: ["admin", "users"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/users", { headers: authHeader() });
+      const res = await fetch("/api/admin/users", { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load users (HTTP ${res.status})`);
       return res.json();
     },
   });

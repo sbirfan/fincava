@@ -6,8 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Package, MapPin, Calendar, DollarSign, CheckCircle, ArrowRight, Inbox } from "lucide-react";
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 interface RFQ {
   id: number;
   title: string;
@@ -24,7 +22,7 @@ interface RFQ {
 export default function SupplierRFQs() {
   const { data: rfqs, isLoading } = useQuery<RFQ[]>({
     queryKey: ["/api/supplier/rfqs"],
-    queryFn: () => fetch("/api/supplier/rfqs", { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()),
+    queryFn: () => fetch("/api/supplier/rfqs", { credentials: "include" }).then(r => r.json()),
   });
 
   const daysUntil = (d: string) => Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86400000));

@@ -42,10 +42,7 @@ export default function AdminDashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin", "stats"],
     queryFn: async () => {
-      const token = localStorage.getItem("fincava_token");
-      const res = await fetch("/api/admin/stats", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/admin/stats", { credentials: "include" });
       return res.json();
     },
   });

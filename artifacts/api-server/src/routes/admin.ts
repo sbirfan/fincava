@@ -281,11 +281,22 @@ router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> 
     return;
   }
 
-  await db.delete(profilesTable).where(eq(profilesTable.userId, userId));
-  await db.delete(companiesTable).where(eq(companiesTable.userId, userId));
-  await db.delete(usersTable).where(eq(usersTable.id, userId));
-
-  res.json({ success: true });
+  try {
+    await db.delete(staffRolesTable).where(eq(staffRolesTable.userId, userId));
+    await db.delete(profilesTable).where(eq(profilesTable.userId, userId));
+    await db.delete(companiesTable).where(eq(companiesTable.userId, userId));
+    await db.delete(usersTable).where(eq(usersTable.id, userId));
+    res.json({ success: true });
+  } catch (err: any) {
+    if (err?.code === "23503") {
+      res.status(409).json({
+        error:
+          "Cannot delete user: they have associated orders, RFQs, messages, or other records. Deactivate the account instead.",
+      });
+    } else {
+      throw err;
+    }
+  }
 });
 
 // ── PATCH /api/admin/orders/:id/status ───────────────────────────────────────

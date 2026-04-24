@@ -16,10 +16,6 @@ const statusColor: Record<string, string> = {
   CANCELLED: "bg-red-500/15 text-red-300 border-red-500/20",
 };
 
-function authHeader() {
-  const token = localStorage.getItem("fincava_token");
-  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-}
 
 function StatusSelect({ orderId, current }: { orderId: number; current: string }) {
   const qc = useQueryClient();
@@ -29,7 +25,8 @@ function StatusSelect({ orderId, current }: { orderId: number; current: string }
     mutationFn: async (status: OrderStatus) => {
       const res = await fetch(`/api/admin/orders/${orderId}/status`, {
         method: "PATCH",
-        headers: authHeader(),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error("Failed to update status");
@@ -67,10 +64,7 @@ export default function AdminOrders() {
   const { data: resp, isLoading } = useQuery({
     queryKey: ["admin", "orders"],
     queryFn: async () => {
-      const token = localStorage.getItem("fincava_token");
-      const res = await fetch("/api/admin/orders", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/admin/orders", { credentials: "include" });
       return res.json();
     },
   });

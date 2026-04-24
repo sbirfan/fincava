@@ -12,10 +12,6 @@ const statusColor: Record<string, string> = {
   CANCELLED: "bg-white/10 text-white/50 border-white/10",
 };
 
-function authHeader() {
-  const token = localStorage.getItem("fincava_token");
-  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-}
 
 function riskLabel(score: number) {
   if (score >= 750) return { label: "Low", cls: "text-emerald-400" };
@@ -31,7 +27,8 @@ function StatusSelect({ loanId, current }: { loanId: number; current: string }) 
     mutationFn: async (status: LoanStatus) => {
       const res = await fetch(`/api/admin/loans/${loanId}/status`, {
         method: "PATCH",
-        headers: authHeader(),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error("Failed to update status");
@@ -70,10 +67,7 @@ export default function AdminLoans() {
   const { data: resp, isLoading } = useQuery({
     queryKey: ["admin", "loans"],
     queryFn: async () => {
-      const token = localStorage.getItem("fincava_token");
-      const res = await fetch("/api/admin/loans", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/admin/loans", { credentials: "include" });
       return res.json();
     },
   });

@@ -10,8 +10,6 @@ import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 interface Conversation {
   userId: number;
   userName: string;
@@ -42,18 +40,17 @@ export default function BuyerMessages() {
   const { data: conversations, isLoading: loadingConvs } = useQuery<Conversation[]>({
     queryKey: ["/api/messages/conversations"],
     queryFn: () =>
-      fetch("/api/messages/conversations", {
-        headers: { Authorization: `Bearer ${TOKEN()}` },
-      }).then(r => r.json()),
+      fetch("/api/messages/conversations", { credentials: "include" }).then(r => r.json()),
     refetchInterval: 5000,
   });
 
   const { data: messages, isLoading: loadingMsgs } = useQuery<Message[]>({
     queryKey: ["/api/messages", selectedUserId],
     queryFn: () =>
-      fetch(`/api/messages/${selectedUserId}`, {
-        headers: { Authorization: `Bearer ${TOKEN()}` },
-      }).then(r => r.json()),
+      fetch(`/api/messages/${selectedUserId}`, { credentials: "include" }).then(r => {
+        if (!r.ok) throw new Error(`Failed to load messages (HTTP ${r.status})`);
+        return r.json();
+      }),
     enabled: !!selectedUserId,
     refetchInterval: 3000,
   });
@@ -62,10 +59,8 @@ export default function BuyerMessages() {
     mutationFn: async (content: string) => {
       const res = await fetch(`/api/messages/${selectedUserId}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${TOKEN()}`,
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
       });
       if (!res.ok) throw new Error("Failed to send");

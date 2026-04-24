@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, inquiriesTable, productsTable, companiesTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
+import { db, inquiriesTable, productsTable, companiesTable, usersTable } from "@workspace/db";
 import {
   CreateInquiryBody,
   UpdateInquiryStatusParams,
@@ -31,7 +31,7 @@ async function buildInquiryResponse(inquiry: any) {
   };
 }
 
-router.post("/inquiries", async (req, res): Promise<void> => {
+router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateInquiryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -55,11 +55,13 @@ router.post("/inquiries", async (req, res): Promise<void> => {
 
 router.get("/buyer/inquiries", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
-  // Get inquiries by buyer email — from their profile
+  const [user] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
   const inquiries = await db.select().from(inquiriesTable)
+    .where(eq(inquiriesTable.buyerEmail, user.email))
     .orderBy(inquiriesTable.createdAt);
 
-  // Filter by userId context (simplified — in real app, tie inquiries to userId)
   const results = await Promise.all(inquiries.map(buildInquiryResponse));
   res.json(results);
 });
@@ -92,6 +94,8 @@ router.get("/supplier/inquiries", requireAuth, async (req, res): Promise<void> =
 });
 
 router.patch("/supplier/inquiries/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId;
+
   const params = UpdateInquiryStatusParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -104,15 +108,22 @@ router.patch("/supplier/inquiries/:id", requireAuth, async (req, res): Promise<v
     return;
   }
 
+  // Ownership check: inquiry's product must belong to the authenticated supplier
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+  if (!company) { res.status(403).json({ error: "Only suppliers can update inquiries" }); return; }
+
+  const [existingInquiry] = await db.select().from(inquiriesTable).where(eq(inquiriesTable.id, params.data.id));
+  if (!existingInquiry) { res.status(404).json({ error: "Inquiry not found" }); return; }
+
+  const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, existingInquiry.productId));
+  if (!product || product.companyId !== company.id) {
+    res.status(403).json({ error: "Not authorized to update this inquiry" }); return;
+  }
+
   const [inquiry] = await db.update(inquiriesTable)
     .set({ status: parsed.data.status })
     .where(eq(inquiriesTable.id, params.data.id))
     .returning();
-
-  if (!inquiry) {
-    res.status(404).json({ error: "Inquiry not found" });
-    return;
-  }
 
   const result = await buildInquiryResponse(inquiry);
   res.json(result);

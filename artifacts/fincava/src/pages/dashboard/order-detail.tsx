@@ -10,8 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Package, MapPin, Truck, CheckCircle2, Circle, Clock, DollarSign, Anchor, Ship, Home, Lock, Unlock } from "lucide-react";
 import { format } from "date-fns";
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 const SHIPMENT_STATUSES = [
   { key: "CREATED", label: "Order Confirmed", icon: CheckCircle2 },
   { key: "EXPORT_CUSTOMS", label: "Export Customs", icon: Anchor },
@@ -82,7 +80,7 @@ function PaymentMilestones({ milestones, orderId, totalUSD }: { milestones: any[
   const release = useMutation({
     mutationFn: (milestoneId: number) => fetch(`/api/orders/${orderId}/milestones/${milestoneId}/release`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${TOKEN()}` },
+      credentials: "include",
     }).then(r => r.json()),
     onSuccess: (res) => {
       if (res.error) { toast({ title: "Error", description: res.error, variant: "destructive" }); return; }
@@ -158,13 +156,13 @@ export default function BuyerOrderDetail() {
 
   const { data: shipment } = useQuery({
     queryKey: [`/api/orders/${id}/shipment`],
-    queryFn: () => fetch(`/api/orders/${id}/shipment`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()),
+    queryFn: () => fetch(`/api/orders/${id}/shipment`, { credentials: "include" }).then(r => r.json()),
     enabled: !!id,
   });
 
   const { data: milestones } = useQuery<any[]>({
     queryKey: [`/api/orders/${id}/milestones`],
-    queryFn: () => fetch(`/api/orders/${id}/milestones`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()),
+    queryFn: () => fetch(`/api/orders/${id}/milestones`, { credentials: "include" }).then(r => r.json()),
     enabled: !!id,
   });
 

@@ -7,8 +7,6 @@ import { TrendingUp, Package, Globe, DollarSign, FileQuestion, BarChart2, AlertC
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 interface MarketData {
   trendingProducts: Array<{ name: string; category: string; price: number; inquiries: number }>;
   openRfqsByCategory: Record<string, number>;

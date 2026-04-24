@@ -5,8 +5,6 @@ import { TrustBadge, TrustScoreBar } from "@/components/trust-badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { BarChart2, TrendingUp, Package, Clock, Star, Globe, ShieldCheck } from "lucide-react";
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 interface TradeRecord { product: string; volumeKg: number; destination: string; year: number; valueUSD: number | null; }
 
 export default function SupplierPerformance() {
@@ -14,7 +12,7 @@ export default function SupplierPerformance() {
 
   const { data: profile } = useQuery({
     queryKey: ["/api/supplier/profile"],
-    queryFn: () => fetch("/api/supplier/profile", { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()),
+    queryFn: () => fetch("/api/supplier/profile", { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: trust } = useQuery({

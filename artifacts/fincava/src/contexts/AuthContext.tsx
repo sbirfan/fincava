@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext } from "react";
 import { UserWithProfile, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
-import { getToken, setToken as setLocalToken, clearToken as clearLocalToken } from "../lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface AuthContextType {
@@ -14,46 +13,31 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(getToken());
-  const [storedUser, setStoredUser] = useState<UserWithProfile | null>(null);
   const queryClient = useQueryClient();
 
   const { data: me, isLoading: isLoadingMe } = useGetMe({
     query: {
-      enabled: !!token,
+      enabled: true,
       queryKey: getGetMeQueryKey(),
       retry: false,
     },
   });
 
-  useEffect(() => {
-    if (token) {
-      setLocalToken(token);
-    } else {
-      clearLocalToken();
-      setStoredUser(null);
-    }
-  }, [token]);
-
-  const login = (newToken: string, newUser: UserWithProfile) => {
-    setToken(newToken);
-    setStoredUser(newUser);
+  const login = (_token: string, _user: UserWithProfile) => {
+    queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
   };
 
   const logout = () => {
-    setToken(null);
+    fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
   };
-
-  const user = me ?? storedUser ?? null;
-  const isLoading = !!token && isLoadingMe && !user;
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        isAuthenticated: !!user,
-        isLoading,
+        user: me ?? null,
+        isAuthenticated: !!me,
+        isLoading: isLoadingMe,
         login,
         logout,
       }}

@@ -84,19 +84,28 @@ V3 origin stories seeded for all 8 products using script run via `scripts/node_m
 - **Product Analytics** — view tracking, trending products per category
 
 ### Auth Pattern
-- Token stored as `fincava_token` in localStorage; signed JWT (HS256, 7-day expiry) via `JWT_SECRET` env var
+- Token stored as `fincava_auth` **httpOnly cookie** (sameSite:strict, secure in prod, 7-day maxAge); signed JWT (HS256) via `JWT_SECRET` env var
+- `requireAuth` middleware: checks cookie first, then `Authorization: Bearer` fallback (for API/curl clients)
+- Frontend: `AuthContext` uses always-enabled `/api/auth/me` query; login/logout via `/api/auth/login` + `/api/auth/logout`
+- All frontend pages use `credentials: "include"` on every fetch (no localStorage token or manual Authorization header)
 - Password hash: bcrypt (12 rounds). Legacy SHA-256 hashes auto-upgraded to bcrypt on next login (transparent migration)
 - Roles: BUYER, SUPPLIER, ADMIN
 - Rate limiting: login/register 20 req/15 min, onboarding 30 req/hour
 
-### Security & Architecture (Groups 1–3)
+### Security & Architecture
 - **Helmet** — HTTP security headers on all responses
+- **CORS** — restricted to `ALLOWED_ORIGIN` env var (default: Replit dev domain); wildcard removed
+- **Body size limit** — 1 MB global limit on all JSON bodies
 - **Global error handler** — 4-arg Express middleware; logs via pino, returns `{error}` JSON
 - **Anthropic singleton** — `lib/anthropic.ts`; model names env-overridable via `ANTHROPIC_SCORING_MODEL` / `ANTHROPIC_DOCUMENT_MODEL`
 - **Shared requireAdmin** — `middleware/admin.ts`; imported by both admin and supplier routes
-- **Zod validation** — `src/schemas.ts` in api-server; covers admin user edit, password reset, officer registration, pagination params
+- **Zod validation** — `src/schemas.ts` + inline validators; covers all admin endpoints, product boolean filters
+- **Ownership checks** — PATCH /supplier/inquiries/:id, PATCH /supplier/orders/:id/status, GET /buyer/inquiries all verified
+- **Admin user delete** — FK constraint violations return 409 (not 500) with a clear message to deactivate instead
 - **Paginated admin endpoints** — all list endpoints return `{ data, total, page, limit, totalPages }` (default limit=50, max=100); `totalPages` is always ≥ 1
 - **Drizzle migrations** — baseline SQL generated at `lib/db/drizzle/0000_baseline.sql`; apply with `pnpm --filter @workspace/db run migrate`
+- **AbortController** — supplier admin filter fetches cancel in-flight requests on filter change (race condition fix)
+- **res.ok guards** — all frontend fetch calls check `res.ok` before calling `.json()` (admin/team, admin/users, messages)
 
 ### Key API Routes (V2)
 - `GET/POST /rfqs` — public RFQ board + create (buyer auth)

@@ -63,6 +63,14 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   const token = generateToken(user.id);
 
+  res.cookie("fincava_auth", token, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+
   res.status(201).json({
     token,
     user: buildUserResponse(user, profile, company),
@@ -97,6 +105,15 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, user.id));
 
   const token = generateToken(user.id);
+
+  res.cookie("fincava_auth", token, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+
   res.json({
     token,
     user: buildUserResponse(user, profile, company),
@@ -104,6 +121,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 });
 
 router.post("/auth/logout", async (_req, res): Promise<void> => {
+  res.clearCookie("fincava_auth", { path: "/" });
   res.json({ message: "Logged out successfully" });
 });
 

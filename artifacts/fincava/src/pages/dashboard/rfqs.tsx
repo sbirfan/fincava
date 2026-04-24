@@ -25,8 +25,6 @@ interface RFQ {
   createdAt: string;
 }
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 export default function BuyerRFQs() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -39,13 +37,14 @@ export default function BuyerRFQs() {
 
   const { data: rfqs, isLoading } = useQuery<RFQ[]>({
     queryKey: ["/api/buyer/rfqs"],
-    queryFn: () => fetch("/api/buyer/rfqs", { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()),
+    queryFn: () => fetch("/api/buyer/rfqs", { credentials: "include" }).then(r => r.json()),
   });
 
   const createRFQ = useMutation({
     mutationFn: (data: any) => fetch("/api/rfqs", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(r => r.json()),
     onSuccess: (res) => {

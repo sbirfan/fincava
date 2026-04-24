@@ -15,8 +15,6 @@ import { format, isPast } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const TOKEN = () => localStorage.getItem("fincava_token") ?? "";
-
 interface CreditInfo {
   score: number;
   limit: number;
@@ -81,19 +79,20 @@ export default function FinanceDashboard() {
 
   const { data: credit, isLoading: loadingCredit } = useQuery<CreditInfo>({
     queryKey: ["/api/finance/credit"],
-    queryFn: () => fetch("/api/finance/credit", { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()),
+    queryFn: () => fetch("/api/finance/credit", { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: loans, isLoading: loadingLoans } = useQuery<Loan[]>({
     queryKey: ["/api/finance/loans"],
-    queryFn: () => fetch("/api/finance/loans", { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()),
+    queryFn: () => fetch("/api/finance/loans", { credentials: "include" }).then(r => r.json()),
   });
 
   const createLoan = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/finance/loan", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ principalUSD: parseFloat(loanAmount), termDays: parseInt(loanTerm), aprPercent: parseFloat(loanApr) }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
@@ -113,7 +112,8 @@ export default function FinanceDashboard() {
     mutationFn: async (loanId: number) => {
       const res = await fetch("/api/finance/repay", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ loanId, amountUSD: parseFloat(repayAmount), note: repayNote || null }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }

@@ -1,10 +1,6 @@
-import { setAuthTokenGetter } from "@workspace/api-client-react";
-
-export const getToken = () => localStorage.getItem("fincava_token");
-export const setToken = (token: string) => localStorage.setItem("fincava_token", token);
-export const clearToken = () => localStorage.removeItem("fincava_token");
-
-// Configure the API client to automatically use the token
-setAuthTokenGetter(() => {
-  return getToken();
-});
+// Auth is handled via httpOnly cookies set by the server on login/register.
+// The token is never stored in the browser (localStorage/sessionStorage)
+// to prevent XSS-based token theft.
+export const getToken = (): string | null => null;
+export const setToken = (_token: string): void => {};
+export const clearToken = (): void => {};

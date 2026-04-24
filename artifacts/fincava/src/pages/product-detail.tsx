@@ -39,10 +39,10 @@ export default function ProductDetail() {
     }
     setSubmitting(true);
     try {
-      const token = localStorage.getItem("fincava_token");
       const res = await fetch("/api/buyer/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           incoterm,
           destinationPort: destPort || null,

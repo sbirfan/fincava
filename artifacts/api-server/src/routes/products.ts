@@ -11,6 +11,14 @@ import {
   GetSimilarProductsParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
+import { z } from "zod";
+
+const BooleanFilters = z.object({
+  smallholder: z.coerce.boolean().optional(),
+  womenLed: z.coerce.boolean().optional(),
+  directTrade: z.coerce.boolean().optional(),
+  organic: z.coerce.boolean().optional(),
+});
 
 const router: IRouter = Router();
 
@@ -70,11 +78,15 @@ router.get("/products", async (req, res): Promise<void> => {
     page = 1, limit = 20,
   } = parsed.data;
 
-  const rawQ = req.query as Record<string, string>;
-  const filterSmallholder = rawQ.smallholder === "true";
-  const filterWomenLed = rawQ.womenLed === "true";
-  const filterDirectTrade = rawQ.directTrade === "true";
-  const filterOrganic = rawQ.organic === "true";
+  const boolParsed = BooleanFilters.safeParse(req.query);
+  if (!boolParsed.success) {
+    res.status(400).json({ error: boolParsed.error.message });
+    return;
+  }
+  const filterSmallholder = boolParsed.data.smallholder === true;
+  const filterWomenLed = boolParsed.data.womenLed === true;
+  const filterDirectTrade = boolParsed.data.directTrade === true;
+  const filterOrganic = boolParsed.data.organic === true;
 
   let query = db.select({
     product: productsTable,
