@@ -688,7 +688,7 @@ router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, 
 });
 
 // ── GET /api/suppliers/:id ────────────────────────────────────────────────────
-router.get("/suppliers/:id", async (req, res): Promise<void> => {
+router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
     res.status(400).json({ error: "Invalid supplier id" });

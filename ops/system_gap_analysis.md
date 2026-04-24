@@ -138,7 +138,21 @@ TARGET_STATE:
 - Fix before any external-facing supplier detail work in Epic 2
 
 SEVERITY: High
-STATUS: Open — fix in P0.4
+STATUS: FIXED (P0.4 — 2026-04-23)
+Fix: requireAuth + requireAdmin applied to GET /suppliers/:id
+Middleware order: requireAuth → requireAdmin
+Buyer-facing detail route will be a separate sanitized endpoint
+when built in Epic 2 — this endpoint remains ADMIN-only in v0
+Cascade behavior: NO — flat router instance, middleware applies to
+GET /suppliers/:id only. Sub-routes carry their own independent guards
+(evaluations, transitions, document, generate-document, send-whatsapp
+are all already requireAuth + requireAdmin).
+
+BLOCKER FINDINGS (must fix before Epic 2 UI work):
+- SupplierDetail (supplier-detail.tsx:15) — calls GET /api/suppliers/:id
+  via useGetSupplier(), no Authorization header, mounted at /supplier/:id
+  with no role guard (App.tsx:109). Will 401 for all non-admin visitors.
+  Must migrate to sanitized buyer route before Epic 2 UI work.
 
 ---
 

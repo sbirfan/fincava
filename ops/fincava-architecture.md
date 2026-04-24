@@ -364,7 +364,8 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | Mobile navbar | Language toggle and nav links not yet adapted for mobile viewports |
 | Compliance history | `compliance_docs` stores current state only. Audit history requires a separate `compliance_docs_history` table (do not remove UNIQUE constraint) |
 | Public supplier dataset exposure | FIXED (P0.2) — GET /api/suppliers now ADMIN-only. Buyer surface via /suppliers/marketplace. |
-| GET /suppliers/:id unguarded | Returns full supplier row with no auth. Fix in P0.4 before Epic 2 detail page work. |
+| GET /suppliers/:id unguarded | FIXED (P0.4 — 2026-04-23) — requireAuth + requireAdmin applied. ADMIN-only in v0. Buyer detail surface will be a separate sanitized route in Epic 2. |
+| Supplier detail page — BLOCKER | SupplierDetail (supplier-detail.tsx:15) calls GET /api/suppliers/:id without admin guard. Must migrate to sanitized buyer route before Epic 2 UI work. |
 | ICA sync disconnect | FIXED (P0.1) — ica_registered from onboarding now syncs to compliance_docs.ica_registro. Upgrade-only. Full compliance unification deferred to Phase 4. |
 
 ---
@@ -389,3 +390,4 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | 2026-04-23 | P0.1 — ICA sync fix: ica_registered from onboarding metadata now updates compliance_docs.ica_registro |
 | 2026-04-23 | P0.2 — GET /api/suppliers restricted to ADMIN-only (requireAuth + requireAdmin). Buyer surface via /suppliers/marketplace |
 | 2026-04-23 | H4-B found: GET /suppliers/:id unguarded — fix in P0.4 |
+| 2026-04-23 | P0.4 — GET /suppliers/:id restricted to ADMIN-only (requireAuth + requireAdmin). Buyer detail route deferred to Epic 2 as separate sanitized endpoint. Cascade: NO — sub-routes carry independent guards. |
