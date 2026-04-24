@@ -125,7 +125,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         rawBody.currently_exporting === "yes"
           ? "EXPORT"
           : (rawBody.economics?.tipoComprador ?? null),
-      volumenKgUltimaCosecha: annualVolume ? String(annualVolume) : null,
+      volumenKgUltimaCosecha: annualVolume ? Number(annualVolume) : null,
       precioVentaBanda: rawBody.economics?.precioVentaBanda ?? null,
       tiempoPagoDias: rawBody.economics?.tiempoPagoDias ?? null,
       deudaActual:

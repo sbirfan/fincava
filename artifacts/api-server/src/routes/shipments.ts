@@ -8,7 +8,7 @@ import { requireAuth } from "../lib/auth";
 const router: IRouter = Router();
 
 router.get("/orders/:id/shipment", requireAuth, async (req, res): Promise<void> => {
-  const orderId = parseInt(req.params.id);
+  const orderId = parseInt(req.params.id as string);
   if (isNaN(orderId)) { res.status(400).json({ error: "Invalid order id" }); return; }
 
   const [shipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.orderId, orderId));
@@ -25,7 +25,7 @@ router.get("/orders/:id/shipment", requireAuth, async (req, res): Promise<void> 
 });
 
 router.post("/orders/:id/shipment", requireAuth, async (req, res): Promise<void> => {
-  const orderId = parseInt(req.params.id);
+  const orderId = parseInt(req.params.id as string);
   const { originPort, destinationPort, carrier, trackingNumber, containerNumber, eta } = req.body;
 
   const [existing] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.orderId, orderId));
@@ -53,14 +53,14 @@ router.post("/orders/:id/shipment", requireAuth, async (req, res): Promise<void>
 });
 
 router.patch("/orders/:id/shipment/status", requireAuth, async (req, res): Promise<void> => {
-  const orderId = parseInt(req.params.id);
+  const orderId = parseInt(req.params.id as string);
   const { status } = req.body;
   const [updated] = await db.update(shipmentsTable).set({ status, updatedAt: new Date() }).where(eq(shipmentsTable.orderId, orderId)).returning();
   res.json({ ...updated, eta: updated.eta?.toISOString() ?? null, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
 });
 
 router.get("/orders/:id/milestones", requireAuth, async (req, res): Promise<void> => {
-  const orderId = parseInt(req.params.id);
+  const orderId = parseInt(req.params.id as string);
   const milestones = await db.select().from(paymentMilestonesTable).where(eq(paymentMilestonesTable.orderId, orderId));
   res.json(milestones.map(m => ({
     ...m,
@@ -70,7 +70,7 @@ router.get("/orders/:id/milestones", requireAuth, async (req, res): Promise<void
 });
 
 router.post("/orders/:id/milestones", requireAuth, async (req, res): Promise<void> => {
-  const orderId = parseInt(req.params.id);
+  const orderId = parseInt(req.params.id as string);
   const { name, description, amountUSD, percentage, dueDate } = req.body;
   const [milestone] = await db.insert(paymentMilestonesTable).values({
     orderId,
@@ -85,7 +85,7 @@ router.post("/orders/:id/milestones", requireAuth, async (req, res): Promise<voi
 });
 
 router.post("/orders/:orderId/milestones/:milestoneId/release", requireAuth, async (req, res): Promise<void> => {
-  const milestoneId = parseInt(req.params.milestoneId);
+  const milestoneId = parseInt(req.params.milestoneId as string);
   const [updated] = await db.update(paymentMilestonesTable)
     .set({ status: "RELEASED", releasedAt: new Date() })
     .where(eq(paymentMilestonesTable.id, milestoneId))

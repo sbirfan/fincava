@@ -53,8 +53,10 @@ router.get("/finance/loans", requireAuth, async (req, res): Promise<void> => {
 
     let orderRef: string | null = null;
     try {
-      const [order] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.id, loan.orderId));
-      if (order) orderRef = `ORD-${String(order.id).padStart(4, "0")}`;
+      if (loan.orderId != null) {
+        const [order] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.id, loan.orderId));
+        if (order) orderRef = `ORD-${String(order.id).padStart(4, "0")}`;
+      }
     } catch {}
 
     return {

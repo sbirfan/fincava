@@ -95,7 +95,7 @@ router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
-  const rfqId = parseInt(req.params.id);
+  const rfqId = parseInt(req.params.id as string);
   if (isNaN(rfqId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
@@ -119,8 +119,8 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promise<void> => {
-  const rfqId = parseInt(req.params.id);
-  const responseId = parseInt(req.params.responseId);
+  const rfqId = parseInt(req.params.id as string);
+  const responseId = parseInt(req.params.responseId as string);
 
   await db.update(rfqResponsesTable).set({ awarded: 1 }).where(eq(rfqResponsesTable.id, responseId));
   await db.update(rfqsTable).set({ status: "AWARDED" }).where(eq(rfqsTable.id, rfqId));

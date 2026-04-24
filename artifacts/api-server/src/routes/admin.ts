@@ -158,7 +158,7 @@ router.get("/admin/orders", ...adminOnly, async (req, res): Promise<void> => {
 
 // ── PATCH /api/admin/users/:id ───────────────────────────────────────────────
 router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> => {
-  const userId = parseInt(req.params.id, 10);
+  const userId = parseInt(req.params.id as string, 10);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
   const parsed = AdminUserEditBody.safeParse(req.body);
@@ -212,7 +212,7 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
 
 // ── POST /api/admin/users/:id/reset-password ─────────────────────────────────
 router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): Promise<void> => {
-  const userId = parseInt(req.params.id, 10);
+  const userId = parseInt(req.params.id as string, 10);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
   const parsed = AdminResetPasswordBody.safeParse(req.body);
@@ -272,7 +272,7 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
 
 // ── DELETE /api/admin/users/:id ──────────────────────────────────────────────
 router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> => {
-  const userId = parseInt(req.params.id, 10);
+  const userId = parseInt(req.params.id as string, 10);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
   const requesterId = (req as any).userId;
@@ -290,7 +290,7 @@ router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> 
 
 // ── PATCH /api/admin/orders/:id/status ───────────────────────────────────────
 router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
 
   const parsed = AdminOrderStatusBody.safeParse(req.body);
@@ -303,7 +303,7 @@ router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise
 
 // ── PATCH /api/admin/loans/:id/status ────────────────────────────────────────
 router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid loan id" }); return; }
 
   const parsed = AdminLoanStatusBody.safeParse(req.body);
@@ -316,7 +316,7 @@ router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<
 
 // ── PATCH /api/admin/suppliers/:id/status ────────────────────────────────────
 router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
 
   const parsed = AdminSupplierStatusBody.safeParse(req.body);
@@ -410,7 +410,7 @@ router.get("/admin/team/users", ...adminOnly, async (req, res): Promise<void> =>
 
 // ── POST /api/admin/team/:userId/roles ─────────────────────────────────────────
 router.post("/admin/team/:userId/roles", ...adminOnly, async (req, res): Promise<void> => {
-  const userId = parseInt(req.params.userId, 10);
+  const userId = parseInt(req.params.userId as string, 10);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
   const parsed = StaffRoleBody.safeParse(req.body);
@@ -434,8 +434,8 @@ router.post("/admin/team/:userId/roles", ...adminOnly, async (req, res): Promise
 
 // ── DELETE /api/admin/team/:userId/roles/:role ────────────────────────────────
 router.delete("/admin/team/:userId/roles/:role", ...adminOnly, async (req, res): Promise<void> => {
-  const userId = parseInt(req.params.userId, 10);
-  const { role } = req.params;
+  const userId = parseInt(req.params.userId as string, 10);
+  const role = req.params.role as string;
 
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
   if (!(STAFF_ROLE_VALUES as readonly string[]).includes(role)) {
