@@ -478,4 +478,12 @@ All pre-existing tsc errors in `admin.ts`, `rfqs.ts`, `shipments.ts`, `financing
 
 ---
 
+### NOTE — Naming inconsistency
+
+Legacy onboarding supports both English and Spanish field names.
+`typedInput` resolves these into canonical fields.
+Full normalization and enforcement will occur in T3.
+
+---
+
 END

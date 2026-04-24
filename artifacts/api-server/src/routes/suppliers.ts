@@ -31,7 +31,7 @@ const router: IRouter = Router();
 // ── POST /api/suppliers/onboard ─────────────────────────────────────────────
 router.post("/suppliers/onboard", async (req, res): Promise<void> => {
   try {
-    const rawBody = req.body;
+    const rawBody: Record<string, any> = req.body;
 
     // T1: canonical input normalization — rawBody remains execution layer
     // typedInput is contract surface for T2 (scoring) and T3 (validation)
@@ -39,6 +39,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // RUT MAPPING NOTE: typedInput.rutDian maps to rawBody.has_rut (metadata-level signal only).
     // It does NOT reflect compliance_docs.rut_dian used by the eligibility gate.
     // This mismatch will be resolved in T4 (compliance alignment).
+    // TODO (T2): use typedInput to build scoring input contract
     const typedInput: Partial<SupplierOnboardingInput> = {
       fullName: rawBody.contact_name || rawBody.nombreCompleto,
       phone: rawBody.phone || rawBody.whatsappNumber,
@@ -53,6 +54,14 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       icaRegistro: rawBody.ica_registered,
       pricePerKg: rawBody.economics?.precioVentaBanda,
     };
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("typedInput preview", {
+        fullName: typedInput.fullName,
+        phone: typedInput.phone,
+        productType: typedInput.productType,
+      });
+    }
 
     // Accept both English (new form) and Spanish (legacy) field names
     const nombreCompleto = rawBody.contact_name || rawBody.nombreCompleto || "";
