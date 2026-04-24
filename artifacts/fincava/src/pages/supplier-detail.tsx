@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useGetSupplier } from "@workspace/api-client-react";
+import { useGetSupplier, getGetSupplierQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,7 @@ export default function SupplierDetail() {
   const id = parseInt(params.id || "0", 10);
 
   const { data: supplier, isLoading } = useGetSupplier(id, {
-    query: {
-      enabled: !!id,
-    }
+    query: { enabled: !!id, queryKey: getGetSupplierQueryKey(id) }
   });
 
   if (isLoading) {

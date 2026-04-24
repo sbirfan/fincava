@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import {
   TrendingUp, DollarSign, Globe, Users, BarChart2,
   ArrowRight, CheckCircle2, Layers, Shield, Cpu,
@@ -13,8 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
-};
-const stagger = { show: { transition: { staggerChildren: 0.12 } } };
+} as unknown as Variants;
+const stagger = { show: { transition: { staggerChildren: 0.12 } } } as unknown as Variants;
 
 function SectionLabel({ children, light }: { children: React.ReactNode; light?: boolean }) {
   return (

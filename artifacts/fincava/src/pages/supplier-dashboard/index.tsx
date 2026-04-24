@@ -80,7 +80,7 @@ export default function SupplierDashboard() {
                   <div key={inquiry.id} className="flex items-center justify-between border-b last:border-0 pb-4 last:pb-0">
                     <div>
                       <p className="font-medium">{inquiry.productName}</p>
-                      <p className="text-sm text-muted-foreground">{inquiry.buyerCompany || inquiry.buyerName}</p>
+                      <p className="text-sm text-muted-foreground">{(inquiry as any).buyerCompany || inquiry.buyerName}</p>
                     </div>
                     <Badge variant={inquiry.status === 'PENDING' ? 'default' : 'secondary'}>
                       {inquiry.status}

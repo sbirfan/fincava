@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { CheckCircle2, Globe, Landmark, Package, ArrowRight, Zap, Shield, BarChart2, Cpu, Database, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
-};
+} as unknown as Variants;
 
-const stagger = { show: { transition: { staggerChildren: 0.1 } } };
+const stagger = { show: { transition: { staggerChildren: 0.1 } } } as unknown as Variants;
 
 const LAYERS = [
   {

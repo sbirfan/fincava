@@ -645,7 +645,7 @@ export default function AdminSuppliersPage() {
                 {lang === "es" ? "Ver Último Documento" : "View Last Document"}
               </button>
               <a
-                href={`https://wa.me/${selected.phone.replace(/\D/g, "")}`}
+                href={`https://wa.me/${selected.phone?.replace(/\D/g, "") ?? ""}`}
                 target={"_blank"}
                 rel="noopener noreferrer"
                 className="block w-full py-2.5 bg-[#25D366] text-white rounded-lg text-sm font-medium text-center hover:bg-[#1ebe5d] transition"

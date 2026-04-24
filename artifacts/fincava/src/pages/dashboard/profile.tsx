@@ -1,4 +1,4 @@
-import { useGetMe, useUpdateProfileBody } from "@workspace/api-client-react";
+import { useGetMe } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

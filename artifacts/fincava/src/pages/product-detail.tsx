@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useState } from "react";
-import { useGetProduct, useGetSimilarProducts } from "@workspace/api-client-react";
+import { useGetProduct, useGetSimilarProducts, getGetProductQueryKey, getGetSimilarProductsQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,11 +76,11 @@ export default function ProductDetail() {
   }
 
   const { data: product, isLoading } = useGetProduct(id, {
-    query: { enabled: !!id }
+    query: { enabled: !!id, queryKey: getGetProductQueryKey(id) }
   });
 
   const { data: similarProducts } = useGetSimilarProducts(id, {
-    query: { enabled: !!id }
+    query: { enabled: !!id, queryKey: getGetSimilarProductsQueryKey(id) }
   });
 
   const p = product as any;

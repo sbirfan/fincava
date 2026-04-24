@@ -77,7 +77,7 @@ export default function Suppliers() {
                           {supplier.avgRating.toFixed(1)}
                         </div>
                       )}
-                      {supplier.trustScore && <TrustBadge score={Math.round(supplier.trustScore)} size="sm" />}
+                      {(supplier as any).trustScore && <TrustBadge score={Math.round((supplier as any).trustScore)} size="sm" />}
                     </div>
                   </div>
                   

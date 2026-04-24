@@ -1,6 +1,6 @@
 import { useGetPlatformStats } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import {
   ArrowRight, Globe, Landmark, Truck, ShieldCheck,
   MapPin, Users, Package, Sprout, CheckCircle2,
@@ -17,12 +17,12 @@ const fadeUp = {
     y: 0,
     transition: { duration: 0.65, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] },
   }),
-};
+} as unknown as Variants;
 
 const inView = {
   hidden: { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
-};
+} as unknown as Variants;
 
 function SectionLabel({ children, light }: { children: React.ReactNode; light?: boolean }) {
   return (

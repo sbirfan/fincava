@@ -1,6 +1,6 @@
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useGetBuyerOrder } from "@workspace/api-client-react";
+import { useGetBuyerOrder, getGetBuyerOrderQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,7 +151,7 @@ export default function BuyerOrderDetail() {
   const id = parseInt(params.id || "0", 10);
 
   const { data: order, isLoading } = useGetBuyerOrder(id, {
-    query: { enabled: !!id }
+    query: { enabled: !!id, queryKey: getGetBuyerOrderQueryKey(id) }
   });
 
   const { data: shipment } = useQuery({

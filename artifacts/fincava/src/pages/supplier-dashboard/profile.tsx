@@ -66,10 +66,10 @@ export default function SupplierProfile() {
         toast({ title: "Profile updated successfully" });
         queryClient.invalidateQueries({ queryKey: getGetMySupplierProfileQueryKey() });
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast({ 
           title: "Failed to update profile", 
-          description: error.data?.error,
+          description: error?.data?.error ?? error?.message,
           variant: "destructive" 
         });
       }

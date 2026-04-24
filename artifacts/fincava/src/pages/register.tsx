@@ -46,6 +46,12 @@ interface SupplierFormData {
   has_bank_account: string;
   working_capital_needed: string;
   export_blocker: string;
+  business_structure: string;
+  part_of_cooperative: string;
+  vuce_registered: string;
+  invima_required: string;
+  invima_approved: string;
+  ica_registered: string;
 }
 
 const SUPPLIER_INITIAL: SupplierFormData = {
@@ -54,6 +60,8 @@ const SUPPLIER_INITIAL: SupplierFormData = {
   annual_volume_kg: "", harvest_months: "", organic_certified: "",
   currently_exporting: "", has_rut: "", has_bank_account: "",
   working_capital_needed: "", export_blocker: "",
+  business_structure: "", part_of_cooperative: "", vuce_registered: "",
+  invima_required: "", invima_approved: "", ica_registered: "",
 };
 
 const inputClass =
