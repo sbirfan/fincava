@@ -1,0 +1,286 @@
+EXECUTE.
+
+---
+
+OBJECTIVE
+Audit the codebase to determine whether any Epic 2 — Onboarding & AI Input Hardening tasks have already been implemented.
+
+This is a READ-ONLY verification task.
+DO NOT modify any code.
+
+---
+
+SCOPE
+
+Epic 2 tickets to verify:
+
+1. Structured onboarding schema (SupplierOnboardingInput)
+2. AI scoring input contract (buildScoringInput)
+3. Validation layer (validateOnboardingInput)
+4. Data consistency fixes (ICA sync already done — ignore)
+5. Re-scoring trigger on updates
+6. Progressive onboarding UI
+7. Admin onboarding dashboard
+8. Supplier status view
+9. Marketplace readiness badge
+10. E2E validation coverage
+
+---
+
+CHECK 1 — Schema Definition
+
+Search entire repo for:
+
+* SupplierOnboardingInput
+* onboarding schema interface definitions
+* any TypeScript interface representing structured onboarding
+
+IF found:
+
+* capture file path
+* capture full interface definition
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 2 — AI Input Contract
+
+Search for:
+
+* buildScoringInput
+* any function assembling structured supplier data for AI
+
+Verify:
+
+* does it fetch from suppliers, farms, economics, compliance_docs?
+* does it return structured JSON?
+
+IF found:
+
+* capture function
+* confirm whether scoreSupplier uses it
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 3 — Validation Layer
+
+Search for:
+
+* validateOnboardingInput
+* schema validation logic in onboarding route
+
+Verify:
+
+* is validation applied BEFORE DB insert?
+* does it enforce types / required fields?
+
+IF found:
+
+* capture function and usage location
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 4 — Re-Scoring Trigger
+
+Search for:
+
+* scoreSupplier(
+* evaluateSupplier(
+
+Verify:
+
+* Is scoreSupplier triggered ONLY on onboarding?
+* OR also triggered on UPDATE to:
+
+  * farms
+  * economics
+  * compliance_docs
+
+IF update trigger exists:
+
+* capture where and how it is triggered
+
+ELSE:
+
+* mark as NOT IMPLEMENTED
+
+---
+
+CHECK 5 — Progressive Onboarding UI
+
+Search in:
+
+artifacts/fincava/src/
+
+Look for:
+
+* multi-step onboarding components
+* forms split into steps (Identity, Farm, Production, etc.)
+
+IF found:
+
+* capture component file
+* summarize structure
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 6 — Admin Onboarding Dashboard
+
+Search for:
+
+* onboarding dashboard
+* admin supplier queue
+* status grouping (in progress / pending / published)
+
+IF found:
+
+* capture component and route
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 7 — Supplier Status View
+
+Search for:
+
+* supplier dashboard
+* supplier status page
+
+Verify:
+
+* shows sellableStatus or evaluation data
+
+IF found:
+
+* capture component
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 8 — Marketplace Readiness Badge
+
+Search for:
+
+* SELLABLE
+* PUBLISHED
+* badge rendering in marketplace UI
+
+Verify:
+
+* UI displays readiness state visually
+
+IF found:
+
+* capture component and logic
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 9 — E2E Validation
+
+Search for:
+
+* test scripts
+* QA scripts
+* manual validation code
+
+Verify:
+
+* is there any structured E2E validation of onboarding → scoring → evaluation?
+
+IF found:
+
+* capture test location
+
+ELSE:
+
+* mark as NOT FOUND
+
+---
+
+CHECK 10 — Documentation Sync
+
+Read:
+
+ops/onboarding_flow.md
+
+Verify whether it includes:
+
+* structured onboarding schema
+* ICA sync note
+* updated flow reflecting Epic 2
+
+IF updated:
+
+* summarize changes
+
+ELSE:
+
+* mark as NOT UPDATED
+
+---
+
+OUTPUT FORMAT (STRICT)
+
+Return a table:
+
+| Check | Status | Evidence | Notes |
+
+Where:
+
+* Status = DONE / PARTIAL / NOT FOUND
+* Evidence = file path + line number
+* Notes = short explanation
+
+---
+
+FINAL SUMMARY
+
+* Total checks DONE:
+* Total checks PARTIAL:
+* Total checks NOT FOUND:
+
+Conclusion:
+
+* Epic 2 NOT STARTED
+* OR
+* Epic 2 PARTIALLY IMPLEMENTED
+* OR
+* Epic 2 IN PROGRESS
+
+---
+
+RULES
+
+* DO NOT modify code
+* DO NOT suggest fixes
+* DO NOT implement anything
+* This is a diagnostic audit ONLY
+
+---
+
+COMPLETE
