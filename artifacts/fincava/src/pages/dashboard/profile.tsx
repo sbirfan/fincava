@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ChangePasswordCard } from "@/components/change-password-card";
 
 export default function BuyerProfile() {
   const { data: user, isLoading } = useGetMe();
@@ -65,6 +66,8 @@ export default function BuyerProfile() {
           <Button className="mt-4">Save Company Details</Button>
         </CardContent>
       </Card>
+
+      <ChangePasswordCard />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Users, ShoppingCart, Landmark, TrendingUp, AlertTriangle, DollarSign } from "lucide-react";
+import { ChangePasswordCard } from "@/components/change-password-card";
 
 function StatCard({
   icon: Icon,
@@ -131,6 +132,10 @@ export default function AdminDashboard() {
             </a>
           ))}
         </div>
+      </div>
+
+      <div className="max-w-md">
+        <ChangePasswordCard />
       </div>
     </div>
   );

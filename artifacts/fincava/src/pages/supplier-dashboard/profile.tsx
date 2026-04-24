@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ChangePasswordCard } from "@/components/change-password-card";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -230,6 +231,8 @@ export default function SupplierProfile() {
           </div>
         </form>
       </Form>
+
+      <ChangePasswordCard />
     </div>
   );
 }
