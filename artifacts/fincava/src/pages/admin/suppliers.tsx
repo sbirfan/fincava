@@ -310,7 +310,7 @@ export default function AdminSuppliersPage() {
             {filtered.length} {lang === "es" ? "proveedores" : "suppliers"}
           </span>
           <button
-            onClick={fetchSuppliers}
+            onClick={() => fetchSuppliers()}
             className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
           >
             {lang === "es" ? "↻ Actualizar" : "↻ Refresh"}
