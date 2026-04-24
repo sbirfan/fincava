@@ -1,0 +1,109 @@
+do a final review.
+
+EPIC 2 — T1: Wire SupplierOnboardingInput into Live Onboarding Route
+CONTEXT
+File artifacts/api-server/src/types/supplier-onboarding.ts contains a 313-line typed interface SupplierOnboardingInput. It was built as a definition layer and is currently NOT imported anywhere. The live onboarding route POST /suppliers/onboard in artifacts/api-server/src/routes/suppliers.ts treats req.body as untyped. T1 wires the interface into the route via a compile-time type cast only.
+CRITICAL CLARIFICATION — READ BEFORE ANYTHING ELSE
+as SupplierOnboardingInput is a compile-time cast ONLY. It does NOT validate or guarantee runtime shape. Existing runtime behavior MUST remain unchanged. No assumptions about data correctness may be introduced. This ticket introduces TYPE VISIBILITY, not TYPE SAFETY.
+RUNTIME SAFETY GUARANTEE
+This change introduces compile-time typing ONLY. No runtime validation is added in this ticket. No assumptions about request shape are enforced. Existing onboarding behavior must remain identical after this change. If any runtime behavior changes are observed: STOP and report before proceeding.
+PREFLIGHT — READ THESE FILES BEFORE TOUCHING ANYTHING
+
+1. artifacts/api-server/src/types/supplier-onboarding.ts — full file
+2. lib/db/src/schema/suppliers.ts
+3. lib/db/src/schema/supplier-evaluations.ts
+4. lib/db/src/schema/supplier-state-transitions.ts
+5. lib/db/src/schema/farms.ts
+6. lib/db/src/schema/economics.ts
+7. lib/db/src/schema/compliance-docs.ts
+8. artifacts/api-server/src/routes/suppliers.ts — full POST /suppliers/onboard handler
+If any file does not exist:
+
+* explicitly report: "NOT PRESENT"
+* do NOT skip silently
+PREFLIGHT — HANDLER STRUCTURE CHECK
+Before any changes:
+
+* Verify whether req.body is destructured BEFORE any assignment in the onboarding handler
+* If destructuring occurs before typing: STOP Report: "Handler destructures req.body before typing — requires refactor before T1"
+STEP 1 — MANDATORY DRIFT ANALYSIS
+Produce this BEFORE writing code:
+DRIFT REPORT — SupplierOnboardingInput vs. Current Schema Fields in interface NOT in schema: [list or "none"] Fields in schema NOT in interface: [list or "none"] Type mismatches: [list or "none"] Schema lag (interface correct, schema outdated): [list or "none"] Drift severity: MINOR (1–3 fields) or SIGNIFICANT (4+ fields)
+Drift resolution rules:
+MINOR (1–3 fields): fix the interface before wiring. List each correction with justification tied to a schema field. SIGNIFICANT (4+ fields): STOP. Do not wire. Report and wait for approval. SCHEMA LAG RULE: If interface reflects correct business logic but schema is outdated, do NOT downgrade interface. Flag as schema lag and escalate.
+STEP 2 — FIELD USAGE VERIFICATION
+Compare SupplierOnboardingInput fields against actual fields used in POST /suppliers/onboard handler.
+FIELD USAGE REPORT Fields in interface but NOT used in route handler: [list — classify SAFE or DRIFT] Fields used in route handler but NOT in interface: [list — classify DRIFT]
+Resolve all DRIFT items before proceeding.
+STEP 3 — CHANGES (only if drift acceptable and usage verified)
+Change 1 — Interface corrections Apply ONLY corrections identified in reports. Do not restructure anything else.
+Change 2 — Wire into route
+Add import at top of artifacts/api-server/src/routes/suppliers.ts:
+import type { SupplierOnboardingInput } from '../types/supplier-onboarding';
+Apply typing inside POST /suppliers/onboard handler:
+Placement rules:
+
+* AFTER body parsing middleware (e.g., express.json)
+* BEFORE any destructuring or DB usage
+* As first statement in handler body
+Implementation:
+router.post('/suppliers/onboard', async (req, res) => { const body = req.body as SupplierOnboardingInput;
+Replace all req.body references in this handler with body. Do NOT modify any other routes.
+IMMUTABILITY RULE
+body is a typed alias of req.body. Do NOT introduce new mutations. Do NOT change existing mutation behavior. This must not alter runtime execution.
+Change 3 — Update interface header comment
+Replace existing header line with:
+// Wired into POST /suppliers/onboard via compile-time type cast — see routes/suppliers.ts // Epic 2 T1 — type visibility only, no runtime validation // Last updated: [agent fills current date]
+STEP 4 — VERIFICATION CHECKLIST
+Confirm ALL of the following:
+
+* supplier-onboarding.ts is imported
+* req.body replaced with body in onboarding handler
+* No other files or routes modified
+* TypeScript compiles cleanly (tsc --noEmit)
+* Drift Report completed
+* Field Usage Report completed
+* Schema lag items surfaced if any
+STEP 5 — BASELINE + SMOKE TEST
+Before making changes:
+Run onboarding once and capture baseline:
+
+* DB rows created
+* Logs
+* Response shape
+After changes, test 3 payloads:
+Payload 1 — minimal required fields Payload 2 — full payload Payload 3 — ICA = true case
+Verify for each:
+
+* supplier created
+* compliance_docs updated
+* scoreSupplier triggered
+* evaluateSupplier triggered
+* response unchanged
+If behavior differs from baseline: STOP and report.
+LOGGING CHECK
+Ensure no new runtime errors or TypeScript warnings appear in logs after change.
+DOCUMENTATION UPDATE
+Update ops/onboarding_flow.md:
+Add section:
+Section 15: T1 — SupplierOnboardingInput Wired (Epic 2) Status: Complete Date: [agent fills current date] Change: Interface wired into onboarding route via compile-time cast Drift resolved: [summary] Field usage resolved: [summary] Schema lag: [summary or none]
+Ensure terminology aligns with CURRENT_STATE / TARGET_STATE where applicable.
+Update ops/fincava-architecture.md:
+Append:
+T1 | Epic 2 | SupplierOnboardingInput wired into onboard route (type cast only) | Complete | [date]
+ACCEPTANCE CRITERIA
+
+1. Drift Report produced before code
+2. Field Usage Report produced before code
+3. Schema lag flagged if present
+4. Significant drift stops execution
+5. Import + type cast applied correctly
+6. Placement rules followed
+7. Header updated with date
+8. TypeScript passes
+9. All smoke tests match baseline behavior
+10. Documentation updated
+EXECUTION MODE
+DO NOT EXECUTE IMMEDIATELY. Produce execution plan first. Wait for approval.
+You can now copy this directly into Replit.
+Confidence: 10/10
