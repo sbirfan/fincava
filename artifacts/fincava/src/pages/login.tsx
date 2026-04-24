@@ -124,9 +124,8 @@ export default function Login() {
             Don't have an account? <Link href="/register" className="text-primary hover:underline font-medium">Sign up</Link>
           </div>
           <div className="text-sm text-muted-foreground text-center">
-            Forgot your password? Contact{" "}
-            <a href="mailto:info@fincava.com" className="text-primary hover:underline font-medium">info@fincava.com</a>
-            {" "}to have it reset.
+            Forgot your password?{" "}
+            <Link href="/forgot-password" className="text-primary hover:underline font-medium">Reset it here</Link>
           </div>
         </CardFooter>
       </Card>

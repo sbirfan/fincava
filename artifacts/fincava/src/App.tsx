@@ -13,6 +13,8 @@ import { AdminLayout } from "@/components/layout/admin-layout";
 import Home from "@/pages/home";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import ForgotPassword from "@/pages/forgot-password";
+import ResetPassword from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
 
 // Public — lazy
@@ -118,6 +120,8 @@ function Router() {
         <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
         <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
         <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
+        <Route path="/forgot-password" component={() => <AppLayout><ForgotPassword /></AppLayout>} />
+        <Route path="/reset-password" component={() => <AppLayout><ResetPassword /></AppLayout>} />
         <Route path="/onboarding" component={() => <AppLayout><OnboardingPage /></AppLayout>} />
         <Route path="/officer/register" component={() => <AppLayout><OfficerRegisterPage /></AppLayout>} />
 

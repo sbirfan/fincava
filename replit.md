@@ -122,6 +122,14 @@ V3 origin stories seeded for all 8 products using script run via `scripts/node_m
 - `GET /orders/:id/milestones` — payment milestone list
 - `POST /orders/:orderId/milestones/:milestoneId/release` — release payment
 
+### Email Infrastructure
+- **Resend SDK** — installed in `@workspace/api-server`; lazy-initialized in `artifacts/api-server/src/lib/email.ts`
+- **RESEND_API_KEY** — stored as a Replit secret; email is silently skipped (logged as warn) if key is missing
+- **FROM_ADDRESS** — `Fincava <noreply@fincava.com>`; all templates use `baseTemplate()` in `email.ts`
+- **Password reset flow** — `password_reset_tokens` DB table (token, user_id, expires_at, used); `POST /api/auth/forgot-password` (always 200, generates 32-byte hex token, 1h expiry); `POST /api/auth/reset-password` (validates token, updates hash, marks used)
+- **Frontend pages** — `/forgot-password` and `/reset-password?token=...`; login page has "Forgot your password? Reset it here" link
+- **FRONTEND_URL** env var — used by API to build reset links; falls back to `REPLIT_DOMAINS` then `localhost:25876`
+
 ### Seeded Suppliers
 - id=1 Café Huilas Premium (PREMIUM, trustScore=87)
 - id=2 Cooperativa Cacao del Pacífico (PRO, trustScore=79)
