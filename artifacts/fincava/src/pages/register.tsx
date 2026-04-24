@@ -380,6 +380,9 @@ export default function Register() {
           {/* ── Step 3: Farm Identity (supplier only) ── */}
           {step === 3 && (
             <div className="space-y-4">
+              {/* Email field hidden here: register flow already captures email via account creation
+                  (accountValues.email) and sends it with the onboarding payload. The field
+                  is only shown in the standalone /onboarding route where no account is created. */}
               <StepFarmIdentity
                 form={supplierForm}
                 set={setField}
