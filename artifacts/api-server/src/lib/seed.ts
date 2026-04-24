@@ -41,7 +41,7 @@ export async function seedAdminAccounts(): Promise<void> {
       .insert(usersTable)
       .values({
         email: account.email,
-        passwordHash: hashPassword(account.password),
+        passwordHash: await hashPassword(account.password),
         role: "ADMIN",
       })
       .returning();

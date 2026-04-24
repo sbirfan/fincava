@@ -7,10 +7,13 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+// Replit preview pane is a cross-site iframe — requires SameSite=None; Secure.
+// Local dev on HTTP uses lax to avoid requiring HTTPS.
+const IS_REPLIT = !!process.env["REPLIT_DOMAINS"];
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  sameSite: "strict" as const,
-  secure: process.env.NODE_ENV === "production",
+  sameSite: (IS_REPLIT ? "none" : "lax") as "none" | "lax",
+  secure: IS_REPLIT || process.env.NODE_ENV === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/",
 };
