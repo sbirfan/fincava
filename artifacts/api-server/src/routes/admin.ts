@@ -222,7 +222,7 @@ router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): P
     return;
   }
 
-  await db.update(usersTable).set({ passwordHash: hashPassword(parsed.data.password) }).where(eq(usersTable.id, userId));
+  await db.update(usersTable).set({ passwordHash: await hashPassword(parsed.data.password) }).where(eq(usersTable.id, userId));
   res.json({ success: true });
 });
 
