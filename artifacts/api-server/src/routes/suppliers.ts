@@ -12,6 +12,11 @@ import {
   supplierStateTransitionsTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
+import {
+  sendEmail,
+  supplierApplicationConfirmationEmail,
+  supplierApplicationAdminAlertEmail,
+} from "../lib/email";
 import { requireAdmin } from "../middleware/admin";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
@@ -79,11 +84,17 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       return;
     }
 
+    const supplierEmail =
+      typeof rawBody.email === "string" && rawBody.email.trim()
+        ? rawBody.email.trim().toLowerCase()
+        : null;
+
     const [supplier] = await db
       .insert(suppliersTable)
       .values({
         nombreCompleto,
         whatsappNumber,
+        email: supplierEmail,
         municipio,
         department: rawBody.department ?? null,
         vereda,
@@ -212,6 +223,41 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       supplierId: supplier.id,
       message: `Registration successful for ${nombreCompleto}`,
     });
+
+    // ── Post-onboard emails (fire-and-forget, runs after response) ───────────
+    const appBaseUrl = process.env["FRONTEND_URL"]
+      ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+    const adminUrl = `${appBaseUrl}/dashboard/admin/suppliers`;
+
+    if (supplierEmail) {
+      const { html, text } = supplierApplicationConfirmationEmail({
+        name: nombreCompleto,
+        municipio,
+        primaryProduct,
+      });
+      sendEmail({
+        to: supplierEmail,
+        subject: "Hemos recibido su solicitud — Fincava",
+        html,
+        text,
+      }).catch((err) => logger.warn({ err, supplierId: supplier.id }, "Supplier confirmation email failed"));
+    }
+
+    const adminAlertContent = supplierApplicationAdminAlertEmail({
+      name: nombreCompleto,
+      phone: whatsappNumber,
+      email: supplierEmail,
+      municipio,
+      department: rawBody.department ?? null,
+      primaryProduct,
+      supplierId: supplier.id,
+      adminUrl,
+    });
+    sendEmail({
+      to: "info@fincava.com",
+      subject: `New supplier application — ${nombreCompleto}`,
+      ...adminAlertContent,
+    }).catch((err) => logger.warn({ err, supplierId: supplier.id }, "Admin alert email failed"));
 
     // ── Post-onboard pipeline (sequential, post-response) ────────────────────
     // scoreSupplier must complete before evaluateSupplier runs — evaluation

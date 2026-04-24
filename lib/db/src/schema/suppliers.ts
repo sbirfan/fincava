@@ -84,6 +84,7 @@ export const suppliersTable = pgTable(
     id: serial("id").primaryKey(),
     nombreCompleto: text("nombre_completo").notNull(),
     whatsappNumber: text("whatsapp_number").notNull().unique(),
+    email: text("email"),
     municipio: text("municipio").notNull(),
     department: text("department"),
     vereda: text("vereda"),

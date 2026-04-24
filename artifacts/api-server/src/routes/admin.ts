@@ -7,6 +7,8 @@ import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
+import { sendEmail, supplierStatusChangeEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -334,9 +336,33 @@ router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Prom
   const parsed = AdminSupplierStatusBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
 
-  const [updated] = await db.update(suppliersTable).set({ status: parsed.data.status as any }).where(eq(suppliersTable.id, id)).returning();
+  const [updated] = await db
+    .update(suppliersTable)
+    .set({ status: parsed.data.status as any })
+    .where(eq(suppliersTable.id, id))
+    .returning();
   if (!updated) { res.status(404).json({ error: "Supplier not found" }); return; }
+
   res.json({ success: true, status: updated.status });
+
+  // Fire status-change email if supplier has an email address (fire-and-forget)
+  if (updated.email) {
+    const appBaseUrl = process.env["FRONTEND_URL"]
+      ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+    const emailContent = supplierStatusChangeEmail({
+      name: updated.nombreCompleto,
+      newStatus: updated.status,
+      appUrl: appBaseUrl,
+    });
+    if (emailContent) {
+      const copy = { ACTIVE: "Your Fincava application has been approved", INACTIVE: "Update on your Fincava application", PENDING: "Your Fincava application is under review" };
+      sendEmail({
+        to: updated.email,
+        subject: copy[updated.status as keyof typeof copy] ?? "Update on your Fincava account",
+        ...emailContent,
+      }).catch((err) => logger.warn({ err, supplierId: id }, "Supplier status-change email failed"));
+    }
+  }
 });
 
 // ── GET /api/admin/team ───────────────────────────────────────────────────────

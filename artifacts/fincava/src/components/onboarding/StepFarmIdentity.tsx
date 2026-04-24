@@ -4,6 +4,7 @@ interface FarmIdentityFields {
   farm_name: string;
   owner_name: string;
   phone: string;
+  email: string;
   department: string;
   municipio: string;
   vereda: string;
@@ -58,6 +59,27 @@ export function StepFarmIdentity({ form, set, lang, inputClass, labelClass }: Pr
           onChange={(e) => set("phone", e.target.value)}
           placeholder="+57 300 000 0000"
         />
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          {lang === "es" ? "Correo electrónico" : "Email address"}
+          <span className="ml-1 font-normal text-gray-400">
+            ({lang === "es" ? "opcional" : "optional"})
+          </span>
+        </label>
+        <input
+          type="email"
+          className={inputClass}
+          value={form.email}
+          onChange={(e) => set("email", e.target.value)}
+          placeholder={lang === "es" ? "su@correo.com" : "your@email.com"}
+        />
+        <p className="mt-1 text-xs text-gray-400">
+          {lang === "es"
+            ? "Le enviaremos una confirmación de su solicitud."
+            : "We'll send you a confirmation of your application."}
+        </p>
       </div>
 
       <div>

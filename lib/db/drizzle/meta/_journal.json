@@ -15,6 +15,13 @@
       "when": 1777067125023,
       "tag": "0001_handy_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777074314102,
+      "tag": "0002_lazy_ink",
+      "breakpoints": true
     }
   ]
 }

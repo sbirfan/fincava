@@ -32,6 +32,7 @@ interface SupplierFormData {
   farm_name: string;
   owner_name: string;
   phone: string;
+  email: string;
   department: string;
   municipio: string;
   vereda: string;
@@ -55,7 +56,7 @@ interface SupplierFormData {
 }
 
 const SUPPLIER_INITIAL: SupplierFormData = {
-  farm_name: "", owner_name: "", phone: "", department: "", municipio: "", vereda: "",
+  farm_name: "", owner_name: "", phone: "", email: "", department: "", municipio: "", vereda: "",
   primary_product: "", other_product: "", farm_size_hectares: "",
   annual_volume_kg: "", harvest_months: "", organic_certified: "",
   currently_exporting: "", has_rut: "", has_bank_account: "",

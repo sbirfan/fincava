@@ -73,6 +73,96 @@ function baseTemplate(content: string): string {
 </html>`;
 }
 
+// ── Supplier lifecycle templates ──────────────────────────────────────────────
+
+export function supplierApplicationConfirmationEmail(opts: {
+  name: string;
+  municipio: string;
+  primaryProduct?: string | null;
+}): { html: string; text: string } {
+  const html = baseTemplate(`
+    <p>Estimado/a ${opts.name},</p>
+    <p>Hemos recibido su solicitud de registro en <strong>Fincava</strong>. Nuestro equipo revisará su información y se pondrá en contacto con usted a la brevedad posible.</p>
+    <p><strong>Detalles de su solicitud:</strong></p>
+    <ul style="padding-left:20px;margin:0 0 16px;">
+      <li>Nombre: ${opts.name}</li>
+      <li>Municipio: ${opts.municipio}</li>
+      ${opts.primaryProduct ? `<li>Producto principal: ${opts.primaryProduct}</li>` : ""}
+    </ul>
+    <p>Mientras tanto, si tiene alguna pregunta, puede contactarnos en <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+    <p class="note">Gracias por confiar en Fincava para impulsar su negocio agrícola hacia los mercados internacionales.</p>
+  `);
+  const text = `Estimado/a ${opts.name},\n\nHemos recibido su solicitud de registro en Fincava.\n\nDetalles:\n- Nombre: ${opts.name}\n- Municipio: ${opts.municipio}${opts.primaryProduct ? `\n- Producto: ${opts.primaryProduct}` : ""}\n\nNuestro equipo revisará su información pronto. Para consultas: info@fincava.com\n\n— Equipo Fincava`;
+  return { html, text };
+}
+
+export function supplierApplicationAdminAlertEmail(opts: {
+  name: string;
+  phone: string;
+  email?: string | null;
+  municipio: string;
+  department?: string | null;
+  primaryProduct?: string | null;
+  supplierId: number;
+  adminUrl: string;
+}): { html: string; text: string } {
+  const html = baseTemplate(`
+    <p>A new supplier has submitted an onboarding application on Fincava.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Name</td><td style="padding:6px 0;font-weight:600;">${opts.name}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Phone</td><td style="padding:6px 0;">${opts.phone}</td></tr>
+      ${opts.email ? `<tr><td style="padding:6px 0;color:#78716c;">Email</td><td style="padding:6px 0;">${opts.email}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">Municipio</td><td style="padding:6px 0;">${opts.municipio}${opts.department ? `, ${opts.department}` : ""}</td></tr>
+      ${opts.primaryProduct ? `<tr><td style="padding:6px 0;color:#78716c;">Product</td><td style="padding:6px 0;">${opts.primaryProduct}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">Supplier ID</td><td style="padding:6px 0;">#${opts.supplierId}</td></tr>
+    </table>
+    <p><a href="${opts.adminUrl}" class="btn">Review in admin panel</a></p>
+  `);
+  const text = `New supplier application on Fincava:\n\nName: ${opts.name}\nPhone: ${opts.phone}${opts.email ? `\nEmail: ${opts.email}` : ""}\nLocation: ${opts.municipio}${opts.department ? `, ${opts.department}` : ""}${opts.primaryProduct ? `\nProduct: ${opts.primaryProduct}` : ""}\nSupplier ID: #${opts.supplierId}\n\nReview: ${opts.adminUrl}`;
+  return { html, text };
+}
+
+const STATUS_COPY: Record<string, { subject: string; headline: string; body: string; nextSteps: string }> = {
+  ACTIVE: {
+    subject: "Your Fincava application has been approved",
+    headline: "Your application has been approved ✓",
+    body: "We are pleased to inform you that your supplier application has been <strong>approved</strong>. You are now an active supplier on the Fincava marketplace.",
+    nextSteps: "Log in to your Fincava account to complete your profile and start connecting with international buyers.",
+  },
+  INACTIVE: {
+    subject: "Update on your Fincava application",
+    headline: "Update on your application",
+    body: "After reviewing your application, we are unable to proceed with your supplier registration at this time. This may be due to missing information or eligibility requirements not being met.",
+    nextSteps: "If you believe this is an error or would like to provide additional information, please contact us at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a>.",
+  },
+  PENDING: {
+    subject: "Your Fincava application is under review",
+    headline: "Your application is under review",
+    body: "Your supplier application is currently <strong>under review</strong> by our team. We will notify you as soon as a decision has been made.",
+    nextSteps: "If you have questions in the meantime, please contact us at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a>.",
+  },
+};
+
+export function supplierStatusChangeEmail(opts: {
+  name: string;
+  newStatus: string;
+  appUrl: string;
+}): { html: string; text: string } | null {
+  const copy = STATUS_COPY[opts.newStatus];
+  if (!copy) return null;
+
+  const html = baseTemplate(`
+    <p>Estimado/a ${opts.name},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${copy.headline}</h2>
+    <p>${copy.body}</p>
+    <p>${copy.nextSteps}</p>
+    ${opts.newStatus === "ACTIVE" ? `<p><a href="${opts.appUrl}" class="btn">Go to my account</a></p>` : ""}
+    <p class="note">If you have any questions, please reach out at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `${copy.headline}\n\nEstimado/a ${opts.name},\n\n${copy.body.replace(/<[^>]+>/g, "")}\n\n${copy.nextSteps.replace(/<[^>]+>/g, "")}\n\n— Equipo Fincava`;
+  return { html, text };
+}
+
 export function passwordResetEmail(opts: { resetUrl: string; firstName: string }): { html: string; text: string } {
   const html = baseTemplate(`
     <p>Hello ${opts.firstName},</p>

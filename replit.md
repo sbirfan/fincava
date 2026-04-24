@@ -122,6 +122,15 @@ V3 origin stories seeded for all 8 products using script run via `scripts/node_m
 - `GET /orders/:id/milestones` — payment milestone list
 - `POST /orders/:orderId/milestones/:milestoneId/release` — release payment
 
+### Supplier Lifecycle Emails (Task #88)
+- **Email column added**: `suppliers.email` (nullable text) — Drizzle migration at `lib/db/drizzle/0002_lazy_ink.sql`
+- **Onboarding form updated**: Email address (optional) field added to Step 1 (`StepFarmIdentity.tsx`); shows helper text "We'll send you a confirmation"
+- **Post-onboard emails** (fire-and-forget after 201 response):
+  - Supplier confirmation email (Spanish) if email provided
+  - Admin alert email to info@fincava.com always (with supplier details + link to admin panel)
+- **Admin status change**: `PATCH /api/admin/suppliers/:id/status` fires status-change email to supplier when email is on file; covers ACTIVE/INACTIVE/PENDING statuses
+- **Templates**: `supplierApplicationConfirmationEmail`, `supplierApplicationAdminAlertEmail`, `supplierStatusChangeEmail` in `artifacts/api-server/src/lib/email.ts`
+
 ### Email Infrastructure
 - **Resend SDK** — installed in `@workspace/api-server`; lazy-initialized in `artifacts/api-server/src/lib/email.ts`
 - **RESEND_API_KEY** — stored as a Replit secret; email is silently skipped (logged as warn) if key is missing
