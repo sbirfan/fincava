@@ -1,0 +1,213 @@
+OBJECTIVE
+Restrict GET /suppliers/:id to ADMIN-only access. This endpoint
+returns the full supplier row including commercialScore,
+eligibilityStatus, and graduationPathway with no auth guard.
+Classified as H4-B in ops/system_gap_analysis.md.
+Must be fixed before any external-facing supplier detail work
+in Epic 2.
+
+CLASSIFICATION
+- Gap: H4-B — Public Supplier Detail Exposure
+- Type: Security / Access Control
+- Scope: API route only
+- Risk: High (data exposure)
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
+
+PREFLIGHT (MANDATORY)
+1. Read artifacts/api-server/src/routes/suppliers.ts
+   - Locate GET /suppliers/:id handler (confirmed at line 691)
+   - Confirm current middleware — expected: none
+   - Identify exact response fields returned
+   - Confirm requireAuth and requireAdmin are already imported
+     (confirmed in P0.2 — both imported at lines 14-15)
+   - Check auth guards on ALL of the following sub-routes.
+     Note the HTTP method for each finding:
+     GET  /suppliers/:id/evaluations
+     GET  /suppliers/:id/transitions
+     GET  /suppliers/:id/document
+     POST /suppliers/:id/generate-document
+     POST /suppliers/:id/send-whatsapp
+   - For each unguarded sub-route found: REPORT as finding
+     with route path, HTTP method, and line number.
+     DO NOT FIX in this ticket.
+
+2. Read artifacts/api-server/src/middleware/auth.ts
+   - Confirm requireAuth behavior → 401 if no valid token
+   - Confirm requireAdmin behavior → 403 if not ADMIN role
+
+3. Frontend dependency check
+   Search artifacts/fincava/src/ for ALL references to:
+   - /suppliers/:id or /suppliers/ with a dynamic segment
+   - getSupplierById, fetchSupplier, useGetSupplier
+   - any hook or fetch call resolving to a single supplier by ID
+   Also search lib/api-client-react/ for:
+   - generated hooks referencing a single supplier endpoint
+   - any function name that resolves to GET /suppliers/:id
+   For each match found:
+   - Identify component name and file path
+   - Identify the exact route path and HTTP method called
+   - Confirm whether Authorization header or admin role guard present
+   - Classify as:
+     BLOCKER — non-admin component calls this endpoint
+               (must fix before Epic 2 UI work begins)
+     NON-BLOCKER — admin-only component calls this endpoint
+                   (safe after fix)
+   - Include: component name, route path, HTTP method, user role if known
+   - DO NOT FIX any findings in this ticket
+
+4. Confirm GET /suppliers/marketplace is unaffected
+   - Static route — confirm no conflict with /:id dynamic segment
+   - Confirm Express static-before-dynamic matching holds in
+     the current router configuration
+
+5. Router behavior verification (MANDATORY)
+   Determine whether middleware applied to GET /suppliers/:id
+   cascades to sub-routes:
+     GET  /suppliers/:id/evaluations
+     GET  /suppliers/:id/transitions
+     GET  /suppliers/:id/document
+     POST /suppliers/:id/generate-document
+     POST /suppliers/:id/send-whatsapp
+   - Check whether sub-routes are defined on the same router
+     instance as GET /suppliers/:id or mounted via a separate
+     child router — this determines cascade behavior
+   - If middleware cascades to sub-routes:
+     → confirm which sub-routes are now also guarded
+     → confirm this is expected and desirable
+   - If middleware does NOT cascade:
+     → confirm sub-routes remain independently unguarded
+     → flag each unguarded sub-route as a finding
+   - Provide explicit statement in execution plan:
+     "Middleware cascades to sub-routes: YES / NO"
+     Include explanation of why (same router vs child router)
+
+THE FIX
+One targeted change — no redesign.
+
+Apply requireAuth + requireAdmin to GET /suppliers/:id
+
+REQUIRED ROUTE SHAPE
+Before: router.get('/suppliers/:id', handler)
+After:  router.get('/suppliers/:id', requireAuth, requireAdmin, handler)
+
+Middleware order is MANDATORY: requireAuth first, requireAdmin second.
+
+RULE (CRITICAL — ACCESS CONTROL ONLY)
+- DO NOT modify response payload structure
+- DO NOT remove or rename any fields
+- DO NOT add fields to the response
+- This change is access control only — nothing else changes
+
+IMPORTANT DESIGN DECISION
+GET /suppliers/:id becomes ADMIN-only in v0.
+Full response payload remains unchanged — no field sanitization.
+Buyer-facing supplier detail is not a v0 feature.
+When a public supplier detail surface is built in Epic 2,
+it will use a separate route with a sanitized response —
+it will NOT re-open this endpoint.
+
+CONSTRAINTS
+- DO NOT modify GET /suppliers/marketplace
+- DO NOT modify GET /suppliers (already ADMIN-only from P0.2)
+- DO NOT modify POST /suppliers/onboard
+- DO NOT modify evaluation logic
+- DO NOT change DB queries
+- DO NOT change response shape
+- DO NOT introduce new endpoints
+- DO NOT add auth guards to sub-routes in this ticket
+  (flag only — sub-routes are a separate follow-on)
+
+SAFETY
+- Admin console must continue to work after this change
+- If any non-admin frontend component calls GET /suppliers/:id:
+  classify as BLOCKER, flag with component name, route path,
+  HTTP method, and line number — do not fix here
+- If any supplier sub-routes are found unguarded after confirming
+  cascade behavior: flag each with route path, HTTP method, and
+  line number — do not fix here
+
+ACCEPTANCE
+1. GET /suppliers/:id — no token → 401
+2. GET /suppliers/:id — BUYER token → 403
+3. GET /suppliers/:id — SUPPLIER token → 403
+4. GET /suppliers/:id — ADMIN token → 200, full payload unchanged
+5. GET /suppliers/marketplace — no token → 200, unchanged
+6. GET /suppliers — ADMIN token → 200, unchanged
+7. Sub-route behavior — test based on cascade finding:
+   If cascade = YES:
+   - GET /suppliers/:id/evaluations — no token → 401
+   - GET /suppliers/:id/evaluations — ADMIN token → 200
+   - Confirm same behavior for all cascaded sub-routes
+   If cascade = NO:
+   - GET /suppliers/:id/evaluations — no token → 200 (unchanged)
+   - Confirm sub-routes are completely unaffected by this fix
+8. Admin console supplier detail still loads correctly
+
+DOCUMENTATION UPDATE (MANDATORY)
+Update ops/system_gap_analysis.md
+Under H4-B — GET /suppliers/:id Unguarded:
+Replace STATUS line:
+  STATUS: Open — fix in P0.4
+With:
+  STATUS: FIXED (P0.4 — 2026-04-23)
+  Fix: requireAuth + requireAdmin applied to GET /suppliers/:id
+  Middleware order: requireAuth → requireAdmin
+  Buyer-facing detail route will be a separate sanitized endpoint
+  when built in Epic 2 — this endpoint remains ADMIN-only in v0
+
+If cascade = YES, add under STATUS:
+  Cascade behavior: middleware also applies to sub-routes
+  (evaluations, transitions, document — same router instance)
+
+If unguarded sub-routes are found:
+Append under H4-B:
+  OPEN FINDINGS (sub-routes — fix in follow-on ticket):
+  - [HTTP method] [route path] — unguarded, line [N]
+
+If BLOCKER frontend findings are found:
+Append under H4-B:
+  BLOCKER FINDINGS (must fix before Epic 2 UI work):
+  - [component name] — calls [HTTP method] [route path], line [N]
+
+Update ops/fincava-architecture.md
+Under Section 11 Known Gaps table:
+Replace the H4-B row:
+  | GET /suppliers/:id unguarded | Returns full supplier row with no
+    auth. Fix in P0.4 before Epic 2 detail page work. |
+With:
+  | GET /suppliers/:id unguarded | FIXED (P0.4 — 2026-04-23) —
+    requireAuth + requireAdmin applied. ADMIN-only in v0. Buyer
+    detail surface will be a separate sanitized route in Epic 2. |
+
+If BLOCKER frontend findings are found, add new row:
+  | Supplier detail page — BLOCKER | [component name] calls
+    GET /suppliers/:id without admin guard. Must migrate to
+    sanitized buyer route before Epic 2 UI work. |
+
+Under Changelog, append:
+  | 2026-04-23 | P0.4 — GET /suppliers/:id restricted to ADMIN-only
+    (requireAuth + requireAdmin). Buyer detail route deferred to
+    Epic 2 as separate sanitized endpoint. |
+
+If cascade = YES, extend Changelog entry:
+  Append to the entry above:
+  "Middleware cascades to sub-routes — evaluations, transitions,
+  and document routes now also require ADMIN auth."
+
+VERIFICATION OUTPUT
+Provide:
+- Exact file + line number where middleware added
+- Before/after route definition (one line each)
+- Router cascade behavior: YES / NO with explanation
+  (same router instance vs child router)
+- Confirmation GET /suppliers/marketplace untouched
+- Full list of unguarded sub-routes found with HTTP method
+  and line number (findings only)
+- Full list of frontend components found calling this endpoint
+  each classified as BLOCKER or NON-BLOCKER with HTTP method
+- Confirmation both ops/ docs updated with exact line numbers
+
+DO NOT EXECUTE IMMEDIATELY.
+Produce execution plan first. Wait for approval.
