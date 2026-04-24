@@ -60,10 +60,20 @@ export const AdminLoanStatusBody = z.object({
   status: z.enum(["ACTIVE", "REPAID", "DEFAULTED", "CANCELLED"]),
 });
 
-export const AdminSupplierStatusBody = z.object({
-  status: z.enum(["PENDING", "ACTIVE", "INACTIVE"]),
-  reason: z.enum(["REJECTED", "SUSPENDED"]).optional(),
-});
+export const AdminSupplierStatusBody = z
+  .object({
+    status: z.enum(["PENDING", "ACTIVE", "INACTIVE"]),
+    reason: z.enum(["REJECTED", "SUSPENDED"]).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.status === "INACTIVE" && !val.reason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reason"],
+        message: "reason is required when setting status to INACTIVE (REJECTED or SUSPENDED)",
+      });
+    }
+  });
 
 // ── Pagination query params ──────────────────────────────────────────────────
 export const PaginationQuery = z.object({

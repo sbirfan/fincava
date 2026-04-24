@@ -111,6 +111,8 @@ export default function AdminSuppliersPage() {
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [generating, setGenerating] = useState<number | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [pendingInactive, setPendingInactive] = useState<{ supplierId: number } | null>(null);
+  const [inactiveReason, setInactiveReason] = useState<"REJECTED" | "SUSPENDED">("REJECTED");
   const [sendingWa, setSendingWa] = useState<number | null>(null);
   const [waStatus, setWaStatus] = useState<Record<number, { state: "sent" | "failed"; msg?: string }>>({});
   const [docModalOpen, setDocModalOpen] = useState(false);
@@ -149,14 +151,16 @@ export default function AdminSuppliersPage() {
     }
   }
 
-  async function updateSupplierStatus(supplierId: number, status: string) {
+  async function updateSupplierStatus(supplierId: number, status: string, reason?: "REJECTED" | "SUSPENDED") {
     setStatusUpdating(true);
     try {
+      const body: Record<string, string> = { status };
+      if (reason) body.reason = reason;
       const res = await fetch(`/api/admin/suppliers/${supplierId}/status`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSuppliers((prev) =>
@@ -167,6 +171,16 @@ export default function AdminSuppliersPage() {
       setError(e.message || "Failed to update supplier status");
     } finally {
       setStatusUpdating(false);
+      setPendingInactive(null);
+    }
+  }
+
+  function handleStatusChange(supplierId: number, newStatus: string) {
+    if (newStatus === "INACTIVE") {
+      setInactiveReason("REJECTED");
+      setPendingInactive({ supplierId });
+    } else {
+      updateSupplierStatus(supplierId, newStatus);
     }
   }
 
@@ -584,8 +598,8 @@ export default function AdminSuppliersPage() {
                 value={
                   <select
                     value={selected.status}
-                    disabled={statusUpdating}
-                    onChange={(e) => updateSupplierStatus(selected.id, e.target.value)}
+                    disabled={statusUpdating || !!pendingInactive}
+                    onChange={(e) => handleStatusChange(selected.id, e.target.value)}
                     className={`px-2 py-0.5 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-60 ${STATUS_COLORS[selected.status] ?? "bg-gray-100 text-gray-700"}`}
                   >
                     {SUPPLIER_STATUSES.map((s) => (
@@ -594,6 +608,56 @@ export default function AdminSuppliersPage() {
                   </select>
                 }
               />
+              {/* Reason picker — shown when an admin initiates deactivation */}
+              {pendingInactive && pendingInactive.supplierId === selected.id && (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-800">
+                    {lang === "es" ? "¿Por qué se desactiva esta cuenta?" : "Why is this account being deactivated?"}
+                  </p>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-700">
+                      <input
+                        type="radio"
+                        name="inactiveReason"
+                        value="REJECTED"
+                        checked={inactiveReason === "REJECTED"}
+                        onChange={() => setInactiveReason("REJECTED")}
+                        className="accent-amber-600"
+                      />
+                      {lang === "es" ? "Rechazado (no cumple requisitos)" : "Rejected (does not qualify)"}
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-700">
+                      <input
+                        type="radio"
+                        name="inactiveReason"
+                        value="SUSPENDED"
+                        checked={inactiveReason === "SUSPENDED"}
+                        onChange={() => setInactiveReason("SUSPENDED")}
+                        className="accent-amber-600"
+                      />
+                      {lang === "es" ? "Suspendido (cumplimiento)" : "Suspended (compliance)"}
+                    </label>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      disabled={statusUpdating}
+                      onClick={() => updateSupplierStatus(selected.id, "INACTIVE", inactiveReason)}
+                      className="px-3 py-1 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition"
+                    >
+                      {statusUpdating
+                        ? (lang === "es" ? "Guardando…" : "Saving…")
+                        : (lang === "es" ? "Confirmar desactivación" : "Confirm deactivation")}
+                    </button>
+                    <button
+                      disabled={statusUpdating}
+                      onClick={() => setPendingInactive(null)}
+                      className="px-3 py-1 text-xs font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition"
+                    >
+                      {lang === "es" ? "Cancelar" : "Cancel"}
+                    </button>
+                  </div>
+                </div>
+              )}
               <Row
                 label={lang === "es" ? "Score IA" : "AI Score"}
                 value={
