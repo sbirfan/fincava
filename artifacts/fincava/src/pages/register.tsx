@@ -386,6 +386,7 @@ export default function Register() {
                 lang={lang}
                 inputClass={inputClass}
                 labelClass={labelClass}
+                showEmailField={false}
               />
               <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button onClick={() => setStep(2)} className="flex-1 px-5 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">

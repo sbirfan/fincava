@@ -352,14 +352,15 @@ router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Prom
     const emailContent = supplierStatusChangeEmail({
       name: updated.nombreCompleto,
       newStatus: updated.status,
+      reason: parsed.data.reason ?? null,
       appUrl: appBaseUrl,
     });
     if (emailContent) {
-      const copy = { ACTIVE: "Your Fincava application has been approved", INACTIVE: "Update on your Fincava application", PENDING: "Your Fincava application is under review" };
       sendEmail({
         to: updated.email,
-        subject: copy[updated.status as keyof typeof copy] ?? "Update on your Fincava account",
-        ...emailContent,
+        subject: emailContent.subject,
+        html: emailContent.html,
+        text: emailContent.text,
       }).catch((err) => logger.warn({ err, supplierId: id }, "Supplier status-change email failed"));
     }
   }

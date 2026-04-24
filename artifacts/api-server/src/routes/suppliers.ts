@@ -243,8 +243,10 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       }).catch((err) => logger.warn({ err, supplierId: supplier.id }, "Supplier confirmation email failed"));
     }
 
+    const farmName = rawBody.farm_name || rawBody.business_name || null;
     const adminAlertContent = supplierApplicationAdminAlertEmail({
       name: nombreCompleto,
+      farmName,
       phone: whatsappNumber,
       email: supplierEmail,
       municipio,

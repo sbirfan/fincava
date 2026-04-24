@@ -62,6 +62,7 @@ export const AdminLoanStatusBody = z.object({
 
 export const AdminSupplierStatusBody = z.object({
   status: z.enum(["PENDING", "ACTIVE", "INACTIVE"]),
+  reason: z.enum(["REJECTED", "SUSPENDED"]).optional(),
 });
 
 // ── Pagination query params ──────────────────────────────────────────────────

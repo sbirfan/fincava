@@ -16,9 +16,10 @@ interface Props {
   lang: string;
   inputClass: string;
   labelClass: string;
+  showEmailField?: boolean;
 }
 
-export function StepFarmIdentity({ form, set, lang, inputClass, labelClass }: Props) {
+export function StepFarmIdentity({ form, set, lang, inputClass, labelClass, showEmailField = true }: Props) {
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
@@ -61,26 +62,28 @@ export function StepFarmIdentity({ form, set, lang, inputClass, labelClass }: Pr
         />
       </div>
 
-      <div>
-        <label className={labelClass}>
-          {lang === "es" ? "Correo electrónico" : "Email address"}
-          <span className="ml-1 font-normal text-gray-400">
-            ({lang === "es" ? "opcional" : "optional"})
-          </span>
-        </label>
-        <input
-          type="email"
-          className={inputClass}
-          value={form.email}
-          onChange={(e) => set("email", e.target.value)}
-          placeholder={lang === "es" ? "su@correo.com" : "your@email.com"}
-        />
-        <p className="mt-1 text-xs text-gray-400">
-          {lang === "es"
-            ? "Le enviaremos una confirmación de su solicitud."
-            : "We'll send you a confirmation of your application."}
-        </p>
-      </div>
+      {showEmailField && (
+        <div>
+          <label className={labelClass}>
+            {lang === "es" ? "Correo electrónico" : "Email address"}
+            <span className="ml-1 font-normal text-gray-400">
+              ({lang === "es" ? "opcional" : "optional"})
+            </span>
+          </label>
+          <input
+            type="email"
+            className={inputClass}
+            value={form.email}
+            onChange={(e) => set("email", e.target.value)}
+            placeholder={lang === "es" ? "su@correo.com" : "your@email.com"}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            {lang === "es"
+              ? "Le enviaremos una confirmación de su solicitud."
+              : "We'll send you a confirmation of your application."}
+          </p>
+        </div>
+      )}
 
       <div>
         <label className={labelClass}>
