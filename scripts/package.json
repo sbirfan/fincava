@@ -6,6 +6,8 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "export:docs": "tsx ./src/export-docs.ts",
+    "fix:email-case": "tsx ./src/fix-email-case.ts",
+    "seed:compliance": "tsx ./src/seed-compliance.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

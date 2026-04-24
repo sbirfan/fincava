@@ -3,6 +3,7 @@ import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, staffRolesTable, suppliersTable } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
+import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
@@ -459,6 +460,15 @@ router.delete("/admin/team/:userId/roles/:role", ...adminOnly, async (req, res):
     .where(and(eq(staffRolesTable.userId, userId), eq(staffRolesTable.role, role as any)));
 
   res.json({ success: true });
+});
+
+// ── POST /api/admin/suppliers/:companyId/recompute-trust ─────────────────────
+router.post("/admin/suppliers/:companyId/recompute-trust", ...adminOnly, async (req, res): Promise<void> => {
+  const companyId = parseInt(req.params.companyId as string, 10);
+  if (isNaN(companyId)) { res.status(400).json({ error: "Invalid company id" }); return; }
+
+  const score = await computeTrustScore(companyId);
+  res.json({ companyId, score });
 });
 
 export default router;
