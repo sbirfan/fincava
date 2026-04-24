@@ -24,6 +24,7 @@ import {
   markPublished,
   NotFoundError,
 } from "../services/supplier-graduation-service";
+import { buildScoringInput } from "../services/scoring-input";
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 
 const router: IRouter = Router();
@@ -440,22 +441,23 @@ router.get(
 async function scoreSupplier(supplierId: number): Promise<void> {
   const attemptScore = async (attempt = 1): Promise<void> => {
     try {
-      const [supplier] = await db
-        .select()
-        .from(suppliersTable)
-        .where(eq(suppliersTable.id, supplierId));
-      const [farm] = await db
-        .select()
-        .from(farmsTable)
-        .where(eq(farmsTable.supplierId, supplierId));
-      const [economics] = await db
-        .select()
-        .from(economicsTable)
-        .where(eq(economicsTable.supplierId, supplierId));
-      const [compliance] = await db
-        .select()
-        .from(complianceDocsTable)
-        .where(eq(complianceDocsTable.supplierId, supplierId));
+      // T2: DB reads extracted to buildScoringInput — called inside retry loop
+      // so each attempt fetches fresh data (identical to prior inline behaviour).
+      const { supplier, farm, economics, compliance } = await buildScoringInput(supplierId);
+
+      // Supplier must exist — it was just created, but guard here for type safety
+      // and to surface a clear error if called with a stale/invalid supplierId.
+      // Throws to the catch block, which triggers the retry policy.
+      if (!supplier) {
+        throw new Error(`scoreSupplier: supplier ${supplierId} not found in DB`);
+      }
+
+      if (process.env.NODE_ENV !== "production") {
+        logger.debug(
+          { supplierId, aiInput: JSON.stringify({ supplier, farm, economics, compliance }) },
+          "scoreSupplier AI input",
+        );
+      }
 
       const client = getAnthropicClient();
       const start = Date.now();
