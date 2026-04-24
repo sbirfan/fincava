@@ -1,11 +1,13 @@
 /**
  * SupplierOnboardingInput — Structured Onboarding Schema
  *
- * Definition layer only. This interface does NOT modify DB schema or routes.
- * Purpose: improve data quality and provide a typed contract for AI scoring
- * and evaluation inputs.
+ * T1 normalization layer introduced — 2026-04-24
+ * Wired into POST /suppliers/onboard via Partial<SupplierOnboardingInput> (typedInput).
+ * typedInput: additive only, not consumed in execution path — see routes/suppliers.ts
+ * Epic 2 T1 — type visibility only, no runtime validation
  *
- * Usage: validate incoming body against this shape before persisting.
+ * Purpose: canonical contract surface for T2 (scoring) and T3 (validation).
+ * T4 will align DB writes to this interface.
  *
  * DB mapping and gap notes are documented per field.
  * See also: ops/onboarding_flow.md, ops/supplier_persona_raw.md

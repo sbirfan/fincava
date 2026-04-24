@@ -437,4 +437,45 @@ Now: gate reads `true` if supplier declared `ica_registered: true`.
 
 ---
 
+## 15. T1 — SupplierOnboardingInput Wired (Epic 2)
+
+**Status:** Complete
+**Date:** 2026-04-24
+**Ticket:** Epic 2 T1 — canonical input normalization layer
+
+### Change
+
+`SupplierOnboardingInput` interface wired into `POST /suppliers/onboard` via a `Partial<SupplierOnboardingInput>` normalization block (`typedInput`). This is additive only — no runtime behavior was altered.
+
+Pattern introduced:
+
+```
+LEGACY INPUT (rawBody)
+→ NORMALIZATION EXTRACTION (typedInput)
+→ FUTURE CONSUMERS (T2 scoring, T3 validation, T4 DB writes)
+```
+
+### Drift resolved
+
+All 12 interface fields mapped to their rawBody source expressions before wiring. Zero new drift introduced. Pre-existing gaps (G1–G5) and mismatches (M1–M6) carried forward unchanged — documented in the interface Gap Registry.
+
+### Field usage resolved
+
+`typedInput` is declared at the top of the handler (after `rawBody` declaration, before any destructuring). It is not consumed anywhere in the execution path.
+
+### RUT mapping note
+
+`typedInput.rutDian` maps to `rawBody.has_rut` (metadata-level signal only). It does NOT reflect `compliance_docs.rut_dian` used by the eligibility gate. This mismatch is expected and will be resolved in T4 (compliance alignment).
+
+### Schema lag
+
+None. Interface field definitions are consistent with the DB schema. Pre-existing mismatches are documented in the interface's Mismatch Registry (M1–M6).
+
+### TypeScript
+
+Import added: `import type { SupplierOnboardingInput } from '../types/supplier-onboarding'`
+All pre-existing tsc errors in `admin.ts`, `rfqs.ts`, `shipments.ts`, `financing.ts`, and `lib/api-zod` were confirmed pre-existing and not introduced by T1.
+
+---
+
 END

@@ -391,3 +391,4 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | 2026-04-23 | P0.2 — GET /api/suppliers restricted to ADMIN-only (requireAuth + requireAdmin). Buyer surface via /suppliers/marketplace |
 | 2026-04-23 | H4-B found: GET /suppliers/:id unguarded — fix in P0.4 |
 | 2026-04-23 | P0.4 — GET /suppliers/:id restricted to ADMIN-only (requireAuth + requireAdmin). Buyer detail route deferred to Epic 2 as separate sanitized endpoint. Cascade: NO — sub-routes carry independent guards. |
+| 2026-04-24 | Epic 2 T1 — SupplierOnboardingInput wired into POST /suppliers/onboard. rawBody normalization layer + typedInput (Partial<SupplierOnboardingInput>) introduced. Additive only — zero runtime changes. 12 field drift mappings confirmed. tsc pre-existing errors confirmed pre-T1. |

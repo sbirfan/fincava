@@ -1,0 +1,108 @@
+EXECUTE.
+
+---
+
+STATUS: APPROVED FOR EXECUTION — WITH REQUIRED UPDATES
+
+You are cleared to proceed with T1 implementation AFTER applying the following three updates to the execution plan. These are mandatory and must be reflected in the final implementation.
+
+---
+
+REQUIRED UPDATES (APPLY BEFORE EXECUTION)
+
+1. RUT MAPPING CLARIFICATION (NO CODE CHANGE)
+
+Add this note to your execution plan and documentation:
+
+RUT MAPPING NOTE
+
+typedInput.rutDian maps to rawBody.has_rut (metadata-level signal only).
+It does NOT reflect compliance_docs.rut_dian, which is used by the eligibility gate.
+
+This mismatch is expected and will be resolved in T4 (compliance alignment).
+No changes required in T1.
+
+---
+
+2. FORMATTING CORRECTION (CODE STYLE)
+
+Update typedInput block formatting:
+
+* Remove aligned spacing between keys and values
+* Use standard formatting consistent with codebase
+
+Example:
+
+fullName: rawBody.contact_name || rawBody.nombreCompleto,
+
+NOT:
+
+fullName:          rawBody.contact_name || rawBody.nombreCompleto,
+
+---
+
+3. NO SHADOWING VERIFICATION
+
+Before execution, confirm:
+
+* No existing variable named typedInput in the onboarding handler scope
+* No variable shadowing introduced
+
+Add this to verification checklist and report PASS/FAIL.
+
+---
+
+EXECUTION INSTRUCTIONS
+
+Proceed to implement EXACTLY the previously approved plan, with the above updates included.
+
+---
+
+STRICT EXECUTION RULES
+
+* DO NOT modify any logic outside defined scope
+* DO NOT change DB writes
+* DO NOT change evaluation or scoring behavior
+* DO NOT introduce validation or coercion
+* DO NOT reorder existing lines
+* DO NOT consume typedInput anywhere
+* DO NOT expose typedInput in responses
+
+This is a NON-BREAKING, ADDITIVE change only.
+
+---
+
+POST-EXECUTION VERIFICATION (MANDATORY)
+
+After implementation, provide:
+
+1. Diff summary (files + key changes)
+2. Verification checklist results (all PASS required)
+3. Confirmation of:
+
+   * zero runtime behavior change
+   * DB outputs identical to baseline
+   * no new TypeScript errors
+4. Smoke test results for all 3 payloads
+5. Confirmation that typedInput is not used anywhere in execution path
+6. Confirmation that no shadowing occurred
+
+---
+
+FINAL CONFIRMATION
+
+End your response with:
+
+"T1 EXECUTION COMPLETE — NO RUNTIME CHANGES DETECTED"
+
+OR
+
+"T1 EXECUTION BLOCKED — [reason]"
+
+---
+
+PROCEED WITH IMPLEMENTATION.
+
+---
+
+COMPLETE

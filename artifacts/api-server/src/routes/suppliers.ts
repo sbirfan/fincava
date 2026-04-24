@@ -24,21 +24,43 @@ import {
   markPublished,
   NotFoundError,
 } from "../services/supplier-graduation-service";
+import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 
 const router: IRouter = Router();
 
 // ── POST /api/suppliers/onboard ─────────────────────────────────────────────
 router.post("/suppliers/onboard", async (req, res): Promise<void> => {
   try {
-    const body = req.body;
+    const rawBody = req.body;
+
+    // T1: canonical input normalization — rawBody remains execution layer
+    // typedInput is contract surface for T2 (scoring) and T3 (validation)
+    // T4 will migrate DB writes
+    // RUT MAPPING NOTE: typedInput.rutDian maps to rawBody.has_rut (metadata-level signal only).
+    // It does NOT reflect compliance_docs.rut_dian used by the eligibility gate.
+    // This mismatch will be resolved in T4 (compliance alignment).
+    const typedInput: Partial<SupplierOnboardingInput> = {
+      fullName: rawBody.contact_name || rawBody.nombreCompleto,
+      phone: rawBody.phone || rawBody.whatsappNumber,
+      farmSizeHectares: rawBody.farm_size_hectares,
+      locationRegion: rawBody.municipio,
+      yearsOfExperience: rawBody.farm?.anosEnFinca,
+      productType: rawBody.primary_product,
+      monthlyVolumeKg: rawBody.annual_volume_kg,
+      harvestMonths: rawBody.harvest_months,
+      processingMethod: rawBody.farm?.metodoSecado,
+      rutDian: rawBody.has_rut,
+      icaRegistro: rawBody.ica_registered,
+      pricePerKg: rawBody.economics?.precioVentaBanda,
+    };
 
     // Accept both English (new form) and Spanish (legacy) field names
-    const nombreCompleto = body.contact_name || body.nombreCompleto || "";
-    const whatsappNumber = body.phone || body.whatsappNumber || "";
-    const municipio = body.municipio || "";
-    const vereda = body.vereda ?? null;
-    const supplierType = body.supplier_type || body.supplierType || "FARMER";
-    const registeredBy = body.officer_name || body.registeredBy || null;
+    const nombreCompleto = rawBody.contact_name || rawBody.nombreCompleto || "";
+    const whatsappNumber = rawBody.phone || rawBody.whatsappNumber || "";
+    const municipio = rawBody.municipio || "";
+    const vereda = rawBody.vereda ?? null;
+    const supplierType = rawBody.supplier_type || rawBody.supplierType || "FARMER";
+    const registeredBy = rawBody.officer_name || rawBody.registeredBy || null;
 
     if (!nombreCompleto || !whatsappNumber || !municipio) {
       res.status(400).json({
@@ -53,70 +75,70 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         nombreCompleto,
         whatsappNumber,
         municipio,
-        department: body.department ?? null,
+        department: rawBody.department ?? null,
         vereda,
         supplierType: supplierType.toUpperCase(),
         registeredBy,
-        consentGiven: body.consentGiven ?? true,
+        consentGiven: rawBody.consentGiven ?? true,
         consentDate: new Date(),
       })
       .returning();
 
     // Farm data — map English or Spanish field names
     const primaryProduct =
-      body.primary_product || body.farm?.cultivoPrincipal || null;
+      rawBody.primary_product || rawBody.farm?.cultivoPrincipal || null;
     const farmSize =
-      body.farm_size_hectares?.toString() ||
-      body.farm?.hectareasProduccion?.toString() ||
+      rawBody.farm_size_hectares?.toString() ||
+      rawBody.farm?.hectareasProduccion?.toString() ||
       null;
     const annualVolume =
-      body.annual_volume_kg || body.farm?.volumenKgUltimaCosecha || null;
+      rawBody.annual_volume_kg || rawBody.farm?.volumenKgUltimaCosecha || null;
 
     await db.insert(farmsTable).values({
       supplierId: supplier.id,
       cultivoPrincipal: primaryProduct,
-      variedadCafe: body.harvest_months || body.farm?.variedadCafe || null,
+      variedadCafe: rawBody.harvest_months || rawBody.farm?.variedadCafe || null,
       hectareasProduccion: farmSize,
-      edadPlantasAnos: body.farm?.edadPlantasAnos ?? null,
-      cosechasPorAno: body.farm?.cosechasPorAno ?? null,
-      metodoSecado: body.farm?.metodoSecado ?? null,
-      accesoAgua: body.farm?.accesoAgua ?? null,
-      anosEnFinca: body.farm?.anosEnFinca ?? null,
-      tenenciaTierra: body.farm?.tenenciaTierra ?? null,
-      asistenciaTecnica: body.farm?.asistenciaTecnica ?? null,
+      edadPlantasAnos: rawBody.farm?.edadPlantasAnos ?? null,
+      cosechasPorAno: rawBody.farm?.cosechasPorAno ?? null,
+      metodoSecado: rawBody.farm?.metodoSecado ?? null,
+      accesoAgua: rawBody.farm?.accesoAgua ?? null,
+      anosEnFinca: rawBody.farm?.anosEnFinca ?? null,
+      tenenciaTierra: rawBody.farm?.tenenciaTierra ?? null,
+      asistenciaTecnica: rawBody.farm?.asistenciaTecnica ?? null,
     });
 
     // Economics
     await db.insert(economicsTable).values({
       supplierId: supplier.id,
       tipoComprador:
-        body.currently_exporting === "yes"
+        rawBody.currently_exporting === "yes"
           ? "EXPORT"
-          : (body.economics?.tipoComprador ?? null),
+          : (rawBody.economics?.tipoComprador ?? null),
       volumenKgUltimaCosecha: annualVolume ? String(annualVolume) : null,
-      precioVentaBanda: body.economics?.precioVentaBanda ?? null,
-      tiempoPagoDias: body.economics?.tiempoPagoDias ?? null,
+      precioVentaBanda: rawBody.economics?.precioVentaBanda ?? null,
+      tiempoPagoDias: rawBody.economics?.tiempoPagoDias ?? null,
       deudaActual:
-        body.working_capital_needed?.toString() ||
-        body.economics?.deudaActual ||
+        rawBody.working_capital_needed?.toString() ||
+        rawBody.economics?.deudaActual ||
         null,
-      usoCapital: Array.isArray(body.economics?.usoCapital)
-        ? body.economics.usoCapital
-        : body.export_blocker
-          ? [body.export_blocker]
+      usoCapital: Array.isArray(rawBody.economics?.usoCapital)
+        ? rawBody.economics.usoCapital
+        : rawBody.export_blocker
+          ? [rawBody.export_blocker]
           : null,
-      comodidadPagos: body.economics?.comodidadPagos ?? null,
-      personasDependientes: body.economics?.personasDependientes ?? null,
-      otrasFuentesIngreso: body.economics?.otrasFuentesIngreso ?? null,
-      situacionEconomica: body.economics?.situacionEconomica ?? null,
-      interesCanalPremium: body.economics?.interesCanalPremium ?? null,
-      conocePrecioExportacion: body.economics?.conocePrecioExportacion ?? null,
+      comodidadPagos: rawBody.economics?.comodidadPagos ?? null,
+      personasDependientes: rawBody.economics?.personasDependientes ?? null,
+      otrasFuentesIngreso: rawBody.economics?.otrasFuentesIngreso ?? null,
+      situacionEconomica: rawBody.economics?.situacionEconomica ?? null,
+      interesCanalPremium: rawBody.economics?.interesCanalPremium ?? null,
+      conocePrecioExportacion: rawBody.economics?.conocePrecioExportacion ?? null,
       haIntentadoExportar:
-        body.currently_exporting === "yes"
+        rawBody.currently_exporting === "yes"
           ? true
-          : body.currently_exporting === "no"
+          : rawBody.currently_exporting === "no"
             ? false
-            : (body.economics?.haIntentadoExportar ?? null),
+            : (rawBody.economics?.haIntentadoExportar ?? null),
     });
 
     // ica_registered is submitted as body.ica_registered (flat, root level) from Step 3.
@@ -124,7 +146,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // === "yes" boolean conversion that organic_certified and currently_exporting received).
     // Direct API callers may send boolean true. Both forms are treated as positive intent.
     const icaRegisteredTrue =
-      body.ica_registered === true || body.ica_registered === "yes";
+      rawBody.ica_registered === true || rawBody.ica_registered === "yes";
 
     // Idempotent initialization:
     // ON CONFLICT DO NOTHING ensures this never clobbers an existing compliance row.
@@ -159,19 +181,19 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       supplierId: supplier.id,
       interactionType: "FORM_SUBMISSION",
       actor: registeredBy ?? "SELF",
-      notes: body.visit_notes || "Initial onboarding form submitted",
+      notes: rawBody.visit_notes || "Initial onboarding form submitted",
       metadata: {
-        officer_code:        body.officer_code        ?? null,
-        department:          body.department          ?? null,
-        organic_certified:   body.organic_certified   ?? null,
-        has_rut:             body.has_rut             ?? null,
-        has_bank_account:    body.has_bank_account    ?? null,
-        business_structure:  body.business_structure  ?? null,
-        part_of_cooperative: body.part_of_cooperative ?? null,
-        vuce_registered:     body.vuce_registered     ?? null,
-        invima_required:     body.invima_required     ?? null,
-        invima_approved:     body.invima_approved     ?? null,
-        ica_registered:      body.ica_registered      ?? null,
+        officer_code:        rawBody.officer_code        ?? null,
+        department:          rawBody.department          ?? null,
+        organic_certified:   rawBody.organic_certified   ?? null,
+        has_rut:             rawBody.has_rut             ?? null,
+        has_bank_account:    rawBody.has_bank_account    ?? null,
+        business_structure:  rawBody.business_structure  ?? null,
+        part_of_cooperative: rawBody.part_of_cooperative ?? null,
+        vuce_registered:     rawBody.vuce_registered     ?? null,
+        invima_required:     rawBody.invima_required     ?? null,
+        invima_approved:     rawBody.invima_approved     ?? null,
+        ica_registered:      rawBody.ica_registered      ?? null,
       },
     });
 
