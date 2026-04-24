@@ -121,6 +121,27 @@ OPEN FINDINGS (not fixed in P0.2):
 
 ---
 
+### H4-B — GET /suppliers/:id Unguarded (SECURITY)
+
+CURRENT_STATE:
+- GET /suppliers/:id has no auth middleware (line 691)
+- Returns full supplier row via db.select() with no field restriction
+- Exposes commercialScore, eligibilityStatus, graduationPathway
+  for any supplier by ID to any unauthenticated caller
+
+GAP:
+- Same class of exposure as H4
+- Any caller with a valid supplier ID can retrieve internal data
+
+TARGET_STATE:
+- requireAuth + requireAdmin applied (same pattern as H4 fix)
+- Fix before any external-facing supplier detail work in Epic 2
+
+SEVERITY: High
+STATUS: Open — fix in P0.4
+
+---
+
 ### H5 — Compliance Fragmentation (ARCHITECTURE)
 
 CURRENT_STATE:
