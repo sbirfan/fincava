@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
 import { db, loansTable, repaymentsTable, ordersTable, usersTable } from "@workspace/db";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireVerifiedEmail } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -82,7 +82,7 @@ router.get("/finance/loans", requireAuth, async (req, res): Promise<void> => {
   res.json(loansWithRepayments);
 });
 
-router.post("/finance/loan", requireAuth, async (req, res): Promise<void> => {
+router.post("/finance/loan", requireAuth, requireVerifiedEmail, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
   const { orderId, principalUSD, termDays = 30, aprPercent = 12 } = req.body;
 

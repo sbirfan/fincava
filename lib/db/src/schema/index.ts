@@ -14,3 +14,4 @@ export * from "./supplier-evaluations";
 export * from "./supplier-state-transitions";
 export * from "./staff-roles";
 export * from "./password-reset-tokens";
+export * from "./email-verification-tokens";

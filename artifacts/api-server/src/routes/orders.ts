@@ -7,7 +7,7 @@ import {
   UpdateOrderStatusParams,
   UpdateOrderStatusBody,
 } from "@workspace/api-zod";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireVerifiedEmail } from "../lib/auth";
 import { sendEmail, orderStatusEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
@@ -44,7 +44,7 @@ router.get("/buyer/orders", requireAuth, async (req, res): Promise<void> => {
   res.json(results);
 });
 
-router.post("/buyer/orders", requireAuth, async (req, res): Promise<void> => {
+router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
   const parsed = CreateOrderBody.safeParse(req.body);
   if (!parsed.success) {

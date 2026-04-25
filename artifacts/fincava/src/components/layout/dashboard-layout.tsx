@@ -1,6 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { 
   LayoutDashboard, 
   Package, 
@@ -15,6 +17,8 @@ import {
   BarChart2,
   Globe,
   Landmark,
+  Mail,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -22,6 +26,26 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
+  const queryClient = useQueryClient();
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
+
+  const showVerificationBanner = !!user && !user.emailVerifiedAt && !bannerDismissed;
+
+  const handleResend = async () => {
+    if (resending || resendDone) return;
+    setResending(true);
+    try {
+      await fetch("/api/auth/resend-verification", { method: "POST", credentials: "include" });
+      setResendDone(true);
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+    } catch {
+      // silently ignore
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -103,6 +127,32 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <SidebarContent />
       </div>
       <div className="flex flex-col">
+        {showVerificationBanner && (
+          <div className="flex items-center gap-3 bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-sm text-amber-800">
+            <Mail className="h-4 w-4 shrink-0 text-amber-600" />
+            <span className="flex-1">
+              {resendDone
+                ? "Verification email sent! Please check your inbox."
+                : "Please verify your email address to access all features."}
+            </span>
+            {!resendDone && (
+              <button
+                onClick={handleResend}
+                disabled={resending}
+                className="font-medium underline underline-offset-2 hover:text-amber-900 disabled:opacity-60 cursor-pointer"
+              >
+                {resending ? "Sending…" : "Resend email"}
+              </button>
+            )}
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="ml-1 p-0.5 rounded hover:bg-amber-100 cursor-pointer"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
           <Sheet>
             <SheetTrigger asChild>

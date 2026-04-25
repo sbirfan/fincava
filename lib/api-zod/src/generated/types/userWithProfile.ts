@@ -25,4 +25,6 @@ export interface UserWithProfile {
   /** @nullable */
   companyVerified?: boolean | null;
   createdAt: string;
+  /** @nullable */
+  emailVerifiedAt: string | null;
 }

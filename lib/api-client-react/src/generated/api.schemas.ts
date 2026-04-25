@@ -75,6 +75,8 @@ export interface UserWithProfile {
   /** @nullable */
   companyVerified?: boolean | null;
   createdAt: string;
+  /** @nullable */
+  emailVerifiedAt: string | null;
 }
 
 export interface AuthResponse {
@@ -500,6 +502,10 @@ export interface OriginStory {
   /** @nullable */
   logoUrl?: string | null;
 }
+
+export type VerifyEmailParams = {
+  token: string;
+};
 
 export type ListProductsParams = {
   category?: string;

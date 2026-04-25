@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, isNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import rateLimit from "express-rate-limit";
-import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable } from "@workspace/db";
+import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable, emailVerificationTokensTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
 import { logger } from "../lib/logger";
-import { sendEmail, passwordResetEmail, welcomeEmail } from "../lib/email";
+import { sendEmail, passwordResetEmail, welcomeEmail, verificationEmail } from "../lib/email";
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -47,7 +47,25 @@ function buildUserResponse(user: any, profile: any, company: any) {
     companyName: company?.name ?? null,
     companyVerified: company?.verified ?? null,
     createdAt,
+    emailVerifiedAt: user.emailVerifiedAt instanceof Date
+      ? user.emailVerifiedAt.toISOString()
+      : (user.emailVerifiedAt ?? null),
   };
+}
+
+function getAppBaseUrl(): string {
+  return process.env["FRONTEND_URL"]
+    ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+}
+
+async function sendVerificationEmail(userId: number, email: string, firstName: string): Promise<void> {
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  await db.insert(emailVerificationTokensTable).values({ userId, token, expiresAt });
+  const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${token}`;
+  const { html, text, subject } = verificationEmail({ firstName: firstName || "there", verifyUrl });
+  await sendEmail({ to: email, subject, html, text });
+  logger.info({ userId, email }, "Verification email sent");
 }
 
 router.post("/auth/register", async (req, res): Promise<void> => {
@@ -95,19 +113,22 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     user: buildUserResponse(user, profile, company),
   });
 
-  // Fire-and-forget: send welcome email to new registrant
+  // Fire-and-forget: send welcome email + verification email to new registrant
   Promise.resolve().then(async () => {
     try {
-      const appBaseUrl = process.env["FRONTEND_URL"]
-        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
       const emailContent = welcomeEmail({
         firstName: firstName || "there",
         role: user.role,
-        loginUrl: `${appBaseUrl}/login`,
+        loginUrl: `${getAppBaseUrl()}/login`,
       });
       await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
     } catch (err) {
       logger.warn({ err, userId: user.id }, "Welcome email failed");
+    }
+    try {
+      await sendVerificationEmail(user.id, user.email, firstName);
+    } catch (err) {
+      logger.warn({ err, userId: user.id }, "Verification email failed");
     }
   });
 });
@@ -208,9 +229,7 @@ router.post("/auth/forgot-password", passwordResetLimiter, async (req, res): Pro
 
   await db.insert(passwordResetTokensTable).values({ userId: user.id, token, expiresAt });
 
-  const appUrl = process.env["FRONTEND_URL"]
-    ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
-  const resetUrl = `${appUrl}/reset-password?token=${token}`;
+  const resetUrl = `${getAppBaseUrl()}/reset-password?token=${token}`;
 
   const { html, text } = passwordResetEmail({ resetUrl, firstName: profile?.firstName ?? "there" });
   await sendEmail({ to: user.email, subject: "Reset your Fincava password", html, text });
@@ -294,6 +313,81 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
 
   logger.info({ userId: record.userId }, "Password reset successfully");
   res.json({ success: true });
+});
+
+// ── GET /api/auth/verify-email ────────────────────────────────────────────────
+router.get("/auth/verify-email", async (req, res): Promise<void> => {
+  const token = typeof req.query["token"] === "string" ? req.query["token"] : "";
+
+  if (!token) {
+    res.status(400).json({ error: "Verification token is required" });
+    return;
+  }
+
+  const now = new Date();
+  const record = await db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(emailVerificationTokensTable)
+      .set({ used: true })
+      .where(
+        and(
+          eq(emailVerificationTokensTable.token, token),
+          eq(emailVerificationTokensTable.used, false),
+          gt(emailVerificationTokensTable.expiresAt, now),
+        ),
+      )
+      .returning();
+
+    if (!claimed) return null;
+
+    await tx
+      .update(usersTable)
+      .set({ emailVerifiedAt: now })
+      .where(
+        and(
+          eq(usersTable.id, claimed.userId),
+          isNull(usersTable.emailVerifiedAt),
+        ),
+      );
+
+    return claimed;
+  });
+
+  if (!record) {
+    res.status(400).json({ error: "This verification link is invalid or has expired." });
+    return;
+  }
+
+  logger.info({ userId: record.userId }, "Email verified successfully");
+  res.json({ message: "Email verified successfully. You can now close this page." });
+});
+
+// ── POST /api/auth/resend-verification ───────────────────────────────────────
+router.post("/auth/resend-verification", passwordResetLimiter, requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId as number;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (user.emailVerifiedAt) {
+    res.status(409).json({ error: "Email is already verified" });
+    return;
+  }
+
+  // Respond immediately, send email in background
+  res.json({ message: "If your email is not yet verified, a new verification link has been sent." });
+
+  Promise.resolve().then(async () => {
+    try {
+      const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
+      await sendVerificationEmail(userId, user.email, profile?.firstName ?? "");
+    } catch (err) {
+      logger.warn({ err, userId }, "Resend verification email failed");
+    }
+  });
 });
 
 export default router;

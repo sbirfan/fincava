@@ -467,3 +467,17 @@ export function passwordResetEmail(opts: { resetUrl: string; firstName: string }
   const text = `Hello ${opts.firstName},\n\nWe received a request to reset your Fincava password.\n\nReset your password here: ${opts.resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.\n\n— Fincava`;
   return { html, text };
 }
+
+export function verificationEmail(opts: { firstName: string; verifyUrl: string }): { html: string; text: string; subject: string } {
+  const subject = "Confirm your email address — Fincava";
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.firstName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Please confirm your email</h2>
+    <p>Thank you for registering on Fincava. To activate your account and access all features, please verify your email address by clicking the button below:</p>
+    <p><a href="${opts.verifyUrl}" class="btn">Confirm my email address</a></p>
+    <p class="note">This link expires in <strong>24 hours</strong>. If you didn't create a Fincava account, you can safely ignore this email.</p>
+    <p class="note">If the button doesn't work, copy and paste this link into your browser:<br/><a href="${opts.verifyUrl}" style="color:#16a34a;word-break:break-all;">${opts.verifyUrl}</a></p>
+  `);
+  const text = `Hello ${opts.firstName},\n\nThank you for registering on Fincava. Please verify your email address by visiting the link below:\n\n${opts.verifyUrl}\n\nThis link expires in 24 hours. If you didn't register, please ignore this email.\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}

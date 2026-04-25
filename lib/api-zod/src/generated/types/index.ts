@@ -49,3 +49,4 @@ export * from "./updateProfileBody";
 export * from "./updateSupplierBody";
 export * from "./userWithProfile";
 export * from "./userWithProfileRole";
+export * from "./verifyEmailParams";

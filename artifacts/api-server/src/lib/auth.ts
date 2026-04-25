@@ -98,6 +98,22 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+export async function requireVerifiedEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const userId = (req as any).userId as number | undefined;
+  if (!userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const [user] = await db.select({ emailVerifiedAt: usersTable.emailVerifiedAt })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (!user?.emailVerifiedAt) {
+    res.status(403).json({ error: "Email address not verified. Please verify your email before performing this action." });
+    return;
+  }
+  next();
+}
+
 export async function requireRole(role: "BUYER" | "SUPPLIER" | "ADMIN") {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const userRole = (req as any).userRole;

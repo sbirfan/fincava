@@ -54,6 +54,7 @@ export const LoginUserResponse = zod.object({
     companyName: zod.string().nullish(),
     companyVerified: zod.boolean().nullish(),
     createdAt: zod.string(),
+    emailVerifiedAt: zod.string().nullable(),
   }),
   token: zod.string(),
 });
@@ -81,6 +82,25 @@ export const GetMeResponse = zod.object({
   companyName: zod.string().nullish(),
   companyVerified: zod.boolean().nullish(),
   createdAt: zod.string(),
+  emailVerifiedAt: zod.string().nullable(),
+});
+
+/**
+ * @summary Verify email address with token from link
+ */
+export const VerifyEmailQueryParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const VerifyEmailResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Resend email verification link
+ */
+export const ResendVerificationResponse = zod.object({
+  message: zod.string(),
 });
 
 /**
@@ -971,6 +991,7 @@ export const UpdateUserProfileResponse = zod.object({
   companyName: zod.string().nullish(),
   companyVerified: zod.boolean().nullish(),
   createdAt: zod.string(),
+  emailVerifiedAt: zod.string().nullable(),
 });
 
 /**

@@ -48,6 +48,9 @@ router.patch("/users/profile", requireAuth, async (req, res): Promise<void> => {
     id: user.id,
     email: user.email,
     role: user.role,
+    emailVerifiedAt: user.emailVerifiedAt instanceof Date
+      ? user.emailVerifiedAt.toISOString()
+      : (user.emailVerifiedAt ?? null),
     firstName: updatedProfile?.firstName ?? "",
     lastName: updatedProfile?.lastName ?? "",
     country: updatedProfile?.country ?? null,
