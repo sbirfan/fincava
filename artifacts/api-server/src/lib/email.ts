@@ -288,62 +288,58 @@ export function orderStatusEmail(opts: {
 
 type LoanStatusKey = "ACTIVE" | "REPAID" | "DEFAULTED" | "CANCELLED";
 
+// Supplier-facing copy: buyer financing directly affects supplier payment guarantee
 const LOAN_STATUS_COPY: Record<LoanStatusKey, { subject: string; headline: string; body: string; nextSteps: string }> = {
   ACTIVE: {
-    subject: "Your financing application has been approved",
-    headline: "Financing approved ✓",
-    body: "Your Fincava financing application has been <strong>approved</strong>. The funds have been disbursed and your loan is now active.",
-    nextSteps: "Log in to your account to view your repayment schedule and due date.",
+    subject: "Buyer financing approved — your order payment is secured",
+    headline: "Order financing approved ✓",
+    body: "The buyer's financing for your order has been <strong>approved and disbursed</strong>. Payment for your order is now guaranteed.",
+    nextSteps: "Continue processing the order as agreed. Payment will be settled according to your agreed terms. View the order in your Fincava supplier account.",
   },
   REPAID: {
-    subject: "Your loan has been fully repaid",
-    headline: "Loan repaid — thank you!",
-    body: "Congratulations — your Fincava loan has been <strong>fully repaid</strong>. Your credit score has been updated to reflect your on-time repayment.",
-    nextSteps: "Your improved credit score may qualify you for a higher credit limit on future financing.",
+    subject: "Order financing fully repaid",
+    headline: "Financing repaid",
+    body: "The buyer financing associated with your order has been <strong>fully repaid</strong>. This completes the financing cycle for this order.",
+    nextSteps: "No action is required. You can view the details in your Fincava supplier account.",
   },
   DEFAULTED: {
-    subject: "Important: Your Fincava loan is in default",
-    headline: "Loan in default",
-    body: "Your Fincava loan has been marked as <strong>defaulted</strong>. This may affect your credit score and future financing eligibility.",
-    nextSteps: "Please contact us immediately at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a> to discuss a repayment arrangement.",
+    subject: "Important: Buyer financing for your order has defaulted",
+    headline: "Financing default — action may be required",
+    body: "The buyer financing associated with your order has been marked as <strong>defaulted</strong>. Our team is reviewing the situation.",
+    nextSteps: "Please contact us immediately at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a> if you have concerns about payment for your order.",
   },
   CANCELLED: {
-    subject: "Your Fincava financing has been cancelled",
+    subject: "Order financing has been cancelled",
     headline: "Financing cancelled",
-    body: "Your Fincava financing has been <strong>cancelled</strong>.",
-    nextSteps: "If you believe this is an error or have questions, please contact us at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a>.",
+    body: "The buyer financing associated with your order has been <strong>cancelled</strong>. This may affect the order's payment timeline.",
+    nextSteps: "Please contact us at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a> to discuss next steps for this order.",
   },
 };
 
 export function loanStatusEmail(opts: {
-  buyerName: string;
-  loanId: number;
+  supplierName: string;
+  orderId: number;
+  orderRef: string;
   newStatus: string;
   principalUSD: number;
-  totalRepaymentUSD: number;
-  termDays: number;
-  dueAt: string;
-  financeUrl: string;
+  orderUrl: string;
 }): { html: string; text: string; subject: string } | null {
   const copy = LOAN_STATUS_COPY[opts.newStatus as LoanStatusKey];
   if (!copy) return null;
 
   const html = baseTemplate(`
-    <p>Hello ${esc(opts.buyerName)},</p>
+    <p>Hello ${esc(opts.supplierName)},</p>
     <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${copy.headline}</h2>
     <p>${copy.body}</p>
     <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
-      <tr><td style="padding:6px 0;color:#78716c;width:160px;">Loan ID</td><td style="padding:6px 0;font-weight:600;">#${opts.loanId}</td></tr>
-      <tr><td style="padding:6px 0;color:#78716c;">Principal</td><td style="padding:6px 0;">$${opts.principalUSD.toFixed(2)}</td></tr>
-      <tr><td style="padding:6px 0;color:#78716c;">Total repayment</td><td style="padding:6px 0;">$${opts.totalRepaymentUSD.toFixed(2)}</td></tr>
-      <tr><td style="padding:6px 0;color:#78716c;">Term</td><td style="padding:6px 0;">${opts.termDays} days</td></tr>
-      <tr><td style="padding:6px 0;color:#78716c;">Due date</td><td style="padding:6px 0;">${new Date(opts.dueAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Order</td><td style="padding:6px 0;font-weight:600;">${esc(opts.orderRef)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Financed amount</td><td style="padding:6px 0;">$${opts.principalUSD.toFixed(2)}</td></tr>
     </table>
     <p>${copy.nextSteps}</p>
-    <p><a href="${opts.financeUrl}" class="btn">View my financing</a></p>
+    <p><a href="${opts.orderUrl}" class="btn">View order</a></p>
     <p class="note">Questions? Contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
   `);
-  const text = `Hello ${opts.buyerName},\n\n${copy.headline}\n\n${copy.body.replace(/<[^>]+>/g, "")}\n\nLoan ID: #${opts.loanId}\nPrincipal: $${opts.principalUSD.toFixed(2)}\nTotal repayment: $${opts.totalRepaymentUSD.toFixed(2)}\nTerm: ${opts.termDays} days\nDue: ${new Date(opts.dueAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}\n\n${copy.nextSteps.replace(/<[^>]+>/g, "")}\n\nView financing: ${opts.financeUrl}\n\n— Equipo Fincava`;
+  const text = `Hello ${opts.supplierName},\n\n${copy.headline}\n\n${copy.body.replace(/<[^>]+>/g, "")}\n\nOrder: ${opts.orderRef}\nFinanced: $${opts.principalUSD.toFixed(2)}\n\n${copy.nextSteps.replace(/<[^>]+>/g, "")}\n\nView order: ${opts.orderUrl}\n\n— Equipo Fincava`;
   return { html, text, subject: copy.subject };
 }
 

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
-import { ordersTable, staffRolesTable, suppliersTable } from "@workspace/db";
+import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
@@ -361,38 +361,54 @@ router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<
   if (!updated) { res.status(404).json({ error: "Loan not found" }); return; }
   res.json({ success: true, status: updated.status });
 
-  // Fire-and-forget: notify buyer of loan status change
+  // Fire-and-forget: notify supplier(s) of loan status change via linked order
   Promise.resolve().then(async () => {
     try {
+      if (!updated.orderId) {
+        logger.info({ loanId: id }, "Loan status changed but no linked order — skipping supplier notification");
+        return;
+      }
+
       const appBaseUrl = process.env["FRONTEND_URL"]
         ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
 
-      const [buyerUser] = await db.select({ email: usersTable.email })
-        .from(usersTable).where(eq(usersTable.id, updated.buyerId));
-      if (!buyerUser?.email) return;
+      const orderRef = `ORD-${String(updated.orderId).padStart(4, "0")}`;
 
-      const [buyerProfile] = await db.select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
-        .from(profilesTable).where(eq(profilesTable.userId, updated.buyerId));
-      const buyerName = buyerProfile
-        ? `${buyerProfile.firstName} ${buyerProfile.lastName}`.trim()
-        : "Customer";
+      // Resolve supplier(s) from order items → products → companies → users
+      const items = await db.select({ productId: orderItemsTable.productId })
+        .from(orderItemsTable).where(eq(orderItemsTable.orderId, updated.orderId));
+      if (items.length === 0) return;
 
-      const emailContent = loanStatusEmail({
-        buyerName,
-        loanId: updated.id,
-        newStatus: updated.status,
-        principalUSD: updated.principalUSD,
-        totalRepaymentUSD: updated.totalRepaymentUSD,
-        termDays: updated.termDays,
-        dueAt: updated.dueAt.toISOString(),
-        financeUrl: `${appBaseUrl}/dashboard/finance`,
-      });
+      const productIds = items.map(i => i.productId);
+      const supplierCompanies = await db
+        .selectDistinct({ companyId: productsTable.companyId })
+        .from(productsTable)
+        .where(inArray(productsTable.id, productIds));
 
-      if (emailContent) {
-        await sendEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+      for (const { companyId } of supplierCompanies) {
+        const [company] = await db.select({ name: companiesTable.name, userId: companiesTable.userId })
+          .from(companiesTable).where(eq(companiesTable.id, companyId));
+        if (!company) continue;
+
+        const [supplierUser] = await db.select({ email: usersTable.email })
+          .from(usersTable).where(eq(usersTable.id, company.userId));
+        if (!supplierUser?.email) continue;
+
+        const emailContent = loanStatusEmail({
+          supplierName: company.name,
+          orderId: updated.orderId,
+          orderRef,
+          newStatus: updated.status,
+          principalUSD: updated.principalUSD,
+          orderUrl: `${appBaseUrl}/supplier-dashboard/orders`,
+        });
+
+        if (emailContent) {
+          await sendEmail({ to: supplierUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+        }
       }
     } catch (err) {
-      logger.warn({ err, loanId: id }, "Admin loan status email failed");
+      logger.warn({ err, loanId: id }, "Admin loan status supplier email failed");
     }
   });
 });
