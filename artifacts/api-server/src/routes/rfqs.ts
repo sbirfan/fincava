@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import {
-  db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable
+  db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable, usersTable
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
+import { sendEmail, rfqResponseEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -116,6 +118,41 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
   }).returning();
 
   res.status(201).json({ ...response, createdAt: response.createdAt.toISOString() });
+
+  // Fire-and-forget: notify buyer of new RFQ response
+  Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const [rfq] = await db.select({ buyerId: rfqsTable.buyerId, title: rfqsTable.title })
+        .from(rfqsTable).where(eq(rfqsTable.id, rfqId));
+      if (!rfq) return;
+
+      const [buyerUser] = await db.select({ email: usersTable.email })
+        .from(usersTable).where(eq(usersTable.id, rfq.buyerId));
+      if (!buyerUser?.email) return;
+
+      const [buyerProfile] = await db.select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+        .from(profilesTable).where(eq(profilesTable.userId, rfq.buyerId));
+      const buyerName = buyerProfile
+        ? `${buyerProfile.firstName} ${buyerProfile.lastName}`.trim()
+        : "Buyer";
+
+      const emailContent = rfqResponseEmail({
+        buyerName,
+        supplierName: company.name,
+        rfqTitle: rfq.title,
+        pricePerKgUSD: parseFloat(pricePerKgUSD),
+        leadTimeDays: parseInt(leadTimeDays),
+        rfqUrl: `${appBaseUrl}/rfq/${rfqId}`,
+      });
+
+      await sendEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    } catch (err) {
+      logger.warn({ err, rfqId, supplierId: company.id }, "RFQ response email failed");
+    }
+  });
 });
 
 router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promise<void> => {

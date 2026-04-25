@@ -182,6 +182,63 @@ export function supplierStatusChangeEmail(opts: {
   return { html, text, subject: copy.subject };
 }
 
+// ── Inquiry & RFQ notification templates ─────────────────────────────────────
+
+export function newInquiryEmail(opts: {
+  supplierName: string;
+  buyerName: string;
+  buyerCompany?: string | null;
+  buyerCountry?: string | null;
+  productName: string;
+  messagePreview: string;
+  quantityKg?: number | null;
+  inquiriesUrl: string;
+}): { html: string; text: string; subject: string } {
+  const preview = opts.messagePreview.length > 200
+    ? `${opts.messagePreview.slice(0, 200)}…`
+    : opts.messagePreview;
+  const subject = `New inquiry from ${opts.buyerName}`;
+  const html = baseTemplate(`
+    <p>Hello ${opts.supplierName},</p>
+    <p>A buyer has sent you a new inquiry on Fincava about <strong>${opts.productName}</strong>.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:120px;">From</td><td style="padding:6px 0;font-weight:600;">${opts.buyerName}${opts.buyerCompany ? ` · ${opts.buyerCompany}` : ""}</td></tr>
+      ${opts.buyerCountry ? `<tr><td style="padding:6px 0;color:#78716c;">Country</td><td style="padding:6px 0;">${opts.buyerCountry}</td></tr>` : ""}
+      ${opts.quantityKg ? `<tr><td style="padding:6px 0;color:#78716c;">Quantity</td><td style="padding:6px 0;">${opts.quantityKg.toLocaleString()} kg</td></tr>` : ""}
+    </table>
+    <p style="background:#f5f5f4;border-left:3px solid #16a34a;padding:12px 16px;margin:0 0 20px;font-size:14px;font-family:system-ui,sans-serif;color:#44403c;">${preview}</p>
+    <p><a href="${opts.inquiriesUrl}" class="btn">View inquiry &amp; reply</a></p>
+    <p class="note">Log in to your Fincava supplier account to read the full message and respond directly to the buyer.</p>
+  `);
+  const text = `Hello ${opts.supplierName},\n\nYou have a new inquiry from ${opts.buyerName}${opts.buyerCompany ? ` (${opts.buyerCompany})` : ""}${opts.buyerCountry ? `, ${opts.buyerCountry}` : ""} about ${opts.productName}.\n\nMessage:\n${opts.messagePreview}\n\nView and reply: ${opts.inquiriesUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+export function rfqResponseEmail(opts: {
+  buyerName: string;
+  supplierName: string;
+  rfqTitle: string;
+  pricePerKgUSD: number;
+  leadTimeDays: number;
+  rfqUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = `${opts.supplierName} responded to your RFQ`;
+  const html = baseTemplate(`
+    <p>Hello ${opts.buyerName},</p>
+    <p>A supplier has responded to your request for quotation on Fincava.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">RFQ</td><td style="padding:6px 0;font-weight:600;">${opts.rfqTitle}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Supplier</td><td style="padding:6px 0;font-weight:600;">${opts.supplierName}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Quoted price</td><td style="padding:6px 0;">$${opts.pricePerKgUSD.toFixed(2)} / kg</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Lead time</td><td style="padding:6px 0;">${opts.leadTimeDays} days</td></tr>
+    </table>
+    <p><a href="${opts.rfqUrl}" class="btn">View full response</a></p>
+    <p class="note">Log in to your Fincava account to compare all responses and award the RFQ.</p>
+  `);
+  const text = `Hello ${opts.buyerName},\n\n${opts.supplierName} has responded to your RFQ "${opts.rfqTitle}".\n\nQuoted price: $${opts.pricePerKgUSD.toFixed(2)} / kg\nLead time: ${opts.leadTimeDays} days\n\nView the full response: ${opts.rfqUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 export function passwordResetEmail(opts: { resetUrl: string; firstName: string }): { html: string; text: string } {
   const html = baseTemplate(`
     <p>Hello ${opts.firstName},</p>

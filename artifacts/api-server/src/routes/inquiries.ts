@@ -7,6 +7,8 @@ import {
   UpdateInquiryStatusBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
+import { sendEmail, newInquiryEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -51,6 +53,41 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
 
   const result = await buildInquiryResponse(inquiry);
   res.status(201).json(result);
+
+  // Fire-and-forget: notify supplier of new inquiry
+  Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const [product] = await db.select({ companyId: productsTable.companyId, name: productsTable.name })
+        .from(productsTable).where(eq(productsTable.id, inquiry.productId));
+      if (!product) return;
+
+      const [company] = await db.select({ userId: companiesTable.userId, name: companiesTable.name })
+        .from(companiesTable).where(eq(companiesTable.id, product.companyId));
+      if (!company) return;
+
+      const [user] = await db.select({ email: usersTable.email })
+        .from(usersTable).where(eq(usersTable.id, company.userId));
+      if (!user?.email) return;
+
+      const emailContent = newInquiryEmail({
+        supplierName: company.name,
+        buyerName: inquiry.buyerName,
+        buyerCompany: inquiry.company ?? null,
+        buyerCountry: inquiry.country ?? null,
+        productName: product.name,
+        messagePreview: inquiry.message,
+        quantityKg: inquiry.quantityKg ?? null,
+        inquiriesUrl: `${appBaseUrl}/supplier-dashboard/inquiries`,
+      });
+
+      await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    } catch (err) {
+      logger.warn({ err, inquiryId: inquiry.id }, "New inquiry email failed");
+    }
+  });
 });
 
 router.get("/buyer/inquiries", requireAuth, async (req, res): Promise<void> => {
