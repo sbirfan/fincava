@@ -303,9 +303,25 @@ No async complexity introduced in this epic.
 
 ## 11. Status
 
-* Epic: Planned
-* Dependency: Epic 1 completed
+* Epic: In Progress
+* Dependency: Epic 1 completed ✔
 * Execution strategy: Thin slices (incremental)
+
+### Completed Tickets
+
+| Ticket | Date | Description |
+|---|---|---|
+| T1 | 2026-04-24 | `SupplierOnboardingInput` interface wired into `POST /suppliers/onboard`. Normalization layer (`typedInput`) introduced. Additive only — zero runtime changes |
+| T2 | 2026-04-24 | `buildScoringInput` abstraction layer — extracts 4 DB reads from `scoreSupplier` into typed `ScoringInput` contract. Fresh-read per retry preserved |
+
+### Pending Tickets
+
+| Ticket | Description | Dependency |
+|---|---|---|
+| T3 | Onboarding validation layer — enforce typed inputs, resolve economics string→integer mismatch (M1) | T1 complete |
+| T4 | Compliance alignment — promote onboarding compliance signals → compliance_docs (resolve H5 partial gap) | T3 complete |
+| T5 | Sanitized buyer supplier detail route — replace admin-only GET /suppliers/:id with buyer-safe endpoint | T4 complete |
+| T6 | Marketplace enrichment — integrate graduation signals (sellableStatus) into product marketplace | T5 complete |
 
 ---
 

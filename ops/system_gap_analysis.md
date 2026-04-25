@@ -8,6 +8,8 @@ Derived from:
 * buyer_persona.md
 * ops documents
 
+Last Updated: 2026-04-25
+
 ---
 
 ## 0. Classification
@@ -15,6 +17,7 @@ Derived from:
 * CURRENT_STATE → validated from code
 * GAP → system deficiency or inconsistency
 * TARGET_STATE → desired behavior
+* FIXED → gap resolved; fix details documented
 
 ---
 
@@ -44,204 +47,232 @@ This analysis consolidates:
 
 ### H1 — ICA Sync Mismatch (DATA_INTEGRITY)
 
-CURRENT_STATE:
+STATUS: **FIXED (P0.1 — 2026-04-23)**
 
-* `ica_registered` stored in interactions.metadata
-* `ica_registro` in compliance_docs remains false
+PREVIOUS_STATE:
+* `ica_registered` stored in interactions.metadata only
+* `ica_registro` in compliance_docs remained false for all new suppliers
+* Eligibility gate read `compliance_docs.ica_registro` — ignored onboarding input
 
-GAP:
+FIX:
+* Two-step sync in `POST /api/suppliers/onboard`:
+  1. INSERT seeds `ica_registro = (ica_registered === true)` — applies to new rows
+  2. Conditional UPDATE sets `ica_registro = true` when `ica_registered === true` — applies to existing rows
+* Upgrade-only — never downgrades from `true` to `false`
+* Admin can still override via `PATCH /api/admin/suppliers/:id/compliance`
 
-* onboarding input ignored by eligibility gate
-
-TARGET_STATE:
-
-* explicit mapping OR unified compliance model
+IMPACT: Eligibility gate now correctly reflects supplier-declared ICA status at onboarding time.
 
 ---
 
 ### H2 — Marketplace / Graduation Disconnect (PRODUCT_LOGIC)
 
 CURRENT_STATE:
-
-* products visible regardless of supplier readiness
+* Product marketplace shows products regardless of supplier readiness
+* `/supplier-marketplace` validation surface is graduation-aware (SELLABLE/PUBLISHED only)
 
 GAP:
-
-* graduation system not used in buyer experience
+* Main product marketplace not gated by graduation status
+* Buyer cannot evaluate supplier readiness from product listings
 
 TARGET_STATE:
+* Products gated or annotated by `sellableStatus` in main marketplace
+* Epic 2 will introduce this as part of marketplace enrichment
 
-* products gated or annotated by sellableStatus
+STATUS: Open — deferred to Epic 2 marketplace expansion phase
 
 ---
 
 ### H3 — Async Job Durability (ARCHITECTURE)
 
 CURRENT_STATE:
-
-* scoring + evaluation run in-memory
+* `scoreSupplier` and `evaluateSupplier` run via `setImmediate` (fire-and-forget in-process)
+* Retry logic: 3 attempts, exponential backoff (1s, 2s, 4s)
+* Final failure: `logger.error` + Sentry capture
 
 GAP:
-
-* process crash = permanent job loss
+* Process crash = permanent job loss (no persistence)
+* Supplier can remain unevaluated if all retries fail before crash
 
 TARGET_STATE:
+* Database-backed durable job queue
+* Workers that retry on restart
 
-* durable job queue
+STATUS: Open — deferred to Phase 4 (Automation & Scale). Acceptable risk at MVP volume
 
 ---
 
 ### H4 — Public Supplier Dataset Exposure (SECURITY)
 
-CURRENT_STATE:
+STATUS: **FIXED (P0.2 — 2026-04-23)**
 
-* `/api/suppliers` publicly accessible
-* includes internal fields
-
-GAP:
-
-* unintended exposure of internal data
-
-TARGET_STATE:
-
-* restrict or sanitize
-
-Fix Applied (P0.2 — Epic 2 Precondition)
-- GET /api/suppliers restricted to ADMIN-only
-- Middleware: requireAuth + requireAdmin (in that order)
-- Public buyer access served via /suppliers/marketplace (unchanged)
-- Internal evaluation fields no longer externally accessible
-- Date: 2026-04-23
-
-OPEN FINDINGS (not fixed in P0.2):
-- GET /suppliers/:id unguarded — exposes full supplier row by ID, fix separately
-- artifacts/fincava/src/pages/suppliers.tsx:15 calls useListSuppliers() (→ GET /api/suppliers)
-  with no auth header — public /suppliers page will 401 for all non-admin users
-  Must be migrated to /suppliers/marketplace before public re-enablement
+FIX:
+* `GET /api/suppliers` restricted to ADMIN-only via `requireAuth + requireAdmin`
+* Public buyer access unchanged via `/suppliers/marketplace` (SELLABLE/PUBLISHED only, sanitized fields)
+* Internal evaluation fields (`commercialScore`, `eligibilityStatus`, etc.) no longer externally accessible
 
 ---
 
 ### H4-B — GET /suppliers/:id Unguarded (SECURITY)
 
-CURRENT_STATE:
-- GET /suppliers/:id has no auth middleware (line 691)
-- Returns full supplier row via db.select() with no field restriction
-- Exposes commercialScore, eligibilityStatus, graduationPathway
-  for any supplier by ID to any unauthenticated caller
+STATUS: **FIXED (P0.4 — 2026-04-23)**
 
-GAP:
-- Same class of exposure as H4
-- Any caller with a valid supplier ID can retrieve internal data
+FIX:
+* `requireAuth + requireAdmin` applied to `GET /suppliers/:id`
+* Route remains ADMIN-only in v0
+* Buyer-facing detail route will be a separate sanitized endpoint in Epic 2
 
-TARGET_STATE:
-- requireAuth + requireAdmin applied (same pattern as H4 fix)
-- Fix before any external-facing supplier detail work in Epic 2
-
-SEVERITY: High
-STATUS: FIXED (P0.4 — 2026-04-23)
-Fix: requireAuth + requireAdmin applied to GET /suppliers/:id
-Middleware order: requireAuth → requireAdmin
-Buyer-facing detail route will be a separate sanitized endpoint
-when built in Epic 2 — this endpoint remains ADMIN-only in v0
-Cascade behavior: NO — flat router instance, middleware applies to
-GET /suppliers/:id only. Sub-routes carry their own independent guards
-(evaluations, transitions, document, generate-document, send-whatsapp
-are all already requireAuth + requireAdmin).
-
-BLOCKER FINDINGS (must fix before Epic 2 UI work):
-- SupplierDetail (supplier-detail.tsx:15) — calls GET /api/suppliers/:id
-  via useGetSupplier(), no Authorization header, mounted at /supplier/:id
-  with no role guard (App.tsx:109). Will 401 for all non-admin visitors.
-  Must migrate to sanitized buyer route before Epic 2 UI work.
+REMAINING BLOCKER (open):
+* `SupplierDetail` (`supplier-detail.tsx`) calls `GET /api/suppliers/:id` via `useGetSupplier()`
+* No Authorization header, mounted at `/supplier/:id` with no role guard in `App.tsx`
+* Will 401 for all non-admin visitors
+* Must migrate to sanitized buyer route before Epic 2 UI work
 
 ---
 
 ### H5 — Compliance Fragmentation (ARCHITECTURE)
 
 CURRENT_STATE:
-
-* compliance_docs
-* interactions.metadata
-* compliance_score (unused)
+* `compliance_docs` — current state (1:1 with supplier, UNIQUE constraint)
+* `interactions.metadata` — onboarding-time signal capture (JSONB)
+* `compliance_score` — legacy field, unused
 
 GAP:
-
-* no single source of truth
+* No single source of truth for compliance state
+* Onboarding compliance signals (has_rut, bank_account, etc.) not promoted to `compliance_docs`
+* Admin must manually update `compliance_docs` to reflect onboarding inputs
 
 TARGET_STATE:
+* Unified compliance model or explicit mapping layer
+* Onboarding inputs automatically populate compliance_docs where applicable (H1 fixed for ICA; full unification deferred)
 
-* unified compliance model
+STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to Phase 4
 
 ---
 
 ## 4. MEDIUM Priority Gaps
 
-* Type mismatch (economics)
-* Pathway undefined (AI dependency)
-* Dual status fields
-* Supplier marketplace not integrated
-* Missing readiness in supplier detail
+### M1 — Type Mismatch (economics.volumen_kg_ultima_cosecha)
+* CURRENT: receives string from frontend, stored as integer column
+* STATUS: Open — deferred to Epic 2 T3 (onboarding validation layer)
+
+### M2 — Pathway Undefined Internally
+* `pathway` is returned by AI (A/B/C/D) but has no internal definition or business logic
+* STATUS: Open — deferred to Phase 3 (Intelligence Layer)
+
+### M3 — Dual Status Fields (suppliers table)
+* `status` (PENDING/ACTIVE/INACTIVE) — operational flag
+* `sellableStatus` (NOT_READY/ELIGIBLE/SELLABLE/PUBLISHED) — graduation state
+* Two parallel status systems with different semantics
+* STATUS: Open — by design in v0, will be unified in Phase 2
+
+### M4 — Supplier Marketplace Not Integrated
+* `/supplier-marketplace` is isolated validation surface
+* Cannot be expanded or integrated without Phase II redesign
+* STATUS: Open — intentional constraint
+
+### M5 — Missing Readiness Signals in Supplier Detail
+* Buyer-facing supplier detail page will need graduation readiness signals
+* Current `GET /suppliers/:id` is ADMIN-only
+* STATUS: Open — blocked pending Epic 2 sanitized buyer route
+
+### M6 — Supplier Dashboard Absent
+* Supplier has no visibility into their own status, score, or next actions
+* Currently admin-driven only
+* STATUS: Open — Phase 2 (System Hardening) priority
 
 ---
 
 ## 5. LOW Priority
 
-* Naming inconsistencies
-* Language duality
-* Free-text interaction types
+* Naming inconsistencies (Spanish/English field names mixed in schema)
+* Language duality in onboarding inputs (`contact_name` vs `nombreCompleto`)
+* Free-text interaction types — no enforced enum
 
 ---
 
-## 6. Execution Priority
+## 6. NEW GAPS — Identified Post Email/Auth Implementation
 
-### DO NOW (Before Epic 2)
+### N1 — Email Domain Verification Required (CONFIG)
+* `noreply@fincava.com` must be verified in Resend dashboard
+* Dev environment: sends silently skipped (WARN log) when `RESEND_API_KEY` absent
+* Prod environment: 403 from Resend API if domain not verified
+* STATUS: Open — requires DNS record propagation + Resend dashboard verification
 
-* ICA sync fix
-* Type mismatch fix
-* Define marketplace gating strategy (do not implement yet)
+### N2 — No Health Endpoint at /api/health (ARCHITECTURE)
+* `GET /api/health` returns 404 — not registered
+* `GET /api/healthz` is active (Replit deployment health check)
+* STATUS: Open — minor. Only relevant if using external load balancers or uptime monitors
+
+### N3 — Email Verification Not Enforced on All Sensitive Routes (UX/SECURITY)
+* `requireVerifiedEmail` currently guards only `POST /api/buyer/orders` and `POST /api/finance/loan`
+* Other sensitive actions (RFQ creation, inquiry submission) do not require verification
+* STATUS: Open — acceptable for MVP; can expand guards incrementally
+
+### N4 — Unverified Supplier User Access (SECURITY)
+* Supplier users can update order status and respond to RFQs without email verification
+* `requireVerifiedEmail` only applied to buyer-specific sensitive routes
+* STATUS: Open — acceptable for MVP given supplier onboarding is admin-assisted
 
 ---
+
+## 7. Execution Priority
+
+### RESOLVED
+* H1 — ICA sync fix ✔
+* H4 — Public supplier exposure ✔ (P0.2)
+* H4-B — GET /suppliers/:id unguarded ✔ (P0.4)
+* Slice 4 — AI scoring reliability ✔
+* Slice 6 — Transaction layer ✔
+* Slice 7 — Auth hardening + email verification ✔
+* Slice 8 — Transactional email infrastructure ✔
+
+### DO NOW (Before Epic 2 UI)
+* Resolve SupplierDetail 401 issue (H4-B blocker) — build sanitized buyer route
+* Verify fincava.com domain in Resend for live email delivery (N1)
 
 ### DO NEXT (Epic 2)
-
-* Integrate readiness into marketplace
-* Improve supplier visibility
-
----
+* Epic 2 T3: onboarding validation layer (resolve M1 type mismatch)
+* Epic 2 T4: compliance alignment (promote onboarding inputs → compliance_docs)
+* Sanitized buyer supplier detail route
+* Marketplace graduation integration (H2)
 
 ### DEFER (Post Epic 2)
-
-* Job queue
-* Compliance unification
-* Pathway standardization
-
----
-
-## 7. Updated Top Risks
-
-| #  | Risk                                        | Severity    |
-| -- | ------------------------------------------- | ----------- |
-| R1 | ICA mismatch breaks eligibility correctness | Critical    |
-| R2 | No job durability                           | High        |
-| R3 | Marketplace ignores graduation              | High        |
-| R4 | Compliance fragmentation                    | High        |
-| R5 | Public supplier dataset exposure            | Medium-High |
+* Durable job queue (H3) — Phase 4
+* Full compliance unification (H5) — Phase 4
+* Pathway business logic definition (M2) — Phase 3
+* Supplier dashboard (M6) — Phase 2
 
 ---
 
-## 8. Summary
+## 8. Updated Top Risks
+
+| # | Risk | Severity | Status |
+|---|---|---|---|
+| R1 | ICA mismatch breaks eligibility correctness | Critical | FIXED (P0.1) |
+| R2 | No job durability | High | Open (accepted for MVP) |
+| R3 | Marketplace ignores graduation | High | Open (Epic 2 scope) |
+| R4 | Compliance fragmentation | High | Partial (H1 fixed; full unification Phase 4) |
+| R5 | Public supplier dataset exposure | Medium-High | FIXED (P0.2 + P0.4) |
+| R6 | Email domain not verified in production | Medium | Open (DNS propagation pending) |
+| R7 | SupplierDetail calls admin-only route | Medium | Open (Epic 2 blocker) |
+
+---
+
+## 9. Summary
 
 The system is:
 
-* Functionally correct
-* Operationally usable
-* Architecturally incomplete
+* Functionally correct across supplier pipeline, transaction layer, and auth
+* Operationally usable with email notifications and admin controls
+* Architecturally incomplete in marketplace integration and job durability
 
 Key insight:
 
 ```text
-The system produces high-quality signals (scoring, evaluation)
-but does not consistently use them (marketplace, UX, compliance).
+The system now produces high-quality signals (scoring, evaluation, email hooks)
+and delivers notifications reliably. The remaining gaps are in buyer-facing
+discoverability and long-term infrastructure durability.
 ```
 
 ---

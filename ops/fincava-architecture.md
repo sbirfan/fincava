@@ -1,12 +1,12 @@
 # Fincava — Architecture Document
 **Colombian Agricultural Marketplace**
-*Updated April 2026*
+*Updated April 2026 (late)*
 
 ---
 
 ## 1. Project Overview
 
-Fincava is a B2B marketplace and supply-chain financing platform that connects Colombian smallholder farmers and cooperatives with international buyers. The platform covers the full commercial journey: supplier onboarding and AI scoring, a state machine that graduates suppliers to marketplace readiness, product discovery, RFQ/inquiry management, order tracking, embedded trade finance, and post-sale communications via WhatsApp. The frontend is fully bilingual (English / Spanish) with device-language detection.
+Fincava is a B2B marketplace and supply-chain financing platform that connects Colombian smallholder farmers and cooperatives with international buyers. The platform covers the full commercial journey: supplier onboarding and AI scoring, a state machine that graduates suppliers to marketplace readiness, product discovery, RFQ/inquiry management, order tracking, embedded trade finance, and transactional email notifications. The frontend is fully bilingual (English / Spanish) with device-language detection.
 
 ---
 
@@ -45,8 +45,9 @@ Each artifact is an independent deployable unit, bound to a port via the `PORT` 
 | Validation | Zod (server-side schemas in `src/schemas.ts`; shared via `lib/api-zod`) |
 | AI — Scoring | Anthropic Claude (`claude-haiku-4-5`) — export readiness scoring |
 | AI — Documents | Anthropic Claude (`claude-sonnet-4-6`) — compliance document generation |
+| Email | Resend — transactional emails via `artifacts/api-server/src/lib/email.ts` |
 | Messaging | Twilio WhatsApp Business API |
-| Auth | JWT (Bearer tokens), bcrypt password hashing |
+| Auth | HTTP-only cookie sessions (`fincava_auth`), bcrypt password hashing |
 | Logging | Pino (structured JSON logs) |
 | Package manager | pnpm v10 |
 
@@ -59,9 +60,11 @@ All tables live in `lib/db/src/schema/` and are managed by Drizzle ORM.
 ### 4.1 Users & Auth
 | Table | Purpose |
 |---|---|
-| `users` | Authentication — email, bcrypt password, role (`BUYER`, `SUPPLIER`, `ADMIN`), phone |
-| `companies` | Company linked 1:1 to a user — name, tax ID, address |
-| `profiles` | Extended user profile data |
+| `users` | Authentication — email, bcrypt password, role (`BUYER`, `SUPPLIER`, `ADMIN`), phone, `emailVerifiedAt` (timestamp, nullable — NULL = unverified) |
+| `companies` | Company linked 1:1 to a user — name, tax ID, address, type |
+| `profiles` | Extended user profile — firstName, lastName |
+| `password_reset_tokens` | Password reset tokens — `token` (unique), `user_id` (FK), `expires_at`, `used` (boolean) |
+| `email_verification_tokens` | Email verification tokens — `token` (unique), `user_id` (FK), `expires_at`, `used` (boolean) |
 
 ### 4.2 Suppliers
 | Table | Purpose |
@@ -71,7 +74,7 @@ All tables live in `lib/db/src/schema/` and are managed by Drizzle ORM.
 | `economics` | Economic data — buyer types, export history, working capital, linked to supplier |
 | `compliance_docs` | Current compliance state (1:1 with supplier, UNIQUE constraint on `supplier_id`). Fields: `rutDian`, `icaRegistro`, `fitosanitarioCert`, `dianExportador`. NOT a history table — represents latest state only |
 | `certifications` | Certifications held (Fairtrade, Organic, RainForest Alliance, etc.) |
-| `interactions` | Officer-recorded field visits and onboarding interactions. Expanded compliance metadata stored in JSONB column (see Section 6.1) |
+| `interactions` | Officer-recorded field visits and onboarding interactions. Expanded compliance metadata stored in JSONB column |
 | `trust_scores` | Supplier trust/reliability scores |
 
 ### 4.3 Supplier Graduation (Epic 1)
@@ -88,25 +91,25 @@ All tables live in `lib/db/src/schema/` and are managed by Drizzle ORM.
 ### 4.5 Marketplace
 | Table | Purpose |
 |---|---|
-| `products` | Marketplace catalog — linked to supplier, category, price, certifications, origin story |
+| `products` | Marketplace catalog — linked to company (supplier), category, price (`pricePerKgUSD`), certifications, images, origin story |
 | `origin_stories` | Human narrative behind a farm/cooperative |
 | `product_analytics` | Product view and engagement tracking |
 
 ### 4.6 Transactions
 | Table | Purpose |
 |---|---|
-| `inquiries` | Buyer-to-supplier leads |
-| `rfqs` | Request-for-Quote documents |
-| `rfq_responses` | Supplier responses to RFQs |
-| `orders` | Order lifecycle — status (`PENDING`, `CONFIRMED`, `SHIPPED`, `COMPLETED`, `CANCELLED`) |
-| `order_items` | Line items per order |
+| `inquiries` | Buyer-to-supplier leads — `productId` (FK), `buyerEmail`, `buyerName`, `company`, `country`, `message`, `quantityKg`, `status` (`PENDING`, `RESPONDED`, `CLOSED`) |
+| `rfqs` | Request-for-Quote documents — `buyerId`, `title`, `productCategory`, `quantityKg`, `targetPriceUSD`, `destination`, `deadline`, `status` (`OPEN`, `AWARDED`, `CLOSED`) |
+| `rfq_responses` | Supplier responses to RFQs — `rfqId`, `supplierId`, `pricePerKgUSD`, `leadTimeDays`, `message`, `awarded` |
+| `orders` | Order lifecycle — `buyerId`, `status` (`INQUIRY`, `SAMPLE_REQUESTED`, `QUOTED`, `CONFIRMED`, `IN_PRODUCTION`, `SHIPPED`, `DELIVERED`, `COMPLETED`, `CANCELLED`), `totalUSD`, `incoterm`, `destinationPort`, `shippingMethod` |
+| `order_items` | Line items per order — `orderId`, `productId`, `quantityKg`, `pricePerKg`, `totalUSD` |
 | `shipments` | Shipment tracking per order |
 | `trade_history` | Historical trade records |
 
 ### 4.7 Finance
 | Table | Purpose |
 |---|---|
-| `loans` | Trade finance loans — amount, APR, status (`PENDING`, `APPROVED`, `ACTIVE`, `REPAID`, `DEFAULTED`) |
+| `loans` | Trade finance loans — `buyerId`, `orderId` (optional FK), `principalUSD`, `feeUSD`, `totalRepaymentUSD`, `aprPercent`, `termDays`, `status` (`ACTIVE`, `REPAID`, `DEFAULTED`, `CANCELLED`), `dueAt`, `creditScoreAtIssuance` |
 | `repayments` | Individual repayment records against a loan |
 | `payment_milestones` | Scheduled payment milestones |
 | `subscriptions` | Subscription / plan management |
@@ -126,41 +129,50 @@ All tables live in `lib/db/src/schema/` and are managed by Drizzle ORM.
 Base path: `/api`
 
 ### Auth — `src/routes/auth.ts`
-| Method | Path | Description |
-|---|---|---|
-| POST | `/auth/register` | Register a new user (with optional company) |
-| POST | `/auth/login` | Authenticate, returns JWT |
-| GET | `/auth/me` | Current user profile |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/auth/register` | None | Register new user + company. Sends verification email |
+| POST | `/auth/login` | None | Authenticate, sets `fincava_auth` cookie (7-day HTTP-only) |
+| POST | `/auth/logout` | None | Clears `fincava_auth` cookie |
+| GET | `/auth/me` | Cookie | Current user profile |
+| POST | `/auth/forgot-password` | None | Creates reset token, sends `passwordResetEmail`. Neutral response regardless of email existence (no enumeration) |
+| POST | `/auth/reset-password` | None | Validates token, updates password, marks token `used`. Requires `?token=` query param |
+| GET | `/auth/verify-email` | None | Verifies email token, stamps `emailVerifiedAt`. Returns 400 on invalid/used/expired token. Requires `?token=` |
+| POST | `/auth/resend-verification` | Cookie | Sends new verification email. Returns 409 if already verified |
 
 ### Suppliers — `src/routes/suppliers.ts`
-| Method | Path | Description |
-|---|---|---|
-| POST | `/suppliers/onboard` | Multi-step supplier registration. Triggers Claude scoring (async, fire-and-forget with retry). Initialises `compliance_docs` row idempotently (`ON CONFLICT DO NOTHING`) |
-| GET | `/suppliers` | Paginated supplier list with evaluation fields (`sellableStatus`, `eligibilityStatus`, `commercialScore`) |
-| GET | `/suppliers/marketplace` | Buyer-facing listing — returns `SELLABLE` and `PUBLISHED` suppliers only |
-| GET | `/suppliers/admin-list` | Paginated admin list with AI scores + `whatsappMessageSent` |
-| GET | `/suppliers/:id` | Supplier detail with evaluation fields |
-| GET | `/suppliers/:id/evaluations` | Full evaluation history (DESC, limit 20) |
-| GET | `/suppliers/:id/transitions` | State transition history (DESC, limit 20) |
-| GET | `/suppliers/:id/document` | Latest generated compliance document |
-| POST | `/suppliers/:id/generate-document` | Trigger Claude document generation |
-| POST | `/suppliers/:id/send-whatsapp` | Manual WhatsApp message trigger (admin only) |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/suppliers/onboard` | None | Multi-step supplier registration. Triggers Claude scoring async (fire-and-forget with retry). Initialises `compliance_docs` idempotently |
+| GET | `/suppliers` | Admin | Paginated supplier list with evaluation fields — ADMIN-only |
+| GET | `/suppliers/marketplace` | None | Buyer-facing listing — returns `SELLABLE` and `PUBLISHED` suppliers only |
+| GET | `/suppliers/admin-list` | Admin | Paginated admin list with AI scores + `whatsappMessageSent` |
+| GET | `/suppliers/:id` | Admin | Supplier detail — ADMIN-only |
+| GET | `/suppliers/:id/evaluations` | Admin | Full evaluation history (DESC, limit 20) |
+| GET | `/suppliers/:id/transitions` | Admin | State transition history (DESC, limit 20) |
+| GET | `/suppliers/:id/document` | Admin | Latest generated compliance document |
+| POST | `/suppliers/:id/generate-document` | Admin | Trigger Claude document generation |
+| POST | `/suppliers/:id/send-whatsapp` | Admin | Manual WhatsApp message trigger |
 
 ### Admin Graduation — `src/routes/suppliers.ts` (admin-guarded)
 | Method | Path | Description |
 |---|---|---|
 | POST | `/admin/suppliers/:id/transition` | Manual state override. Requires `actor` (`ADMIN` or `FOUNDER`) and `justification`. `SYSTEM` actor is blocked at route layer |
 | POST | `/admin/suppliers/:id/publish` | Explicit `SELLABLE → PUBLISHED` gate. Requires `justification`. Returns 409 if supplier is not `SELLABLE` |
+| PATCH | `/admin/suppliers/:id/status` | Update supplier operational status. Body: `{ status: "PENDING"\|"ACTIVE"\|"INACTIVE", reason?: "REJECTED"\|"SUSPENDED" }`. `reason` required when `status = "INACTIVE"`. Triggers `supplierStatusChangeEmail` |
 
 ### Admin — `src/routes/admin.ts`
 | Method | Path | Description |
 |---|---|---|
+| GET | `/admin/stats` | Dashboard KPIs — user count, supplier count, order count, loan totals |
 | GET | `/admin/users` | All users with company + phone |
-| POST | `/admin/users` | Create user + optional company |
-| PATCH | `/admin/users/:id` | Update user (upserts company row if missing) |
+| POST | `/admin/users` | Create user + optional company. Triggers `adminCreatedAccountEmail` |
+| PATCH | `/admin/users/:id` | Update user (upserts company row if missing). Triggers `adminRoleChangeEmail` if role changes |
 | DELETE | `/admin/users/:id` | Delete user |
-| PATCH | `/admin/suppliers/:id/status` | Update supplier status |
-| GET | `/admin/stats` | Dashboard KPIs |
+| POST | `/admin/users/:id/reset-password` | Admin-forced password reset. Triggers `adminPasswordResetEmail` |
+| GET | `/admin/orders` | All orders with buyer info |
+| GET | `/admin/loans` | All loans with credit/status info |
+| PATCH | `/admin/loans/:id/status` | Update loan status. Body: `{ status: "ACTIVE"\|"REPAID"\|"DEFAULTED"\|"CANCELLED" }`. Triggers `loanStatusEmail` |
 
 ### Products — `src/routes/products.ts`
 | Method | Path | Description |
@@ -171,13 +183,46 @@ Base path: `/api`
 | PATCH | `/products/:id` | Update listing |
 | DELETE | `/products/:id` | Remove listing |
 
-### Orders & Finance
-| Method | Path | Description |
-|---|---|---|
-| GET/POST | `/orders` | List / create orders |
-| PATCH | `/orders/:id/status` | Advance order status |
-| GET/POST | `/financing/loans` | List / apply for trade finance loans |
-| POST | `/financing/loans/:id/repayments` | Record repayment |
+### Orders — `src/routes/orders.ts`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/buyer/orders` | Cookie + verifiedEmail | Create order. Body: `{ incoterm?, destinationPort?, shippingMethod?, notes?, items: [{ productId, quantityKg }] }`. Calculates total from `pricePerKgUSD` |
+| GET | `/buyer/orders` | Cookie | List buyer's orders |
+| GET | `/buyer/orders/:id` | Cookie | Order detail with line items |
+| GET | `/supplier/orders` | Cookie | List orders containing supplier's products |
+| PATCH | `/supplier/orders/:id/status` | Cookie | Advance order status. Ownership check: supplier must have a product in the order. Triggers `orderStatusEmail` to buyer |
+
+### Inquiries — `src/routes/inquiries.ts`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/inquiries` | Cookie | Create inquiry about a product. Body: `{ productId, buyerEmail, buyerName, company?, country?, message, quantityKg? }`. Triggers `newInquiryEmail` to supplier |
+| GET | `/buyer/inquiries` | Cookie | List buyer's submitted inquiries |
+| GET | `/supplier/inquiries` | Cookie | List inquiries about supplier's products |
+| PATCH | `/supplier/inquiries/:id` | Cookie | Supplier responds to inquiry |
+
+### RFQs — `src/routes/rfqs.ts`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/rfqs` | None | List open RFQs (public) |
+| GET | `/rfqs/:id` | None | RFQ detail (public) |
+| POST | `/rfqs` | Cookie | Create RFQ. Body: `{ title, description, productCategory, quantityKg, targetPriceUSD?, destination, destinationPort?, incoterm?, deadline }` |
+| POST | `/rfqs/:id/respond` | Cookie (supplier) | Supplier responds to RFQ. Body: `{ pricePerKgUSD, leadTimeDays, message }`. Triggers `rfqResponseEmail` to buyer |
+| POST | `/rfqs/:id/award/:responseId` | Cookie | Award RFQ to a supplier response |
+| GET | `/buyer/rfqs` | Cookie | List buyer's RFQs |
+| GET | `/supplier/rfqs` | Cookie | List RFQs with supplier's responses |
+
+### Finance — `src/routes/financing.ts`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/finance/credit` | Cookie | Buyer's credit score + available limit |
+| GET | `/finance/loans` | Cookie | Buyer's loan history |
+| POST | `/finance/loan` | Cookie + verifiedEmail | Apply for loan. Body: `{ principalUSD, termDays?, aprPercent?, orderId? }`. Credit limit enforced |
+| POST | `/finance/repay` | Cookie | Record repayment against an active loan |
+
+### Platform Stats — `src/routes/admin.ts`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/stats/platform` | None | Public KPIs — supplier count, order count, active loan value, total loan principal |
 
 ---
 
@@ -203,22 +248,7 @@ Results are stored in `ai_outputs`. On success, a WhatsApp message is sent to th
 
 The `compliance_docs` row is initialised with all fields set to `false` using `ON CONFLICT (supplier_id) DO NOTHING` — retrying onboarding never overwrites existing compliance state.
 
-**Extended compliance fields (Step 3 — Export Readiness):**
-
-The Step 3 form captures richer compliance assessment. The following fields are stored in `interactions.metadata` (JSONB):
-
-| Field | Type | Options |
-|---|---|---|
-| `has_rut` | 5-choice | Yes / In progress / Applied, awaiting / No — planning to / No — not aware |
-| `has_bank_account` | 3-choice | Yes, personal / Yes, business / No |
-| `business_structure` | choice | Persona natural / SAS / Ltda / Cooperativa / Asociación / Other |
-| `part_of_cooperative` | yes/no | Yes / No |
-| `vuce_registered` | yes/no | Yes / No |
-| `invima_required` | yes/no | Yes / No |
-| `invima_approved` | yes/no | Yes / No |
-| `ica_registered` | yes/no | Yes / No |
-| `working_capital_needed` | numeric | COP amount |
-| `export_blocker` | text | Free text description of main blocker |
+**ICA sync (P0.1):** `ica_registered` from the onboarding body is now synced into `compliance_docs.ica_registro` at submission time. Two-step: INSERT seeds value, conditional UPDATE for `true` only (upgrade-only, never downgrades).
 
 ### 6.2 Supplier Graduation State Machine (Epic 1)
 
@@ -248,17 +278,36 @@ NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED
 - `sellableMin`: 60
 - `partialMin`: 30
 
-Thresholds are versioned and immutable — bumping creates a new export, old versions are preserved for replay.
+### 6.3 Transactional Email System
 
-**Actors:**
-- `SYSTEM` — automated, forward-only transitions, always linked to an `evaluationId`
-- `ADMIN` / `FOUNDER` — manual overrides, `justification` always required, no exceptions
+All transactional emails are sent via **Resend** (`artifacts/api-server/src/lib/email.ts`). Requires `RESEND_API_KEY` secret and verified sending domain (`noreply@fincava.com`).
 
-**Compliance model:**
-- `compliance_docs` is a 1:1 current-state table (UNIQUE constraint on `supplier_id`)
-- History is NOT tracked here — if audit history is needed in future, use a separate `compliance_docs_history` append-only table; do not remove the UNIQUE constraint
+**Fire-and-forget pattern:** every email hook uses `Promise.resolve().then(async () => { ... }).catch(err => logger.warn(...))` — the HTTP response is always delivered regardless of email send result.
 
-### 6.3 Registration Flow UX
+| Template | Trigger | Recipient |
+|---|---|---|
+| `welcomeEmail` | User registration | New user |
+| `passwordResetEmail` | `POST /auth/forgot-password` | User |
+| `adminCreatedAccountEmail` | `POST /admin/users` | New user created by admin |
+| `adminPasswordResetEmail` | `POST /admin/users/:id/reset-password` | Affected user |
+| `adminRoleChangeEmail` | `PATCH /admin/users/:id` (role change) | Affected user |
+| `supplierStatusChangeEmail` | `PATCH /admin/suppliers/:id/status` | Supplier |
+| `newInquiryEmail` | `POST /inquiries` | Supplier (product owner) |
+| `rfqResponseEmail` | `POST /rfqs/:id/respond` | Buyer (RFQ owner) |
+| `orderStatusEmail` | `PATCH /supplier/orders/:id/status` | Buyer (order owner) |
+| `loanStatusEmail` | `PATCH /admin/loans/:id/status` | Buyer (loan holder) |
+
+### 6.4 Email Verification
+
+On registration, a verification token is created and a verification email is sent. Until verified, `emailVerifiedAt` remains `NULL`.
+
+- `GET /api/auth/verify-email?token=` — validates token, stamps `emailVerifiedAt`
+- `POST /api/auth/resend-verification` — sends new token (409 if already verified)
+- `requireVerifiedEmail` middleware blocks `POST /api/buyer/orders` and `POST /api/finance/loan` with 403
+
+Frontend: `/verify-email` page handles loading → success/error states based on `?token=` param. Dashboard shows a persistent banner for unverified users.
+
+### 6.5 Registration Flow UX
 
 The registration page (`/register`) supports two entry paths:
 
@@ -267,37 +316,37 @@ The registration page (`/register`) supports two entry paths:
 
 Supplier registration is a 6-step flow: Role → Account → Farm → Production → Readiness → Review. Buyer registration is 2 steps: Role → Account.
 
-### 6.4 Document Generation
+### 6.6 Document Generation
 Admins can trigger a compliance document for any supplier via "Gen Doc". Claude Sonnet generates a formatted document (stored as plain text in `ai_outputs.documentContent`). The admin can open it in the DocModal viewer (with Download-as-TXT), or re-open the last generated document via "View Last".
 
-### 6.5 WhatsApp Notifications (Twilio)
+### 6.7 WhatsApp Notifications (Twilio)
 - **Automatic**: fires immediately after successful AI scoring on onboarding
 - **Manual**: "Send WA" button in the admin supplier table — sends a Spanish-language summary with score and pathway
 - Phone normalisation: E.164 format, strips spaces, adds `+57` Colombia prefix if missing
 - The Twilio message SID is stored in `ai_outputs.whatsappMessageSent`
 
-### 6.6 Admin Console
+### 6.8 Admin Console
 Full CRUD for users and suppliers:
-- **Users**: create (with company), edit (upserts company row), delete, role management
-- **Suppliers**: status controls, graduation state controls (`transition`, `publish`), pathway badge, AI score display, document viewer, WhatsApp trigger
-- Filtering by product type, status, search (name/location)
-- Pagination
+- **Users**: create (with company + welcome email), edit (role change triggers notification email), reset password (triggers security notice), delete
+- **Suppliers**: status controls (`ACTIVE`, `INACTIVE+reason`), graduation state controls (`transition`, `publish`), pathway badge, AI score display, document viewer, WhatsApp trigger
+- **Orders**: view all orders across all buyers
+- **Loans**: view all loans, update status (triggers notification email)
+- Filtering, search, pagination throughout
 
-### 6.7 Embedded Trade Finance
-Buyers can apply for trade finance loans linked to specific orders. The finance dashboard tracks loan status, APR, outstanding balance, and repayment schedule.
+### 6.9 Embedded Trade Finance
+Buyers (with verified emails) can apply for trade finance loans linked to specific orders. Credit scoring determines available limit. The finance dashboard tracks loan status, APR, outstanding balance, and repayment schedule. Admin can update loan status triggering buyer notification.
 
-### 6.8 Multilingual Support
+### 6.10 Multilingual Support
 
 All frontend UI strings are served from `LanguageContext` (English / Spanish). Key behaviours:
 
 - **Device detection**: on first visit, `navigator.language` is checked. If it starts with `"es"`, Spanish is set automatically
 - **Persistence**: saved to `localStorage` under key `"fincava_lang"`
 - **Toggle**: EN/ES pill in the navbar
-- **Registration steps**: `StepFarmIdentity`, `StepProduction`, `StepBusinessReadiness`, and `ReviewSummary` all receive the live `lang` prop and render bilingual content
 
 Translation strings live in `src/i18n/translations.ts`.
 
-### 6.9 Supplier Marketplace (Validation Surface — Temporary)
+### 6.11 Supplier Marketplace (Validation Surface — Temporary)
 
 Route `/supplier-marketplace` is an isolated thin UI for internal validation of the graduation pipeline end-to-end. It is not part of the product marketplace and must not be expanded.
 
@@ -313,6 +362,7 @@ Route `/supplier-marketplace` is an isolated thin UI for internal validation of 
 |---|---|---|
 | Anthropic Claude Haiku | AI scoring | `ANTHROPIC_API_KEY`, `ANTHROPIC_SCORING_MODEL` |
 | Anthropic Claude Sonnet | Document generation | `ANTHROPIC_API_KEY`, `ANTHROPIC_DOCUMENT_MODEL` |
+| Resend | Transactional emails (all system emails) | `RESEND_API_KEY` (secret); `noreply@fincava.com` must be verified domain |
 | Twilio WhatsApp | Supplier notifications | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
 | PostgreSQL | Primary datastore | `DATABASE_URL` (Replit-managed) |
 
@@ -321,10 +371,16 @@ Route `/supplier-marketplace` is an isolated thin UI for internal validation of 
 ## 8. Auth & Security
 
 - Passwords hashed with **bcrypt** (10 rounds)
-- Sessions managed via **JWT** — signed with `JWT_SECRET`, 7-day expiry
+- Sessions managed via **HTTP-only cookies** — cookie name `fincava_auth`, 7-day expiry, `httpOnly: true`, `secure: true` in production, `sameSite: lax`
+- `requireAuth` middleware reads session from cookie (not Authorization header)
 - All admin and supplier-mutating routes are behind `requireAuth` + `requireAdmin` middleware
+- `requireVerifiedEmail` middleware guards order creation and loan applications — returns 403 for unverified users
 - Request bodies validated with Zod schemas before reaching business logic
 - Admin graduation routes block `SYSTEM` actor usage at the route layer
+- `GET /api/suppliers` and `GET /api/suppliers/:id` are ADMIN-only (P0.2 + P0.4 fixes)
+- Password reset tokens stored in `password_reset_tokens` table, marked `used = true` on consumption
+- Email verification tokens stored in `email_verification_tokens` table
+- Forgot-password endpoint returns neutral message regardless of email existence (prevents enumeration)
 
 ---
 
@@ -339,6 +395,8 @@ The app is published via **Replit's native deployment system**.
 
 Replit handles build, hosting, TLS, health checks (path: `/api/healthz`), and path-based routing.
 
+Note: `/api/health` (no `z`) is NOT registered and returns 404. Use `/api/healthz` for health checks.
+
 GitHub is used as a source-control mirror. The Replit project is the source of truth.
 
 ---
@@ -352,21 +410,25 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | Component Preview | `pnpm --filter @workspace/mockup-sandbox run dev` |
 | DB schema push | `psql $DATABASE_URL` (direct SQL — avoids interactive drizzle-kit prompts) |
 
+Server ports: API on `8080`, Vite on `25876`, Component Preview on `8081`.
+
 ---
 
 ## 11. Known Gaps / Planned Work
 
-| Area | Description |
-|---|---|
-| No job queue | `scoreSupplier` and `evaluateSupplier` run via `setImmediate` (fire-and-forget). Jobs can be lost on process crash. Phase II: database-backed job queue |
-| Thin marketplace UI | `/supplier-marketplace` is a validation surface only — not buyer-ready. Phase II: pagination, filtering, search, sorting |
-| Register page shell translations | Card title, field labels, button text, and Zod validation error messages in `register.tsx` are still English-only |
-| Mobile navbar | Language toggle and nav links not yet adapted for mobile viewports |
-| Compliance history | `compliance_docs` stores current state only. Audit history requires a separate `compliance_docs_history` table (do not remove UNIQUE constraint) |
-| Public supplier dataset exposure | FIXED (P0.2) — GET /api/suppliers now ADMIN-only. Buyer surface via /suppliers/marketplace. |
-| GET /suppliers/:id unguarded | FIXED (P0.4 — 2026-04-23) — requireAuth + requireAdmin applied. ADMIN-only in v0. Buyer detail surface will be a separate sanitized route in Epic 2. |
-| Supplier detail page — BLOCKER | SupplierDetail (supplier-detail.tsx:15) calls GET /api/suppliers/:id without admin guard. Must migrate to sanitized buyer route before Epic 2 UI work. |
-| ICA sync disconnect | FIXED (P0.1) — ica_registered from onboarding now syncs to compliance_docs.ica_registro. Upgrade-only. Full compliance unification deferred to Phase 4. |
+| Area | Status | Description |
+|---|---|---|
+| No job queue | Open | `scoreSupplier` and `evaluateSupplier` run via `setImmediate` (fire-and-forget). Jobs can be lost on process crash. Phase II: database-backed job queue |
+| Thin marketplace UI | Open | `/supplier-marketplace` is a validation surface only — not buyer-ready. Phase II: pagination, filtering, search, sorting |
+| Register page shell translations | Open | Card title, field labels, button text, and Zod validation error messages in `register.tsx` are still English-only |
+| Mobile navbar | Open | Language toggle and nav links not yet adapted for mobile viewports |
+| Compliance history | Open | `compliance_docs` stores current state only. Audit history requires a separate `compliance_docs_history` table (do not remove UNIQUE constraint) |
+| Buyer supplier detail route | Open | `SupplierDetail` currently calls ADMIN-only `GET /api/suppliers/:id`. Requires sanitized buyer-facing route before Epic 2 UI work |
+| `/api/health` missing | Minor | `/api/health` returns 404. Use `/api/healthz`. Add simple health route before using load balancer health checks |
+| Email domain verification | Config | `noreply@fincava.com` must be verified in Resend dashboard for email delivery. Dev sends are no-ops (WARN log) if `RESEND_API_KEY` unset |
+| Public supplier dataset exposure | FIXED (P0.2) | GET /api/suppliers now ADMIN-only. Buyer surface via /suppliers/marketplace |
+| GET /suppliers/:id unguarded | FIXED (P0.4) | requireAuth + requireAdmin applied. ADMIN-only in v0 |
+| ICA sync disconnect | FIXED (P0.1) | ica_registered from onboarding now syncs to compliance_docs.ica_registro |
 
 ---
 
@@ -378,18 +440,23 @@ GitHub is used as a source-control mirror. The Replit project is the source of t
 | Apr 2026 | Step 3 Export Readiness expanded: 6 new compliance fields, MultiChoice component, COP capital label |
 | Apr 2026 | Registration flow UX: `?role=` params on all home CTAs, skip-role-picker logic, click-to-advance role cards |
 | Apr 2026 | Language system: device-language detection via `navigator.language`, live `lang` prop wired into all registration sub-components |
-| Apr 2026 | Copy audit: em dashes replaced with commas/colons across `translations.ts`, `investors.tsx`, and `trust-badge.tsx` |
-| Apr 2026 | Epic 1 — Supplier Graduation State Machine: `evaluateSupplier`, `transitionTo`, `markPublished`, state machine (NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED), threshold versioning, `supplier_evaluations` + `supplier_state_transitions` tables |
-| Apr 2026 | Compliance model hardened: `compliance_docs` UNIQUE constraint on `supplier_id`, `ON CONFLICT DO NOTHING` on onboard insert, `ORDER BY id DESC LIMIT 1` defensive query |
-| Apr 2026 | `scoreSupplier` hardened: retry logic (3 attempts, exponential backoff), latency logging, `Number.isFinite` output validation, `logger.error` + Sentry on final failure, outer `.catch()` removed |
-| Apr 2026 | Admin graduation routes: `POST /admin/suppliers/:id/transition`, `POST /admin/suppliers/:id/publish` with SELLABLE gate (409) |
-| Apr 2026 | Marketplace API: `GET /suppliers/marketplace` (SELLABLE/PUBLISHED only), evaluation + transition history endpoints |
+| Apr 2026 | Epic 1 — Supplier Graduation State Machine: full pipeline, threshold versioning, audit tables |
+| Apr 2026 | Compliance model hardened: `compliance_docs` UNIQUE constraint, `ON CONFLICT DO NOTHING` on onboard insert |
+| Apr 2026 | `scoreSupplier` hardened: retry logic (3 attempts), latency logging, `Number.isFinite` validation, Sentry on final failure |
+| Apr 2026 | Admin graduation routes: transition + publish with SELLABLE gate |
+| Apr 2026 | Marketplace API: SELLABLE/PUBLISHED filter, evaluation + transition history endpoints |
 | Apr 2026 | AI model split: scoring → `claude-haiku-4-5`, document generation → `claude-sonnet-4-6` |
 | Apr 2026 | `lib/config/thresholds.ts` introduced — versioned, immutable threshold definitions |
-| Apr 2026 | `ops/` directory: `execution_map.md`, `post_mvp_plan.md`, `epic_1_supplier_graduation.md`, `assets/` |
-| 2026-04-23 | P0.1 — ICA sync fix: ica_registered from onboarding metadata now updates compliance_docs.ica_registro |
-| 2026-04-23 | P0.2 — GET /api/suppliers restricted to ADMIN-only (requireAuth + requireAdmin). Buyer surface via /suppliers/marketplace |
-| 2026-04-23 | H4-B found: GET /suppliers/:id unguarded — fix in P0.4 |
-| 2026-04-23 | P0.4 — GET /suppliers/:id restricted to ADMIN-only (requireAuth + requireAdmin). Buyer detail route deferred to Epic 2 as separate sanitized endpoint. Cascade: NO — sub-routes carry independent guards. |
-| 2026-04-24 | Epic 2 T1 — SupplierOnboardingInput wired into POST /suppliers/onboard. rawBody normalization layer + typedInput (Partial<SupplierOnboardingInput>) introduced. Additive only — zero runtime changes. 12 field drift mappings confirmed. tsc pre-existing errors confirmed pre-T1. |
-| 2026-04-24 | Epic 2 T2 — buildScoringInput abstraction layer introduced. New file: artifacts/api-server/src/services/scoring-input.ts. Extracts 4 DB reads (supplier, farm, economics, compliance_docs) from scoreSupplier into typed ScoringInput contract. Destructured inside attemptScore (retry-loop placement preserves per-attempt fresh-read behaviour). Dev-only logger.debug of AI input added for prompt equivalence verification. AI payload structure and all field values identical to pre-T2 baseline. Zero behavior changes. |
+| 2026-04-23 | P0.1 — ICA sync fix |
+| 2026-04-23 | P0.2 — GET /api/suppliers restricted to ADMIN-only |
+| 2026-04-23 | P0.4 — GET /api/suppliers/:id restricted to ADMIN-only |
+| 2026-04-24 | Epic 2 T1 — SupplierOnboardingInput normalization layer |
+| 2026-04-24 | Epic 2 T2 — buildScoringInput abstraction layer |
+| Apr 2026 (late) | Auth migrated to HTTP-only cookie sessions (`fincava_auth`). JWT Bearer tokens removed |
+| Apr 2026 (late) | Email infrastructure: Resend integration, 10 transactional email templates, fire-and-forget hooks throughout API |
+| Apr 2026 (late) | Email verification: `email_verification_tokens` table, `users.emailVerifiedAt`, verify/resend routes, `requireVerifiedEmail` middleware, frontend `/verify-email` page, dashboard banner |
+| Apr 2026 (late) | Role-change notification: `adminRoleChangeEmail` triggered on admin role update |
+| Apr 2026 (late) | Full transaction layer: orders (buyer/supplier), RFQs, inquiries, trade finance (loans/repayments) |
+| Apr 2026 (late) | `password_reset_tokens` table: token lifecycle with `used` flag, `POST /auth/forgot-password` sends real email |
+| Apr 2026 (late) | `GET /api/stats/platform` — public platform KPIs endpoint |
+| Apr 2026 (late) | 9-suite E2E test campaign — all suites PASS |
