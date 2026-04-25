@@ -400,6 +400,39 @@ export function rfqResponseEmail(opts: {
   return { html, text, subject };
 }
 
+// ── Admin role-change template ────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<string, string> = {
+  BUYER: "Buyer",
+  SUPPLIER: "Supplier",
+  ADMIN: "Administrator",
+};
+
+export function adminRoleChangeEmail(opts: {
+  name: string;
+  oldRole: string;
+  newRole: string;
+  loginUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = "Your Fincava account role has been updated";
+  const oldLabel = ROLE_LABELS[opts.oldRole] ?? opts.oldRole;
+  const newLabel = ROLE_LABELS[opts.newRole] ?? opts.newRole;
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.name)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Your account role has been changed</h2>
+    <p>An administrator has updated your account role on Fincava. Here are the details:</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 20px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Previous role</td><td style="padding:6px 0;">${esc(oldLabel)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">New role</td><td style="padding:6px 0;font-weight:600;">${esc(newLabel)}</td></tr>
+    </table>
+    <p>Your dashboard and permissions have been updated to reflect your new role. Please log in to access your account.</p>
+    <p><a href="${opts.loginUrl}" class="btn">Log in to my account</a></p>
+    <p class="note">If you did not expect this change or believe it was made in error, please contact us immediately at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.name},\n\nAn administrator has updated your Fincava account role.\n\nPrevious role: ${oldLabel}\nNew role: ${newLabel}\n\nYour dashboard and permissions have been updated. Log in here: ${opts.loginUrl}\n\nIf you did not expect this change, please contact us at info@fincava.com.\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 // ── Account lifecycle templates ───────────────────────────────────────────────
 
 export function welcomeEmail(opts: {

@@ -7,7 +7,7 @@ import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
-import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail } from "../lib/email";
+import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -172,6 +172,18 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
 
   const { email, role, firstName, lastName, country, phone, companyName } = parsed.data;
 
+  // Fetch current user state before applying changes so we can detect a role change
+  const [currentUser] = await db
+    .select({ email: usersTable.email, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  if (!currentUser) { res.status(404).json({ error: "User not found" }); return; }
+
+  // Record whether a role change is happening before we apply the update
+  const roleChanged = role !== undefined && role !== currentUser.role;
+  const oldRole = currentUser.role;
+
   if (email || role) {
     const updates: Record<string, any> = {};
     if (email) updates.email = email;
@@ -211,6 +223,34 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
   }
 
   res.json({ success: true });
+
+  // Fire-and-forget: notify the affected user if their role was changed
+  if (roleChanged && role) {
+    Promise.resolve().then(async () => {
+      try {
+        const recipientEmail = email ?? currentUser.email;
+        if (!recipientEmail) return;
+        const [profile] = await db
+          .select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+          .from(profilesTable)
+          .where(eq(profilesTable.userId, userId));
+        const name = profile?.firstName
+          ? `${profile.firstName}${profile.lastName ? ` ${profile.lastName}` : ""}`
+          : recipientEmail;
+        const appBaseUrl = process.env["FRONTEND_URL"]
+          ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+        const emailContent = adminRoleChangeEmail({
+          name,
+          oldRole,
+          newRole: role,
+          loginUrl: `${appBaseUrl}/login`,
+        });
+        await sendEmail({ to: recipientEmail, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+      } catch (err) {
+        logger.error({ err, userId }, "Failed to send role-change email");
+      }
+    });
+  }
 });
 
 // ── POST /api/admin/users/:id/reset-password ─────────────────────────────────
