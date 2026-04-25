@@ -91,13 +91,13 @@ export function supplierApplicationConfirmationEmail(opts: {
   primaryProduct?: string | null;
 }): { html: string; text: string } {
   const html = baseTemplate(`
-    <p>Estimado/a ${opts.name},</p>
+    <p>Estimado/a ${esc(opts.name)},</p>
     <p>Hemos recibido su solicitud de registro en <strong>Fincava</strong>. Nuestro equipo revisará su información y se pondrá en contacto con usted a la brevedad posible.</p>
     <p><strong>Detalles de su solicitud:</strong></p>
     <ul style="padding-left:20px;margin:0 0 16px;">
-      <li>Nombre: ${opts.name}</li>
-      <li>Municipio: ${opts.municipio}</li>
-      ${opts.primaryProduct ? `<li>Producto principal: ${opts.primaryProduct}</li>` : ""}
+      <li>Nombre: ${esc(opts.name)}</li>
+      <li>Municipio: ${esc(opts.municipio)}</li>
+      ${opts.primaryProduct ? `<li>Producto principal: ${esc(opts.primaryProduct)}</li>` : ""}
     </ul>
     <p>Mientras tanto, si tiene alguna pregunta, puede contactarnos en <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
     <p class="note">Gracias por confiar en Fincava para impulsar su negocio agrícola hacia los mercados internacionales.</p>
@@ -121,12 +121,12 @@ export function supplierApplicationAdminAlertEmail(opts: {
   const html = baseTemplate(`
     <p>A new supplier has submitted an onboarding application on Fincava.</p>
     <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
-      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Contact name</td><td style="padding:6px 0;font-weight:600;">${opts.name}</td></tr>
-      ${displayName ? `<tr><td style="padding:6px 0;color:#78716c;">Farm / company</td><td style="padding:6px 0;font-weight:600;">${displayName}</td></tr>` : ""}
-      <tr><td style="padding:6px 0;color:#78716c;">Phone</td><td style="padding:6px 0;">${opts.phone}</td></tr>
-      ${opts.email ? `<tr><td style="padding:6px 0;color:#78716c;">Email</td><td style="padding:6px 0;">${opts.email}</td></tr>` : ""}
-      <tr><td style="padding:6px 0;color:#78716c;">Location</td><td style="padding:6px 0;">${opts.municipio}${opts.department ? `, ${opts.department}` : ""}</td></tr>
-      ${opts.primaryProduct ? `<tr><td style="padding:6px 0;color:#78716c;">Product</td><td style="padding:6px 0;">${opts.primaryProduct}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Contact name</td><td style="padding:6px 0;font-weight:600;">${esc(opts.name)}</td></tr>
+      ${displayName ? `<tr><td style="padding:6px 0;color:#78716c;">Farm / company</td><td style="padding:6px 0;font-weight:600;">${esc(displayName)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">Phone</td><td style="padding:6px 0;">${esc(opts.phone)}</td></tr>
+      ${opts.email ? `<tr><td style="padding:6px 0;color:#78716c;">Email</td><td style="padding:6px 0;">${esc(opts.email)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">Location</td><td style="padding:6px 0;">${esc(opts.municipio)}${opts.department ? `, ${esc(opts.department)}` : ""}</td></tr>
+      ${opts.primaryProduct ? `<tr><td style="padding:6px 0;color:#78716c;">Product</td><td style="padding:6px 0;">${esc(opts.primaryProduct)}</td></tr>` : ""}
       <tr><td style="padding:6px 0;color:#78716c;">Supplier ID</td><td style="padding:6px 0;">#${opts.supplierId}</td></tr>
     </table>
     <p><a href="${opts.adminUrl}" class="btn">Review in admin panel</a></p>
@@ -181,7 +181,7 @@ export function supplierStatusChangeEmail(opts: {
 
   const copy = STATUS_COPY[key];
   const html = baseTemplate(`
-    <p>Estimado/a ${opts.name},</p>
+    <p>Estimado/a ${esc(opts.name)},</p>
     <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${copy.headline}</h2>
     <p>${copy.body}</p>
     <p>${copy.nextSteps}</p>
@@ -429,7 +429,7 @@ export function adminRoleChangeEmail(opts: {
     <p><a href="${opts.loginUrl}" class="btn">Log in to my account</a></p>
     <p class="note">If you did not expect this change or believe it was made in error, please contact us immediately at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
   `);
-  const text = `Hello ${opts.name},\n\nAn administrator has updated your Fincava account role.\n\nPrevious role: ${oldLabel}\nNew role: ${newLabel}\n\nYour dashboard and permissions have been updated. Log in here: ${opts.loginUrl}\n\nIf you did not expect this change, please contact us at info@fincava.com.\n\n— Equipo Fincava`;
+  const text = `Hello ${esc(opts.name)},\n\nAn administrator has updated your Fincava account role.\n\nPrevious role: ${oldLabel}\nNew role: ${newLabel}\n\nYour dashboard and permissions have been updated. Log in here: ${opts.loginUrl}\n\nIf you did not expect this change, please contact us at info@fincava.com.\n\n— Equipo Fincava`;
   return { html, text, subject };
 }
 
