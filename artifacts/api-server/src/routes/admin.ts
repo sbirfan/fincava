@@ -7,7 +7,7 @@ import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
-import { sendEmail, supplierStatusChangeEmail } from "../lib/email";
+import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -313,6 +313,40 @@ router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise
   const [updated] = await db.update(ordersTable).set({ status: parsed.data.status as any }).where(eq(ordersTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Order not found" }); return; }
   res.json({ success: true, status: updated.status });
+
+  // Fire-and-forget: notify buyer of order status change
+  Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const [buyerUser] = await db.select({ email: usersTable.email })
+        .from(usersTable).where(eq(usersTable.id, updated.buyerId));
+      if (!buyerUser?.email) return;
+
+      const [buyerProfile] = await db.select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+        .from(profilesTable).where(eq(profilesTable.userId, updated.buyerId));
+      const buyerName = buyerProfile
+        ? `${buyerProfile.firstName} ${buyerProfile.lastName}`.trim()
+        : "Customer";
+
+      const emailContent = orderStatusEmail({
+        buyerName,
+        orderId: updated.id,
+        newStatus: updated.status,
+        totalUSD: updated.totalUSD,
+        incoterm: updated.incoterm ?? null,
+        destinationPort: updated.destinationPort ?? null,
+        orderUrl: `${appBaseUrl}/dashboard/orders/${updated.id}`,
+      });
+
+      if (emailContent) {
+        await sendEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+      }
+    } catch (err) {
+      logger.warn({ err, orderId: id }, "Admin order status email failed");
+    }
+  });
 });
 
 // ── PATCH /api/admin/loans/:id/status ────────────────────────────────────────
@@ -326,6 +360,41 @@ router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<
   const [updated] = await db.update(loansTable).set({ status: parsed.data.status as any }).where(eq(loansTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Loan not found" }); return; }
   res.json({ success: true, status: updated.status });
+
+  // Fire-and-forget: notify buyer of loan status change
+  Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const [buyerUser] = await db.select({ email: usersTable.email })
+        .from(usersTable).where(eq(usersTable.id, updated.buyerId));
+      if (!buyerUser?.email) return;
+
+      const [buyerProfile] = await db.select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+        .from(profilesTable).where(eq(profilesTable.userId, updated.buyerId));
+      const buyerName = buyerProfile
+        ? `${buyerProfile.firstName} ${buyerProfile.lastName}`.trim()
+        : "Customer";
+
+      const emailContent = loanStatusEmail({
+        buyerName,
+        loanId: updated.id,
+        newStatus: updated.status,
+        principalUSD: updated.principalUSD,
+        totalRepaymentUSD: updated.totalRepaymentUSD,
+        termDays: updated.termDays,
+        dueAt: updated.dueAt.toISOString(),
+        financeUrl: `${appBaseUrl}/dashboard/finance`,
+      });
+
+      if (emailContent) {
+        await sendEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+      }
+    } catch (err) {
+      logger.warn({ err, loanId: id }, "Admin loan status email failed");
+    }
+  });
 });
 
 // ── PATCH /api/admin/suppliers/:id/status ────────────────────────────────────

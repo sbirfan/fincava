@@ -8,6 +8,8 @@ import {
   UpdateOrderStatusBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
+import { sendEmail, orderStatusEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -189,6 +191,40 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
 
   const result = await buildOrderResponse(order);
   res.json(result);
+
+  // Fire-and-forget: notify buyer of order status change
+  Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const [buyerUser] = await db.select({ email: usersTable.email })
+        .from(usersTable).where(eq(usersTable.id, order.buyerId));
+      if (!buyerUser?.email) return;
+
+      const [buyerProfile] = await db.select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+        .from(profilesTable).where(eq(profilesTable.userId, order.buyerId));
+      const buyerName = buyerProfile
+        ? `${buyerProfile.firstName} ${buyerProfile.lastName}`.trim()
+        : "Customer";
+
+      const emailContent = orderStatusEmail({
+        buyerName,
+        orderId: order.id,
+        newStatus: order.status,
+        totalUSD: order.totalUSD,
+        incoterm: order.incoterm ?? null,
+        destinationPort: order.destinationPort ?? null,
+        orderUrl: `${appBaseUrl}/dashboard/orders/${order.id}`,
+      });
+
+      if (emailContent) {
+        await sendEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+      }
+    } catch (err) {
+      logger.warn({ err, orderId: order.id }, "Order status email failed");
+    }
+  });
 });
 
 export default router;

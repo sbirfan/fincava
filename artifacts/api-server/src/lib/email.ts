@@ -192,6 +192,161 @@ export function supplierStatusChangeEmail(opts: {
   return { html, text, subject: copy.subject };
 }
 
+// ── Order & loan status templates ────────────────────────────────────────────
+
+type OrderStatusKey =
+  | "INQUIRY" | "SAMPLE_REQUESTED" | "QUOTED" | "CONFIRMED"
+  | "IN_PRODUCTION" | "SHIPPED" | "DELIVERED" | "COMPLETED" | "CANCELLED";
+
+const ORDER_STATUS_COPY: Record<OrderStatusKey, { subject: string; headline: string; body: string; nextSteps: string }> = {
+  INQUIRY: {
+    subject: "We received your order inquiry",
+    headline: "Order inquiry received",
+    body: "Your order inquiry has been received and is awaiting supplier review.",
+    nextSteps: "We'll notify you as soon as the supplier responds.",
+  },
+  SAMPLE_REQUESTED: {
+    subject: "Sample requested for your order",
+    headline: "Sample requested",
+    body: "A product sample has been requested for your order. The supplier will arrange shipment of a sample for your review.",
+    nextSteps: "Once you approve the sample, your order will proceed to production.",
+  },
+  QUOTED: {
+    subject: "A quote is ready for your order",
+    headline: "Quote ready",
+    body: "Your supplier has prepared a quote for your order. Please review the details in your account.",
+    nextSteps: "Log in to view the quote and confirm your order.",
+  },
+  CONFIRMED: {
+    subject: "Your order has been confirmed",
+    headline: "Order confirmed ✓",
+    body: "Great news — your order has been <strong>confirmed</strong> by the supplier and is now in our system.",
+    nextSteps: "The supplier will begin production soon. We'll notify you when your order ships.",
+  },
+  IN_PRODUCTION: {
+    subject: "Your order is now in production",
+    headline: "Order in production",
+    body: "Your order is currently <strong>in production</strong>. The supplier is preparing your goods.",
+    nextSteps: "We'll notify you as soon as your order is ready to ship.",
+  },
+  SHIPPED: {
+    subject: "Your order has been shipped",
+    headline: "Order shipped 🚢",
+    body: "Your order is on its way! The supplier has confirmed shipment of your goods.",
+    nextSteps: "You can track your order status in your Fincava account.",
+  },
+  DELIVERED: {
+    subject: "Your order has been delivered",
+    headline: "Order delivered",
+    body: "Your order has been marked as <strong>delivered</strong>. We hope everything arrived in perfect condition.",
+    nextSteps: "If you have any issues with the shipment, please contact us at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a>.",
+  },
+  COMPLETED: {
+    subject: "Your order is complete",
+    headline: "Order complete ✓",
+    body: "Your order has been successfully <strong>completed</strong>. Thank you for trading on Fincava.",
+    nextSteps: "We'd love to have you back. Browse the marketplace to discover more Colombian agricultural products.",
+  },
+  CANCELLED: {
+    subject: "Your order has been cancelled",
+    headline: "Order cancelled",
+    body: "Your order has been <strong>cancelled</strong>. We're sorry for the inconvenience.",
+    nextSteps: "If you have questions or would like to place a new order, please contact us at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a>.",
+  },
+};
+
+export function orderStatusEmail(opts: {
+  buyerName: string;
+  orderId: number;
+  newStatus: string;
+  totalUSD: number;
+  incoterm?: string | null;
+  destinationPort?: string | null;
+  orderUrl: string;
+}): { html: string; text: string; subject: string } | null {
+  const copy = ORDER_STATUS_COPY[opts.newStatus as OrderStatusKey];
+  if (!copy) return null;
+
+  const orderRef = `ORD-${String(opts.orderId).padStart(4, "0")}`;
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.buyerName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${copy.headline}</h2>
+    <p>${copy.body}</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Order</td><td style="padding:6px 0;font-weight:600;">${esc(orderRef)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Value</td><td style="padding:6px 0;">$${opts.totalUSD.toFixed(2)}</td></tr>
+      ${opts.incoterm ? `<tr><td style="padding:6px 0;color:#78716c;">Incoterm</td><td style="padding:6px 0;">${esc(opts.incoterm)}</td></tr>` : ""}
+      ${opts.destinationPort ? `<tr><td style="padding:6px 0;color:#78716c;">Destination</td><td style="padding:6px 0;">${esc(opts.destinationPort)}</td></tr>` : ""}
+    </table>
+    <p>${copy.nextSteps}</p>
+    <p><a href="${opts.orderUrl}" class="btn">View order</a></p>
+    <p class="note">Questions? Contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.buyerName},\n\n${copy.headline}\n\n${copy.body.replace(/<[^>]+>/g, "")}\n\nOrder: ${orderRef}\nValue: $${opts.totalUSD.toFixed(2)}${opts.incoterm ? `\nIncoterm: ${opts.incoterm}` : ""}${opts.destinationPort ? `\nDestination: ${opts.destinationPort}` : ""}\n\n${copy.nextSteps.replace(/<[^>]+>/g, "")}\n\nView order: ${opts.orderUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject: `${copy.subject} (${orderRef})` };
+}
+
+type LoanStatusKey = "ACTIVE" | "REPAID" | "DEFAULTED" | "CANCELLED";
+
+const LOAN_STATUS_COPY: Record<LoanStatusKey, { subject: string; headline: string; body: string; nextSteps: string }> = {
+  ACTIVE: {
+    subject: "Your financing application has been approved",
+    headline: "Financing approved ✓",
+    body: "Your Fincava financing application has been <strong>approved</strong>. The funds have been disbursed and your loan is now active.",
+    nextSteps: "Log in to your account to view your repayment schedule and due date.",
+  },
+  REPAID: {
+    subject: "Your loan has been fully repaid",
+    headline: "Loan repaid — thank you!",
+    body: "Congratulations — your Fincava loan has been <strong>fully repaid</strong>. Your credit score has been updated to reflect your on-time repayment.",
+    nextSteps: "Your improved credit score may qualify you for a higher credit limit on future financing.",
+  },
+  DEFAULTED: {
+    subject: "Important: Your Fincava loan is in default",
+    headline: "Loan in default",
+    body: "Your Fincava loan has been marked as <strong>defaulted</strong>. This may affect your credit score and future financing eligibility.",
+    nextSteps: "Please contact us immediately at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a> to discuss a repayment arrangement.",
+  },
+  CANCELLED: {
+    subject: "Your Fincava financing has been cancelled",
+    headline: "Financing cancelled",
+    body: "Your Fincava financing has been <strong>cancelled</strong>.",
+    nextSteps: "If you believe this is an error or have questions, please contact us at <a href=\"mailto:info@fincava.com\" style=\"color:#16a34a;\">info@fincava.com</a>.",
+  },
+};
+
+export function loanStatusEmail(opts: {
+  buyerName: string;
+  loanId: number;
+  newStatus: string;
+  principalUSD: number;
+  totalRepaymentUSD: number;
+  termDays: number;
+  dueAt: string;
+  financeUrl: string;
+}): { html: string; text: string; subject: string } | null {
+  const copy = LOAN_STATUS_COPY[opts.newStatus as LoanStatusKey];
+  if (!copy) return null;
+
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.buyerName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${copy.headline}</h2>
+    <p>${copy.body}</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:160px;">Loan ID</td><td style="padding:6px 0;font-weight:600;">#${opts.loanId}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Principal</td><td style="padding:6px 0;">$${opts.principalUSD.toFixed(2)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Total repayment</td><td style="padding:6px 0;">$${opts.totalRepaymentUSD.toFixed(2)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Term</td><td style="padding:6px 0;">${opts.termDays} days</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Due date</td><td style="padding:6px 0;">${new Date(opts.dueAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</td></tr>
+    </table>
+    <p>${copy.nextSteps}</p>
+    <p><a href="${opts.financeUrl}" class="btn">View my financing</a></p>
+    <p class="note">Questions? Contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.buyerName},\n\n${copy.headline}\n\n${copy.body.replace(/<[^>]+>/g, "")}\n\nLoan ID: #${opts.loanId}\nPrincipal: $${opts.principalUSD.toFixed(2)}\nTotal repayment: $${opts.totalRepaymentUSD.toFixed(2)}\nTerm: ${opts.termDays} days\nDue: ${new Date(opts.dueAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}\n\n${copy.nextSteps.replace(/<[^>]+>/g, "")}\n\nView financing: ${opts.financeUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject: copy.subject };
+}
+
 // ── Inquiry & RFQ notification templates ─────────────────────────────────────
 
 export function newInquiryEmail(opts: {
