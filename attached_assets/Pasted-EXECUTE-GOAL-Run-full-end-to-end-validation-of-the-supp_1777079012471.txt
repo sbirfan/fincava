@@ -1,0 +1,37 @@
+EXECUTE.
+
+GOAL
+Run full end-to-end validation of the supplier pipeline:
+Onboarding → AI Scoring → Evaluation → State Transition → DB persistence
+This is a TEST ONLY task.
+DO NOT modify any code.
+
+SCOPE
+Validate the full pipeline for a new supplier:
+1. POST /api/suppliers/onboard
+2. scoreSupplier executes
+3. ai_outputs row created
+4. evaluateSupplier executes
+5. supplier_evaluations row created
+6. supplier_state_transitions row created
+7. suppliers table updated
+
+STEP 1 — CREATE TEST SUPPLIER
+Send POST request:
+/api/suppliers/onboard
+Payload:
+{
+"contact_name": "E2E Test Supplier",
+"phone": "3001111111",
+"farm_size_hectares": 3,
+"municipio": "Test Region",
+"primary_product": "cafe",
+"annual_volume_kg": 1000,
+"ica_registered": true,
+"has_rut": true,
+"officer_name": "Test Officer",
+"consent_given": true
+}
+Capture:
+* HTTP status
+* supplier_id from response
