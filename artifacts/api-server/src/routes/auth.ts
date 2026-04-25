@@ -6,7 +6,7 @@ import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
 import { logger } from "../lib/logger";
-import { sendEmail, passwordResetEmail } from "../lib/email";
+import { sendEmail, passwordResetEmail, welcomeEmail } from "../lib/email";
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -93,6 +93,22 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   res.status(201).json({
     token,
     user: buildUserResponse(user, profile, company),
+  });
+
+  // Fire-and-forget: send welcome email to new registrant
+  Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+      const emailContent = welcomeEmail({
+        firstName: firstName || "there",
+        role: user.role,
+        loginUrl: `${appBaseUrl}/login`,
+      });
+      await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    } catch (err) {
+      logger.warn({ err, userId: user.id }, "Welcome email failed");
+    }
   });
 });
 

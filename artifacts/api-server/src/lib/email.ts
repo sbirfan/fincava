@@ -400,6 +400,62 @@ export function rfqResponseEmail(opts: {
   return { html, text, subject };
 }
 
+// ── Account lifecycle templates ───────────────────────────────────────────────
+
+export function welcomeEmail(opts: {
+  firstName: string;
+  role: "BUYER" | "SUPPLIER" | string;
+  loginUrl: string;
+}): { html: string; text: string; subject: string } {
+  const isBuyer = opts.role === "BUYER";
+  const subject = "Welcome to Fincava!";
+  const roleLine = isBuyer
+    ? "As a buyer you can source premium Colombian agricultural products, request quotes from verified exporters, and access flexible trade financing."
+    : "As a supplier you can list your agricultural products, respond to buyer inquiries and RFQs, and grow your export business across Latin America.";
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.firstName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Welcome to Fincava 🌿</h2>
+    <p>Your account is active and ready to use. ${roleLine}</p>
+    <p><a href="${opts.loginUrl}" class="btn">Go to my account</a></p>
+    <p class="note">If you have any questions, our team is here to help at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.firstName},\n\nWelcome to Fincava! Your account is active.\n\n${roleLine}\n\nLog in here: ${opts.loginUrl}\n\nQuestions? Email us at info@fincava.com\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+export function adminCreatedAccountEmail(opts: {
+  firstName: string;
+  email: string;
+  forgotPasswordUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = "Your Fincava account has been created";
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.firstName)},</p>
+    <p>An administrator has created a Fincava account for you using the email address <strong>${esc(opts.email)}</strong>.</p>
+    <p>To set your own password and access your account, click the button below:</p>
+    <p><a href="${opts.forgotPasswordUrl}" class="btn">Set my password</a></p>
+    <p class="note">If you weren't expecting this email or don't recognise this account, please contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.firstName},\n\nAn administrator has created a Fincava account for you (${opts.email}).\n\nVisit the link below to set your own password:\n${opts.forgotPasswordUrl}\n\nNot expecting this? Contact info@fincava.com\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+export function adminPasswordResetEmail(opts: {
+  firstName: string;
+  loginUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = "Your Fincava password has been changed";
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.firstName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Security notice</h2>
+    <p>An administrator has reset the password on your Fincava account. You can log in with your new password immediately.</p>
+    <p><a href="${opts.loginUrl}" class="btn">Log in to my account</a></p>
+    <p class="note">If you did not request this change, please contact us right away at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a> so we can secure your account.</p>
+  `);
+  const text = `Hello ${opts.firstName},\n\nAn administrator has reset the password on your Fincava account. Log in with your new credentials:\n${opts.loginUrl}\n\nIf you did not expect this, contact info@fincava.com immediately.\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 export function passwordResetEmail(opts: { resetUrl: string; firstName: string }): { html: string; text: string } {
   const html = baseTemplate(`
     <p>Hello ${opts.firstName},</p>

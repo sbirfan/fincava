@@ -7,7 +7,7 @@ import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
-import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail } from "../lib/email";
+import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -226,6 +226,24 @@ router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): P
 
   await db.update(usersTable).set({ passwordHash: await hashPassword(parsed.data.password) }).where(eq(usersTable.id, userId));
   res.json({ success: true });
+
+  // Fire-and-forget: security notice to the user whose password was reset
+  Promise.resolve().then(async () => {
+    try {
+      const [targetUser] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
+      if (!targetUser?.email) return;
+      const [targetProfile] = await db.select({ firstName: profilesTable.firstName }).from(profilesTable).where(eq(profilesTable.userId, userId));
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+      const emailContent = adminPasswordResetEmail({
+        firstName: targetProfile?.firstName || "there",
+        loginUrl: `${appBaseUrl}/login`,
+      });
+      await sendEmail({ to: targetUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    } catch (err) {
+      logger.warn({ err, userId }, "Admin password reset security email failed");
+    }
+  });
 });
 
 // ── POST /api/admin/users ─────────────────────────────────────────────────────
@@ -271,6 +289,22 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
   }
 
   res.status(201).json({ success: true, id: user.id });
+
+  // Fire-and-forget: tell the new user their account was created
+  Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+      const emailContent = adminCreatedAccountEmail({
+        firstName: firstName || "there",
+        email,
+        forgotPasswordUrl: `${appBaseUrl}/forgot-password`,
+      });
+      await sendEmail({ to: email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    } catch (err) {
+      logger.warn({ err, userId: user.id }, "Admin-created account email failed");
+    }
+  });
 });
 
 // ── DELETE /api/admin/users/:id ──────────────────────────────────────────────
