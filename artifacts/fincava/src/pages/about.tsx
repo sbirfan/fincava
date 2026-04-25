@@ -41,13 +41,13 @@ export default function About() {
           <p className="text-lg text-muted-foreground leading-relaxed mb-5">
             Our platform transforms unverified farmers into credentialed, buyer-ready suppliers.
             Beginning in Colombia, we work directly with smallholders to structure, verify, and
-            continuously update production and quality data—starting with coffee and cacao, and
+            continuously update production and quality data starting with coffee and cacao, and
             expanding into other key crops over time.
           </p>
           <p className="text-lg text-muted-foreground leading-relaxed mb-5">
             We combine intelligent scoring, structured rules, and human oversight to evaluate
             supplier quality in a way that is transparent, consistent, and auditable. Every supplier
-            profile becomes a living, versioned record of trust—not just a static listing.
+            profile becomes a living, versioned record of trust not just a static listing.
           </p>
           <p className="text-lg text-muted-foreground leading-relaxed italic">
             This means buyers don't rely on guesswork—and farmers don't rely on chance.
@@ -78,7 +78,7 @@ export default function About() {
               </div>
               <h3 className="font-bold text-xl mb-2">Governed</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Human operators review, validate, and override when needed—keeping accountability
+                Human operators review, validate, and override when needed keeping accountability
                 at the centre of every decision.
               </p>
             </div>
@@ -102,7 +102,7 @@ export default function About() {
             work—by ensuring that every transaction starts with clarity, credibility, and confidence.
           </p>
           <p className="text-xl font-medium text-foreground leading-relaxed">
-            Fincava connects smallholders to global demand—and makes them trusted participants in it.
+            Fincava connects smallholders to global demand and makes them trusted participants in it.
           </p>
         </div>
 
