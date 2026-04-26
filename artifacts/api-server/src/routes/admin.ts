@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable } from "@workspace/db";
+import { buyerProfilesTable } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
@@ -157,6 +158,55 @@ router.get("/admin/orders", ...adminOnly, async (req, res): Promise<void> => {
     .offset(offset);
 
   res.json({ data, total: Number(total), page, limit, totalPages: Math.max(1, Math.ceil(Number(total) / limit)) });
+});
+
+// ── GET /api/admin/buyers ─────────────────────────────────────────────────────
+router.get("/admin/buyers", ...adminOnly, async (req, res): Promise<void> => {
+  const { page, limit, offset } = parsePagination(req.query);
+
+  const [{ total }] = await db.select({ total: count() }).from(buyerProfilesTable);
+
+  const data = await db
+    .select({
+      // buyer_profiles fields
+      profileId:         buyerProfilesTable.id,
+      userId:            buyerProfilesTable.userId,
+      companyName:       buyerProfilesTable.companyName,
+      country:           buyerProfilesTable.country,
+      destinationPort:   buyerProfilesTable.destinationPort,
+      targetProducts:    buyerProfilesTable.targetProducts,
+      preferredIncoterm: buyerProfilesTable.preferredIncoterm,
+      intendedVolumeMt:  buyerProfilesTable.intendedVolumeMt,
+      importFrequency:   buyerProfilesTable.importFrequency,
+      onboardedAt:       buyerProfilesTable.onboardedAt,
+      updatedAt:         buyerProfilesTable.updatedAt,
+      // users fields
+      email:             usersTable.email,
+      role:              usersTable.role,
+      createdAt:         usersTable.createdAt,
+      // profiles fields
+      firstName:         profilesTable.firstName,
+      lastName:          profilesTable.lastName,
+      phone:             profilesTable.phone,
+      // companies fields
+      registeredCompany: companiesTable.name,
+      companyVerified:   companiesTable.verified,
+    })
+    .from(buyerProfilesTable)
+    .innerJoin(usersTable, eq(usersTable.id, buyerProfilesTable.userId))
+    .leftJoin(profilesTable, eq(profilesTable.userId, buyerProfilesTable.userId))
+    .leftJoin(companiesTable, eq(companiesTable.userId, buyerProfilesTable.userId))
+    .orderBy(desc(buyerProfilesTable.onboardedAt))
+    .limit(limit)
+    .offset(offset);
+
+  res.json({
+    data,
+    total: Number(total),
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(Number(total) / limit)),
+  });
 });
 
 // ── PATCH /api/admin/users/:id ───────────────────────────────────────────────

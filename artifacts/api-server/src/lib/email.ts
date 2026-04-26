@@ -400,6 +400,59 @@ export function rfqResponseEmail(opts: {
   return { html, text, subject };
 }
 
+// ── Buyer onboarding admin alert ─────────────────────────────────────────────
+
+export function buyerOnboardAdminAlertEmail(opts: {
+  buyerName: string;
+  email: string;
+  companyName?: string | null;
+  country?: string | null;
+  targetProducts?: string[];
+  preferredIncoterm?: string | null;
+  intendedVolumeMt?: number | null;
+  importFrequency?: string | null;
+  userId: number;
+  adminUrl: string;
+}): { html: string; text: string } {
+  const products = opts.targetProducts && opts.targetProducts.length > 0
+    ? opts.targetProducts.join(", ")
+    : null;
+
+  const html = baseTemplate(`
+    <p>A new buyer has completed onboarding on Fincava.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:150px;">Name</td><td style="padding:6px 0;font-weight:600;">${esc(opts.buyerName)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Email</td><td style="padding:6px 0;">${esc(opts.email)}</td></tr>
+      ${opts.companyName ? `<tr><td style="padding:6px 0;color:#78716c;">Company</td><td style="padding:6px 0;">${esc(opts.companyName)}</td></tr>` : ""}
+      ${opts.country ? `<tr><td style="padding:6px 0;color:#78716c;">Country</td><td style="padding:6px 0;">${esc(opts.country)}</td></tr>` : ""}
+      ${products ? `<tr><td style="padding:6px 0;color:#78716c;">Products</td><td style="padding:6px 0;">${esc(products)}</td></tr>` : ""}
+      ${opts.preferredIncoterm ? `<tr><td style="padding:6px 0;color:#78716c;">Incoterm</td><td style="padding:6px 0;">${esc(opts.preferredIncoterm)}</td></tr>` : ""}
+      ${opts.intendedVolumeMt != null ? `<tr><td style="padding:6px 0;color:#78716c;">Volume (MT)</td><td style="padding:6px 0;">${opts.intendedVolumeMt.toLocaleString()}</td></tr>` : ""}
+      ${opts.importFrequency ? `<tr><td style="padding:6px 0;color:#78716c;">Frequency</td><td style="padding:6px 0;">${esc(opts.importFrequency)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">User ID</td><td style="padding:6px 0;">#${opts.userId}</td></tr>
+    </table>
+    <p><a href="${opts.adminUrl}" class="btn">View in admin panel</a></p>
+  `);
+
+  const text = [
+    "New buyer onboarding on Fincava:",
+    "",
+    `Name: ${opts.buyerName}`,
+    `Email: ${opts.email}`,
+    opts.companyName ? `Company: ${opts.companyName}` : null,
+    opts.country ? `Country: ${opts.country}` : null,
+    products ? `Products: ${products}` : null,
+    opts.preferredIncoterm ? `Incoterm: ${opts.preferredIncoterm}` : null,
+    opts.intendedVolumeMt != null ? `Volume: ${opts.intendedVolumeMt} MT` : null,
+    opts.importFrequency ? `Frequency: ${opts.importFrequency}` : null,
+    `User ID: #${opts.userId}`,
+    "",
+    `Review: ${opts.adminUrl}`,
+  ].filter(Boolean).join("\n");
+
+  return { html, text };
+}
+
 // ── Admin role-change template ────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
