@@ -34,7 +34,7 @@ const LAYERS = [
     color: "bg-amber-50 border-amber-200 text-amber-700",
     dot: "bg-amber-500",
     icon: Landmark,
-    title: "Embedded Finance",
+    title: "Embedded Finance (Launching Soon)",
     subtitle: "Trade finance infrastructure built directly into every transaction.",
     features: [
       "Purchase order financing for verified buyers",
