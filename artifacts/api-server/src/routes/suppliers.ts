@@ -29,7 +29,8 @@ import {
   markPublished,
   NotFoundError,
 } from "../services/supplier-graduation-service";
-import { scoreSupplier } from "../services/scoring-service";
+import { runOnboardPipeline } from "../services/onboard-pipeline";
+import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 
 const router: IRouter = Router();
@@ -270,29 +271,19 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
 
     logger.info({ supplierId: sid, correlationId }, "post-onboard pipeline starting");
 
+    // Emit inside setImmediate so the HTTP response is flushed before the AI
+    // pipeline starts. The EventEmitter handler (registered in index.ts) runs
+    // the pipeline asynchronously. If no handler is registered at emit time the
+    // fallback path calls runOnboardPipeline directly so nothing is silently lost.
     setImmediate(() => {
-      (async () => {
-        try {
-          await scoreSupplier(sid);
-
-          const hasScore = await db
-            .select()
-            .from(aiOutputsTable)
-            .where(eq(aiOutputsTable.supplierId, sid))
-            .limit(1);
-
-          if (!hasScore.length) {
-            logger.warn({ supplierId: sid, correlationId }, "Skipping evaluation — no AI score");
-            return;
-          }
-
-          await evaluateSupplier(sid);
-          logger.info({ supplierId: sid, correlationId }, "post-onboard pipeline succeeded");
-        } catch (err: any) {
-          logger.warn({ supplierId: sid, correlationId, err }, "post-onboard pipeline failed");
-          try { (globalThis as any).Sentry?.captureException?.(err); } catch {}
-        }
-      })();
+      const listenerCount = pipelineEmitter.listenerCount(SUPPLIER_ONBOARD_EVENT);
+      if (listenerCount > 0) {
+        logger.info({ supplierId: sid, correlationId, listenerCount }, "post-onboard pipeline: emitting via EventEmitter");
+        pipelineEmitter.emit(SUPPLIER_ONBOARD_EVENT, { supplierId: sid, correlationId });
+      } else {
+        logger.warn({ supplierId: sid, correlationId }, "post-onboard pipeline: no listeners — running directly (fallback)");
+        void runOnboardPipeline({ supplierId: sid, correlationId });
+      }
     });
   } catch (err: any) {
     console.error("Onboard error:", err);
