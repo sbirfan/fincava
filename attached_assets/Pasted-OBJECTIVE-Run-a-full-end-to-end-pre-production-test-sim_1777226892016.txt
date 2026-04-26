@@ -1,0 +1,148 @@
+OBJECTIVE
+Run a full end-to-end pre-production test simulating real-world usage of the Fincava platform.
+
+This test must validate:
+- System stability under repeated usage
+- Data consistency across flows
+- No silent failures
+- Correct state transitions
+
+---
+
+TEST SCENARIOS
+
+Run ALL scenarios below (not just once — repeat where specified):
+
+---
+
+SCENARIO 1 — MULTIPLE SUPPLIER ONBOARDING
+
+TASK:
+- Onboard 3–5 suppliers sequentially
+
+VALIDATE:
+- Each supplier creates:
+  - ai_outputs
+  - supplier_evaluations
+- Async pipeline runs every time
+- No duplicate or missing rows
+
+FAIL:
+- Any supplier stuck in NOT_READY without reason
+- Async not triggered
+
+---
+
+SCENARIO 2 — BUYER BEHAVIOR (REALISTIC)
+
+TASK:
+- Register 2 buyers
+- Each:
+  - Onboard once
+  - Update profile once
+
+VALIDATE:
+- No duplicate buyer_profiles (UNIQUE works)
+- Upsert works correctly
+- interaction_logs created ONLY on first onboarding
+
+FAIL:
+- Duplicate rows
+- Missing logs
+
+---
+
+SCENARIO 3 — ORDER STRESS TEST
+
+TASK:
+- For 1 buyer:
+  - Create 12 orders
+
+VALIDATE:
+- Orders 1–10 → WAIVED
+- Orders 11–12 → PENDING
+- feeAmountUSD always correct (4%)
+
+FAIL:
+- Wrong fee logic
+- Missing fee fields
+
+---
+
+SCENARIO 4 — ASYNC PIPELINE RELIABILITY
+
+TASK:
+- Trigger 5 supplier onboardings quickly
+
+VALIDATE:
+- listenerCount stays stable
+- No missed events
+- No duplicate executions
+
+FAIL:
+- Missing pipeline execution
+- Duplicate scoring
+
+---
+
+SCENARIO 5 — LOGGING & FAILSAFE
+
+TASK:
+- Simulate failure:
+  - Break email service OR interaction logging DB temporarily
+
+VALIDATE:
+- System still returns 200/201 responses
+- Errors logged
+- No crash
+
+FAIL:
+- Any user-facing failure due to logging/email
+
+---
+
+SCENARIO 6 — DATA CONSISTENCY CHECK
+
+TASK:
+- Cross-check:
+  - supplier_evaluations
+  - ai_outputs
+  - orders
+  - interaction_logs
+
+VALIDATE:
+- All linked correctly
+- No orphan records
+- No overwrites
+
+FAIL:
+- Data mismatch or corruption
+
+---
+
+OUTPUT FORMAT
+
+Return:
+
+1. PASS / FAIL per scenario
+2. Any anomalies
+3. Performance notes (response time spikes)
+4. Critical issues (must fix before production)
+5. Safe-to-deploy verdict: YES / NO
+
+---
+
+CONSTRAINTS
+
+- DO NOT modify logic during test
+- DO NOT fix issues silently — report them
+- DO NOT skip any scenario
+
+---
+
+SUCCESS CRITERIA
+
+- All scenarios PASS
+- No silent failures
+- No data inconsistencies
+- System stable under repeated usage
