@@ -533,6 +533,15 @@ async function scoreSupplier(supplierId: number): Promise<void> {
         );
       }
 
+      const VALID_AI_PATHWAYS = ["A", "B", "C", "D"];
+      if (!VALID_AI_PATHWAYS.includes(parsed.pathway)) {
+        logger.warn(
+          { supplierId, rawPathway: parsed.pathway },
+          "scoreSupplier: Claude returned invalid pathway — storing null",
+        );
+        parsed.pathway = null;
+      }
+
       const [scoreRow] = await db
         .insert(aiOutputsTable)
         .values({

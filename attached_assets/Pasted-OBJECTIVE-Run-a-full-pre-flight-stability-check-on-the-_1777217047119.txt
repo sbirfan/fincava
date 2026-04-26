@@ -1,0 +1,178 @@
+OBJECTIVE
+Run a full pre-flight stability check on the Fincava codebase BEFORE executing any MVP scripts.
+The goal is to detect and fix critical issues that could break execution.
+
+---
+
+CONTEXT
+- Stack: Node.js / Express / Drizzle ORM
+- Core flows:
+  - Supplier onboarding → scoring → evaluation
+  - Buyer onboarding
+  - Order creation + fees
+- Known risks:
+  - AI output inconsistency
+  - Async pipeline fragility
+  - Missing DB constraints
+  - Lack of validation
+
+---
+
+STEP 1 — AI OUTPUT VALIDATION CHECK
+
+TASK:
+1. Locate scoring logic (search for scoreSupplier or AI call)
+2. Identify expected output structure (JSON fields)
+3. Add validation layer:
+   - Ensure response is valid JSON
+   - Ensure required fields exist:
+     - commercialScore
+     - eligibilityStatus
+     - sellableStatus
+
+IF validation does NOT exist:
+- Add basic validation before DB write
+
+FAIL CONDITION:
+- AI output written to DB without validation
+
+---
+
+STEP 2 — DATABASE INTEGRITY CHECK
+
+TASK:
+1. Inspect schema:
+   - supplier_evaluations
+   - buyer_profiles
+   - orders
+
+2. Validate:
+   - supplier_evaluations is append-only (no updates)
+   - buyer_profiles has UNIQUE(user_id)
+   - orders has totalUSD or equivalent
+
+IF missing:
+- Add constraint OR log warning (do NOT break schema if risky)
+
+FAIL CONDITION:
+- Duplicate buyer profiles possible
+- supplier evaluations overwritten
+
+---
+
+STEP 3 — ASYNC PIPELINE CHECK
+
+TASK:
+1. Search for async execution:
+   - setImmediate OR EventEmitter
+2. Verify:
+   - Event handlers are registered
+   - Async logic does NOT block request
+
+3. Add logging:
+   - On event trigger
+   - On handler execution
+
+FAIL CONDITION:
+- Async pipeline not triggered
+- Silent failures (no logs)
+
+---
+
+STEP 4 — CRITICAL ENDPOINT VALIDATION
+
+TEST endpoints:
+
+1. POST /api/suppliers/onboard
+2. POST /api/buyers/onboard
+3. POST /api/orders OR equivalent
+
+FOR EACH:
+- Verify route exists
+- Verify validation present
+- Verify DB write occurs
+
+IF missing:
+- Log exact issue
+- Do NOT attempt full implementation (only flag)
+
+FAIL CONDITION:
+- Endpoint missing or crashes
+
+---
+
+STEP 5 — LOGGING & ERROR HANDLING
+
+TASK:
+1. Ensure logging exists (pino or console)
+2. Verify:
+   - Errors are logged
+   - No silent catch blocks
+
+IF missing:
+- Add minimal logging:
+  console.error(error)
+
+FAIL CONDITION:
+- Errors swallowed silently
+
+---
+
+STEP 6 — TEST DATA RESET CHECK
+
+TASK:
+1. Detect test or dummy data
+2. Provide safe cleanup plan:
+   - DO NOT auto-delete unless confirmed
+   - Suggest truncate commands
+
+FAIL CONDITION:
+- Dirty data affecting MVP tests
+
+---
+
+STEP 7 — ADMIN UI ALIGNMENT (LIGHT CHECK)
+
+TASK:
+1. Verify admin API includes:
+   - sellableStatus
+2. If not:
+   - Log mismatch (do NOT rebuild UI)
+
+FAIL CONDITION:
+- Admin sees outdated status fields
+
+---
+
+OUTPUT FORMAT
+
+Return:
+
+1. SUMMARY
+- PASS / WARN / FAIL per section
+
+2. ISSUES FOUND
+- List each issue clearly
+
+3. FIXES APPLIED
+- What was automatically fixed
+
+4. ACTION REQUIRED
+- What needs manual intervention
+
+---
+
+CONSTRAINTS
+
+- DO NOT refactor large parts of the system
+- DO NOT break existing schema
+- DO NOT introduce new dependencies
+- Prefer logging over risky changes
+
+---
+
+SUCCESS CRITERIA
+
+- No critical FAILs
+- All major risks identified or mitigated
+- System safe to proceed with MVP execution
