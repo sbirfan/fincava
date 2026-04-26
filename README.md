@@ -15,14 +15,26 @@ Help roasters and food businesses source high-quality products directly from Col
 
 **Value-added services:** US-based payments, optional pre-shipment inspection in Texas, and local quality control in Colombia.
 
-If you’d like to: View the wireframe → open fincava_wireframe.svg in your browser or drop into Figma Edit copy → check the /copy/ folder (coming soon) Use AI prompt → see ai_prompt.md
+## Planned Next Steps
 
-Planned next steps Build landing site using Framer or Next.js Add Figma mockups & prototypes Create final brand kit and product photography set Add blog & educational content for roasters/importers Launch UAE office support page
+- Build landing site using Framer or Next.js
+- Add Figma wireframes and prototypes (`fincava_wireframe.svg` — planned)
+- Create final brand kit and product photography set
+- Add marketing copy directory (`/copy/` — planned)
+- Add AI prompt reference file (`ai_prompt.md` — planned)
+- Add blog & educational content for roasters/importers
+- Launch UAE office support page
 
-Contributing This project is early-stage but open to contributions! If you have ideas, design improvements, or better copy:
+## Contributing
 
-Fork the repo Make your changes Submit a pull request
+This project is early-stage but open to contributions! If you have ideas, design improvements, or better copy:
 
-Contact Website: fincava.com Company: KR Industries, LLC (Texas, USA)
+1. Fork the repo
+2. Make your changes
+3. Submit a pull request
 
-Sourcing & partnerships: info@fincava.com
+## Contact
+
+- Website: [fincava.com](https://fincava.com)
+- Company: KR Industries, LLC (Texas, USA)
+- Sourcing & partnerships: info@fincava.com
