@@ -79,7 +79,7 @@ const en = {
         },
         {
           step: "Step 02",
-          title: "Embedded Finance",
+          title: "Embedded Finance (Launching Soon)",
           buyerValue: "Pay on milestones with escrow protection. FX handled. No surprise fees.",
           supplierValue: "Access trade credit against your orders. Get financed before shipment arrives.",
           capabilities: ["Milestone payment escrow", "Trade credit lines", "FX facilitation", "Invoice factoring"],
