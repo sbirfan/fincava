@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, real, pgEnum, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
@@ -41,7 +41,9 @@ export const productsTable = pgTable("products", {
   organic: boolean("organic").notNull().default(false),
   familiesSupported: integer("families_supported"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+(t) => [index("products_company_id_idx").on(t.companyId)],
+);
 
 export const originStoriesTable = pgTable("origin_stories", {
   id: serial("id").primaryKey(),

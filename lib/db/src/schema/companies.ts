@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, pgEnum, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, pgEnum, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -25,7 +25,9 @@ export const companiesTable = pgTable("companies", {
   responseTimeHours: real("response_time_hours"),
   exportDestinations: text("export_destinations").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+(t) => [index("companies_user_id_idx").on(t.userId)],
+);
 
 export const certificationsTable = pgTable("certifications", {
   id: serial("id").primaryKey(),

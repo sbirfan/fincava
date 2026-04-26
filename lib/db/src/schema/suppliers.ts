@@ -40,6 +40,7 @@ import {
   index,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -110,7 +111,12 @@ export const suppliersTable = pgTable(
     lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
     thresholdVersion: varchar("threshold_version", { length: 64 }),
   },
-  (t) => [index("suppliers_whatsapp_idx").on(t.whatsappNumber)],
+  (t) => [
+    index("suppliers_whatsapp_idx").on(t.whatsappNumber),
+    index("suppliers_sellable_status_idx")
+      .on(t.sellableStatus)
+      .where(sql`sellable_status IN ('SELLABLE', 'PUBLISHED')`),
+  ],
 );
 
 export const farmsTable = pgTable("farms", {
