@@ -1,75 +1,133 @@
-/**
- * Starter test suite for the FinCava frontend (fincava).
- *
- * These tests are intentionally lightweight so they run immediately
- * without requiring the full app to be mounted.
- *
- * As you build features, add component-level and integration tests
- * alongside each component file (e.g. Button.test.tsx next to Button.tsx).
- */
 import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { Router } from "wouter";
+import { TrustBadge } from "@/components/trust-badge";
+import { ProductCard } from "@/components/product-card";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
-// ─── Utility / pure-function tests ───────────────────────────────────────────
+// ─── TrustBadge component ─────────────────────────────────────────────────────
 
-describe("FinCava frontend – sanity checks", () => {
-    it("environment is jsdom (browser-like)", () => {
-          expect(typeof window).toBe("object");
-          expect(typeof document).toBe("object");
+describe("TrustBadge", () => {
+    function renderBadge(score: number) {
+        return render(
+            <TooltipProvider>
+                <TrustBadge score={score} showLabel />
+            </TooltipProvider>,
+        );
+    }
+
+    it("shows score 30 as Basic tier", () => {
+        renderBadge(30);
+        expect(screen.getByText("30")).toBeInTheDocument();
+        expect(screen.getByText("Basic")).toBeInTheDocument();
     });
 
-           it("process.env.NODE_ENV is test", () => {
-                 expect(process.env.NODE_ENV).toBe("test");
-           });
-});
-
-// ─── Currency / number formatting helpers ─────────────────────────────────────
-// Add your real utility imports here as you create them, e.g.:
-//   import { formatCurrency } from "@/lib/utils";
-
-describe("Number formatting utilities", () => {
-    it("Intl.NumberFormat formats USD correctly", () => {
-          const fmt = new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "USD",
-          });
-          expect(fmt.format(1234567.89)).toBe("$1,234,567.89");
+    it("shows score 55 as Silver tier", () => {
+        renderBadge(55);
+        expect(screen.getByText("55")).toBeInTheDocument();
+        expect(screen.getByText("Silver")).toBeInTheDocument();
     });
 
-           it("Intl.NumberFormat formats percentage correctly", () => {
-                 const fmt = new Intl.NumberFormat("en-US", {
-                         style: "percent",
-                         minimumFractionDigits: 2,
-                 });
-                 expect(fmt.format(0.0525)).toBe("5.25%");
-           });
-});
+    it("shows score 75 as Gold tier", () => {
+        renderBadge(75);
+        expect(screen.getByText("75")).toBeInTheDocument();
+        expect(screen.getByText("Gold")).toBeInTheDocument();
+    });
 
-// ─── Date formatting helpers ──────────────────────────────────────────────────
+    it("shows score 90 as Platinum tier", () => {
+        renderBadge(90);
+        expect(screen.getByText("90")).toBeInTheDocument();
+        expect(screen.getByText("Platinum")).toBeInTheDocument();
+    });
 
-describe("Date utilities", () => {
-    it("formats a date to ISO string without time", () => {
-          const date = new Date("2026-01-15T12:00:00Z");
-          const formatted = date.toISOString().split("T")[0];
-          expect(formatted).toBe("2026-01-15");
+    it("renders score without label when showLabel is false", () => {
+        render(
+            <TooltipProvider>
+                <TrustBadge score={72} />
+            </TooltipProvider>,
+        );
+        expect(screen.getByText("72")).toBeInTheDocument();
+        expect(screen.queryByText("Gold")).not.toBeInTheDocument();
     });
 });
 
-// ─── Component tests (add as you build) ──────────────────────────────────────
-// Example pattern – uncomment and adapt once you have a component:
-//
-// import { render, screen } from "@testing-library/react";
-// import { Button } from "@/components/ui/button";
-//
-// describe("Button component", () => {
-//   it("renders with correct label", () => {
-//     render(<Button>Apply for Loan</Button>);
-//     expect(screen.getByRole("button", { name: /apply for loan/i })).toBeInTheDocument();
-//   });
-//
-//   it("calls onClick when clicked", async () => {
-//     const handleClick = vi.fn();
-//     render(<Button onClick={handleClick}>Submit</Button>);
-//     await userEvent.click(screen.getByRole("button"));
-//     expect(handleClick).toHaveBeenCalledOnce();
-//   });
-// });
+// ─── ProductCard component ────────────────────────────────────────────────────
+
+const baseProduct = {
+    id: 1,
+    name: "Colombian Cacao",
+    category: "Cacao",
+    pricePerKgUSD: 8.5,
+    minOrderKg: 100,
+    supplierName: "Finca El Paraíso",
+    avgRating: 4.8,
+    featured: false,
+    images: [] as string[],
+    description: "",
+    companyId: 10,
+    slug: "colombian-cacao",
+    status: "SELLABLE" as const,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+};
+
+describe("ProductCard", () => {
+    function renderCard(overrides: Partial<typeof baseProduct> = {}) {
+        const product = { ...baseProduct, ...overrides } as any;
+        return render(
+            <Router>
+                <ProductCard product={product} />
+            </Router>,
+        );
+    }
+
+    it("renders product name, price, and minimum order", () => {
+        renderCard();
+        expect(screen.getByText("Colombian Cacao")).toBeInTheDocument();
+        expect(screen.getByText("$8.50")).toBeInTheDocument();
+        expect(screen.getByText("100 kg")).toBeInTheDocument();
+    });
+
+    it("shows 'No image' placeholder when images array is empty", () => {
+        renderCard({ images: [] });
+        expect(screen.getByText("No image")).toBeInTheDocument();
+    });
+
+    it("renders product image when images are provided", () => {
+        renderCard({ images: ["https://example.com/cacao.jpg"] });
+        const img = screen.getByRole("img", { name: /colombian cacao/i });
+        expect(img).toBeInTheDocument();
+        expect(img).toHaveAttribute("src", "https://example.com/cacao.jpg");
+    });
+
+    it("shows Featured badge when product.featured is true", () => {
+        renderCard({ featured: true });
+        expect(screen.getByText("Featured")).toBeInTheDocument();
+    });
+
+    it("does not show Featured badge when product.featured is false", () => {
+        renderCard({ featured: false });
+        expect(screen.queryByText("Featured")).not.toBeInTheDocument();
+    });
+
+    it("shows supplier name when farmerName is absent", () => {
+        renderCard({ supplierName: "Finca El Paraíso" });
+        expect(screen.getByText("Finca El Paraíso")).toBeInTheDocument();
+    });
+
+    it("shows farmer and farm name when present", () => {
+        renderCard({ farmerName: "Carlos Ruiz", farmName: "La Esperanza" } as any);
+        expect(screen.getByText(/Carlos Ruiz/)).toBeInTheDocument();
+        expect(screen.getByText(/La Esperanza/)).toBeInTheDocument();
+    });
+
+    it("shows rating when avgRating is set", () => {
+        renderCard({ avgRating: 4.8 });
+        expect(screen.getByText("4.8")).toBeInTheDocument();
+    });
+
+    it("shows 'New' when avgRating is null", () => {
+        renderCard({ avgRating: null as any });
+        expect(screen.getByText("New")).toBeInTheDocument();
+    });
+});
