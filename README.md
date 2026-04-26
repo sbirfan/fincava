@@ -1,10 +1,19 @@
-Fincava Fincava is a modern B2B platform connecting conscious buyers, roasters, and specialty importers with sustainably grown, premium Colombian products — from single-origin cacao and specialty coffee to exotic dried fruits and natural oils.
+# Fincava
+
+Fincava is a modern B2B platform connecting conscious buyers, roasters, and specialty importers with sustainably grown, premium Colombian products — from single-origin cacao and specialty coffee to exotic dried fruits and natural oils.
 
 Backed by KR Industries, LLC (Texas-based) with a sister company and on-the-ground team in Colombia, Fincava makes global sourcing simple, reliable, and transparent.
 
-Why this project Help roasters and food businesses source high-quality products directly from Colombia
+## Why This Project
 
-Solve pain points like: Overseas wire fees Lack of trust in supplier quality Difficulty with certifications & compliance Offer value-added services: US-based payments, optional pre-shipment inspection in Texas, and local quality control in Colombia
+Help roasters and food businesses source high-quality products directly from Colombia.
+
+**Pain points addressed:**
+- Overseas wire fees
+- Lack of trust in supplier quality
+- Difficulty with certifications and compliance
+
+**Value-added services:** US-based payments, optional pre-shipment inspection in Texas, and local quality control in Colombia.
 
 If you’d like to: View the wireframe → open fincava_wireframe.svg in your browser or drop into Figma Edit copy → check the /copy/ folder (coming soon) Use AI prompt → see ai_prompt.md
 
