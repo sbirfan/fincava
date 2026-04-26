@@ -19,7 +19,7 @@ export default function About() {
           </p>
           <p className="text-xl text-muted-foreground leading-relaxed">
             We are building the trust infrastructure for agricultural trade in
-            emerging markets &mdash; starting with Colombian coffee and cacao, and
+            emerging markets, starting with Colombian coffee and cacao, and
             expanding across additional crops over time.
           </p>
         </div>
@@ -58,14 +58,14 @@ export default function About() {
             Our platform transforms unverified farmers into credentialed,
             buyer-ready suppliers. Beginning in Colombia, we work directly with
             smallholders to structure, verify, and continuously update
-            production and quality data &mdash; starting with coffee and cacao, and
+            production and quality data, starting with coffee and cacao, and
             expanding into other key crops over time.
           </p>
           <p className="text-lg text-muted-foreground leading-relaxed mb-5">
             We combine intelligent scoring, structured rules, and human
             oversight to evaluate supplier quality in a way that is transparent,
             consistent, and auditable. Every supplier profile becomes a living,
-            versioned record of trust &mdash; not just a static listing.
+            versioned record of trust, not just a static listing.
           </p>
           <p className="text-lg text-muted-foreground leading-relaxed italic">
             This means buyers don&apos;t rely on guesswork and farmers don&apos;t rely on
@@ -79,8 +79,7 @@ export default function About() {
             How trust is built differently
           </h2>
           <p className="text-center text-muted-foreground mb-10 max-w-xl mx-auto">
-            What makes Fincava different is how trust is constructed &mdash; not
-            assumed.
+            What makes Fincava different is how trust is constructed, not assumed.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -91,7 +90,7 @@ export default function About() {
               <h3 className="font-bold text-xl mb-2">Computable</h3>
               <p className="text-muted-foreground leading-relaxed">
                 Supplier quality is measured using structured data and
-                AI-assisted evaluation &mdash; not intuition or reputation alone.
+                AI-assisted evaluation, not intuition or reputation alone.
               </p>
             </div>
             <div className="text-center">
@@ -100,7 +99,7 @@ export default function About() {
               </div>
               <h3 className="font-bold text-xl mb-2">Governed</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Human operators review, validate, and override when needed &mdash;
+                Human operators review, validate, and override when needed,
                 keeping accountability at the centre of every decision.
               </p>
             </div>
@@ -121,7 +120,7 @@ export default function About() {
         <div className="max-w-2xl mx-auto text-center mb-16">
           <p className="text-xl text-muted-foreground leading-relaxed mb-4">
             We are not a traditional marketplace. We are the system that makes a
-            marketplace work &mdash; by ensuring that every transaction starts with
+            marketplace work, by ensuring that every transaction starts with
             clarity, credibility, and confidence.
           </p>
           <p className="text-xl font-medium text-foreground leading-relaxed">

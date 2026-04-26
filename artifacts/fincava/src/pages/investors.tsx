@@ -55,7 +55,7 @@ export default function Investors() {
               <span className="text-primary">for Agricultural Trade.</span>
             </h1>
             <p className="text-lg text-white/70 max-w-2xl mx-auto mb-10">
-              Fincava is not a marketplace &mdash; it is a trust engine. We convert unverified smallholder farmers into credentialed, buyer-ready suppliers, connecting Colombian producers to $180B in annual demand across the Middle East, Asia, and Africa.
+              Fincava is not a marketplace. It is a trust engine. We convert unverified smallholder farmers into credentialed, buyer-ready suppliers, connecting Colombian producers to $180B in annual demand across the Middle East, Asia, and Africa.
             </p>
             <div className="flex justify-center gap-4 flex-wrap">
               <Link href="/contact">
@@ -78,7 +78,7 @@ export default function Investors() {
         <div className="text-center mb-14">
           <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Market Opportunity</h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Colombia&apos;s production surplus meets surging MENA and Asia demand &mdash; but the trust infrastructure to connect them does not exist yet. That is the structural gap Fincava is built to fill.
+            Colombia&apos;s production surplus meets surging MENA and Asia demand, but the trust infrastructure to connect them does not exist yet. That is the structural gap Fincava is built to fill.
           </p>
         </div>
         <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -125,7 +125,7 @@ export default function Investors() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <SectionLabel>Why Now</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-              The window is open &mdash; and it won&apos;t stay open long.
+              The window is open, and it won&apos;t stay open long.
             </h2>
             <p className="text-muted-foreground text-xl leading-relaxed">
               Three converging forces make this the precise moment to build trust infrastructure for agricultural trade in emerging markets.
@@ -181,17 +181,17 @@ export default function Investors() {
             <div>
               <SectionLabel>Architecture</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                Not a marketplace &mdash;<br />a trust engine.
+                Not a marketplace. A trust engine.
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                Fincava owns the decision layer that determines who is eligible to transact and under what conditions. Unlike listing platforms, we do not surface suppliers &mdash; we credentialise them through a governed decision system with four interlocking components.
+                Fincava owns the decision layer that determines who is eligible to transact and under what conditions. Unlike listing platforms, we do not surface suppliers; we credentialise them through a governed decision system with four interlocking components.
               </p>
               <div className="space-y-4">
                 {[
                   { icon: Cpu, label: "AI Scoring Models", desc: "Machine learning models generate quantified supplier quality scores from structured production, compliance, and certification data." },
-                  { icon: Scale, label: "Deterministic Rules", desc: "Rule-based enforcement of minimum standards and consistency thresholds — no supplier clears the bar without meeting objective criteria." },
+                  { icon: Scale, label: "Deterministic Rules", desc: "Rule-based enforcement of minimum standards and consistency thresholds. No supplier clears the bar without meeting objective criteria." },
                   { icon: Users, label: "Human Override Authority", desc: "Operators retain full override authority at every decision point. Expert judgment governs edge cases, appeals, and standards evolution." },
-                  { icon: FileSearch, label: "Full Audit Trail", desc: "Every score, rule application, and override is logged with timestamp and authorship — creating a traceable, accountable record of every decision." },
+                  { icon: FileSearch, label: "Full Audit Trail", desc: "Every score, rule application, and override is logged with timestamp and authorship, creating a traceable, accountable record of every decision." },
                 ].map(f => (
                   <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-background hover:border-primary/30 transition-colors">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -382,7 +382,7 @@ export default function Investors() {
                 Advantages that compound. Moats that deepen over time.
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                Fincava&apos;s competitive position is not a single feature &mdash; it is the combination of decision-layer ownership, local depth, and execution timing that creates durable defensibility.
+                Fincava&apos;s competitive position is not a single feature. It is the combination of decision-layer ownership, local depth, and execution timing that creates durable defensibility.
               </p>
 
               {/* Liquidity unlock */}
@@ -408,7 +408,7 @@ export default function Investors() {
                 {
                   icon: Lock,
                   title: "Decision Layer Ownership",
-                  body: "Unlike listing platforms, Fincava owns the layer that determines who is eligible to transact and under what conditions. This is not a feature that can be copied — it requires years of producer data, rule calibration, and governance infrastructure.",
+                  body: "Unlike listing platforms, Fincava owns the layer that determines who is eligible to transact and under what conditions. This is not a feature that can be copied. It requires years of producer data, rule calibration, and governance infrastructure.",
                 },
                 {
                   icon: MapPin,
@@ -418,7 +418,7 @@ export default function Investors() {
                 {
                   icon: TrendingUp,
                   title: "Data Flywheel",
-                  body: "Every transaction enriches our scoring models, demand signals, and logistics intelligence. The platform gets stronger with each trade — compounding advantages over later entrants.",
+                  body: "Every transaction enriches our scoring models, demand signals, and logistics intelligence. The platform gets stronger with each trade, compounding advantages over later entrants.",
                 },
                 {
                   icon: Building2,
@@ -460,7 +460,7 @@ export default function Investors() {
             The system of record<br />for supplier credibility.
           </h2>
           <p className="text-white/50 text-xl md:text-2xl leading-relaxed mb-6 max-w-3xl mx-auto">
-            Fincava&apos;s long-term position is to become the system of record for supplier credibility in emerging market agriculture &mdash; powering trade across crops, countries, and counterparties through verifiable trust.
+            Fincava&apos;s long-term position is to become the system of record for supplier credibility in emerging market agriculture, powering trade across crops, countries, and counterparties through verifiable trust.
           </p>
           <p className="text-white/35 text-lg leading-relaxed mb-12 max-w-2xl mx-auto">
             Colombia is the proving ground. The same trust infrastructure that unlocks Colombian agricultural trade is replicable across Peru, Ecuador, Brazil, and every emerging market where producers are underserved and buyers are underconnected.
@@ -490,7 +490,7 @@ export default function Investors() {
           <Badge variant="outline" className="mb-6 border-primary/30 text-primary">Connect With Us</Badge>
           <h2 className="text-3xl md:text-4xl font-serif font-bold mb-5">Interested in backing the trust layer for agricultural trade?</h2>
           <p className="text-muted-foreground mb-8 leading-relaxed">
-            We are building the system of record for supplier credibility in emerging market agriculture &mdash; starting in Colombia, expanding across Latin America. If this thesis resonates, we&apos;d like to talk.
+            We are building the system of record for supplier credibility in emerging market agriculture, starting in Colombia, expanding across Latin America. If this thesis resonates, we&apos;d like to talk.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/contact">
