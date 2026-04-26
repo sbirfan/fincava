@@ -26,7 +26,7 @@ export default function About() {
             <h2 className="text-3xl font-serif font-bold mb-4 text-primary">The problem we solve</h2>
             <p className="text-lg text-muted-foreground mb-5 leading-relaxed">
               High-quality smallholder farmers are often invisible to global buyers. Without verifiable
-              data, consistent standards, and trusted coordination, strong producers are overlooked—and
+              data, consistent standards, and trusted coordination, strong producers are overlooked and
               buyers face unnecessary risk.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed font-medium text-foreground">
@@ -50,7 +50,7 @@ export default function About() {
             profile becomes a living, versioned record of trust not just a static listing.
           </p>
           <p className="text-lg text-muted-foreground leading-relaxed italic">
-            This means buyers don't rely on guesswork—and farmers don't rely on chance.
+            This means buyers don't rely on guesswork and farmers don't rely on chance.
           </p>
         </div>
 
@@ -58,7 +58,7 @@ export default function About() {
         <div className="bg-card border rounded-2xl p-8 md:p-12 mb-24">
           <h2 className="text-3xl font-serif font-bold mb-4 text-center">How trust is built differently</h2>
           <p className="text-center text-muted-foreground mb-10 max-w-xl mx-auto">
-            What makes Fincava different is how trust is constructed — not assumed.
+            What makes Fincava different is how trust is constructed not assumed.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -68,7 +68,7 @@ export default function About() {
               </div>
               <h3 className="font-bold text-xl mb-2">Computable</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Supplier quality is measured using structured data and AI-assisted evaluation—not
+                Supplier quality is measured using structured data and AI-assisted evaluation not
                 intuition or reputation alone.
               </p>
             </div>
@@ -99,7 +99,7 @@ export default function About() {
         <div className="max-w-2xl mx-auto text-center mb-16">
           <p className="text-xl text-muted-foreground leading-relaxed mb-4">
             We are not a traditional marketplace. We are the system that makes a marketplace
-            work—by ensuring that every transaction starts with clarity, credibility, and confidence.
+            work by ensuring that every transaction starts with clarity, credibility, and confidence.
           </p>
           <p className="text-xl font-medium text-foreground leading-relaxed">
             Fincava connects smallholders to global demand and makes them trusted participants in it.
