@@ -24,7 +24,7 @@ export const loansTable = pgTable("loans", {
 
 export const repaymentsTable = pgTable("repayments", {
   id: serial("id").primaryKey(),
-  loanId: serial("loan_id").notNull().references(() => loansTable.id),
+  loanId: integer("loan_id").notNull().references(() => loansTable.id),
   amountUSD: real("amount_usd").notNull(),
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

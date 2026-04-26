@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, real, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -12,7 +12,7 @@ export const orderStatusEnum = pgEnum("order_status", [
 // All fee columns are nullable so existing rows are unaffected.
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
-  buyerId: serial("buyer_id").notNull().references(() => usersTable.id),
+  buyerId: integer("buyer_id").notNull().references(() => usersTable.id),
   status: orderStatusEnum("status").notNull().default("INQUIRY"),
   totalUSD: real("total_usd").notNull().default(0),
   incoterm: text("incoterm").notNull().default("FOB"),
@@ -30,8 +30,8 @@ export const ordersTable = pgTable("orders", {
 
 export const orderItemsTable = pgTable("order_items", {
   id: serial("id").primaryKey(),
-  orderId: serial("order_id").notNull().references(() => ordersTable.id),
-  productId: serial("product_id").notNull().references(() => productsTable.id),
+  orderId: integer("order_id").notNull().references(() => ordersTable.id),
+  productId: integer("product_id").notNull().references(() => productsTable.id),
   quantityKg: real("quantity_kg").notNull(),
   pricePerKg: real("price_per_kg").notNull(),
   totalUSD: real("total_usd").notNull(),

@@ -8,7 +8,7 @@ export const rfqStatusEnum = pgEnum("rfq_status", ["OPEN", "CLOSED", "AWARDED", 
 
 export const rfqsTable = pgTable("rfqs", {
   id: serial("id").primaryKey(),
-  buyerId: serial("buyer_id").notNull().references(() => usersTable.id),
+  buyerId: integer("buyer_id").notNull().references(() => usersTable.id),
   title: text("title").notNull(),
   description: text("description").notNull(),
   productCategory: text("product_category").notNull(),
@@ -24,8 +24,8 @@ export const rfqsTable = pgTable("rfqs", {
 
 export const rfqResponsesTable = pgTable("rfq_responses", {
   id: serial("id").primaryKey(),
-  rfqId: serial("rfq_id").notNull().references(() => rfqsTable.id),
-  companyId: serial("company_id").notNull().references(() => companiesTable.id),
+  rfqId: integer("rfq_id").notNull().references(() => rfqsTable.id),
+  companyId: integer("company_id").notNull().references(() => companiesTable.id),
   pricePerKgUSD: real("price_per_kg_usd").notNull(),
   leadTimeDays: integer("lead_time_days").notNull(),
   message: text("message").notNull(),

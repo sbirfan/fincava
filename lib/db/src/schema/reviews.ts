@@ -6,8 +6,8 @@ import { productsTable } from "./products";
 
 export const reviewsTable = pgTable("reviews", {
   id: serial("id").primaryKey(),
-  authorId: serial("author_id").notNull().references(() => usersTable.id),
-  productId: serial("product_id").notNull().references(() => productsTable.id),
+  authorId: integer("author_id").notNull().references(() => usersTable.id),
+  productId: integer("product_id").notNull().references(() => productsTable.id),
   rating: integer("rating").notNull(),
   comment: text("comment"),
   verified: boolean("verified").notNull().default(false),

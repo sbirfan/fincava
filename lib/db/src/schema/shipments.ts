@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, real, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { ordersTable } from "./orders";
@@ -9,7 +9,7 @@ export const shipmentStatusEnum = pgEnum("shipment_status", [
 
 export const shipmentsTable = pgTable("shipments", {
   id: serial("id").primaryKey(),
-  orderId: serial("order_id").notNull().references(() => ordersTable.id),
+  orderId: integer("order_id").notNull().references(() => ordersTable.id),
   status: shipmentStatusEnum("status").notNull().default("BOOKED"),
   originPort: text("origin_port").notNull(),
   destinationPort: text("destination_port").notNull(),
@@ -25,7 +25,7 @@ export const shipmentsTable = pgTable("shipments", {
 
 export const paymentMilestonesTable = pgTable("payment_milestones", {
   id: serial("id").primaryKey(),
-  orderId: serial("order_id").notNull().references(() => ordersTable.id),
+  orderId: integer("order_id").notNull().references(() => ordersTable.id),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   amountUSD: real("amount_usd").notNull(),

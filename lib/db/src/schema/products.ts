@@ -9,7 +9,7 @@ export const productCategoryEnum = pgEnum("product_category", [
 
 export const productsTable = pgTable("products", {
   id: serial("id").primaryKey(),
-  companyId: serial("company_id").notNull().references(() => companiesTable.id),
+  companyId: integer("company_id").notNull().references(() => companiesTable.id),
   name: text("name").notNull(),
   category: productCategoryEnum("category").notNull().default("COFFEE"),
   subCategory: text("sub_category"),
