@@ -48,8 +48,8 @@ router.get("/rfqs/:id", async (req, res): Promise<void> => {
   const responses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.rfqId, id));
 
   const responsesWithSupplier = await Promise.all(responses.map(async (r) => {
-    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, r.supplierId));
-    const [trust] = await db.select().from(trustScoresTable).where(eq(trustScoresTable.companyId, r.supplierId));
+    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, r.companyId));
+    const [trust] = await db.select().from(trustScoresTable).where(eq(trustScoresTable.companyId, r.companyId));
     return {
       ...r,
       createdAt: r.createdAt.toISOString(),
@@ -110,7 +110,7 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
 
   const [response] = await db.insert(rfqResponsesTable).values({
     rfqId,
-    supplierId: company.id,
+    companyId: company.id,
     pricePerKgUSD: parseFloat(pricePerKgUSD),
     leadTimeDays: parseInt(leadTimeDays),
     message,
@@ -150,7 +150,7 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
 
       await sendEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
     } catch (err) {
-      logger.warn({ err, rfqId, supplierId: company.id }, "RFQ response email failed");
+      logger.warn({ err, rfqId, companyId: company.id }, "RFQ response email failed");
     }
   });
 });
@@ -170,7 +170,7 @@ router.get("/supplier/rfqs", requireAuth, async (req, res): Promise<void> => {
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) { res.status(403).json({ error: "Supplier only" }); return; }
 
-  const myResponses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.supplierId, company.id));
+  const myResponses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.companyId, company.id));
   const respondedRfqIds = myResponses.map(r => r.rfqId);
 
   const openRfqs = await db.select().from(rfqsTable).where(eq(rfqsTable.status, "OPEN")).orderBy(desc(rfqsTable.createdAt));

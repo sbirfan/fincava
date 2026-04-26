@@ -25,7 +25,7 @@ export const rfqsTable = pgTable("rfqs", {
 export const rfqResponsesTable = pgTable("rfq_responses", {
   id: serial("id").primaryKey(),
   rfqId: serial("rfq_id").notNull().references(() => rfqsTable.id),
-  supplierId: serial("supplier_id").notNull().references(() => companiesTable.id),
+  companyId: serial("company_id").notNull().references(() => companiesTable.id),
   pricePerKgUSD: real("price_per_kg_usd").notNull(),
   leadTimeDays: integer("lead_time_days").notNull(),
   message: text("message").notNull(),
