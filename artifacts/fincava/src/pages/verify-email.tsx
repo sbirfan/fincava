@@ -3,12 +3,15 @@ import { useLocation } from "wouter";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 
 export default function VerifyEmailPage() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const tr = t.verifyEmail;
   const queryClient = useQueryClient();
 
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -20,7 +23,7 @@ export default function VerifyEmailPage() {
 
     if (!token) {
       setStatus("error");
-      setMessage("No verification token found. Please check the link in your email.");
+      setMessage(tr.noToken);
       return;
     }
 
@@ -31,19 +34,18 @@ export default function VerifyEmailPage() {
         const data = await res.json();
         if (res.ok) {
           setStatus("success");
-          setMessage(data.message ?? "Your email has been verified.");
-          // Refresh the user profile so emailVerifiedAt is updated in the UI
+          setMessage(data.message ?? tr.successTitle);
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         } else {
           setStatus("error");
-          setMessage(data.error ?? "This verification link is invalid or has expired.");
+          setMessage(data.error ?? tr.invalidOrExpired);
         }
       })
       .catch(() => {
         setStatus("error");
-        setMessage("Something went wrong. Please try again.");
+        setMessage(tr.genericError);
       });
-  }, [queryClient]);
+  }, [queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dashboardPath = user?.role === "SUPPLIER" ? "/supplier-dashboard" : "/dashboard";
 
@@ -57,7 +59,7 @@ export default function VerifyEmailPage() {
         {status === "loading" && (
           <>
             <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin" />
-            <p className="text-muted-foreground">Verifying your email address…</p>
+            <p className="text-muted-foreground">{tr.loading}</p>
           </>
         )}
 
@@ -65,17 +67,17 @@ export default function VerifyEmailPage() {
           <>
             <CheckCircle className="h-12 w-12 mx-auto text-emerald-500" />
             <div>
-              <h1 className="text-xl font-semibold mb-2">Email verified!</h1>
+              <h1 className="text-xl font-semibold mb-2">{tr.successTitle}</h1>
               <p className="text-muted-foreground text-sm">{message}</p>
             </div>
             <div className="flex flex-col gap-3">
               {user ? (
                 <Button onClick={() => navigate(dashboardPath)} className="w-full">
-                  Go to Dashboard
+                  {tr.goToDashboard}
                 </Button>
               ) : (
                 <Button onClick={() => navigate("/login")} className="w-full">
-                  Sign in
+                  {tr.signIn}
                 </Button>
               )}
             </div>
@@ -86,14 +88,14 @@ export default function VerifyEmailPage() {
           <>
             <XCircle className="h-12 w-12 mx-auto text-destructive" />
             <div>
-              <h1 className="text-xl font-semibold mb-2">Verification failed</h1>
+              <h1 className="text-xl font-semibold mb-2">{tr.failedTitle}</h1>
               <p className="text-muted-foreground text-sm">{message}</p>
             </div>
             <div className="flex flex-col gap-3">
               {user ? (
                 <>
                   <Button onClick={() => navigate(dashboardPath)} className="w-full">
-                    Go to Dashboard
+                    {tr.goToDashboard}
                   </Button>
                   <Button
                     variant="outline"
@@ -104,20 +106,20 @@ export default function VerifyEmailPage() {
                         credentials: "include",
                       });
                       if (res.ok) {
-                        setMessage("A new verification email has been sent. Please check your inbox.");
+                        setMessage(tr.resentMsg);
                         setStatus("success");
                       } else {
                         const data = await res.json().catch(() => ({}));
-                        setMessage(data.error ?? "Failed to resend verification email. Please try again.");
+                        setMessage(data.error ?? tr.resentFailMsg);
                       }
                     }}
                   >
-                    Resend verification email
+                    {tr.resend}
                   </Button>
                 </>
               ) : (
                 <Button onClick={() => navigate("/login")} className="w-full">
-                  Sign in to resend
+                  {tr.signInToResend}
                 </Button>
               )}
             </div>

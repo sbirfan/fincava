@@ -7,14 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Link } from "wouter";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Loader2, CheckCircle2 } from "lucide-react";
-
-const schema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-});
 
 export default function ForgotPassword() {
   const [sent, setSent] = useState(false);
+  const { t } = useLanguage();
+  const tr = t.forgotPassword;
+
+  const schema = z.object({
+    email: z.string().email(tr.emailError),
+  });
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -34,20 +37,16 @@ export default function ForgotPassword() {
     <div className="flex-1 flex items-center justify-center p-4 bg-muted/30">
       <Card className="w-full max-w-md border-border shadow-md">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-3xl font-serif font-bold text-primary">Forgot Password</CardTitle>
-          <CardDescription>
-            Enter your email and we'll send you a link to reset your password.
-          </CardDescription>
+          <CardTitle className="text-3xl font-serif font-bold text-primary">{tr.title}</CardTitle>
+          <CardDescription>{tr.description}</CardDescription>
         </CardHeader>
 
         <CardContent>
           {sent ? (
             <div className="flex flex-col items-center gap-4 py-4 text-center">
               <CheckCircle2 className="h-12 w-12 text-green-600" />
-              <p className="text-base font-medium">Check your inbox</p>
-              <p className="text-sm text-muted-foreground">
-                If an account exists for that email address, we've sent a password reset link. It expires in 1 hour.
-              </p>
+              <p className="text-base font-medium">{tr.sentTitle}</p>
+              <p className="text-sm text-muted-foreground">{tr.sentMsg}</p>
             </div>
           ) : (
             <Form {...form}>
@@ -57,7 +56,7 @@ export default function ForgotPassword() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email address</FormLabel>
+                      <FormLabel>{tr.emailLabel}</FormLabel>
                       <FormControl>
                         <Input placeholder="name@example.com" type="email" autoFocus {...field} />
                       </FormControl>
@@ -71,7 +70,7 @@ export default function ForgotPassword() {
                   disabled={form.formState.isSubmitting}
                 >
                   {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Send reset link
+                  {tr.sendBtn}
                 </Button>
               </form>
             </Form>
@@ -80,8 +79,8 @@ export default function ForgotPassword() {
 
         <CardFooter className="flex flex-col gap-3 border-t p-6">
           <div className="text-sm text-muted-foreground text-center">
-            Remembered it?{" "}
-            <Link href="/login" className="text-primary hover:underline font-medium">Back to log in</Link>
+            {tr.rememberedIt}{" "}
+            <Link href="/login" className="text-primary hover:underline font-medium">{tr.backToLogin}</Link>
           </div>
         </CardFooter>
       </Card>

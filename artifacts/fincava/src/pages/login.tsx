@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,18 +10,21 @@ import { useLoginUser } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation, Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Loader2, Eye, EyeOff } from "lucide-react";
-
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-});
 
 export default function Login() {
   const { login, user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const { lang, t } = useLanguage();
+  const tr = t.login;
+
+  const loginSchema = useMemo(() => z.object({
+    email: z.string().email(tr.errors.invalidEmail),
+    password: z.string().min(1, tr.errors.passwordRequired),
+  }), [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loginMutation = useLoginUser();
 
@@ -32,6 +35,10 @@ export default function Login() {
       password: "",
     },
   });
+
+  useEffect(() => {
+    form.clearErrors();
+  }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -45,15 +52,15 @@ export default function Login() {
       onSuccess: (data) => {
         login(data.token, data.user);
         toast({
-          title: "Welcome back",
-          description: `Successfully logged in as ${data.user.firstName}`,
+          title: tr.toasts.welcome,
+          description: `${tr.toasts.loggedIn} ${data.user.firstName}`,
         });
       },
       onError: (error) => {
         toast({
           variant: "destructive",
-          title: "Login failed",
-          description: error.data?.error || "Invalid email or password.",
+          title: tr.toasts.failed,
+          description: error.data?.error || tr.toasts.invalidCreds,
         });
       }
     });
@@ -63,10 +70,8 @@ export default function Login() {
     <div className="flex-1 flex items-center justify-center p-4 bg-muted/30">
       <Card className="w-full max-w-md border-border shadow-md">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-3xl font-serif font-bold text-primary">Log In</CardTitle>
-          <CardDescription>
-            Enter your credentials to access your Fincava account
-          </CardDescription>
+          <CardTitle className="text-3xl font-serif font-bold text-primary">{tr.title}</CardTitle>
+          <CardDescription>{tr.description}</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -76,7 +81,7 @@ export default function Login() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>{tr.email}</FormLabel>
                     <FormControl>
                       <Input placeholder="name@example.com" type="email" {...field} />
                     </FormControl>
@@ -89,7 +94,7 @@ export default function Login() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>{tr.password}</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Input type={showPassword ? "text" : "password"} className="pr-10" {...field} />
@@ -98,7 +103,7 @@ export default function Login() {
                           onClick={() => setShowPassword(v => !v)}
                           className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground transition-colors"
                           tabIndex={-1}
-                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          aria-label={showPassword ? tr.hidePassword : tr.showPassword}
                         >
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
@@ -114,18 +119,19 @@ export default function Login() {
                 disabled={loginMutation.isPending}
               >
                 {loginMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Log in
+                {tr.loginBtn}
               </Button>
             </form>
           </Form>
         </CardContent>
         <CardFooter className="flex flex-col items-center gap-3 border-t p-6">
           <div className="text-sm text-muted-foreground text-center">
-            Don't have an account? <Link href="/register" className="text-primary hover:underline font-medium">Sign up</Link>
+            {tr.noAccount}{" "}
+            <Link href="/register" className="text-primary hover:underline font-medium">{tr.signUp}</Link>
           </div>
           <div className="text-sm text-muted-foreground text-center">
-            Forgot your password?{" "}
-            <Link href="/forgot-password" className="text-primary hover:underline font-medium">Reset it here</Link>
+            {tr.forgotPassword}{" "}
+            <Link href="/forgot-password" className="text-primary hover:underline font-medium">{tr.resetIt}</Link>
           </div>
         </CardFooter>
       </Card>
