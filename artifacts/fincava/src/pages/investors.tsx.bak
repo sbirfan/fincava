@@ -4,7 +4,7 @@ import {
   TrendingUp, DollarSign, Globe, Users, BarChart2,
   ArrowRight, CheckCircle2, Layers, Shield, Cpu,
   Network, Scale, Landmark, Package, MapPin,
-  Building2, Zap, Lock, ShieldCheck, FileSearch, GitBranch,
+  Building2, Zap, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,24 @@ const TRACTION = [
   "85+ farming families supported through direct-trade pricing",
 ];
 
+const TEAM = [
+  {
+    name: "Founding Team",
+    role: "Colombia-based operators with export, fintech, and trade experience",
+    detail: "Deep relationships across producer cooperatives, freight operators, and export certification bodies.",
+  },
+  {
+    name: "Advisory Board",
+    role: "International trade, agri-finance, and emerging market tech",
+    detail: "Advisors with experience at Dastgyr, Twiga, Agrocorp, and LatAm agri-export organizations.",
+  },
+  {
+    name: "Technical Infrastructure",
+    role: "Full-stack trade platform, live in production",
+    detail: "Not a deck. A working Commerce OS with live order flow, RFQs, producer stories, and real data.",
+  },
+];
+
 export default function Investors() {
   return (
     <div className="bg-background">
@@ -51,11 +69,11 @@ export default function Investors() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <Badge variant="outline" className="mb-6 border-primary/40 text-primary bg-primary/10">Investor Relations</Badge>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-6 leading-tight">
-              The Trust and Coordination Layer<br />
-              <span className="text-primary">for Agricultural Trade.</span>
+              Building the Operating System<br />
+              <span className="text-primary">for Emerging Market Commerce.</span>
             </h1>
             <p className="text-lg text-white/70 max-w-2xl mx-auto mb-10">
-              Fincava is not a marketplace &mdash; it is a trust engine. We convert unverified smallholder farmers into credentialed, buyer-ready suppliers, connecting Colombian producers to $180B in annual demand across the Middle East, Asia, and Africa.
+              Fincava is the infrastructure layer connecting Colombian agricultural producers to $180B in annual demand across the Middle East, Asia, and Africa, with embedded finance, distribution, and compliance built in.
             </p>
             <div className="flex justify-center gap-4 flex-wrap">
               <Link href="/contact">
@@ -77,9 +95,7 @@ export default function Investors() {
       <section className="py-20 container mx-auto px-4">
         <div className="text-center mb-14">
           <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Market Opportunity</h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
-            Colombia&apos;s production surplus meets surging MENA and Asia demand &mdash; but the trust infrastructure to connect them does not exist yet. That is the structural gap Fincava is built to fill.
-          </p>
+          <p className="text-muted-foreground max-w-xl mx-auto">Three converging forces: Colombia's production surplus, MENA/Asia demand explosion, and broken B2B infrastructure, creating a structural arbitrage opportunity.</p>
         </div>
         <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {METRICS.map(m => (
@@ -125,10 +141,10 @@ export default function Investors() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <SectionLabel>Why Now</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-              The window is open &mdash; and it won&apos;t stay open long.
+              The window is open — and it won't stay open long.
             </h2>
             <p className="text-muted-foreground text-xl leading-relaxed">
-              Three converging forces make this the precise moment to build trust infrastructure for agricultural trade in emerging markets.
+              Three converging forces make this the precise moment to build commerce infrastructure for emerging markets.
             </p>
           </div>
 
@@ -138,21 +154,21 @@ export default function Investors() {
                 number: "01",
                 icon: TrendingUp,
                 title: "Colombia's Export Moment",
-                body: "Colombia is the world's 3rd largest coffee producer and a leading exporter of cacao, where smallholder production dominates and quality differentiation is critical but poorly standardised. This provides a high-signal entry point, with a clear path to adjacent crops and geographies.",
+                body: "Colombia is the world's 3rd largest coffee producer and rapidly expanding specialty exports. Premium demand from the Middle East, Japan, and South Korea is growing 22% YoY. The infrastructure to capture that demand doesn't exist yet.",
                 highlight: "22% YoY demand growth",
               },
               {
                 number: "02",
                 icon: Zap,
                 title: "Proven in Adjacent Markets",
-                body: "Dastgyr (Pakistan) built a $500M commerce infrastructure business in 3 years by digitising the same broken supply chain dynamics. The model is validated. Colombia is structurally identical but earlier stage, with higher product value floors.",
+                body: "Dastgyr (Pakistan) built a $500M commerce infrastructure business in 3 years by digitizing the same broken supply chain dynamics. The model is validated. Colombia is structurally identical but earlier stage, with higher product value floors.",
                 highlight: "$500M validated playbook",
               },
               {
                 number: "03",
                 icon: Globe,
                 title: "Emerging Market Demand Surge",
-                body: "The Middle East, Asia, and Africa are importing $180B in agricultural commodities annually, with growing preference for traceability and direct sourcing. Traditional brokers cannot provide verifiable trust. Fincava can.",
+                body: "The Middle East, Asia, and Africa are importing $180B in agricultural commodities annually, with growing preference for traceability and direct sourcing. Traditional brokers cannot provide what modern buyers demand. Fincava can.",
                 highlight: "$180B annual import market",
               },
             ].map(r => (
@@ -174,24 +190,23 @@ export default function Investors() {
         </div>
       </section>
 
-      {/* ─── TRUST ENGINE ─────────────────────────────────────────────────── */}
+      {/* ─── ARCHITECTURE ─────────────────────────────────────────────────── */}
       <section className="py-24 bg-card border-y border-border">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
               <SectionLabel>Architecture</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                Not a marketplace &mdash;<br />a trust engine.
+                Built as a modular<br />agentic system.
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                Fincava owns the decision layer that determines who is eligible to transact and under what conditions. Unlike listing platforms, we do not surface suppliers &mdash; we credentialise them through a governed decision system with four interlocking components.
+                Every component of Fincava is a discrete, composable service. AI agents coordinate across layers in real time, matching supply to demand, triggering financing events, and managing compliance without human bottlenecks.
               </p>
               <div className="space-y-4">
                 {[
-                  { icon: Cpu, label: "AI Scoring Models", desc: "Machine learning models generate quantified supplier quality scores from structured production, compliance, and certification data." },
-                  { icon: Scale, label: "Deterministic Rules", desc: "Rule-based enforcement of minimum standards and consistency thresholds — no supplier clears the bar without meeting objective criteria." },
-                  { icon: Users, label: "Human Override Authority", desc: "Operators retain full override authority at every decision point. Expert judgment governs edge cases, appeals, and standards evolution." },
-                  { icon: FileSearch, label: "Full Audit Trail", desc: "Every score, rule application, and override is logged with timestamp and authorship — creating a traceable, accountable record of every decision." },
+                  { icon: Cpu, label: "AI-Driven Agents", desc: "Autonomous agents match RFQs to suppliers, score trust, and flag compliance risks in real time." },
+                  { icon: Network, label: "Modular Services", desc: "Each system layer (market, finance, distribution) operates independently and composes via clean APIs." },
+                  { icon: Scale, label: "Scalable by Design", desc: "Built to serve 10 producers or 10,000. The architecture scales horizontally without rearchitecting." },
                 ].map(f => (
                   <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-background hover:border-primary/30 transition-colors">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -206,64 +221,45 @@ export default function Investors() {
               </div>
             </div>
 
-            {/* Trust engine diagram */}
+            {/* Architecture diagram */}
             <div className="relative">
               <div className="bg-[#050f0a] rounded-2xl p-8 border border-white/10 font-mono text-sm">
-                <div className="text-white/30 text-xs mb-6">// Fincava Trust Engine</div>
-
-                {/* Input */}
-                <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-center text-white/50 text-xs mb-4">
-                  Raw Supplier Data &nbsp;·&nbsp; Certifications &nbsp;·&nbsp; Production Records
+                <div className="text-white/30 text-xs mb-6">// Fincava System Architecture</div>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {["Buyer App", "Supplier App", "Admin Console"].map(n => (
+                    <div key={n} className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center text-white/60 text-xs">{n}</div>
+                  ))}
                 </div>
-
-                {/* Four layers */}
-                <div className="space-y-2 mb-4">
+                <div className="bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 text-center text-primary text-xs font-semibold mb-4">
+                  Fincava API Gateway
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   {[
-                    { label: "AI Scoring Models", color: "text-primary border-primary/20 bg-primary/5" },
-                    { label: "Deterministic Rules Engine", color: "text-amber-400 border-amber-500/20 bg-amber-500/5" },
-                    { label: "Human Operator Review", color: "text-sky-400 border-sky-500/20 bg-sky-500/5" },
-                    { label: "Audit Trail & Versioning", color: "text-violet-400 border-violet-500/20 bg-violet-500/5" },
+                    { label: "Match Agent", color: "text-primary border-primary/20 bg-primary/5" },
+                    { label: "Finance Agent", color: "text-amber-400 border-amber-500/20 bg-amber-500/5" },
+                    { label: "Logistics Agent", color: "text-sky-400 border-sky-500/20 bg-sky-500/5" },
                   ].map(a => (
-                    <div key={a.label} className={`border rounded-lg px-4 py-2.5 text-center text-xs font-medium ${a.color}`}>
+                    <div key={a.label} className={`border rounded-lg px-2 py-2.5 text-center text-xs font-medium ${a.color}`}>
                       {a.label}
                     </div>
                   ))}
                 </div>
-
-                {/* Output */}
-                <div className="bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 text-center text-primary text-xs font-semibold mb-4">
-                  Credentialled, Buyer-Ready Supplier Profile
-                </div>
-
-                {/* Properties */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   {[
-                    { label: "Computable", color: "bg-primary/10 border-primary/20 text-primary/70" },
-                    { label: "Versionable", color: "bg-amber-500/10 border-amber-500/20 text-amber-400/70" },
-                    { label: "Governable", color: "bg-sky-500/10 border-sky-500/20 text-sky-400/70" },
+                    { label: "Market Access", color: "bg-primary/10 border-primary/20 text-primary/70" },
+                    { label: "Embedded Finance", color: "bg-amber-500/10 border-amber-500/20 text-amber-400/70" },
+                    { label: "Distribution", color: "bg-sky-500/10 border-sky-500/20 text-sky-400/70" },
                   ].map(s => (
                     <div key={s.label} className={`border rounded-lg px-2 py-3 text-center text-[11px] ${s.color}`}>{s.label}</div>
                   ))}
                 </div>
-
-                <div className="mt-4 text-[10px] text-white/20 text-center">
-                  Supplier quality: quantified, tracked, and governed
+                <div className="bg-white/3 border border-white/8 rounded-lg px-4 py-2.5 text-center text-white/30 text-xs">
+                  PostgreSQL · Event Store · Analytics DB
                 </div>
-              </div>
-
-              {/* Framework callout */}
-              <div className="mt-6 grid grid-cols-3 gap-4 text-center">
-                {[
-                  { label: "Computable", desc: "Quantified and comparable across suppliers", icon: Cpu },
-                  { label: "Versionable", desc: "Tracked and updated over time", icon: GitBranch },
-                  { label: "Governable", desc: "Adjustable with expert human judgment", icon: ShieldCheck },
-                ].map(p => (
-                  <div key={p.label} className="p-4 rounded-xl border border-border bg-background">
-                    <p.icon className="w-5 h-5 text-primary mx-auto mb-2" />
-                    <div className="font-semibold text-sm mb-1">{p.label}</div>
-                    <div className="text-xs text-muted-foreground leading-snug">{p.desc}</div>
-                  </div>
-                ))}
+                <div className="mt-4 flex items-center justify-between text-[10px] text-white/20">
+                  <span>← Market layer</span>
+                  <span>Real-time sync →</span>
+                </div>
               </div>
             </div>
           </div>
@@ -381,44 +377,27 @@ export default function Investors() {
               <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
                 Advantages that compound. Moats that deepen over time.
               </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                Fincava&apos;s competitive position is not a single feature &mdash; it is the combination of decision-layer ownership, local depth, and execution timing that creates durable defensibility.
+              <p className="text-muted-foreground text-lg leading-relaxed">
+                Fincava's competitive position is not a single feature; it is the combination of local depth, architectural superiority, and execution timing that creates durable defensibility.
               </p>
-
-              {/* Liquidity unlock */}
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-6">
-                <div className="text-xs font-semibold uppercase tracking-widest text-primary mb-4">Trust Unlocks Liquidity</div>
-                <div className="space-y-3">
-                  {[
-                    { who: "Farmers", gain: "Gain access to higher-value international buyers previously out of reach." },
-                    { who: "Buyers", gain: "Gain reliable sourcing with reduced diligence costs and counterparty risk." },
-                    { who: "Transactions", gain: "Become faster, more transparent, and more scalable at every stage." },
-                  ].map(l => (
-                    <div key={l.who} className="flex items-start gap-3">
-                      <span className="text-xs font-bold text-primary bg-primary/10 rounded px-2 py-0.5 mt-0.5 shrink-0">{l.who}</span>
-                      <span className="text-sm text-muted-foreground leading-relaxed">{l.gain}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
 
             <div className="space-y-4">
               {[
-                {
-                  icon: Lock,
-                  title: "Decision Layer Ownership",
-                  body: "Unlike listing platforms, Fincava owns the layer that determines who is eligible to transact and under what conditions. This is not a feature that can be copied — it requires years of producer data, rule calibration, and governance infrastructure.",
-                },
                 {
                   icon: MapPin,
                   title: "Local Ecosystem Depth",
                   body: "We have ground-level producer relationships that a well-funded competitor cannot purchase. Trust is earned through presence, and we are present.",
                 },
                 {
+                  icon: Layers,
+                  title: "Unified Architecture Advantage",
+                  body: "Most competitors operate in a single layer (marketplace OR finance OR logistics). Fincava operates across all three, creating cross-layer network effects and switching costs.",
+                },
+                {
                   icon: TrendingUp,
                   title: "Data Flywheel",
-                  body: "Every transaction enriches our scoring models, demand signals, and logistics intelligence. The platform gets stronger with each trade — compounding advantages over later entrants.",
+                  body: "Every transaction enriches our risk models, demand signals, and logistics intelligence. The platform gets stronger with each trade, creating compounding advantages over later entrants.",
                 },
                 {
                   icon: Building2,
@@ -457,13 +436,10 @@ export default function Investors() {
         <div className="relative container mx-auto px-4 max-w-4xl">
           <SectionLabel light>The Vision</SectionLabel>
           <h2 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold leading-[1.06] mb-8">
-            The system of record<br />for supplier credibility.
+            Infrastructure for commerce<br />across Latin America.
           </h2>
-          <p className="text-white/50 text-xl md:text-2xl leading-relaxed mb-6 max-w-3xl mx-auto">
-            Fincava&apos;s long-term position is to become the system of record for supplier credibility in emerging market agriculture &mdash; powering trade across crops, countries, and counterparties through verifiable trust.
-          </p>
-          <p className="text-white/35 text-lg leading-relaxed mb-12 max-w-2xl mx-auto">
-            Colombia is the proving ground. The same trust infrastructure that unlocks Colombian agricultural trade is replicable across Peru, Ecuador, Brazil, and every emerging market where producers are underserved and buyers are underconnected.
+          <p className="text-white/50 text-xl md:text-2xl leading-relaxed mb-12 max-w-3xl mx-auto">
+            Colombia is the proving ground. The same infrastructure that unlocks Colombian agricultural trade is replicable across Peru, Ecuador, Brazil, and every emerging market where producers are underserved and buyers are underconnected.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
             {[
@@ -481,16 +457,32 @@ export default function Investors() {
         </div>
       </section>
 
-      {/* ─── TEAM (hidden) ────────────────────────────────────────────────── */}
-      {/* Team section temporarily hidden */}
+      {/* ─── TEAM ─────────────────────────────────────────────────────────── */}
+      <section className="py-20 container mx-auto px-4">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Team</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          {TEAM.map(t => (
+            <Card key={t.name} className="p-6">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              <h3 className="font-semibold mb-1">{t.name}</h3>
+              <p className="text-xs text-primary font-medium mb-3">{t.role}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">{t.detail}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
 
       {/* ─── CTA ──────────────────────────────────────────────────────────── */}
       <section className="py-20 border-t text-center">
         <div className="container mx-auto px-4 max-w-2xl">
           <Badge variant="outline" className="mb-6 border-primary/30 text-primary">Connect With Us</Badge>
-          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-5">Interested in backing the trust layer for agricultural trade?</h2>
+          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-5">Interested in backing the infrastructure layer?</h2>
           <p className="text-muted-foreground mb-8 leading-relaxed">
-            We are building the system of record for supplier credibility in emerging market agriculture &mdash; starting in Colombia, expanding across Latin America. If this thesis resonates, we&apos;d like to talk.
+            We're building the Stripe / Dastgyr equivalent for agricultural trade in Latin America. If this thesis resonates, we'd like to talk.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/contact">
