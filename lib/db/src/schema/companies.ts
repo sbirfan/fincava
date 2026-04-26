@@ -7,6 +7,9 @@ export const companyTypeEnum = pgEnum("company_type", [
   "COOPERATIVE", "EXPORTER", "SMALLHOLDER", "IMPORTER", "DISTRIBUTOR", "ROASTER", "MANUFACTURER"
 ]);
 
+// ARCHITECTURE NOTE: companies belongs to the auth/marketplace graph (user_id FK → users).
+// companies has no supplier_id. It is NOT connected to the supplier graduation graph.
+// See suppliersTable note for Phase 2 bridge plan.
 export const companiesTable = pgTable("companies", {
   id: serial("id").primaryKey(),
   userId: serial("user_id").notNull().references(() => usersTable.id),

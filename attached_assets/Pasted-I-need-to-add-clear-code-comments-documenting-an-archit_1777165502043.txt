@@ -1,0 +1,39 @@
+I need to add clear code comments documenting an architectural constraint in the database. No schema changes — documentation only.
+
+**Background:**
+The database has two disconnected entity graphs with no foreign key bridge between them:
+
+- **Supplier graph**: suppliers → farms, economics, compliance_docs, ai_outputs, supplier_evaluations, supplier_state_transitions, interactions
+- **Auth/marketplace graph**: users → profiles → companies → products, certifications, trust_scores, rfq_responses
+
+There is no `company_id` on `suppliers` and no `supplier_id` on `companies`. This is intentional for Phase 1 (suppliers are onboarded via WhatsApp with no user account). The bridge will be added in Phase 2 when supplier login is introduced.
+
+**What I need you to do:**
+
+1. In the Drizzle schema file, add a comment block above the `suppliersTable` definition:
+   ```
+   // ARCHITECTURE NOTE: suppliers is a standalone entity graph (no FK to companies or users).
+   // Suppliers are onboarded via WhatsApp — they have no user account in Phase 1.
+   // The bridge column (company_id FK → companies) will be added in Phase 2 when supplier
+   // login is introduced. Do NOT attempt to JOIN suppliers to products or companies without
+   // confirming the bridge exists first.
+   ```
+
+2. In the Drizzle schema file, add a comment above the `companiesTable` definition:
+   ```
+   // ARCHITECTURE NOTE: companies belongs to the auth/marketplace graph (user_id FK → users).
+   // companies has no supplier_id. It is NOT connected to the supplier graduation graph.
+   // See suppliersTable note for Phase 2 bridge plan.
+   ```
+
+3. In the `GET /api/suppliers/marketplace` route handler in suppliers.ts, add an inline comment:
+   ```
+   // T6 NOTE: This endpoint returns supplier-side data only (graduation scores, farm info).
+   // It cannot JOIN to products because suppliers and products are on disconnected entity graphs.
+   // To show products alongside suppliers, enrich this response with a secondary products query
+   // filtered by company_id — do not attempt a direct JOIN.
+   ```
+
+4. Do not make any other changes. No schema migrations, no logic changes.
+
+Show me the updated schema file with the new comments.

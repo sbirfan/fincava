@@ -658,6 +658,10 @@ router.get("/suppliers", requireAuth, requireAdmin, async (req, res): Promise<vo
 
 // ── GET /api/suppliers/marketplace ───────────────────────────────────────────
 router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
+  // T6 NOTE: This endpoint returns supplier-side data only (graduation scores, farm info).
+  // It cannot JOIN to products because suppliers and products are on disconnected entity graphs.
+  // To show products alongside suppliers, enrich this response with a secondary products query
+  // filtered by company_id — do not attempt a direct JOIN.
   const rows = await db
     .select({
       id: suppliersTable.id,

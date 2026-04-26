@@ -79,6 +79,11 @@ export const graduationPathwayEnum = pgEnum("graduation_pathway", [
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ARCHITECTURE NOTE: suppliers is a standalone entity graph (no FK to companies or users).
+// Suppliers are onboarded via WhatsApp — they have no user account in Phase 1.
+// The bridge column (company_id FK → companies) will be added in Phase 2 when supplier
+// login is introduced. Do NOT attempt to JOIN suppliers to products or companies without
+// confirming the bridge exists first.
 export const suppliersTable = pgTable(
   "suppliers",
   {
