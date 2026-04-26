@@ -8,6 +8,8 @@ export const orderStatusEnum = pgEnum("order_status", [
   "INQUIRY", "SAMPLE_REQUESTED", "QUOTED", "CONFIRMED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "COMPLETED", "CANCELLED"
 ]);
 
+// feeStatus values: PENDING | WAIVED | COLLECTED | EXEMPT
+// All fee columns are nullable so existing rows are unaffected.
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
   buyerId: serial("buyer_id").notNull().references(() => usersTable.id),
@@ -17,6 +19,11 @@ export const ordersTable = pgTable("orders", {
   destinationPort: text("destination_port"),
   shippingMethod: text("shipping_method"),
   notes: text("notes"),
+  // ── Fee tracking ───────────────────────────────────────────────────────────
+  // Computed at order creation time. Rate = 4 %. First 10 orders → WAIVED.
+  feePercentage: real("fee_percentage"),
+  feeAmountUSD:  real("fee_amount_usd"),
+  feeStatus:     text("fee_status"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

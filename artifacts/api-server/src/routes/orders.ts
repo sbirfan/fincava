@@ -10,6 +10,7 @@ import {
 import { requireAuth, requireVerifiedEmail } from "../lib/auth";
 import { sendEmail, orderStatusEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { computeFee } from "../services/fee-service";
 
 const router: IRouter = Router();
 
@@ -28,6 +29,10 @@ async function buildOrderResponse(order: any) {
     destinationPort: order.destinationPort ?? null,
     shippingMethod: order.shippingMethod ?? null,
     notes: order.notes ?? null,
+    // Fee tracking — nullable on legacy orders that pre-date this feature.
+    feePercentage: order.feePercentage ?? null,
+    feeAmountUSD:  order.feeAmountUSD  ?? null,
+    feeStatus:     order.feeStatus     ?? null,
     itemCount: items.length,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
@@ -64,6 +69,10 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     return { productId: item.productId, quantityKg: item.quantityKg, pricePerKg: product.pricePerKgUSD, totalUSD: itemTotal };
   }));
 
+  // Compute platform fee before inserting so it lands in the first write.
+  // computeFee counts prior non-CANCELLED orders to determine waiver status.
+  const fee = await computeFee(userId, totalUSD);
+
   const [order] = await db.insert(ordersTable).values({
     buyerId: userId,
     status: "INQUIRY",
@@ -72,7 +81,15 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     destinationPort: destinationPort ?? null,
     shippingMethod: shippingMethod ?? null,
     notes: notes ?? null,
+    feePercentage: fee.feePercentage,
+    feeAmountUSD:  fee.feeAmountUSD,
+    feeStatus:     fee.feeStatus,
   }).returning();
+
+  logger.info(
+    { orderId: order.id, buyerId: userId, totalUSD, ...fee },
+    "order created with fee",
+  );
 
   await Promise.all(itemsWithPrices.map(item =>
     db.insert(orderItemsTable).values({
