@@ -340,6 +340,11 @@ router.get(
         status: suppliersTable.status,
         createdAt: suppliersTable.createdAt,
         primaryProduct: farmsTable.cultivoPrincipal,
+        // Graduation fields — written by evaluateSupplier, nullable until first evaluation
+        sellableStatus: suppliersTable.sellableStatus,
+        eligibilityStatus: suppliersTable.eligibilityStatus,
+        commercialScore: suppliersTable.commercialScore,
+        // AI output fields from latest scoring run
         exportReadinessScore: latestScores.exportReadinessScore,
         pathway: latestScores.pathway,
         capitalCapacityCop: latestScores.capitalCapacityCop,

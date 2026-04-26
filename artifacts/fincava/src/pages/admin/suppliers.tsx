@@ -16,6 +16,10 @@ interface Supplier {
   pathway: string | null;
   primaryProduct?: string | null;
   whatsappMessageSent?: string | null;
+  // Graduation fields (nullable until evaluateSupplier runs)
+  sellableStatus?: string | null;
+  eligibilityStatus?: string | null;
+  commercialScore?: number | null;
 }
 
 const SUPPLIER_STATUSES = ["PENDING", "ACTIVE", "INACTIVE"] as const;
@@ -38,6 +42,18 @@ const PATHWAY_LABELS: Record<string, string> = {
   B: "Standard",
   C: "Needs Support",
   D: "Not Ready",
+};
+
+const SELLABLE_COLORS: Record<string, string> = {
+  PUBLISHED:  "bg-emerald-100 text-emerald-800",
+  SELLABLE:   "bg-green-100 text-green-700",
+  ELIGIBLE:   "bg-blue-100 text-blue-700",
+  NOT_READY:  "bg-gray-100 text-gray-500",
+};
+
+const ELIGIBILITY_COLORS: Record<string, string> = {
+  PASS: "text-green-600",
+  FAIL: "text-red-500",
 };
 
 function DocModal({
@@ -429,6 +445,9 @@ export default function AdminSuppliersPage() {
                     {lang === "es" ? "Estado" : "Status"}
                   </th>
                   <th className="text-left px-4 py-3 font-medium">
+                    {lang === "es" ? "Graduación" : "Graduation"}
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium">
                     {lang === "es" ? "Score IA" : "AI Score"}
                   </th>
                   <th className="text-left px-4 py-3 font-medium">Pathway</th>
@@ -470,6 +489,24 @@ export default function AdminSuppliersPage() {
                       >
                         {s.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {s.sellableStatus ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium w-fit ${SELLABLE_COLORS[s.sellableStatus] || "bg-gray-100 text-gray-500"}`}
+                          >
+                            {s.sellableStatus}
+                          </span>
+                          {s.eligibilityStatus && (
+                            <span className={`text-[10px] font-semibold ${ELIGIBILITY_COLORS[s.eligibilityStatus] || "text-gray-400"}`}>
+                              {s.eligibilityStatus === "PASS" ? "✓ Eligible" : "✗ Not eligible"}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={scoreColor(s.exportReadinessScore)}>
@@ -666,6 +703,38 @@ export default function AdminSuppliersPage() {
                       ? `${selected.exportReadinessScore}/100`
                       : "—"}
                   </span>
+                }
+              />
+              <Row
+                label={lang === "es" ? "Puntuación Comercial" : "Commercial Score"}
+                value={
+                  selected.commercialScore != null ? (
+                    <span className={scoreColor(selected.commercialScore)}>
+                      {selected.commercialScore}/100
+                    </span>
+                  ) : "—"
+                }
+              />
+              <Row
+                label={lang === "es" ? "Estado Vendible" : "Sellable Status"}
+                value={
+                  selected.sellableStatus ? (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SELLABLE_COLORS[selected.sellableStatus] || "bg-gray-100 text-gray-500"}`}>
+                      {selected.sellableStatus}
+                    </span>
+                  ) : "—"
+                }
+              />
+              <Row
+                label={lang === "es" ? "Elegibilidad" : "Eligibility"}
+                value={
+                  selected.eligibilityStatus ? (
+                    <span className={`text-xs font-semibold ${ELIGIBILITY_COLORS[selected.eligibilityStatus] || "text-gray-400"}`}>
+                      {selected.eligibilityStatus === "PASS"
+                        ? (lang === "es" ? "✓ Cumple requisitos" : "✓ Passes")
+                        : (lang === "es" ? "✗ No cumple requisitos" : "✗ Fails")}
+                    </span>
+                  ) : "—"
                 }
               />
               <Row
