@@ -10,6 +10,7 @@
 import { db, aiOutputsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { logInteraction } from "../lib/interaction-logger";
 import type { OnboardPayload } from "../lib/pipeline-emitter";
 import { scoreSupplier } from "./scoring-service";
 import { evaluateSupplier } from "./supplier-graduation-service";
@@ -32,6 +33,15 @@ export async function runOnboardPipeline(payload: OnboardPayload): Promise<void>
 
     await evaluateSupplier(supplierId);
     logger.info({ supplierId, correlationId }, "onboard-pipeline: succeeded");
+
+    logInteraction({
+      eventType:     "supplier_onboarding",
+      actorId:       supplierId,
+      actorType:     "supplier",
+      referenceId:   supplierId,
+      referenceType: "supplier",
+      payload:       { correlationId },
+    });
   } catch (err: any) {
     logger.error({ supplierId, correlationId, err }, "onboard-pipeline: failed");
     try { (globalThis as any).Sentry?.captureException?.(err); } catch {}

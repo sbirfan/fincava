@@ -13,6 +13,7 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendEmail, buyerOnboardAdminAlertEmail } from "../lib/email";
+import { logInteraction } from "../lib/interaction-logger";
 
 const router: IRouter = Router();
 
@@ -104,8 +105,24 @@ router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
 
   logger.info({ userId, profileId: profile.id, isNewProfile }, "buyer onboarded");
 
-  // Respond immediately — email runs after.
+  // Respond immediately — async work runs after.
   res.status(201).json({ profile });
+
+  // ── Interaction signal (fire-and-forget, new profiles only) ───────────────
+  if (isNewProfile) {
+    logInteraction({
+      eventType:     "buyer_onboarding",
+      actorId:       userId,
+      actorType:     "buyer",
+      referenceId:   profile.id,
+      referenceType: "buyer_profile",
+      payload: {
+        country:           profile.country,
+        targetProducts:    profile.targetProducts,
+        preferredIncoterm: profile.preferredIncoterm,
+      },
+    });
+  }
 
   // ── Fire-and-forget admin alert (new profiles only) ────────────────────────
   // Any failure here is caught, logged, and never propagated to the caller.

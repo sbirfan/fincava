@@ -11,6 +11,7 @@ import { requireAuth, requireVerifiedEmail } from "../lib/auth";
 import { sendEmail, orderStatusEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { computeFee } from "../services/fee-service";
+import { logInteraction } from "../lib/interaction-logger";
 
 const router: IRouter = Router();
 
@@ -90,6 +91,22 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     { orderId: order.id, buyerId: userId, totalUSD, ...fee },
     "order created with fee",
   );
+
+  // ── Interaction signal (fire-and-forget) ─────────────────────────────────
+  logInteraction({
+    eventType:     "order_created",
+    actorId:       userId,
+    actorType:     "buyer",
+    referenceId:   order.id,
+    referenceType: "order",
+    payload: {
+      totalUSD,
+      feeStatus:    fee.feeStatus,
+      feeAmountUSD: fee.feeAmountUSD,
+      incoterm:     incoterm ?? "FOB",
+      itemCount:    itemsWithPrices.length,
+    },
+  });
 
   await Promise.all(itemsWithPrices.map(item =>
     db.insert(orderItemsTable).values({
