@@ -1,0 +1,199 @@
+Continue from current state. Do NOT make changes immediately.
+
+First perform ALL verification steps. Only proceed if all checks pass and no conflicts are found. If any issue is detected, STOP and report.
+
+---
+
+T9 — ADD CHECK CONSTRAINT ON suppliers.sellable_status
+
+Task ID: T9
+Type: TDD Hardening — Data Integrity
+Priority: MEDIUM
+Dependency: None
+
+---
+
+OBJECTIVE
+
+Ensure `sellable_status` in suppliers table only contains valid allowed values via a CHECK constraint.
+
+---
+
+STEP 1 — VERIFY CURRENT COLUMN + DATA (MANDATORY)
+
+Run in psql:
+
+\d suppliers
+
+Confirm:
+
+* Column exists: sellable_status
+* Data type (text / enum / varchar)
+
+Run:
+
+SELECT DISTINCT sellable_status FROM suppliers;
+
+---
+
+EXPECTED VALUES (MVP)
+
+Valid values must be a subset of:
+
+* 'seeded_unverified'
+* 'review_ready'
+* 'approved_minimal'
+* 'sellable'
+* 'published' (if used in system)
+
+---
+
+VALIDATION RULE
+
+If ANY value exists outside allowed set:
+→ STOP
+→ Report invalid values
+→ DO NOT apply constraint
+
+---
+
+STEP 2 — CHECK IF CONSTRAINT ALREADY EXISTS
+
+Run:
+
+SELECT conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid = 'suppliers'::regclass;
+
+---
+
+If a constraint already enforces sellable_status:
+
+* Verify it matches allowed values
+* If correct → STOP (no-op, already compliant)
+
+---
+
+STEP 3 — CONFLICT CHECK
+
+Before proceeding:
+
+* Ensure no pending migrations affecting suppliers table
+* Ensure sellable_status is NOT already a Postgres enum enforcing allowed values
+* Ensure application code aligns with allowed values
+
+If any mismatch:
+→ STOP and report
+
+---
+
+STEP 4 — APPLY CHECK CONSTRAINT (ONLY IF SAFE)
+
+If all checks pass:
+
+Add constraint via Drizzle schema (preferred):
+
+In src/db/schema/suppliers.ts:
+
+Add:
+
+CHECK (sellable_status IN (
+'seeded_unverified',
+'review_ready',
+'approved_minimal',
+'sellable',
+'published'
+))
+
+---
+
+If Drizzle does NOT support CHECK cleanly, use migration SQL:
+
+ALTER TABLE suppliers
+ADD CONSTRAINT suppliers_sellable_status_check
+CHECK (sellable_status IN (
+'seeded_unverified',
+'review_ready',
+'approved_minimal',
+'sellable',
+'published'
+));
+
+---
+
+STEP 5 — GENERATE + APPLY MIGRATION
+
+pnpm drizzle-kit generate
+pnpm drizzle-kit migrate
+
+---
+
+STEP 6 — VERIFY CONSTRAINT
+
+Run:
+
+SELECT conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid = 'suppliers'::regclass;
+
+Confirm:
+
+* suppliers_sellable_status_check exists
+* Definition matches allowed values
+
+---
+
+STEP 7 — NEGATIVE TEST (IMPORTANT)
+
+Run:
+
+INSERT INTO suppliers (sellable_status) VALUES ('invalid_status');
+
+Expected:
+→ ERROR (constraint violation)
+
+---
+
+VALIDATION
+
+* Constraint exists in DB
+* Invalid values are rejected
+* pnpm tsc --noEmit → 0 errors
+* Migration applied cleanly
+
+---
+
+BACK-OUT PLAN
+
+git revert HEAD
+
+Then in psql:
+
+ALTER TABLE suppliers
+DROP CONSTRAINT IF EXISTS suppliers_sellable_status_check;
+
+---
+
+DO NOT
+
+* Do NOT apply constraint if invalid data exists
+* Do NOT override existing enum without verification
+* Do NOT modify other columns
+
+---
+
+OUTPUT REQUIREMENT
+
+Return:
+
+1. Existing values in sellable_status
+2. Whether constraint already existed
+3. Whether constraint was applied or skipped
+4. Validation results
+
+If any issue is found:
+→ STOP and report
+
+---
+
+END
