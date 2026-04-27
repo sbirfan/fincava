@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict JtABcKKlxkdadrDeviWXm9IJddcolTuhVnqXroX7uUS1ZFTbPY0Mp1ObFZXde2Q
+\restrict Xo90dCkPSpJmTSA56kvxJN8hmeqy3CX0bsP0XFANNeEPvje8maMDavPmbQFLJVY
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -325,6 +325,49 @@ ALTER SEQUENCE public.ai_outputs_id_seq OWNER TO postgres;
 --
 
 ALTER SEQUENCE public.ai_outputs_id_seq OWNED BY public.ai_outputs.id;
+
+
+--
+-- Name: buyer_profiles; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.buyer_profiles (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    company_name text,
+    country text,
+    destination_port text,
+    target_products text[] DEFAULT '{}'::text[] NOT NULL,
+    preferred_incoterm text,
+    intended_volume_mt real,
+    import_frequency text,
+    onboarded_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.buyer_profiles OWNER TO postgres;
+
+--
+-- Name: buyer_profiles_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.buyer_profiles_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.buyer_profiles_id_seq OWNER TO postgres;
+
+--
+-- Name: buyer_profiles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.buyer_profiles_id_seq OWNED BY public.buyer_profiles.id;
 
 
 --
@@ -732,6 +775,46 @@ ALTER SEQUENCE public.inquiries_product_id_seq OWNED BY public.inquiries.product
 
 
 --
+-- Name: interaction_logs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.interaction_logs (
+    id integer NOT NULL,
+    event_type text NOT NULL,
+    actor_id integer,
+    actor_type text,
+    reference_id integer,
+    reference_type text,
+    payload jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.interaction_logs OWNER TO postgres;
+
+--
+-- Name: interaction_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.interaction_logs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interaction_logs_id_seq OWNER TO postgres;
+
+--
+-- Name: interaction_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.interaction_logs_id_seq OWNED BY public.interaction_logs.id;
+
+
+--
 -- Name: interactions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -1037,7 +1120,10 @@ CREATE TABLE public.orders (
     shipping_method text,
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    fee_percentage real,
+    fee_amount_usd real,
+    fee_status text
 );
 
 
@@ -1616,7 +1702,7 @@ ALTER SEQUENCE public.reviews_product_id_seq OWNED BY public.reviews.product_id;
 CREATE TABLE public.rfq_responses (
     id integer NOT NULL,
     rfq_id integer NOT NULL,
-    supplier_id integer NOT NULL,
+    company_id integer NOT NULL,
     price_per_kg_usd real NOT NULL,
     lead_time_days integer NOT NULL,
     message text NOT NULL,
@@ -1690,7 +1776,7 @@ ALTER SEQUENCE public.rfq_responses_supplier_id_seq OWNER TO postgres;
 -- Name: rfq_responses_supplier_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
-ALTER SEQUENCE public.rfq_responses_supplier_id_seq OWNED BY public.rfq_responses.supplier_id;
+ALTER SEQUENCE public.rfq_responses_supplier_id_seq OWNED BY public.rfq_responses.company_id;
 
 
 --
@@ -2238,6 +2324,13 @@ ALTER TABLE ONLY public.ai_outputs ALTER COLUMN id SET DEFAULT nextval('public.a
 
 
 --
+-- Name: buyer_profiles id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.buyer_profiles ALTER COLUMN id SET DEFAULT nextval('public.buyer_profiles_id_seq'::regclass);
+
+
+--
 -- Name: certifications id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -2312,6 +2405,13 @@ ALTER TABLE ONLY public.inquiries ALTER COLUMN id SET DEFAULT nextval('public.in
 --
 
 ALTER TABLE ONLY public.inquiries ALTER COLUMN product_id SET DEFAULT nextval('public.inquiries_product_id_seq'::regclass);
+
+
+--
+-- Name: interaction_logs id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.interaction_logs ALTER COLUMN id SET DEFAULT nextval('public.interaction_logs_id_seq'::regclass);
 
 
 --
@@ -2525,10 +2625,10 @@ ALTER TABLE ONLY public.rfq_responses ALTER COLUMN rfq_id SET DEFAULT nextval('p
 
 
 --
--- Name: rfq_responses supplier_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: rfq_responses company_id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.rfq_responses ALTER COLUMN supplier_id SET DEFAULT nextval('public.rfq_responses_supplier_id_seq'::regclass);
+ALTER TABLE ONLY public.rfq_responses ALTER COLUMN company_id SET DEFAULT nextval('public.rfq_responses_supplier_id_seq'::regclass);
 
 
 --
@@ -2651,44 +2751,33 @@ COPY drizzle.__drizzle_migrations (id, hash, created_at) FROM stdin;
 --
 
 COPY public.ai_outputs (id, supplier_id, created_at, ai_model, call_type, export_readiness_score, pathway, capital_capacity_cop, compliance_gaps, gap_analysis, document_content, whatsapp_message_sent) FROM stdin;
-2	15	2026-04-20 13:37:42.318185+00	claude-sonnet-4-6	DOCUMENT_GENERATION	\N	\N	\N	\N	\N	# Guía de Cumplimiento para Exportación\n\n---\n\n## ¡Hola, Scoring Test!\n\nLe escribimos desde el equipo de Fincava para compartirle los resultados de su evaluación de preparación para exportación y orientarle en los próximos pasos concretos que debe seguir.\n\n---\n\n## 📊 Su Resumen de Puntaje\n\n| Indicador | Resultado |\n|---|---|\n| **Puntaje de Preparación** | 35 / 100 |\n| **Ruta Asignada** | Ruta D — Inicio de Proceso |\n| **Municipio** | Barichara, Santander |\n| **Cultivo Principal** | Cacao |\n| **Hectáreas en Producción** | 4 hectáreas |\n| **Producción Estimada** | ~6,000 kg/año |\n| **Capital Disponible Estimado** | $18.000.000 COP |\n\nSu puntaje actual de **35/100** indica que usted tiene potencial real como productor de cacao, pero necesita resolver documentación legal fundamental antes de poder exportar. La buena noticia es que estos pasos son alcanzables con orientación adecuada.\n\n---\n\n## ❌ Documentos Que Le Faltan\n\nUsted actualmente **no cuenta** con ninguno de los cuatro documentos obligatorios para exportar:\n\n1. ❌ **RUT DIAN** — Registro único tributario\n2. ❌ **Registro ICA** — Registro de productor ante el Instituto Colombiano Agropecuario\n3. ❌ **Certificado Fitosanitario ICA** — Certificado de sanidad vegetal para exportación\n4. ❌ **Habilitación como Exportador DIAN** — Autorización formal para exportar\n\n---\n\n## ✅ Pasos a Seguir — En Orden\n\n### Paso 1: Obtenga su RUT DIAN\n\n**DÓNDE:** Oficina DIAN más cercana en San Gil (Cra. 10 #12-45, San Gil) o en línea en **muisca.dian.gov.co**\n\n**QUÉ HACER:** Llevar cédula de ciudadanía original, recibo de servicios públicos reciente y diligenciar el formulario de inscripción como persona natural. Si hace el trámite en línea, necesita firma electrónica.\n\n**COSTO:** $0 — Este trámite es completamente gratuito.\n\n---\n\n### Paso 2: Regístrese ante el ICA como Productor\n\n**DÓNDE:** Oficina ICA Santander ubicada en Bucaramanga (Calle 45 #28-50, Bucaramanga) o contacte la línea nacional **01 8000 11 53 85**\n\n**QUÉ HACER:** Presentar cédula, RUT (del Paso 1), escritura o contrato de arrendamiento del predio, y mapa de ubicación de la finca en Barichara. Registrar las 4 hectáreas de cacao con sus datos de producción.\n\n**COSTO:** Aproximadamente **$80.000 – $150.000 COP** según la tarifa vigente para pequeños productores.\n\n---\n\n### Paso 3: Solicite el Certificado Fitosanitario ICA\n\n**DÓNDE:** Misma oficina ICA en Bucaramanga, una vez tenga activo su registro del Paso 2.\n\n**QUÉ HACER:** Solicitar inspección fitosanitaria de su finca. Un técnico del ICA visitará su predio en Barichara para revisar el estado sanitario del cultivo de cacao. El certificado se emite por lote de exportación.\n\n**COSTO:** Entre **$200.000 – $350.000 COP** por inspección y emisión del certificado. Este costo se repite por cada exportación.\n\n---\n\n### Paso 4: Habilítese como Exportador ante la DIAN\n\n**DÓNDE:** Portal MUISCA en **muisca.dian.gov.co** — sección "Inscripción y Actualización del RUT" — o en la oficina DIAN de San Gil.\n\n**QUÉ HACER:** Con su RUT activo, actualizar la actividad económica incluyendo el código de exportador (código CIIU 0125 para cacao). Luego registrarse en el sistema informático de comercio exterior **VUCE** en **vuce.gov.co** para obtener su perfil de exportador habilitado.\n\n**COSTO:** $0 — Trámite gratuito, pero puede requerir apoyo de un agente de aduanas para el primer registro VUCE. Consulte tarifas con agentes locales en Bucaramanga: entre **$300.000 – $500.000 COP** si requiere acompañamiento profesional.\n\n---\n\n## 💰 Estimado Total de Costos\n\n| Trámite | Costo Estimado |\n|---|---|\n| RUT DIAN | $0 |\n| Registro ICA productor | $80.000 – $150.000 |\n| Certificado Fitosanitario | $200.000 – $350.000 |\n| Habilitación Exportador DIAN/VUCE | $0 – $500.000 |\n| **TOTAL ESTIMADO** | **$280.000 – $1.000.000 COP** |\n\nEste monto es manejable dentro de su capital disponible de **$18.000.000 COP**.\n\n---\n\n## 📞 Su Próximo Contacto con Fincava\n\nUn asesor de Fincava le contactará por WhatsApp al número **+57 322 234 5678** dentro de los próximos **5 días hábiles** para acompañarle en el inicio de estos trámites.\n\nSi tiene preguntas antes de	\N
-3	15	2026-04-20 15:31:45.419755+00	claude-sonnet-4-6	DOCUMENT_GENERATION	\N	\N	\N	\N	\N	# Guía de Cumplimiento para Exportación\n\n---\n\n## ¡Hola, Scoring Test!\n\nLe escribimos desde el equipo de Fincava para compartirle los resultados de su evaluación de preparación para exportación y orientarle en los próximos pasos concretos que debe seguir.\n\n---\n\n## 📊 Su Resumen de Puntaje\n\n| Indicador | Resultado |\n|---|---|\n| **Puntaje de Preparación** | 35 / 100 |\n| **Ruta Asignada** | Ruta D — Inicio de Proceso |\n| **Municipio** | Barichara, Santander |\n| **Cultivo Principal** | Cacao |\n| **Hectáreas en Producción** | 4 hectáreas |\n| **Producción Estimada** | ~6.000 kg/año |\n| **Capital Disponible Estimado** | $18.000.000 COP |\n\nSu puntaje actual de **35/100** indica que usted tiene potencial real como productor de cacao, pero necesita resolver documentación legal fundamental antes de poder exportar. La buena noticia es que estos pasos son alcanzables con la orientación adecuada.\n\n---\n\n## ❌ Documentos Que Le Faltan\n\nUsted actualmente **no cuenta** con ninguno de los cuatro documentos obligatorios para exportar:\n\n1. ❌ **RUT DIAN** — Registro Único Tributario\n2. ❌ **Registro ICA** — Registro de productor ante el Instituto Colombiano Agropecuario\n3. ❌ **Certificado Fitosanitario ICA** — Certificado de sanidad vegetal para exportación\n4. ❌ **Habilitación como Exportador DIAN** — Autorización formal para exportar\n\n---\n\n## ✅ Pasos a Seguir — En Orden\n\n### Paso 1: Obtenga su RUT DIAN\n\n**DÓNDE:** Oficina DIAN más cercana en San Gil (Cra. 10 #12-45, San Gil) o en línea en **muisca.dian.gov.co**\n\n**QUÉ HACER:** Llevar cédula de ciudadanía original y recibo de servicios públicos reciente. Diligenciar el formulario de inscripción como persona natural. Si hace el trámite en línea, necesita firma electrónica.\n\n**COSTO:** $0 — Este trámite es completamente gratuito.\n\n---\n\n### Paso 2: Regístrese ante el ICA como Productor\n\n**DÓNDE:** Oficina ICA Santander en Bucaramanga (Calle 45 #28-50) o llame a la línea nacional **01 8000 11 53 85**\n\n**QUÉ HACER:** Presentar cédula, RUT (del Paso 1), escritura o contrato de arrendamiento del predio, y mapa de ubicación de su finca en Barichara. Registrar las 4 hectáreas de cacao con sus datos de producción.\n\n**COSTO:** Entre **$80.000 – $150.000 COP** según la tarifa vigente para pequeños productores.\n\n---\n\n### Paso 3: Solicite el Certificado Fitosanitario ICA\n\n**DÓNDE:** Misma oficina ICA en Bucaramanga, una vez tenga activo su registro del Paso 2.\n\n**QUÉ HACER:** Solicitar inspección fitosanitaria de su finca. Un técnico del ICA visitará su predio en Barichara para revisar el estado sanitario del cultivo de cacao. El certificado se emite por lote de exportación.\n\n**COSTO:** Entre **$200.000 – $350.000 COP** por inspección y emisión del certificado. Este costo se repite con cada exportación.\n\n---\n\n### Paso 4: Habilítese como Exportador ante la DIAN\n\n**DÓNDE:** Portal MUISCA en **muisca.dian.gov.co** o en la oficina DIAN de San Gil. Luego en **vuce.gov.co** para completar su perfil exportador.\n\n**QUÉ HACER:** Con su RUT activo, actualizar la actividad económica incluyendo el código exportador (CIIU 0125 para cacao). Luego registrarse en el sistema VUCE para obtener su habilitación formal como exportador.\n\n**COSTO:** $0 en trámites oficiales. Si requiere acompañamiento de un agente de aduanas para el registro VUCE, consulte tarifas en Bucaramanga: entre **$300.000 – $500.000 COP**.\n\n---\n\n## 💰 Estimado Total de Costos\n\n| Trámite | Costo Estimado |\n|---|---|\n| RUT DIAN | $0 |\n| Registro ICA productor | $80.000 – $150.000 |\n| Certificado Fitosanitario | $200.000 – $350.000 |\n| Habilitación Exportador DIAN/VUCE | $0 – $500.000 |\n| **TOTAL ESTIMADO** | **$280.000 – $1.000.000 COP** |\n\nEste monto es completamente manejable dentro de su capital disponible de **$18.000.000 COP**.\n\n---\n\n## 📞 Su Próximo Contacto con Fincava\n\nUn asesor de Fincava le contactará por WhatsApp al número **+57 322 234 5678** dentro de los próximos **5 días hábiles** para acompañarle en el inicio de estos trámites. Si tiene preguntas antes de esa fecha, escríbanos directamente por WhatsApp y con gusto le orientamos.\n\n¡Usted tiene el potencial y nosotros le acomp	\N
-1	15	2026-04-20 13:11:18.096287+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	18000000	RUT DIAN not registered, ICA registro missing, Fitosanitario certification absent, DIAN exporter status not obtained	Supplier scores critically low across all dimensions. Land rights status unknown (0/20). Production volume of 6,000 kg annually indicates small-scale operation with limited export capacity (5/20). Post-harvest quality cannot be assessed due to missing data on drying methods and processing standards (0/20). Complete absence of legal compliance documentation (0/20). Commitment level unclear with no export experience and incomplete farm data (5/20). Farm infrastructure details missing (water access, technical assistance, land tenure) prevent comprehensive evaluation.	\N	SM4cc9f68f9cc417228966450a123904f2
+49	64	2026-04-26 16:28:35.245166+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	450000	RUT DIAN - Missing (Critical), Fitosanitary Certification - Missing (Critical), DIAN Exporter Registration - Missing (Critical), Production volume documentation - Insufficient, Land rights documentation - Not verified, Post-harvest quality protocols - Not documented	MVP Test Supplier scores critically low across all dimensions. Land rights status unknown (0/20). Production volume of 3,000 kg from 5 hectares indicates severe underperformance for commercial export (5/20 - below 600kg/ha threshold). Post-harvest quality completely undocumented with no drying method, water access, or technical assistance data (0/20). Compliance framework severely deficient: missing RUT DIAN, fitosanitary certification, and DIAN exporter status - only ICA registration present (5/20). Commitment indicators weak: no export attempt history, no premium channel interest documented, no economic stability data (5/20). This supplier is at pre-commercial stage.	\N	SM542870872e4eebf171d2d43c09b2ff28
 4	16	2026-04-20 23:55:38.382592+00	claude-sonnet-4-6	DOCUMENT_GENERATION	\N	\N	\N	\N	\N	# Guía de Cumplimiento para Exportación Agrícola\n\n---\n\n## ¡Bienvenido, Ricardo!\n\nEsperamos que se encuentre muy bien en San Gil, Santander. En Fincava hemos revisado su perfil como productor de **bocadillo** y queremos acompañarle paso a paso para que pueda acceder a mercados de exportación con total tranquilidad.\n\n---\n\n## 📊 Resumen de Su Puntaje de Cumplimiento\n\n| Estado | Resultado |\n|--------|-----------|\n| **Puntaje actual** | ⚠️ 0 / 4 documentos completos |\n| **Cultivo principal** | Bocadillo (guayaba) |\n| **Hectáreas en producción** | 2 hectáreas |\n| **Municipio** | San Gil, Santander |\n\nRicardo, actualmente **ninguno de los cuatro documentos obligatorios** para exportar está en regla. ¡Pero no se preocupe! Con dedicación y siguiendo estos pasos, puede tenerlos todos resueltos en pocas semanas.\n\n---\n\n## 📋 Documentos que Le Faltan\n\n- ❌ RUT ante la DIAN\n- ❌ Registro ICA (productor agrícola)\n- ❌ Certificado Fitosanitario\n- ❌ Registro como Exportador ante la DIAN\n\n---\n\n## 🗂️ Pasos para Ponerse al Día\n\n### **Paso 1 — Obtener su RUT (Registro Único Tributario)**\n\n**¿Dónde?** Punto de Atención DIAN más cercano a San Gil, ubicado en Bucaramanga (Calle 49 N.º 14-27, Centro) o en línea en **www.dian.gov.co** si tiene acceso a internet y correo electrónico.\n\n**¿Qué necesita?**\n- Cédula de ciudadanía original\n- Comprobante de dirección (recibo de servicios o carta de la junta de acción comunal)\n- Llenar el formulario de inscripción RUT (lo ayudan en el punto de atención)\n\n**💰 Costo:** **$0 pesos** — Este trámite es completamente gratuito.\n\n---\n\n### **Paso 2 — Registro ICA como Productor Agrícola**\n\n**¿Dónde?** Oficina del ICA en Santander, ubicada en Bucaramanga (Carrera 26 N.º 54-50) o llame al **+57 (7) 657-1515**. También puede consultar en **www.ica.gov.co**.\n\n**¿Qué necesita?**\n- Copia de su RUT (del Paso 1)\n- Cédula de ciudadanía\n- Información de su predio: vereda, municipio, número de hectáreas\n- Certificado de tradición y libertad del predio o contrato de arrendamiento\n\n**💰 Costo:** **$0 pesos** — El registro básico de predio productor es gratuito.\n\n---\n\n### **Paso 3 — Certificado Fitosanitario para Exportación**\n\n**¿Dónde?** Una vez registrado en el ICA (Paso 2), solicite la inspección fitosanitaria en la misma oficina del ICA en Bucaramanga. El inspector visitará su finca en San Gil.\n\n**¿Qué necesita?**\n- Registro ICA activo (del Paso 2)\n- Solicitud formal de inspección (formulario en la oficina ICA)\n- Su cultivo de bocadillo debe estar libre de plagas visibles — el inspector lo verificará\n- Resultado de análisis de suelo (opcional pero recomendado)\n\n**💰 Costo:** Entre **$80.000 y $150.000 pesos** por inspección y emisión del certificado, según tarifas ICA vigentes para 2026.\n\n---\n\n### **Paso 4 — Registro como Exportador ante la DIAN**\n\n**¿Dónde?** En línea a través del portal **www.dian.gov.co** (sección "Servicios en línea") o en el punto de atención DIAN en Bucaramanga. Necesitará tener RUT activo del Paso 1.\n\n**¿Qué necesita?**\n- RUT activo con actividad económica de exportación habilitada\n- Cédula de ciudadanía\n- Datos bancarios de cuenta a su nombre\n- Registro ICA activo\n\n**💰 Costo:** **$0 pesos** — Trámite gratuito ante la DIAN.\n\n---\n\n## 💵 Estimado Total de Costos\n\n| Trámite | Costo Estimado |\n|---------|---------------|\n| RUT DIAN | $0 |\n| Registro ICA | $0 |\n| Certificado Fitosanitario | $80.000 – $150.000 |\n| Registro Exportador DIAN | $0 |\n| **TOTAL APROXIMADO** | **$80.000 – $150.000 COP** |\n\n> *Considere también los gastos de desplazamiento a Bucaramanga, aproximadamente $40.000 – $60.000 COP ida y vuelta desde San Gil.*\n\n---\n\n## 📞 Su Próximo Contacto con Fincava\n\nRicardo, una vez haya iniciado cualquiera de estos pasos, **escríbanos por WhatsApp al número de su asesor Fincava** para actualizar su puntaje de cumplimiento y orientarle en los siguientes trámites de exportación.\n\nRecuerde que en Fincava estamos para acompañarle en cada etapa. **¡Su bocadillo tiene potencial de llegar lejos!** 🍬🌍\n\n---\n\n*Guía	\N
-19	29	2026-04-22 21:01:38.453255+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exportador registration not completed	Supplier has critical data deficiencies across all evaluation dimensions. Farm production details are entirely absent (land size, plant age, harvest frequency, drying method, water access, land tenure, technical assistance - all null). Economic profile is incomplete (buyer type, harvest volume, sales price, payment terms, debt status, capital usage, dependent persons - all null). Compliance documentation is 0% complete (0/4 requirements met). No baseline commercial or eligibility assessment exists. This profile appears to be a test record or incomplete onboarding entry with no substantive agricultural operation data.	\N	SM3697c6cfbbb9dad6aee292fc53c0c6b1
-20	30	2026-04-22 21:06:45.495041+00	\N	ONBOARD_SCORE	75	\N	\N	\N	\N	\N	\N
-21	30	2026-04-22 21:06:49.248212+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registration missing, Phytosanitary certification absent, DIAN exporter status not obtained	Supplier lacks critical data across all evaluation dimensions. No land rights documentation (0/20), no production volume data (0/20), no post-harvest quality information (0/20), zero compliance certifications (0/20), and no demonstrated commitment indicators (0/20). This is a new onboarding record (created 2026-04-22) with incomplete farm profile and economics data. Supplier requires comprehensive baseline assessment before export pathway consideration.	\N	SMda3e7b86bae4ec505b0a00be1728ae09
-15	27	2026-04-22 20:19:34.688746+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exportador status not registered	Supplier has critical data gaps across all evaluation dimensions. Farm production details are completely absent (no cultivated area, crop variety, harvest volume, drying method, water access, or technical assistance data). Economic profile is undocumented (no production volume, sales price, payment terms, or financial capacity metrics). All four mandatory compliance certifications are missing. Without foundational farm information and zero compliance documentation, export readiness cannot be established.	\N	SM0b1b9fa3dd540473f05b40fdb35f2f13
-16	28	2026-04-22 21:00:31.740986+00	\N	\N	75	\N	\N	\N	\N	\N	\N
-17	28	2026-04-22 21:00:35.812991+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registration missing, Phytosanitary certification absent, DIAN exporter status not obtained	Supplier profile is incomplete across all critical dimensions. Land rights (0/20): No tenure data provided. Production volume (0/20): No harvest volume, crop type, or coffee variety information recorded. Post-harvest quality (0/20): No drying method, water access, or technical assistance data. Compliance documents (0/20): All four mandatory certifications are missing (RUT DIAN, ICA, Phytosanitary, DIAN Exporter). Commitment (0/20): No economic data, buyer relationships, or export interest documented. This appears to be an incomplete onboarding record requiring comprehensive data collection before any readiness assessment is possible.	\N	SMd90e32e897c62763c687ea47744b5f19
-18	29	2026-04-22 21:01:33.341748+00	\N	ONBOARD_SCORE	75	\N	\N	\N	\N	\N	\N
-22	31	2026-04-23 11:48:29.058492+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exportador status not acquired	Supplier presents critical data deficiency across all evaluation dimensions. Farm profile is completely empty (no land size, crop type, production volume, water access, or land tenure data). Economics section lacks all key indicators (harvest volume, buyer type, payment terms, capital structure). Zero compliance certifications in place. This appears to be a newly registered supplier (created 2026-04-23) with consent but no substantive farm or business data collected. Land rights assessment: 0/20 (no tenencia data). Production volume: 0/20 (null hectareasProduccion, volumenKgUltimaCosecha). Post-harvest quality: 0/20 (no metodoSecado or quality indicators). Compliance docs: 0/20 (all four core certifications missing). Commitment: 0/20 (no economic indicators of viability). Total: 0/100.	\N	SM7c903600027af7478df6e4ac59b64a71
-23	33	2026-04-23 15:19:47.584035+00	claude-haiku-4-5	ONBOARD_SCORE	5	D	0	RUT DIAN - Missing, ICA Registration - Missing, Phytosanitary Certificate - Missing, DIAN Exporter Registration - Missing	Supplier is at foundational stage with critical data gaps across all evaluation dimensions. Land rights assessment impossible (tenenciaTierra null). Production volume unknown (hectareasProduccion, volumenKgUltimaCosecha null). Post-harvest quality unmeasurable (metodoSecado, variedadCafe null). All 4 compliance documents missing. Economic viability unassessed (tipoComprador, precioVentaBanda, deudaActual null). No baseline commercial performance established. Supplier requires complete profiling before export pathway determination is possible.	\N	SM48c4e2f1c22479401aa53851e5481966
-24	37	2026-04-23 18:07:00.217109+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA agricultural registry missing, Phytosanitary certification absent, DIAN exporter registration incomplete	Critical data deficiency across all evaluation dimensions. Supplier profile contains no agricultural production data (land rights, hectares, crop type, harvest volume), no economic indicators (sales volume, pricing, payment terms, capital availability), and zero compliance documentation. Farm specifications entirely missing. Unable to assess land tenure, production capacity, post-harvest quality management, or commercial viability. Supplier appears newly registered with incomplete onboarding.	\N	SM18f90c204367cb54fc6f2b27086f5a27
-25	36	2026-04-23 18:07:01.140531+00	claude-haiku-4-5	ONBOARD_SCORE	5	D	0	RUT DIAN - Missing, ICA Registration - Missing, Phytosanitary Certificate - Missing, DIAN Exporter Status - Missing	Critical data deficiency across all evaluation dimensions. Supplier has no documented land rights status, production volume data, post-harvest quality information, or compliance documentation. All farm operational metrics are absent (cultivated area, plant age, harvests/year, drying method, water access, land tenure, technical assistance). Economic profile completely undocumented (buyer type, harvest volume, pricing, payment terms, capital usage, income sources, interest in premium channels). Zero compliance infrastructure: no tax registration (RUT), no agricultural authority registration (ICA), no phytosanitary certifications, and no export trader status with customs. This is an onboarding-stage supplier requiring foundational development.	\N	SM776f3cfbe513de9ea4b2c330c5c3126e
-26	35	2026-04-23 18:07:01.154464+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	0	RUT DIAN - Critical missing, Fitosanitary certification - Required for export, DIAN exporter registration - Required for export operations, Production volume data - Not documented, Land rights documentation - Not provided, Post-harvest quality standards - No evidence	Supplier ICA Sync Test A presents severe readiness deficiencies across all evaluation dimensions. Only 1 of 3 compliance certifications present (ICA registro). Critical export prerequisites missing: RUT DIAN (tax identification), fitosanitary certification, and DIAN exporter status. Farm production data entirely absent (no hectares, crop variety, harvest volume, drying method documented). Economic profile incomplete with no data on sales volume, pricing, or financial capacity. Land tenure rights unverified. Without documented production metrics and baseline compliance framework, export capability cannot be assessed. Supplier requires foundational infrastructure development before commercial export consideration.	\N	SM11b444dd8c7b40a6f959c09ee0c5eb42
-28	39	2026-04-23 23:04:56.893326+00	claude-haiku-4-5	ONBOARD_SCORE	5	D	0	RUT DIAN - Missing, Fitosanitary Certificate - Missing, DIAN Exporter Registration - Missing, Production Volume Data - Missing, Land Rights Documentation - Missing, Technical Assistance Records - Missing, Water Access Verification - Missing, Harvest Methodology - Missing	Supplier profile is critically incomplete with minimal data points established. Only ICA registration confirmed. Zero production metrics, no economic data, no land tenure documentation, and three major compliance certifications absent. Cannot assess farming capacity, post-harvest quality protocols, or export commitment. This appears to be a preliminary registration without substantive farm evaluation.	\N	SM36d43be38d71f57de7be0da57225b2a4
-27	40	2026-04-23 23:04:56.873106+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not obtained, ICA registro not obtained, Fitosanitario certification not obtained, DIAN exportador status not obtained	Supplier profile is incomplete across all evaluation dimensions. Critical data missing: land rights status (tenenciaTierra), production volume (hectareasProduccion, volumenKgUltimaCosecha), post-harvest quality indicators (metodoSecado), and all compliance certifications. Farm operational details (crop type, plant age, harvest frequency, water access, technical assistance) are undocumented. Economic profile shows no data on buyer relationships, pricing, payment terms, or export channel interest. Compliance score is 0/20 - no certifications in place.	\N	SM48d90b6af5c8e4d8fa1082b4a9175087
-29	42	2026-04-23 23:11:45.509539+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registro missing, Fitosanitario certification absent, DIAN exportador status not obtained	Supplier P02 Test Bool False presents critical deficiencies across all evaluation dimensions. Land rights data absent (0/20pts). Production volume data completely missing - no hectares, crop type, harvest volume, or farming experience documented (0/20pts). Post-harvest quality metrics unavailable - no drying method, water access, technical assistance, or plant age data (0/20pts). Compliance documentation entirely missing with all four required certifications flagged as false or absent (0/20pts). Commitment indicators unrecorded - no buyer relationships, payment history, export interest documented, or economic stability data provided (0/20pts). This profile indicates a newly registered supplier with zero substantive operational data collected during onboarding.	\N	SM4d75dd58f8dc997d07b014e5d8183f70
-30	45	2026-04-23 23:11:45.751569+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN - Not registered, ICA Registration - Not registered, Phytosanitary Certificate - Not obtained, DIAN Exporter Status - Not registered	Supplier P02 Test Omitted presents critical deficiencies across all evaluation dimensions. Land rights data is completely absent (0/20), production volume information is missing preventing any capacity assessment (0/20), post-harvest quality parameters are undocumented (0/20), and all four compliance documents are not obtained (0/20). Economic commitment indicators are entirely missing (0/20). The supplier appears to be at the initial onboarding stage with no substantive data collection completed. This is a foundational case requiring comprehensive assessment before any export pathway determination can be made.	\N	SMb1cad04865c09889483a8fdd037f74df
-31	44	2026-04-23 23:11:46.047271+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not obtained, ICA registration missing, Phytosanitary certification absent, DIAN exporter status not registered	Supplier P02 Test String No presents critical deficiencies across all evaluation dimensions. Land rights documentation cannot be assessed (0/20). Production volume data is absent - no hectares, crop type, harvest volume, or harvests per year recorded (0/20). Post-harvest quality parameters are undefined - drying method and water access unspecified (0/20). Compliance documentation is completely absent across all four required certifications (0/20). Commitment indicators show no engagement metrics - economic situation, buyer relationships, and export interest unknown (0/20). This is a newly onboarded record (23-Apr-2026) with minimal data population. No commercial score, graduation pathway, or threshold version assigned.	\N	SM443b88d8a38a7d2454201b9800a3bf31
-32	43	2026-04-23 23:11:46.049921+00	claude-haiku-4-5	ONBOARD_SCORE	15	D	0	RUT DIAN not obtained, Fitosanitary certification missing, DIAN exporter status not registered, ICA registration incomplete	Supplier P02 is in early-stage onboarding with critical data gaps across all evaluation categories. Land rights status unknown (0/20pts). Production volume completely undocumented - no hectares, crop type, harvest volume, or yield data recorded (0/20pts). Post-harvest quality unmeasured - drying method and water access not documented (0/20pts). Compliance infrastructure severely deficient: missing RUT DIAN, fitosanitary certification, and DIAN exporter registration; only ICA registration partially complete (5/20pts). Commitment level unclear due to incomplete economics profile - purchase intentions, payment terms, capital usage preferences, and export interest not assessed (5/20pts). No financial profile exists to determine capital capacity. Supplier has provided basic consent but lacks foundational operational documentation required for export pathway qualification.	\N	SMab93f62e6086fd3e75308ae73029ec05
-33	41	2026-04-23 23:11:46.077042+00	claude-haiku-4-5	ONBOARD_SCORE	15	D	0	RUT DIAN - Critical: No tax identification number, Fitosanitary Certificate - Critical: Missing phytosanitary compliance, DIAN Exporter Registration - Critical: Not registered as exporter, Production Data - Critical: No hectares, harvest volume, or crop details, Land Rights - Critical: No tenure documentation provided, Economic Data - Critical: No financial information recorded	Supplier P02 demonstrates severe deficiencies across all evaluation dimensions. Land rights assessment impossible (0pts) due to missing tenencia data. Production volume cannot be evaluated (0pts) - no hectare count, crop type, or harvest data provided. Post-harvest quality assessment blocked (0pts) - no drying method or production details. Compliance documentation critically insufficient (5pts) - only ICA registry confirmed; missing RUT DIAN (fundamental), fitosanitary certification, and DIAN exporter status. Commitment evident through consent (15pts) given, but no operational data supports serious export intent. Economic capacity undetermined - no financial metrics recorded. This appears to be a newly onboarded supplier with incomplete intake assessment.	\N	SM0379be5334a76853b77cf4649b6d15c8
-34	46	2026-04-24 02:02:51.322229+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registro missing, Fitosanitario certification absent, DIAN exportador status not obtained	Supplier profile is critically incomplete with zero data points across all evaluation dimensions. Land rights documentation unavailable (0/20). Production volume entirely undocumented (0/20). Post-harvest quality metrics missing (0/20). All compliance certifications absent (0/20). No demonstrated commitment to agricultural operations (0/20). This appears to be a minimal test record with no substantive agricultural operation established.	\N	SM43f0b08fdcdafdd7c0bd3084605fdb9b
-35	48	2026-04-24 02:02:53.099257+00	claude-haiku-4-5	ONBOARD_SCORE	5	D	0	RUT DIAN not obtained, Fitosanitary certification missing, DIAN exporter registration not completed, ICA registration obtained but incomplete compliance profile	Supplier 'Smoke Test ICA' presents critical data deficiencies across all evaluation dimensions. Land rights status unknown (0/20pts) - no tenure documentation provided. Production volume unverified (0/20pts) - no hectares, crop type, or harvest data recorded. Post-harvest quality cannot be assessed (0/20pts) - drying methods and technical assistance undefined. Compliance documentation severely incomplete (5/20pts) - only ICA registration present; missing RUT DIAN, fitosanitary cert, and exporter registration. Commitment level unconfirmed (0/20pts) - no economic engagement data, export interest, or operational details documented. This appears to be a test record with minimal substantive information.	\N	SMbb8e7723fcc110198bee1cdc39a1f2bd
-36	47	2026-04-24 02:02:53.623472+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	10000000	RUT DIAN not registered, ICA registration missing, Phytosanitary certification absent, DIAN exporter status not obtained, No post-harvest quality documentation	Supplier demonstrates critical deficiencies across all evaluation dimensions. Land rights tenure status unknown (0/20). Production volume of 2,000 kg annually is severely insufficient for export scale operations requiring minimum 10,000+ kg (5/20). Post-harvest quality infrastructure completely undocumented with no drying methodology, water access, or technical assistance recorded (0/20). Compliance framework entirely absent with zero certifications achieved (0/20). Commitment indicators unclear due to missing data on payment terms, farming experience, and export aspirations (15/20 baseline for active status only). Farm age, plant maturity, and harvest frequency unknown. No evidence of commercial engagement or graduation pathway assignment.	\N	SM3254e91b90c7ca59e99e7c98875079d9
-37	49	2026-04-24 02:16:49.34241+00	claude-haiku-4-5	ONBOARD_SCORE	0	D	0	RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exporter registration incomplete	Supplier Pre-T2 Check has no data populated across critical evaluation domains. Land rights status unknown (0/20). Production volume unassessed (0/20). Post-harvest quality metrics absent (0/20). All compliance certifications missing (0/20). Commitment indicators not evaluated (0/20). This is an incomplete onboarding record requiring full re-assessment before any export pathway determination is possible.	\N	SM0648f0febf1713336a5ed1a8e95041dd
-38	50	2026-04-24 02:17:45.362652+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	2500000	RUT DIAN - Critical: Not registered with tax authority, Fitosanitario Certificate - Critical: No phytosanitary certification, DIAN Exporter Registration - Critical: Not registered as exporter, Production Volume Documentation - Missing: No harvest data validation, Land Rights Documentation - Missing: Tenure status undocumented, Post-Harvest Quality Records - Missing: No quality certifications	Supplier demonstrates foundational agricultural activity (3 hectares coffee, 1,000 kg last harvest) but lacks essential export infrastructure. Only 1 of 4 compliance requirements met (ICA registration). No documented land tenure, production volume verification, quality standards, or export history. Economic data incomplete (missing buyer type, pricing, payment terms, capital availability assessment). Critical knowledge gaps evident regarding export pricing and channel premium interest. Current position: pre-commercial farmer with minimal export readiness.	\N	SMf935aa4a80e551b21756bf91c973473d
-39	51	2026-04-24 02:27:02.060278+00	claude-haiku-4-5	ONBOARD_SCORE	5	D	0	RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, ICA registration present but incomplete compliance portfolio	Supplier is at critical early stage with minimal data availability. Land rights documentation absent (0/20 pts). Production volume unspecified - no harvest data, acreage, or crop details recorded (0/20 pts). Post-harvest quality metrics completely missing (0/20 pts). Compliance score critically low with 3 of 4 essential certifications missing (5/20 pts). Commitment indicators not provided - no economic data, technical assistance records, or export interest documented (0/20 pts). This appears to be a newly registered profile with incomplete onboarding data entry.	\N	SMd51805efb4a4951326c260e5b38e685d
-40	53	2026-04-24 02:30:19.67729+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	2500000	RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, No post-harvest quality documentation	Supplier demonstrates minimal export readiness. Land rights documentation absent (0/20). Production volume of 1,000 kg indicates subsistence-level farming with insufficient scale (5/20). Post-harvest quality controls not established - no drying method, water access, or technical assistance documented (0/20). Critical compliance gaps: missing RUT DIAN, fitosanitary cert, and DIAN exporter registration (15/20). Commitment indicators incomplete - no export interest, payment terms, or economic planning data recorded (15/20). Farm profile lacks essential operational details (age of plants, harvests/year, land tenure status).	\N	SM2235657e917425b065e67e717c115039
-41	54	2026-04-24 02:41:51.068792+00	claude-haiku-4-5	ONBOARD_SCORE	5	D	0	RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exportador status not acquired	Supplier Pre-T2 Smoke presents critical deficiencies across all evaluation dimensions. Land rights documentation cannot be verified (0/20pts) due to missing tenencia tierra data. Production volume assessment impossible (0/20pts) - no hectareas, crop type, harvest volume, or production frequency recorded. Post-harvest quality evaluation not feasible (0/20pts) - metodo secado and technical assistance data absent. Compliance documentation completely non-compliant (0/20pts) - all four critical certifications missing. Commitment assessment inconclusive (5/20pts) - profile created but no substantive engagement indicators, economic viability data, or export interest documentation. Profile appears incomplete at onboarding stage with minimal data collection.	\N	SM98c0dcb33b3bd505d301415f46982730
-42	55	2026-04-24 02:57:19.299235+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	2000000	RUT DIAN - Critical for any export operation, Fitosanitary Certification - Required for agricultural exports, DIAN Exporter Registration - Mandatory for legal export status	Supplier scores 35/100 indicating significant barriers to export readiness. Land rights status unknown (0/20pts). Production volume of 2,000 kg annually is severely below commercial export thresholds requiring minimum 10,000-20,000 kg/harvest (5/20pts). Post-harvest quality metrics completely absent - no drying method, water access, or technical assistance documented (0/20pts). Compliance critically deficient with only 1 of 4 key certifications present; missing RUT DIAN, fitosanitary cert, and exporter registration (5/20pts). Commitment indicators insufficient - no evidence of export interest, price knowledge, or premium channel awareness (5/20pts). Farm operation appears subsistence-oriented with minimal commercial infrastructure.	\N	SM84f361c6e6c92edc66bda078d9158ddc
-43	57	2026-04-24 03:05:11.213811+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	2500000	RUT DIAN - Missing, Fitosanitary Certificate - Missing, DIAN Exporter Registration - Missing, Production volume documentation - Incomplete, Land tenure rights - Not verified, Technical assistance records - Missing	Supplier demonstrates minimal export readiness across all assessment dimensions. Land rights verification absent (0/20). Production volume of 1,000 kg from 3 hectares indicates low productivity and insufficient scale for commercial export (5/20). Post-harvest quality documentation entirely missing with no drying method, water access, or technical support records (0/20). Critical compliance deficiencies: only 1 of 4 required certifications obtained; missing RUT DIAN, fitosanitary certification, and DIAN exporter status (5/20). Commitment indicators unclear with no documented export interest, channel preference, or payment term agreements (20/20 assumed minimal engagement). Fundamental infrastructure and regulatory barriers require resolution before export viability assessment.	\N	SM1bf924ff42c80776c0456d058e30f002
-44	58	2026-04-24 23:45:46.272708+00	claude-haiku-4-5	ONBOARD_SCORE	12	D	0	RUT DIAN - Missing, ICA Registration - Missing, Phytosanitary Certificate - Missing, DIAN Exporter Status - Missing	Supplier presents critically low readiness (12/100). Only 25% of compliance requirements met (0/4 documents). Production data entirely absent: harvest volume unknown, drying methodology undocumented, water access unconfirmed, technical assistance status unclear. Land tenure status unverified despite 5 hectares claimed. No economic data captured: sales volume, export price awareness, payment capacity, and income diversification unknown. Farm operational details missing: plant age (años), harvest frequency (cosechas/año), years on property (años en finca) all null. Cannot assess actual production capacity, quality control systems, or export viability. Supplier appears newly registered (2026-04-24) with minimal onboarding completion.	\N	SM84eb312511fb8ae7c83b4b3c9dcbbe02
-45	60	2026-04-25 01:08:20.646021+00	claude-haiku-4-5	ONBOARD_SCORE	28	D	2500000	RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, Land tenure rights not documented, Technical assistance not confirmed	Supplier demonstrates minimal export readiness. Land rights documentation absent (0/20pts). Production volume of 1,000kg from 3 hectares indicates very low yields suggesting productivity issues (5/20pts). Post-harvest quality controls undefined - no drying method, water access, or technical support documented (3/20pts). Critical compliance deficiencies: missing RUT DIAN, fitosanitary certification, and DIAN exporter registration (8/20pts). No demonstrated commitment to export pathway - no prior export attempts, unknown interest in premium channels, unaware of export pricing (12/20pts). Farm infrastructure and market engagement severely underdeveloped.	\N	SM9e8b7f56ba81e1fa26aaea601f446b15
-46	61	2026-04-25 01:08:28.993333+00	claude-haiku-4-5	ONBOARD_SCORE	32	D	2400000	RUT DIAN not registered, Fitosanitary certification missing, DIAN Exporter status not obtained, Land rights documentation incomplete, Production volume documentation insufficient	Supplier demonstrates minimal export readiness. Critical deficiencies across all assessment dimensions: Land rights status unknown (0/20pts - tenencia tierra not documented); Production volume marginal at 1,000 kg last harvest with incomplete production metrics (5/20pts - insufficient documentation of consistent yields, harvest frequency, storage capacity); Post-harvest quality undocumented (2/20pts - no drying method, storage, or quality control data); Compliance severely deficient (8/20pts - missing RUT DIAN, fitosanitary cert, DIAN exporter registration; only ICA registro confirmed); Commitment unclear (17/20pts - active status and consent present but no evidence of export intent or channel engagement). Farm infrastructure minimal (3 hectares, coffee cultivation) with inadequate data on plant age, technical assistance, water access, and land tenure. Economic profile shows subsistence-level production (1 MT last harvest) with incomplete financial documentation.	\N	SMada8a7a117a4103c8fc81aa97f39212a
-47	62	2026-04-25 01:21:10.259553+00	claude-haiku-4-5	ONBOARD_SCORE	28	D	2250000	RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, ICA registro present but incomplete compliance ecosystem	Supplier demonstrates minimal export readiness. Land rights documentation absent (0/20), production volume severely limited at 1,500kg last harvest insufficient for commercial export (5/20), post-harvest quality controls not documented (0/20), critical compliance framework incomplete with 3 of 4 essential certifications missing (5/20), and commitment indicators not assessed (13/20 default). Farmer operates small 4-hectare coffee farm with no evidence of technical assistance, water access clarity, or land tenure security. Zero commercial export experience and no documented knowledge of export pricing.	\N	SM68fc2f054636e523cdaa56a86fe714fe
-48	63	2026-04-25 01:22:56.949204+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	2400000	RUT DIAN - Required for legal trading, Fitosanitary Certification - Required for export, DIAN Exporter Registration - Required for international shipments, Land Rights Documentation - Not provided, Production Volume Evidence - Below commercial threshold	Hook Supplier is in early-stage development with critical foundation gaps. Score breakdown: Land Rights (0/20) - no documentation provided; Production Volume (8/20) - 1,200kg last harvest indicates small-scale operation, insufficient for consistent export volumes; Post-Harvest Quality (5/20) - no quality certifications or drying methodology documented; Compliance Docs (12/20) - has ICA registration but missing RUT DIAN, fitosanitary cert, and DIAN exporter status; Commitment (10/20) - limited evidence of export intent or commercial engagement. Farm size (4 hectares) and harvest data suggest subsistence-level production. No technical assistance, water access details, or land tenure documentation create legal and operational risks.	\N	SMcaaa303c1cb11e83445b446b76abddd6
+50	65	2026-04-26 18:09:52.657249+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	500000	RUT DIAN not registered, Fitosanitary certification absent, DIAN exporter registration missing, No post-harvest quality documentation, Incomplete farm operational data	Supplier demonstrates minimal export readiness. Land rights status unknown (0/20 pts). Production volume of 2,000 kg from 5 hectares indicates low productivity and insufficient scale for commercial export (5/20 pts). Critical post-harvest quality information missing - no drying method, water access, or technical assistance documented (0/20 pts). Compliance score severely deficient: missing RUT DIAN, fitosanitary certification, and DIAN exporter status (5/20 pts). Commitment uncertain: no export attempt history and incomplete engagement data (10/20 pts). Estimated capital capacity of COP $500,000 insufficient for compliance investments and infrastructure upgrades needed.	\N	SM31d6660f8b09ece3a3ab83f0607f37ca
+51	66	2026-04-26 18:09:52.751322+00	claude-haiku-4-5	ONBOARD_SCORE	35	D	2000000	RUT DIAN registration missing, Phytosanitary certification absent, DIAN exporter registration not obtained, No post-harvest quality documentation, Land tenure rights not documented	Supplier demonstrates early-stage development with significant structural deficiencies. Land rights documentation completely absent (0/20pts). Production volume of 2,000kg from 5 hectares indicates low yield efficiency (5/20pts). Post-harvest handling methodology undefined with no quality certifications (2/20pts). Critical compliance infrastructure missing: lacks RUT DIAN, phytosanitary certification, and DIAN exporter status (8/20pts). Minimal commitment indicators with no export history or documented interest (3/20pts). Farm records lack essential agronomic data (plant age, harvest frequency, drying method, water access, technical assistance). Economic profile shows subsistence-level production unsuitable for export channel without substantial capacity building.	\N	SM112e8659fb0075a967d58a209fa86017
+52	67	2026-04-26 18:09:53.382081+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	4000000	RUT DIAN - Critical for export operations, Fitosanitary Certificate - Required for agricultural exports, DIAN Exporter Registration - Mandatory for cross-border trade, Farm tenure documentation - Not provided, Production methodology documentation - Incomplete	Supplier demonstrates minimal export readiness across all dimensions. Land rights cannot be verified (0/20) due to lack of tenure documentation. Production volume is severely limited at 2,000 kg from 5 hectares (5/20), indicating either underdeveloped capacity or incomplete data. Post-harvest quality assessment impossible without drying method, storage conditions, or quality certifications (2/20 - only ICA partially present). Compliance framework critically deficient with 3 of 4 major export requirements missing (3/20). Commitment indicators suggest early-stage involvement with no prior export attempts (15/20). Critical data gaps prevent full assessment of farm management practices, technical support, and production consistency.	\N	SMaee711cf8d6797f956bd773c1ee1e874
+53	68	2026-04-26 18:09:54.430697+00	claude-haiku-4-5	ONBOARD_SCORE	28	D	2400000	RUT DIAN - Critical requirement for all export operations, Phytosanitary Certificate - Mandatory for agricultural exports, DIAN Exporter Registration - Legal requirement for cross-border commerce	Supplier demonstrates minimal export readiness across all dimensions. Land rights documentation absent (0/20), production volume of 2,000 kg last harvest indicates small-scale subsistence farming far below commercial export thresholds (4/20). Post-harvest quality controls not documented - no drying method specified despite coffee requiring precise processing (2/20). Compliance framework critically deficient with only ICA registration completed; missing 3 of 4 essential certifications (10/20). Commitment indicators weak - no prior export attempts, export price knowledge not established (2/20). Farm fundamentals underdeveloped: production area only 5 hectares, missing data on plant age, harvests/year, water access, tenure stability, and technical support.	\N	SMcebf4c435dcde88777e6b88a199e1bd1
+54	73	2026-04-26 18:11:52.146872+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	2250000	RUT DIAN - Not registered, ICA Registry - Not obtained, Phytosanitary Certificate - Not obtained, DIAN Exporter Status - Not registered	Supplier demonstrates critical deficiencies across all evaluation dimensions. Land rights status unknown (0/20). Production volume of 1,500 kg annually from 3 hectares indicates insufficient scale for commercial export (5/20). Post-harvest quality assessment impossible without process documentation (0/20). Complete compliance failure with zero regulatory certifications (0/20). Commitment indicators absent; no evidence of export intent, technical assistance engagement, or market knowledge (0/20). Estimated capital capacity (~COP 2.25M from last harvest) severely constrains compliance pathway investment.	\N	SM63deb89cbb9486f3e8c7682f231a39d9
+55	70	2026-04-26 18:11:52.271653+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	2250000	RUT DIAN - Not registered, ICA Registration - Not obtained, Phytosanitary Certificate - Not acquired, DIAN Exporter Status - Not registered	Supplier demonstrates critical deficiencies across all evaluation dimensions. Land rights documentation absent (0/20). Production volume of 1,500 kg from 3 hectares indicates severely underdeveloped capacity for commercial export (5/20). No post-harvest quality infrastructure documented (0/20). Complete compliance void: zero of four required certifications obtained (0/20). Minimal commitment signals: no documented technical assistance, export experience, or engagement with premium channels (5/20). Supplier is at pre-commercial stage requiring fundamental farm development before export viability.	\N	SM270f0ccc083cae0523da732868a5d0ec
+56	71	2026-04-26 18:11:52.753891+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	2250000	RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exportador status not achieved	Supplier is at pre-export stage with severe deficiencies across all pillars. Land rights status unknown (0/20). Production volume of 1,500 kg annually is minimal for export viability (3/20). Post-harvest quality undefined - no drying method, technical assistance, or water access documentation (2/20). Complete compliance failure with zero certifications (0/20). Commitment unclear - new supplier with no export history or documented intentions (5/20). Farm size of 3 hectares is adequate but productivity metrics and plant age data missing. No evidence of commercial relationships or export-channel interest.	\N	SM3f7512918bb636b73821dc21ab4e13dd
+57	72	2026-04-26 18:11:52.781713+00	claude-haiku-4-5	ONBOARD_SCORE	28	D	2250000	RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exporter status not registered	Supplier scores critically low across all dimensions. Land rights status unknown (0/20). Production volume of 1,500 kg annually is severely below export minimum thresholds of 5,000+ kg (3/20). Post-harvest quality metrics completely absent - no drying method, water access, or technical assistance documented (2/20). Compliance infrastructure nonexistent - zero of four critical certifications obtained (0/20). Commitment indicators missing - no evidence of export intent, payment stability, or channel preference (3/20). Farm has only 3 hectares with primary crop being cacao but lacks foundational operational data (plant age, harvests/year, tenure clarity).	\N	SM3a40cb93b2fdef16f2657951d11257e0
+58	69	2026-04-26 18:11:52.899216+00	claude-haiku-4-5	ONBOARD_SCORE	25	D	2250000	RUT DIAN not registered, ICA registration missing, Phytosanitary certification absent, DIAN exporter status not obtained, No export documentation framework	Supplier demonstrates severe deficiencies across all evaluation dimensions. Land rights documentation status unknown (0/20). Production volume of 1,500 kg from 3 hectares indicates marginal productivity (5/20) - approximately 500 kg/hectare in cacao is suboptimal and insufficient for commercial export viability. Post-harvest quality protocols completely undocumented; no drying method, water access, or technical assistance recorded (0/20). Critical compliance infrastructure absent: zero of four mandatory certifications obtained (0/20). Commitment indicators unclear due to incomplete onboarding data (15/20 based on active status and consent). Estimated liquid capital from last harvest (COP 2.25M at ~COP 1,500/kg floor price) is insufficient for export preparation costs.	\N	SMf388e59cf65a72e36c73e29192e8c45e
+\.
+
+
+--
+-- Data for Name: buyer_profiles; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.buyer_profiles (id, user_id, company_name, country, destination_port, target_products, preferred_incoterm, intended_volume_mt, import_frequency, onboarded_at, updated_at) FROM stdin;
+1	37	Acme Imports UPDATED	France	\N	{panela}	\N	\N	QUARTERLY	2026-04-26 16:07:12.950796+00	2026-04-26 16:07:13.009531+00
+3	38	Bio Imports UPDATED	Belgium	\N	{}	\N	\N	MONTHLY	2026-04-26 16:07:34.481045+00	2026-04-26 16:07:34.536232+00
+5	39	Green Imports BV	Belgium	\N	{}	\N	\N	MONTHLY	2026-04-26 16:12:34.230421+00	2026-04-26 16:12:34.302829+00
+7	41	LogCo Updated	\N	\N	{}	\N	\N	\N	2026-04-26 16:23:54.356368+00	2026-04-26 16:23:54.43473+00
+9	42	MVP Import Co	United States	\N	{cafe,cacao}	FOB	\N	\N	2026-04-26 16:30:13.05803+00	2026-04-26 16:30:13.057+00
+10	43	Company Alpha UPDATED	USA	\N	{Coffee,Cacao}	FOB	50	MONTHLY	2026-04-26 18:11:10.081265+00	2026-04-26 18:11:10.533582+00
+11	44	Company Beta UPDATED	UAE	\N	{Avocado}	CIF	40	QUARTERLY	2026-04-26 18:11:10.459703+00	2026-04-26 18:11:10.597577+00
+14	45	Failsafe Co	USA	\N	{Coffee}	FOB	\N	\N	2026-04-26 18:12:17.711687+00	2026-04-26 18:12:17.711+00
 \.
 
 
@@ -2721,14 +2810,16 @@ COPY public.companies (id, user_id, name, type, country, region, description, lo
 4	4	Santero Premium Superfoods	MANUFACTURER	Colombia	Nariño	Artisan manufacturer of freeze-dried Colombian superfoods: maca, açaí, camu camu, moringa, and goldenberry (uchuva). All products are USDA Organic and Halal certified, supplied to health food distributors across the GCC.	\N	\N	f	Rosa Vasquez left pharmaceutical research to pursue a mission: bringing Nariño's ancestral superfoods to health-conscious consumers worldwide. Her small-batch operation works with indigenous communities in the Andean highlands.	Rosa Vasquez	2025-10-07 13:35:03.543851+00	62	FREE	24	{"Saudi Arabia",UAE}
 22	27	Café Huila Co.	EXPORTER	CO	Huila	Premium single-origin Colombian coffee exporter based in Huila.	\N	\N	t	\N	\N	2026-04-24 17:26:26.105689+00	0	FREE	\N	{}
 17	18	FINCAVA	EXPORTER	US	\N		\N	\N	f	\N	\N	2026-04-20 16:55:48.994587+00	0	FREE	\N	{}
-18	22	E2E Test Co	IMPORTER	US	\N		\N	\N	f	\N	\N	2026-04-24 11:31:07.512414+00	0	FREE	\N	{}
 23	28	Gulf Trade International	IMPORTER	AE	\N	Dubai-based specialty food importer sourcing premium Colombian products.	\N	\N	f	\N	\N	2026-04-24 17:26:26.442329+00	0	FREE	\N	{}
-24	29	Test Imports LLC	DISTRIBUTOR	US	\N	Demo buyer account for testing.	\N	\N	f	\N	\N	2026-04-24 17:26:26.77063+00	0	FREE	\N	{}
-25	30	Test Imports Co	IMPORTER	United Arab Emirates	\N		\N	\N	f	\N	\N	2026-04-25 01:11:07.671745+00	0	FREE	\N	{}
-26	31	Verify Co	IMPORTER	CO	\N		\N	\N	f	\N	\N	2026-04-25 01:15:03.052439+00	0	FREE	\N	{}
-27	32	Verify Co	IMPORTER	CO	\N		\N	\N	f	\N	\N	2026-04-25 01:15:15.173541+00	0	FREE	\N	{}
-28	33	Verify Co	IMPORTER	CO	\N		\N	\N	f	\N	\N	2026-04-25 01:15:33.213643+00	0	FREE	\N	{}
-29	34	Block Co	IMPORTER	CO	\N		\N	\N	f	\N	\N	2026-04-25 01:16:40.752401+00	0	FREE	\N	{}
+30	37	Acme Imports	IMPORTER	Germany	\N		\N	\N	f	\N	\N	2026-04-26 16:07:12.863172+00	0	FREE	\N	{}
+31	38	Bio Imports	IMPORTER	Netherlands	\N		\N	\N	f	\N	\N	2026-04-26 16:07:34.420038+00	0	FREE	\N	{}
+32	39	Green Imports	IMPORTER	Netherlands	\N		\N	\N	f	\N	\N	2026-04-26 16:12:34.119131+00	0	FREE	\N	{}
+33	40	XY	IMPORTER	US	\N		\N	\N	f	\N	\N	2026-04-26 16:12:56.512289+00	0	FREE	\N	{}
+34	41	LogCo	IMPORTER	US	\N		\N	\N	f	\N	\N	2026-04-26 16:23:54.214893+00	0	FREE	\N	{}
+35	42	MVP Import Co	IMPORTER	United States	\N		\N	\N	f	\N	\N	2026-04-26 16:30:12.690274+00	0	FREE	\N	{}
+36	43	Company A	IMPORTER	USA	\N		\N	\N	f	\N	\N	2026-04-26 18:11:09.47241+00	0	FREE	\N	{}
+37	44	Company B	IMPORTER	UAE	\N		\N	\N	f	\N	\N	2026-04-26 18:11:09.978975+00	0	FREE	\N	{}
+38	45	Test Co	IMPORTER	USA	\N		\N	\N	f	\N	\N	2026-04-26 18:12:17.456188+00	0	FREE	\N	{}
 \.
 
 
@@ -2737,45 +2828,20 @@ COPY public.companies (id, user_id, name, type, country, region, description, lo
 --
 
 COPY public.compliance_docs (id, supplier_id, rut_dian, ica_registro, fitosanitario_cert, dian_exportador, compliance_score, last_reviewed_at) FROM stdin;
-2	3	f	f	f	f	\N	\N
 3	9	f	f	f	f	\N	\N
 4	10	f	f	f	f	\N	\N
 5	12	f	f	f	f	\N	\N
-6	14	f	f	f	f	\N	\N
-7	15	f	f	f	f	\N	\N
+56	64	t	t	t	f	\N	\N
 8	16	f	f	f	f	\N	\N
-21	27	f	f	f	f	\N	\N
-23	28	t	t	t	f	\N	\N
-25	29	t	t	t	f	\N	\N
-27	30	f	f	f	f	\N	\N
-29	31	t	f	f	f	\N	\N
-30	33	t	f	f	f	\N	\N
-1	1	t	f	t	f	\N	\N
-31	35	f	t	f	f	\N	\N
-32	36	f	f	f	f	\N	\N
-33	37	f	f	f	f	\N	\N
-34	39	f	t	f	f	\N	\N
-35	40	f	t	f	f	\N	\N
-36	41	f	t	f	f	\N	\N
-37	42	f	f	f	f	\N	\N
-38	43	f	t	f	f	\N	\N
-39	44	f	f	f	f	\N	\N
-40	45	f	f	f	f	\N	\N
-41	46	f	f	f	f	\N	\N
-42	47	f	f	f	f	\N	\N
-43	48	f	t	f	f	\N	\N
-44	49	f	f	f	f	\N	\N
-45	50	f	t	f	f	\N	\N
-46	51	f	t	f	f	\N	\N
-47	53	f	t	f	f	\N	\N
-48	54	f	f	f	f	\N	\N
-49	55	f	t	f	f	\N	\N
-50	57	f	t	f	f	\N	\N
-51	58	f	f	f	f	\N	\N
-52	60	f	t	f	f	\N	\N
-53	61	f	t	f	f	\N	\N
-54	62	f	t	f	f	\N	\N
-55	63	f	t	f	f	\N	\N
+57	65	f	t	f	f	\N	\N
+58	66	f	t	f	f	\N	\N
+59	67	f	t	f	f	\N	\N
+60	68	f	t	f	f	\N	\N
+61	69	f	f	f	f	\N	\N
+62	70	f	f	f	f	\N	\N
+63	71	f	f	f	f	\N	\N
+64	72	f	f	f	f	\N	\N
+65	73	f	f	f	f	\N	\N
 \.
 
 
@@ -2824,45 +2890,20 @@ COPY public.compliance_requirements (id, country, product_type, requirement, des
 --
 
 COPY public.economics (id, supplier_id, tipo_comprador, volumen_kg_ultima_cosecha, precio_venta_banda, tiempo_pago_dias, deuda_actual, uso_capital, comodidad_pagos, personas_dependientes, otras_fuentes_ingreso, situacion_economica, interes_canal_premium, conoce_precio_exportacion, ha_intentado_exportar) FROM stdin;
-1	1	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-2	3	\N	5000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
 3	9	\N	100	\N	\N	100	{Logistiucs}	\N	\N	\N	\N	\N	\N	\N
 4	10	\N	5000	\N	\N	2000	{"No capital, don't know the process..."}	\N	\N	\N	\N	\N	\N	\N
 5	12	\N	4000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-6	14	\N	5000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
-7	15	\N	6000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
 8	16	\N	3000	\N	\N	2000	{logistics}	\N	\N	\N	\N	\N	\N	\N
-9	27	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-10	28	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-11	29	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-12	30	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-13	31	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-14	33	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-15	35	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-16	36	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-17	37	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-18	39	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-19	40	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-20	41	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-21	42	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-22	43	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-23	44	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-24	45	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-25	46	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-26	47	\N	2000	5000-6000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-27	48	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-28	49	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-29	50	\N	1000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-30	51	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-31	53	\N	1000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-32	54	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-33	55	\N	2000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-34	57	\N	1000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-35	58	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-36	60	\N	1000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-37	61	\N	1000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-38	62	\N	1500	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-39	63	\N	1200	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
+40	64	\N	3000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
+41	65	\N	2000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
+42	66	\N	2000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
+43	67	\N	2000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
+44	68	\N	2000	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	f
+45	69	\N	1500	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
+46	70	\N	1500	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
+47	71	\N	1500	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
+48	72	\N	1500	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
+49	73	\N	1500	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
@@ -2871,13 +2912,17 @@ COPY public.economics (id, supplier_id, tipo_comprador, volumen_kg_ultima_cosech
 --
 
 COPY public.email_verification_tokens (id, user_id, token, expires_at, used, created_at) FROM stdin;
-1	30	9deb3ba00de0fe92834edf075c4cc01e6c52dded5ae0fe8d399966eba73d85a5	2026-04-26 01:11:07.677+00	f	2026-04-25 01:11:07.678032+00
-2	31	86b0d0ef014d020c8adf129c65b8dbb54a1ca94f4a654e78df4e811cbfdb5057	2026-04-26 01:15:03.058+00	f	2026-04-25 01:15:03.059563+00
-3	32	88f73754835391f62b08c6d083e892e44d5ddc7d18ddf6bc2a115ba5e0eeb548	2026-04-26 01:15:15.176+00	f	2026-04-25 01:15:15.177138+00
-4	33	02c1ef44aba63f7b7a637cab7cb9a6539dfe4957462923cf6446bdcea96987b4	2026-04-26 01:15:33.217+00	f	2026-04-25 01:15:33.217768+00
-5	33	014950dfbb06cc1121d9ae08ef2ee1829d7b35bd1536a401f12ff55b24cb25ee	2026-04-26 01:15:44.829+00	t	2026-04-25 01:15:44.830099+00
-6	34	20b40ad887b635eb21dd138b05729b4ed80ad8221c92a1f43aa42816382c5fb3	2026-04-26 01:16:40.756+00	f	2026-04-25 01:16:40.75662+00
 7	23	778fc83cf3c9dfafd6a968783de466f97ae549472aa009614e9ecb1b050f28ff	2026-04-26 02:06:05.065+00	f	2026-04-25 02:06:05.065754+00
+8	37	8bd1b97f42c15908057a920d96e19566f3223e342f3968ee90202fef57d5018d	2026-04-27 16:07:13.131+00	f	2026-04-26 16:07:13.132321+00
+9	38	9fc1b30eac7cbc8b6bc4fb864de566f29c26bab56ed0d4a22139c247070a0d4e	2026-04-27 16:07:34.559+00	f	2026-04-26 16:07:34.559453+00
+10	39	ef0210f97a0a4f1387bbde79ef497d8ee69663037637ab468ae6cbd7f25f5651	2026-04-27 16:12:34.375+00	f	2026-04-26 16:12:34.375952+00
+11	40	7effb0c571b6f18cda8103cbdf4122b01666f4e68d0e86abdeac07f773cc3bb0	2026-04-27 16:12:56.679+00	f	2026-04-26 16:12:56.679685+00
+12	41	0ed6c9584ad52b0a38ad6d7e7733deb65f8c65c61805531e972b7eea601b385c	2026-04-27 16:23:54.535+00	f	2026-04-26 16:23:54.537251+00
+13	42	67d46d93024e585bdcfd1a4f327dda5524025813e0c809aa53bb3e5227ea68d2	2026-04-27 16:30:12.939+00	f	2026-04-26 16:30:12.940324+00
+14	43	0d2aba9a584161d4321ae36604f66cc4a2fff65904ce22537417b80472bda123	2026-04-27 18:11:09.926+00	f	2026-04-26 18:11:09.926974+00
+15	44	bb7f1e25cd3ba492bd115de0a49a3ae0eb0c23e0b476d1a1dc99db4526e521ff	2026-04-27 18:11:10.455+00	f	2026-04-26 18:11:10.455896+00
+16	45	507f164f5665391cca421732dbefe8d57cebac1715669d506cb357e96e3929e5	2026-04-27 18:12:17.745+00	f	2026-04-26 18:12:17.745531+00
+17	23	82a158de0d2dd2e9b36be4a04d0c87f211106904040fe264dbb751ad53e9904b	2026-04-28 00:24:45.848+00	f	2026-04-27 00:24:45.848842+00
 \.
 
 
@@ -2886,47 +2931,22 @@ COPY public.email_verification_tokens (id, user_id, token, expires_at, used, cre
 --
 
 COPY public.farms (id, supplier_id, cultivo_principal, variedad_cafe, hectareas_produccion, edad_plantas_anos, cosechas_por_ano, metodo_secado, acceso_agua, anos_en_finca, tenencia_tierra, asistencia_tecnica) FROM stdin;
-1	1	cacao	\N	\N	\N	\N	\N	\N	\N	\N	\N
 2	2	cacao	March, April	1.00	\N	\N	\N	\N	\N	\N	\N
-3	3	cacao	\N	2.50	\N	\N	\N	\N	\N	\N	\N
 4	7	cacao	March	1.00	\N	\N	\N	\N	\N	\N	\N
 5	9	cacao	March	1.00	\N	\N	\N	\N	\N	\N	\N
 6	10	cafe	March, April, October	2.50	\N	\N	\N	\N	\N	\N	\N
 7	12	cacao	\N	3.00	\N	\N	\N	\N	\N	\N	\N
-8	14	cacao	\N	3.00	\N	\N	\N	\N	\N	\N	\N
-9	15	cacao	\N	4.00	\N	\N	\N	\N	\N	\N	\N
 10	16	bocadillo	\N	2.00	\N	\N	\N	\N	\N	\N	\N
-17	27	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-18	28	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-19	29	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-20	30	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-21	31	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-22	33	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-23	35	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-24	36	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-25	37	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-26	39	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-27	40	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-28	41	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-29	42	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-30	43	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-31	44	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-32	45	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-33	46	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-34	47	coffee	oct,nov	5.00	\N	\N	\N	\N	\N	\N	\N
-35	48	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-36	49	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-37	50	cafe	\N	3.00	\N	\N	\N	\N	\N	\N	\N
-38	51	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-39	53	cafe	\N	3.00	\N	\N	\N	\N	\N	\N	\N
-40	54	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-41	55	cafe	\N	5.00	\N	\N	\N	\N	\N	\N	\N
-42	57	cafe	\N	3.00	\N	\N	\N	\N	\N	\N	\N
-43	58	Café especial	\N	5.00	\N	\N	\N	\N	\N	\N	\N
-44	60	cafe	\N	3.00	\N	\N	\N	\N	\N	\N	\N
-45	61	cafe	\N	3.00	\N	\N	\N	\N	\N	\N	\N
-46	62	cafe	\N	4.00	\N	\N	\N	\N	\N	\N	\N
-47	63	cafe	\N	4.00	\N	\N	\N	\N	\N	\N	\N
+48	64	cafe	\N	5.00	\N	\N	\N	\N	\N	\N	\N
+49	65	Coffee	March-June	5.00	\N	\N	\N	\N	\N	\N	\N
+50	66	Coffee	March-June	5.00	\N	\N	\N	\N	\N	\N	\N
+51	67	Coffee	March-June	5.00	\N	\N	\N	\N	\N	\N	\N
+52	68	Coffee	March-June	5.00	\N	\N	\N	\N	\N	\N	\N
+53	69	Cacao	\N	3.00	\N	\N	\N	\N	\N	\N	\N
+54	70	Cacao	\N	3.00	\N	\N	\N	\N	\N	\N	\N
+55	71	Cacao	\N	3.00	\N	\N	\N	\N	\N	\N	\N
+56	72	Cacao	\N	3.00	\N	\N	\N	\N	\N	\N	\N
+57	73	Cacao	\N	3.00	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
@@ -2940,49 +2960,62 @@ COPY public.inquiries (id, product_id, buyer_email, buyer_name, company, country
 
 
 --
+-- Data for Name: interaction_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.interaction_logs (id, event_type, actor_id, actor_type, reference_id, reference_type, payload, created_at) FROM stdin;
+1	buyer_onboarding	41	buyer	7	buyer_profile	{"country": "US", "targetProducts": ["cafe"], "preferredIncoterm": "FOB"}	2026-04-26 16:23:54.401087+00
+2	order_created	41	buyer	14	order	{"incoterm": "CIF", "totalUSD": 425, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 16:23:55.04108+00
+3	supplier_onboarding	64	supplier	64	supplier	{"correlationId": "543a08f9-5d31-4f20-9f9d-475ef443e6cf"}	2026-04-26 16:28:35.603218+00
+4	buyer_onboarding	42	buyer	9	buyer_profile	{"country": "United States", "targetProducts": ["cafe", "cacao"], "preferredIncoterm": "FOB"}	2026-04-26 16:30:13.091208+00
+5	order_created	42	buyer	15	order	{"incoterm": "FOB", "totalUSD": 2850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 16:31:09.636946+00
+6	order_created	42	buyer	16	order	{"incoterm": "CIF", "totalUSD": 1700, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 16:31:09.721218+00
+7	supplier_onboarding	65	supplier	65	supplier	{"correlationId": "d6e98e29-218b-4c79-8661-cbb665a15288"}	2026-04-26 18:09:52.963433+00
+8	supplier_onboarding	66	supplier	66	supplier	{"correlationId": "2d877252-fa3c-4ac4-b3cc-a755461c7218"}	2026-04-26 18:09:53.027842+00
+9	supplier_onboarding	67	supplier	67	supplier	{"correlationId": "8bcc8a0c-fb19-4307-a47b-a7284ef11bfb"}	2026-04-26 18:09:53.664621+00
+10	supplier_onboarding	68	supplier	68	supplier	{"correlationId": "5b1750a9-998d-4723-8247-260b01a0ca3c"}	2026-04-26 18:09:54.651322+00
+11	buyer_onboarding	43	buyer	10	buyer_profile	{"country": "USA", "targetProducts": ["Coffee"], "preferredIncoterm": "FOB"}	2026-04-26 18:11:10.09684+00
+12	buyer_onboarding	44	buyer	11	buyer_profile	{"country": "UAE", "targetProducts": ["Cacao"], "preferredIncoterm": "CIF"}	2026-04-26 18:11:10.484922+00
+13	order_created	43	buyer	17	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:31.568406+00
+14	order_created	43	buyer	18	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:31.726856+00
+15	order_created	43	buyer	19	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:31.860617+00
+16	order_created	43	buyer	20	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:31.994993+00
+17	order_created	43	buyer	21	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:32.267794+00
+18	order_created	43	buyer	22	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:32.419876+00
+19	order_created	43	buyer	23	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:32.56341+00
+20	order_created	43	buyer	24	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:32.701551+00
+21	order_created	43	buyer	25	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:32.843451+00
+22	order_created	43	buyer	26	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "WAIVED", "itemCount": 1, "feeAmountUSD": 0}	2026-04-26 18:11:32.997811+00
+23	order_created	43	buyer	27	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "PENDING", "itemCount": 1, "feeAmountUSD": 34}	2026-04-26 18:11:33.143028+00
+24	order_created	43	buyer	28	order	{"incoterm": "FOB", "totalUSD": 850, "feeStatus": "PENDING", "itemCount": 1, "feeAmountUSD": 34}	2026-04-26 18:11:33.290395+00
+25	supplier_onboarding	73	supplier	73	supplier	{"correlationId": "11d95e73-ef8b-449d-9797-acdffdf941a0"}	2026-04-26 18:11:52.439505+00
+26	supplier_onboarding	70	supplier	70	supplier	{"correlationId": "a401d699-dea2-4df6-9599-938766514973"}	2026-04-26 18:11:52.522273+00
+27	supplier_onboarding	71	supplier	71	supplier	{"correlationId": "9f46af3e-0f7e-4b3f-a0e8-382ecdc85932"}	2026-04-26 18:11:53.21849+00
+28	supplier_onboarding	69	supplier	69	supplier	{"correlationId": "0601d6a9-797a-410c-8f67-abce063286be"}	2026-04-26 18:11:53.24093+00
+29	supplier_onboarding	72	supplier	72	supplier	{"correlationId": "ee8e1ec0-cf33-4424-8c5e-ea9d6b4095e8"}	2026-04-26 18:11:53.241286+00
+30	buyer_onboarding	45	buyer	14	buyer_profile	{"country": "USA", "targetProducts": ["Coffee"], "preferredIncoterm": "FOB"}	2026-04-26 18:12:17.730621+00
+\.
+
+
+--
 -- Data for Name: interactions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.interactions (id, supplier_id, created_at, interaction_type, actor, notes, metadata) FROM stdin;
-1	1	2026-04-20 03:26:05.577817+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Santander", "officer_code": null, "has_bank_account": null, "organic_certified": null}
-2	3	2026-04-20 03:30:59.408972+00	FORM_SUBMISSION	Test Officer	Test visit	{"has_rut": true, "department": "Santander", "officer_code": null, "has_bank_account": true, "organic_certified": true}
 3	9	2026-04-20 03:48:23.660388+00	FORM_SUBMISSION	Babar	needs help	{"has_rut": false, "department": "Santander", "officer_code": "OF-001", "has_bank_account": false, "organic_certified": false}
 4	10	2026-04-20 04:11:30.547353+00	FORM_SUBMISSION	Maria Garcia	Initial onboarding form submitted	{"has_rut": true, "department": "Huila", "officer_code": null, "has_bank_account": true, "organic_certified": true}
 5	12	2026-04-20 12:59:08.313774+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": true, "department": "Santander", "officer_code": null, "has_bank_account": true, "organic_certified": false}
-6	14	2026-04-20 13:05:55.541137+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": "yes", "department": "Santander", "officer_code": null, "has_bank_account": "yes", "organic_certified": null}
-7	15	2026-04-20 13:11:13.778001+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": "yes", "department": "Santander", "officer_code": null, "has_bank_account": "yes", "organic_certified": null}
 8	16	2026-04-20 14:48:47.419518+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": false, "department": "Santander", "officer_code": null, "has_bank_account": true, "organic_certified": false}
-9	27	2026-04-22 20:19:30.294322+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-10	28	2026-04-22 21:00:31.516915+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Antioquia", "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-11	29	2026-04-22 21:01:33.14016+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Valle del Cauca", "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-12	30	2026-04-22 21:06:45.231132+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-13	31	2026-04-23 11:48:23.263628+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-14	33	2026-04-23 15:19:39.589041+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-15	35	2026-04-23 18:06:55.274863+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-16	36	2026-04-23 18:06:55.50021+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": false, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-17	37	2026-04-23 18:06:55.719576+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-18	39	2026-04-23 23:04:52.327646+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-19	40	2026-04-23 23:04:52.549603+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": false, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-20	41	2026-04-23 23:11:40.046051+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-21	42	2026-04-23 23:11:40.382256+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": false, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-22	43	2026-04-23 23:11:40.612623+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": "yes", "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-23	44	2026-04-23 23:11:40.832813+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": "no", "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-24	45	2026-04-23 23:11:41.060957+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-25	46	2026-04-24 02:02:47.823279+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-26	47	2026-04-24 02:02:48.01394+00	FORM_SUBMISSION	SELF	Smoke test full payload	{"has_rut": true, "department": "Antioquia", "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": true, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-27	48	2026-04-24 02:02:48.272856+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-28	49	2026-04-24 02:16:45.84024+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-29	50	2026-04-24 02:17:40.23342+00	FORM_SUBMISSION	Test Officer	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-30	51	2026-04-24 02:26:56.831558+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-31	53	2026-04-24 02:30:14.827877+00	FORM_SUBMISSION	Test Officer	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-32	54	2026-04-24 02:41:46.207321+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-33	55	2026-04-24 02:57:14.130793+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-34	57	2026-04-24 03:05:04.913648+00	FORM_SUBMISSION	Test Officer	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-35	58	2026-04-24 23:45:40.032929+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Huila", "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-36	60	2026-04-25 01:08:15.377719+00	FORM_SUBMISSION	Test Officer	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-37	61	2026-04-25 01:08:22.494088+00	FORM_SUBMISSION	Test Officer	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-38	62	2026-04-25 01:21:04.634693+00	FORM_SUBMISSION	Test Officer	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
-39	63	2026-04-25 01:22:51.07126+00	FORM_SUBMISSION	Hook Officer	Initial onboarding form submitted	{"has_rut": true, "department": null, "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+40	64	2026-04-26 16:28:29.789572+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": true, "department": "Huila", "officer_code": null, "ica_registered": true, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+41	65	2026-04-26 18:09:46.99846+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Huila", "officer_code": null, "ica_registered": "yes", "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+42	66	2026-04-26 18:09:47.52699+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Huila", "officer_code": null, "ica_registered": "yes", "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+43	67	2026-04-26 18:09:47.728113+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Huila", "officer_code": null, "ica_registered": "yes", "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+44	68	2026-04-26 18:09:47.930962+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": "Huila", "officer_code": null, "ica_registered": "yes", "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+45	69	2026-04-26 18:11:47.014592+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+46	70	2026-04-26 18:11:47.165015+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+47	71	2026-04-26 18:11:47.353853+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+48	72	2026-04-26 18:11:47.517811+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
+49	73	2026-04-26 18:11:47.665629+00	FORM_SUBMISSION	SELF	Initial onboarding form submitted	{"has_rut": null, "department": null, "officer_code": null, "ica_registered": null, "invima_approved": null, "invima_required": null, "vuce_registered": null, "has_bank_account": null, "organic_certified": null, "business_structure": null, "part_of_cooperative": null}
 \.
 
 
@@ -2992,7 +3025,6 @@ COPY public.interactions (id, supplier_id, created_at, interaction_type, actor, 
 
 COPY public.loans (id, buyer_id, order_id, principal_usd, fee_usd, total_repayment_usd, apr_percent, term_days, status, due_at, credit_score_at_issuance, created_at, updated_at) FROM stdin;
 2	1	\N	5000	49.315067	5049.315	12	30	REPAID	2026-05-14 04:29:40.207+00	500	2026-04-14 04:29:40.208202+00	2026-04-14 04:29:52.266+00
-3	33	\N	300	2.958904	302.9589	12	30	DEFAULTED	2026-05-25 01:28:10.613+00	500	2026-04-25 01:28:10.613789+00	2026-04-25 01:28:10.613789+00
 \.
 
 
@@ -3009,7 +3041,25 @@ COPY public.messages (id, sender_id, receiver_id, content, read, created_at) FRO
 --
 
 COPY public.order_items (id, order_id, product_id, quantity_kg, price_per_kg, total_usd) FROM stdin;
-1	1	1	150	28.5	4275
+2	2	1	10	28.5	285
+3	3	1	20	28.5	570
+4	12	1	100	28.5	2850
+5	13	1	50	28.5	1425
+6	14	2	50	8.5	425
+7	15	1	100	28.5	2850
+8	16	2	200	8.5	1700
+9	17	2	100	8.5	850
+10	18	2	100	8.5	850
+11	19	2	100	8.5	850
+12	20	2	100	8.5	850
+13	21	2	100	8.5	850
+14	22	2	100	8.5	850
+15	23	2	100	8.5	850
+16	24	2	100	8.5	850
+17	25	2	100	8.5	850
+18	26	2	100	8.5	850
+19	27	2	100	8.5	850
+20	28	2	100	8.5	850
 \.
 
 
@@ -3017,8 +3067,34 @@ COPY public.order_items (id, order_id, product_id, quantity_kg, price_per_kg, to
 -- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.orders (id, buyer_id, status, total_usd, incoterm, destination_port, shipping_method, notes, created_at, updated_at) FROM stdin;
-1	33	SHIPPED	4275	FOB	Hamburg	SEA	E2E test order	2026-04-25 01:27:55.35578+00	2026-04-25 01:28:05.128+00
+COPY public.orders (id, buyer_id, status, total_usd, incoterm, destination_port, shipping_method, notes, created_at, updated_at, fee_percentage, fee_amount_usd, fee_status) FROM stdin;
+2	39	INQUIRY	285	FOB	\N	\N	\N	2026-04-26 16:18:00.972041+00	2026-04-26 16:18:00.972041+00	4	0	WAIVED
+3	39	INQUIRY	570	FOB	\N	\N	\N	2026-04-26 16:18:01.189113+00	2026-04-26 16:18:01.189113+00	4	0	WAIVED
+4	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+5	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+6	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+7	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+8	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+9	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+10	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+11	39	INQUIRY	100	FOB	\N	\N	\N	2026-04-26 16:18:01.432699+00	2026-04-26 16:18:01.432699+00	4	0	WAIVED
+12	39	INQUIRY	2850	FOB	\N	\N	\N	2026-04-26 16:18:01.486689+00	2026-04-26 16:18:01.486689+00	4	114	PENDING
+13	39	INQUIRY	1425	FOB	\N	\N	\N	2026-04-26 16:18:01.676528+00	2026-04-26 16:18:01.676528+00	4	57	PENDING
+14	41	INQUIRY	425	CIF	\N	\N	\N	2026-04-26 16:23:55.023912+00	2026-04-26 16:23:55.023912+00	4	0	WAIVED
+15	42	INQUIRY	2850	FOB	Port of Miami	\N	MVP validation order 1	2026-04-26 16:31:09.57963+00	2026-04-26 16:31:09.57963+00	4	0	WAIVED
+16	42	INQUIRY	1700	CIF	Port of New York	\N	MVP validation order 2	2026-04-26 16:31:09.700457+00	2026-04-26 16:31:09.700457+00	4	0	WAIVED
+17	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:31.530906+00	2026-04-26 18:11:31.530906+00	4	0	WAIVED
+18	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:31.698386+00	2026-04-26 18:11:31.698386+00	4	0	WAIVED
+19	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:31.846213+00	2026-04-26 18:11:31.846213+00	4	0	WAIVED
+20	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:31.980929+00	2026-04-26 18:11:31.980929+00	4	0	WAIVED
+21	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:32.123131+00	2026-04-26 18:11:32.123131+00	4	0	WAIVED
+22	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:32.396435+00	2026-04-26 18:11:32.396435+00	4	0	WAIVED
+23	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:32.545008+00	2026-04-26 18:11:32.545008+00	4	0	WAIVED
+24	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:32.686425+00	2026-04-26 18:11:32.686425+00	4	0	WAIVED
+25	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:32.827111+00	2026-04-26 18:11:32.827111+00	4	0	WAIVED
+26	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:32.965777+00	2026-04-26 18:11:32.965777+00	4	0	WAIVED
+27	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:33.122532+00	2026-04-26 18:11:33.122532+00	4	34	PENDING
+28	43	INQUIRY	850	FOB	\N	\N	\N	2026-04-26 18:11:33.267545+00	2026-04-26 18:11:33.267545+00	4	34	PENDING
 \.
 
 
@@ -3043,12 +3119,6 @@ COPY public.origin_stories (id, product_id, farmer_name, farmer_photo, farm_name
 --
 
 COPY public.password_reset_tokens (id, user_id, token, expires_at, used, created_at) FROM stdin;
-1	29	26877cb1f2d576382ed19d0443c8714965c37c37cc48a926b8d99d8349dea0a7	2026-04-24 22:42:36.368+00	t	2026-04-24 21:42:36.370078+00
-2	29	52c7d167e28b88595f88c3f689764b3c406620f9ac5a64a19f4835e7f98354e2	2026-04-24 22:43:02.54+00	t	2026-04-24 21:43:02.540707+00
-3	29	24f38002cdd2e0ecb3d305dc32530114a2bdb17ec13bef23f7ad2b749815d759	2026-04-24 22:45:54.952+00	t	2026-04-24 21:45:54.953185+00
-4	29	d5c10eb3de9820f06aff22e88900b22e219eaa21273a84ed129bce67c1441dec	2026-04-24 22:48:23.493+00	t	2026-04-24 21:48:23.494627+00
-5	29	46aa3c623166293eeafb601a74d0fd6e8b2777fd8bdbb22d0a3ac8805a2c6e18	2026-04-24 22:50:55.279+00	t	2026-04-24 21:50:55.280822+00
-6	30	24268c603352e0f6a263d43326913ff74a1deaedd55ecc550739ac1fa4b96300	2026-04-25 02:13:09.241+00	t	2026-04-25 01:13:09.241311+00
 7	18	2491f8b9db7085c33f0aff750d5c4d43b60da0e591e6943a4fd98be627ba9761	2026-04-25 03:04:36.187+00	f	2026-04-25 02:04:36.188005+00
 8	18	1a17bf732d0ce0d0055ecb1cd2c7c9e833e09c23ab9f644e461d4beae209b400	2026-04-25 03:12:43.643+00	f	2026-04-25 02:12:43.644668+00
 9	18	e7ff709148d8b0733bc2c4ed6530b229fbaad612ea65710cc7bf0b681d6b13f5	2026-04-25 13:19:45.685+00	f	2026-04-25 12:19:45.686437+00
@@ -3104,22 +3174,20 @@ COPY public.profiles (id, user_id, first_name, last_name, phone, country, langua
 2	2	Maria	Santos	\N	Colombia	es	\N
 3	3	Jorge	Herrera	\N	Colombia	es	\N
 4	4	Rosa	Vasquez	\N	Colombia	es	\N
-5	5	Ahmed	Al-Rashid	\N	UAE	ar	\N
-6	6	Li	Wei	\N	China	zh	\N
 18	18	Syed	Irfan	5126591415	US	en	\N
 7	7	Fincava	Admin	\N	\N	en	\N
-22	22	E2E	Tester	\N	US	en	\N
 23	23	Syed	Irfan	\N	CO	en	\N
 27	27	Carlos	Sánchez	\N	CO	en	\N
 28	28	Ahmed	Al-Rashid	\N	AE	en	\N
-29	29	Test	Buyer	\N	US	en	\N
-30	30	E2E	Buyer	\N	United Arab Emirates	en	\N
-31	31	Verify	Test	\N	CO	en	\N
-32	32	Verify	Test	\N	CO	en	\N
-33	33	Verify	Test	\N	CO	en	\N
-34	34	Block	Test	\N	CO	en	\N
-35	35	Admin	Created	\N	\N	en	\N
-36	36	Hook	Test	\N	\N	en	\N
+37	37	Test	Buyer	\N	Germany	en	\N
+38	38	Ana	Buyer	\N	Netherlands	en	\N
+39	39	Maria	Garcia	\N	Netherlands	en	\N
+40	40	X	Y	\N	US	en	\N
+41	41	Log	Test	\N	US	en	\N
+42	42	MVP	Buyer	\N	United States	en	\N
+43	43	Alice	Test	\N	USA	en	\N
+44	44	Bob	Test	\N	UAE	en	\N
+45	45	Failsafe	Test	\N	USA	en	\N
 \.
 
 
@@ -3137,11 +3205,6 @@ COPY public.repayments (id, loan_id, amount_usd, note, created_at) FROM stdin;
 --
 
 COPY public.reviews (id, author_id, product_id, rating, comment, verified, created_at) FROM stdin;
-1	5	1	5	Exceptional Geisha — our roastery's best-selling single origin. The jasmine and bergamot notes are extraordinary. Highly recommend for specialty roasters.	t	2026-04-07 13:36:13.815126+00
-2	6	1	5	We sourced this for our Shanghai café. Clients love the complexity. Will re-order next harvest.	t	2026-04-07 13:36:13.815126+00
-3	5	3	5	Best cacao we've worked with from Colombia. The fermentation is consistent and the flavor profile is excellent for our 80% dark bars.	t	2026-04-07 13:36:13.815126+00
-4	6	2	4	Solid commercial grade coffee at a good price. Consistent quality, good FOB logistics from Bogotá.	f	2026-04-07 13:36:13.815126+00
-5	5	5	4	Good avocado quality. The cold chain was maintained well through UAE customs. Some size variation but overall acceptable.	t	2026-04-07 13:36:13.815126+00
 \.
 
 
@@ -3149,11 +3212,7 @@ COPY public.reviews (id, author_id, product_id, rating, comment, verified, creat
 -- Data for Name: rfq_responses; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.rfq_responses (id, rfq_id, supplier_id, price_per_kg_usd, lead_time_days, message, awarded, created_at) FROM stdin;
-1	1	1	11.5	21	We can supply 5MT of our Huila Geisha SCA 92. Natural processed, Q-grade certified. Available from April harvest. FOB Cartagena. Sample available on request.	0	2026-04-07 15:09:15.503278+00
-2	1	2	12.8	28	We have limited lots of washed Caturra SCA 87 from Nariño. Small batch, 2MT available this season.	0	2026-04-07 15:09:15.503278+00
-3	2	2	3.6	35	Cooperativa Cacao del Pacífico can supply 10MT annually of Nacional fine-flavor cacao. Full fermentation documentation and DNA traceability available.	0	2026-04-07 15:09:15.503278+00
-4	4	1	6.2	21	We can supply the requested quantity at the offered price.	0	2026-04-25 01:27:49.548744+00
+COPY public.rfq_responses (id, rfq_id, company_id, price_per_kg_usd, lead_time_days, message, awarded, created_at) FROM stdin;
 \.
 
 
@@ -3162,10 +3221,6 @@ COPY public.rfq_responses (id, rfq_id, supplier_id, price_per_kg_usd, lead_time_
 --
 
 COPY public.rfqs (id, buyer_id, title, description, product_category, quantity_kg, target_price_usd, destination, destination_port, incoterm, deadline, status, created_at) FROM stdin;
-1	5	Specialty Coffee - UAE Specialty Roasters	We are a specialty coffee roaster in Dubai seeking 3-5 lots of high-scoring Colombian single-origin coffee (SCA 85+). Prefer natural or honey processed. Must have Q-grader report.	COFFEE	5000	12	UAE	Jebel Ali Port	FOB	2026-05-22 15:09:11.601596+00	OPEN	2026-04-07 15:09:11.601596+00
-2	6	Fine Cacao for Craft Chocolate - Shanghai	Our Shanghai craft chocolate operation needs 10MT of fine-flavor Colombian cacao annually. Need consistent fermentation and full traceability documentation.	CACAO	10000	3.8	China	Shanghai Port	CIF	2026-06-06 15:09:11.601596+00	OPEN	2026-04-07 15:09:11.601596+00
-3	5	Organic Avocado Hass - GCC Distribution	Gulf food distributor seeking reliable supply of organic Hass avocado for Carrefour and LuLu Hypermarket. Year-round supply preferred. GlobalGAP required.	AVOCADO	50000	1.6	UAE	Jebel Ali Port	FOB	2026-05-07 15:09:11.601596+00	OPEN	2026-04-07 15:09:11.601596+00
-4	33	E2E Test RFQ for Coffee	We need 2000kg of premium Colombian coffee.	cafe	2000	6.5	Germany	Hamburg	FOB	2026-12-31 00:00:00+00	OPEN	2026-04-25 01:27:38.034548+00
 \.
 
 
@@ -3202,18 +3257,16 @@ COPY public.subscriptions (id, company_id, tier, active, expires_at, created_at)
 --
 
 COPY public.supplier_evaluations (id, supplier_id, eligibility_status, commercial_score, sellable_status, pathway, score_snapshot, threshold_version, evaluated_at) FROM stdin;
-38	29	FAIL	75	NOT_READY	\N	{"pathway": null, "aiOutputId": 18, "complianceGaps": null, "exportReadinessScore": 75}	v0_pre_buyer_calls	2026-04-22 21:01:34.169407+00
-39	30	FAIL	75	NOT_READY	\N	{"pathway": null, "aiOutputId": 20, "complianceGaps": null, "exportReadinessScore": 75}	v0_pre_buyer_calls	2026-04-22 21:06:46.302394+00
-40	51	FAIL	5	NOT_READY	D	{"pathway": "D", "aiOutputId": 39, "complianceGaps": "RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, ICA registration present but incomplete compliance portfolio", "exportReadinessScore": 5}	v0_pre_buyer_calls	2026-04-24 02:27:03.302034+00
-41	53	FAIL	35	NOT_READY	D	{"pathway": "D", "aiOutputId": 40, "complianceGaps": "RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, No post-harvest quality documentation", "exportReadinessScore": 35}	v0_pre_buyer_calls	2026-04-24 02:30:19.94886+00
-42	54	FAIL	5	NOT_READY	D	{"pathway": "D", "aiOutputId": 41, "complianceGaps": "RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exportador status not acquired", "exportReadinessScore": 5}	v0_pre_buyer_calls	2026-04-24 02:41:51.296909+00
-43	55	FAIL	35	NOT_READY	D	{"pathway": "D", "aiOutputId": 42, "complianceGaps": "RUT DIAN - Critical for any export operation, Fitosanitary Certification - Required for agricultural exports, DIAN Exporter Registration - Mandatory for legal export status", "exportReadinessScore": 35}	v0_pre_buyer_calls	2026-04-24 02:57:19.566249+00
-44	57	FAIL	35	NOT_READY	D	{"pathway": "D", "aiOutputId": 43, "complianceGaps": "RUT DIAN - Missing, Fitosanitary Certificate - Missing, DIAN Exporter Registration - Missing, Production volume documentation - Incomplete, Land tenure rights - Not verified, Technical assistance records - Missing", "exportReadinessScore": 35}	v0_pre_buyer_calls	2026-04-24 03:05:11.428654+00
-45	58	FAIL	12	NOT_READY	D	{"pathway": "D", "aiOutputId": 44, "complianceGaps": "RUT DIAN - Missing, ICA Registration - Missing, Phytosanitary Certificate - Missing, DIAN Exporter Status - Missing", "exportReadinessScore": 12}	v0_pre_buyer_calls	2026-04-24 23:45:46.630572+00
-46	60	FAIL	28	NOT_READY	D	{"pathway": "D", "aiOutputId": 45, "complianceGaps": "RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, Land tenure rights not documented, Technical assistance not confirmed", "exportReadinessScore": 28}	v0_pre_buyer_calls	2026-04-25 01:08:20.907888+00
-47	61	FAIL	32	NOT_READY	D	{"pathway": "D", "aiOutputId": 46, "complianceGaps": "RUT DIAN not registered, Fitosanitary certification missing, DIAN Exporter status not obtained, Land rights documentation incomplete, Production volume documentation insufficient", "exportReadinessScore": 32}	v0_pre_buyer_calls	2026-04-25 01:08:29.185266+00
-48	62	FAIL	28	NOT_READY	D	{"pathway": "D", "aiOutputId": 47, "complianceGaps": "RUT DIAN not registered, Fitosanitary certification missing, DIAN exporter status not obtained, ICA registro present but incomplete compliance ecosystem", "exportReadinessScore": 28}	v0_pre_buyer_calls	2026-04-25 01:21:10.521621+00
-49	63	FAIL	35	NOT_READY	D	{"pathway": "D", "aiOutputId": 48, "complianceGaps": "RUT DIAN - Required for legal trading, Fitosanitary Certification - Required for export, DIAN Exporter Registration - Required for international shipments, Land Rights Documentation - Not provided, Production Volume Evidence - Below commercial threshold", "exportReadinessScore": 35}	v0_pre_buyer_calls	2026-04-25 01:22:57.192907+00
+50	64	FAIL	35	NOT_READY	D	{"pathway": "D", "aiOutputId": 49, "complianceGaps": "RUT DIAN - Missing (Critical), Fitosanitary Certification - Missing (Critical), DIAN Exporter Registration - Missing (Critical), Production volume documentation - Insufficient, Land rights documentation - Not verified, Post-harvest quality protocols - Not documented", "exportReadinessScore": 35}	v0_pre_buyer_calls	2026-04-26 16:28:35.551702+00
+51	65	FAIL	25	NOT_READY	D	{"pathway": "D", "aiOutputId": 50, "complianceGaps": "RUT DIAN not registered, Fitosanitary certification absent, DIAN exporter registration missing, No post-harvest quality documentation, Incomplete farm operational data", "exportReadinessScore": 25}	v0_pre_buyer_calls	2026-04-26 18:09:52.943797+00
+52	66	FAIL	35	NOT_READY	D	{"pathway": "D", "aiOutputId": 51, "complianceGaps": "RUT DIAN registration missing, Phytosanitary certification absent, DIAN exporter registration not obtained, No post-harvest quality documentation, Land tenure rights not documented", "exportReadinessScore": 35}	v0_pre_buyer_calls	2026-04-26 18:09:53.004793+00
+53	67	FAIL	25	NOT_READY	D	{"pathway": "D", "aiOutputId": 52, "complianceGaps": "RUT DIAN - Critical for export operations, Fitosanitary Certificate - Required for agricultural exports, DIAN Exporter Registration - Mandatory for cross-border trade, Farm tenure documentation - Not provided, Production methodology documentation - Incomplete", "exportReadinessScore": 25}	v0_pre_buyer_calls	2026-04-26 18:09:53.640494+00
+54	68	FAIL	28	NOT_READY	D	{"pathway": "D", "aiOutputId": 53, "complianceGaps": "RUT DIAN - Critical requirement for all export operations, Phytosanitary Certificate - Mandatory for agricultural exports, DIAN Exporter Registration - Legal requirement for cross-border commerce", "exportReadinessScore": 28}	v0_pre_buyer_calls	2026-04-26 18:09:54.628855+00
+55	73	FAIL	25	NOT_READY	D	{"pathway": "D", "aiOutputId": 54, "complianceGaps": "RUT DIAN - Not registered, ICA Registry - Not obtained, Phytosanitary Certificate - Not obtained, DIAN Exporter Status - Not registered", "exportReadinessScore": 25}	v0_pre_buyer_calls	2026-04-26 18:11:52.405367+00
+56	70	FAIL	25	NOT_READY	D	{"pathway": "D", "aiOutputId": 55, "complianceGaps": "RUT DIAN - Not registered, ICA Registration - Not obtained, Phytosanitary Certificate - Not acquired, DIAN Exporter Status - Not registered", "exportReadinessScore": 25}	v0_pre_buyer_calls	2026-04-26 18:11:52.500747+00
+57	71	FAIL	25	NOT_READY	D	{"pathway": "D", "aiOutputId": 56, "complianceGaps": "RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exportador status not achieved", "exportReadinessScore": 25}	v0_pre_buyer_calls	2026-04-26 18:11:53.174877+00
+58	69	FAIL	25	NOT_READY	D	{"pathway": "D", "aiOutputId": 58, "complianceGaps": "RUT DIAN not registered, ICA registration missing, Phytosanitary certification absent, DIAN exporter status not obtained, No export documentation framework", "exportReadinessScore": 25}	v0_pre_buyer_calls	2026-04-26 18:11:53.194829+00
+59	72	FAIL	28	NOT_READY	D	{"pathway": "D", "aiOutputId": 57, "complianceGaps": "RUT DIAN not registered, ICA registro not obtained, Fitosanitario certification missing, DIAN exporter status not registered", "exportReadinessScore": 28}	v0_pre_buyer_calls	2026-04-26 18:11:53.195016+00
 \.
 
 
@@ -3222,22 +3275,19 @@ COPY public.supplier_evaluations (id, supplier_id, eligibility_status, commercia
 --
 
 COPY public.supplier_state_transitions (id, supplier_id, from_state, to_state, threshold_version, commercial_score_at_transition, actor, justification, evaluation_id, created_at) FROM stdin;
-41	1	NOT_READY	SELLABLE	v0_pre_buyer_calls	\N	ADMIN	Manual override for QA	\N	2026-04-22 18:49:19.807039+00
-42	1	SELLABLE	PUBLISHED	v0_pre_buyer_calls	\N	ADMIN	Verified and ready for marketplace	\N	2026-04-22 18:49:40.350293+00
+57	64	\N	NOT_READY	v0_pre_buyer_calls	35	SYSTEM	\N	50	2026-04-26 16:28:35.551702+00
+58	64	NOT_READY	SELLABLE	v0_pre_buyer_calls	\N	ADMIN	MVP validation - docs reviewed, compliance confirmed	\N	2026-04-26 16:29:32.409486+00
+59	65	\N	NOT_READY	v0_pre_buyer_calls	25	SYSTEM	\N	51	2026-04-26 18:09:52.943797+00
+60	66	\N	NOT_READY	v0_pre_buyer_calls	35	SYSTEM	\N	52	2026-04-26 18:09:53.004793+00
+61	67	\N	NOT_READY	v0_pre_buyer_calls	25	SYSTEM	\N	53	2026-04-26 18:09:53.640494+00
+62	68	\N	NOT_READY	v0_pre_buyer_calls	28	SYSTEM	\N	54	2026-04-26 18:09:54.628855+00
+63	73	\N	NOT_READY	v0_pre_buyer_calls	25	SYSTEM	\N	55	2026-04-26 18:11:52.405367+00
+64	70	\N	NOT_READY	v0_pre_buyer_calls	25	SYSTEM	\N	56	2026-04-26 18:11:52.500747+00
+65	71	\N	NOT_READY	v0_pre_buyer_calls	25	SYSTEM	\N	57	2026-04-26 18:11:53.174877+00
+66	69	\N	NOT_READY	v0_pre_buyer_calls	25	SYSTEM	\N	58	2026-04-26 18:11:53.194829+00
+67	72	\N	NOT_READY	v0_pre_buyer_calls	28	SYSTEM	\N	59	2026-04-26 18:11:53.195016+00
 43	2	NOT_READY	SELLABLE	v0_pre_buyer_calls	\N	ADMIN	setup for test	\N	2026-04-22 18:49:40.43707+00
 44	2	SELLABLE	PUBLISHED	v0_pre_buyer_calls	\N	ADMIN	Trying to publish non-sellable	\N	2026-04-22 18:49:40.848642+00
-45	29	\N	NOT_READY	v0_pre_buyer_calls	75	SYSTEM	\N	38	2026-04-22 21:01:34.169407+00
-46	30	\N	NOT_READY	v0_pre_buyer_calls	75	SYSTEM	\N	39	2026-04-22 21:06:46.302394+00
-47	51	\N	NOT_READY	v0_pre_buyer_calls	5	SYSTEM	\N	40	2026-04-24 02:27:03.302034+00
-48	53	\N	NOT_READY	v0_pre_buyer_calls	35	SYSTEM	\N	41	2026-04-24 02:30:19.94886+00
-49	54	\N	NOT_READY	v0_pre_buyer_calls	5	SYSTEM	\N	42	2026-04-24 02:41:51.296909+00
-50	55	\N	NOT_READY	v0_pre_buyer_calls	35	SYSTEM	\N	43	2026-04-24 02:57:19.566249+00
-51	57	\N	NOT_READY	v0_pre_buyer_calls	35	SYSTEM	\N	44	2026-04-24 03:05:11.428654+00
-52	58	\N	NOT_READY	v0_pre_buyer_calls	12	SYSTEM	\N	45	2026-04-24 23:45:46.630572+00
-53	60	\N	NOT_READY	v0_pre_buyer_calls	28	SYSTEM	\N	46	2026-04-25 01:08:20.907888+00
-54	61	\N	NOT_READY	v0_pre_buyer_calls	32	SYSTEM	\N	47	2026-04-25 01:08:29.185266+00
-55	62	\N	NOT_READY	v0_pre_buyer_calls	28	SYSTEM	\N	48	2026-04-25 01:21:10.521621+00
-56	63	\N	NOT_READY	v0_pre_buyer_calls	35	SYSTEM	\N	49	2026-04-25 01:22:57.192907+00
 \.
 
 
@@ -3246,47 +3296,22 @@ COPY public.supplier_state_transitions (id, supplier_id, from_state, to_state, t
 --
 
 COPY public.suppliers (id, nombre_completo, whatsapp_number, municipio, vereda, supplier_type, registered_by, status, consent_given, consent_date, created_at, updated_at, department, eligibility_status, commercial_score, sellable_status, graduation_pathway, next_actions, commercial_score_at_onboarding, last_evaluated_at, threshold_version, email) FROM stdin;
-57	E2E Test Supplier	3001111188	Test Region	\N	FARMER	Test Officer	ACTIVE	t	2026-04-24 03:05:04.884+00	2026-04-24 03:05:04.895357+00	2026-04-24 03:05:04.895357+00	\N	FAIL	35	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-24 03:05:11.434+00	v0_pre_buyer_calls	\N
-3	Test Farmer 2	3001234568	San Gil	\N	FARMER	Test Officer	ACTIVE	t	2026-04-20 03:30:59.349+00	2026-04-20 03:30:59.357334+00	2026-04-20 03:30:59.357334+00	\N	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
+64	MVP Test Supplier	+573001234999	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-26 16:28:29.426+00	2026-04-26 16:28:29.439156+00	2026-04-26 16:28:29.439156+00	Huila	FAIL	35	SELLABLE	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-26 16:28:35.571+00	v0_pre_buyer_calls	\N
+65	Test Supplier S1-1 1777226986	+57300000001	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:09:46.49+00	2026-04-26 18:09:46.500402+00	2026-04-26 18:09:46.500402+00	Huila	FAIL	25	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-26 18:09:52.948+00	v0_pre_buyer_calls	\N
+66	Test Supplier S1-2 1777226986	+57300000002	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:09:47.292+00	2026-04-26 18:09:47.306468+00	2026-04-26 18:09:47.306468+00	Huila	FAIL	35	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-26 18:09:53.01+00	v0_pre_buyer_calls	\N
+67	Test Supplier S1-3 1777226986	+57300000003	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:09:47.65+00	2026-04-26 18:09:47.651185+00	2026-04-26 18:09:47.651185+00	Huila	FAIL	25	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-26 18:09:53.644+00	v0_pre_buyer_calls	\N
+68	Test Supplier S1-4 1777226986	+57300000004	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:09:47.845+00	2026-04-26 18:09:47.846152+00	2026-04-26 18:09:47.846152+00	Huila	FAIL	28	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-26 18:09:54.632+00	v0_pre_buyer_calls	\N
 7	Syed	+57 3166563616	San Gil		FARMER	Babar	ACTIVE	t	2026-04-20 03:45:24.273+00	2026-04-20 03:45:24.283175+00	2026-04-20 03:45:24.283175+00	\N	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
 9	Syed	+57 3166560000	San Gil		FARMER	Babar	ACTIVE	t	2026-04-20 03:48:23.634+00	2026-04-20 03:48:23.643819+00	2026-04-20 03:48:23.643819+00	\N	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
 10	Maria Garcia	+57 3009998877	Pitalito	La Esperanza	FARMER	Maria Garcia	ACTIVE	t	2026-04-20 04:11:30.514+00	2026-04-20 04:11:30.529503+00	2026-04-20 04:11:30.529503+00	\N	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
 12	Maria Lopez	+57 3001112233	San Gil		FARMER	\N	ACTIVE	t	2026-04-20 12:59:07.855+00	2026-04-20 12:59:07.864774+00	2026-04-20 12:59:07.864774+00	\N	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
-14	Score Test Farm	+57 3111234567	Barichara	\N	FARMER	\N	ACTIVE	t	2026-04-20 13:05:55.469+00	2026-04-20 13:05:55.485425+00	2026-04-20 13:05:55.485425+00	\N	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
+73	Rapid S4-5 1777227106	+573100000005	Nariño	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:11:47.592+00	2026-04-26 18:11:47.592851+00	2026-04-26 18:11:47.592851+00	\N	FAIL	25	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-26 18:11:52.41+00	v0_pre_buyer_calls	\N
 16	Ricardo	+57 3123637856	San Gil		FARMER	\N	ACTIVE	t	2026-04-20 14:48:47.037+00	2026-04-20 14:48:47.047059+00	2026-04-20 14:48:47.047059+00	Santander	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
-15	Scoring Test	+57 3222345678	Barichara	\N	FARMER	\N	ACTIVE	t	2026-04-20 13:11:13.719+00	2026-04-20 13:11:13.728896+00	2026-04-20 13:11:13.728896+00	\N	\N	\N	NOT_READY	\N	\N	\N	\N	\N	\N
+70	Rapid S4-2 1777227106	+573100000002	Nariño	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:11:47.09+00	2026-04-26 18:11:47.091233+00	2026-04-26 18:11:47.091233+00	\N	FAIL	25	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-26 18:11:52.504+00	v0_pre_buyer_calls	\N
+71	Rapid S4-3 1777227106	+573100000003	Nariño	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:11:47.253+00	2026-04-26 18:11:47.25385+00	2026-04-26 18:11:47.25385+00	\N	FAIL	25	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-26 18:11:53.178+00	v0_pre_buyer_calls	\N
+69	Rapid S4-1 1777227106	+573100000001	Nariño	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:11:46.937+00	2026-04-26 18:11:46.938083+00	2026-04-26 18:11:46.938083+00	\N	FAIL	25	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-26 18:11:53.2+00	v0_pre_buyer_calls	\N
+72	Rapid S4-4 1777227106	+573100000004	Nariño	\N	FARMER	\N	ACTIVE	t	2026-04-26 18:11:47.433+00	2026-04-26 18:11:47.433812+00	2026-04-26 18:11:47.433812+00	\N	FAIL	28	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-26 18:11:53.201+00	v0_pre_buyer_calls	\N
 2	Syed	+57 3166563613	San Gil		FARMER	Babar	ACTIVE	t	2026-04-20 03:28:40.559+00	2026-04-20 03:28:40.567798+00	2026-04-20 03:28:40.567798+00	\N	\N	\N	PUBLISHED	\N	\N	\N	\N	\N	\N
-27	QA Validation Farmer	+573008740892	Bogotá	\N	FARMER	\N	ACTIVE	t	2026-04-22 20:19:30.254+00	2026-04-22 20:19:30.264728+00	2026-04-22 20:19:30.264728+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-28	E2E Pipeline Test	+57314299598	Medellín	\N	FARMER	\N	ACTIVE	t	2026-04-22 21:00:31.08+00	2026-04-22 21:00:31.090607+00	2026-04-22 21:00:31.090607+00	Antioquia	\N	\N	\N	\N	\N	\N	\N	\N	\N
-29	E2E Pipeline Test v2	+57323917255	Cali	\N	FARMER	\N	ACTIVE	t	2026-04-22 21:01:33.061+00	2026-04-22 21:01:33.071031+00	2026-04-22 21:01:33.071031+00	Valle del Cauca	FAIL	75	NOT_READY	\N	{"pathwaySteps": [], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-22 21:01:34.178+00	v0_pre_buyer_calls	\N
-30	Constraint Test Supplier	+57335602268	Bogotá	\N	FARMER	\N	ACTIVE	t	2026-04-22 21:06:45.146+00	2026-04-22 21:06:45.164591+00	2026-04-22 21:06:45.164591+00	\N	FAIL	75	NOT_READY	\N	{"pathwaySteps": [], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-22 21:06:46.311+00	v0_pre_buyer_calls	\N
-31	Idempotent Test	+57333182059	Bogotá	\N	FARMER	\N	ACTIVE	t	2026-04-23 11:48:22.106+00	2026-04-23 11:48:23.154166+00	2026-04-23 11:48:23.154166+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-33	Deploy Test	+57339804836	Medellín	\N	FARMER	\N	ACTIVE	t	2026-04-23 15:19:39.447+00	2026-04-23 15:19:39.457219+00	2026-04-23 15:19:39.457219+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-60	E2E Test Supplier	300884394868	Test Region	\N	FARMER	Test Officer	ACTIVE	t	2026-04-25 01:08:15.328+00	2026-04-25 01:08:15.337734+00	2026-04-25 01:08:15.337734+00	\N	FAIL	28	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-25 01:08:20.913+00	v0_pre_buyer_calls	\N
-1	Test Farmer	3001234567	San Gil	\N	FARMER	\N	ACTIVE	t	2026-04-20 03:26:05.053+00	2026-04-20 03:26:05.061895+00	2026-04-20 03:26:05.061895+00	\N	\N	\N	PUBLISHED	\N	\N	\N	\N	\N	\N
-35	ICA Sync Test A	573001111001	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 18:06:54.98+00	2026-04-23 18:06:54.999871+00	2026-04-23 18:06:54.999871+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-36	ICA Sync Test B	573001111002	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 18:06:55.484+00	2026-04-23 18:06:55.485626+00	2026-04-23 18:06:55.485626+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-37	ICA Sync Test C	573001111003	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 18:06:55.704+00	2026-04-23 18:06:55.705419+00	2026-04-23 18:06:55.705419+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-39	ICA Fix Test A	573002221001	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 23:04:51.748+00	2026-04-23 23:04:51.763019+00	2026-04-23 23:04:51.763019+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-58	Carlos Prueba Email	+57300000TEST	Pitalito	\N	FARMER	\N	ACTIVE	t	2026-04-24 23:45:39.786+00	2026-04-24 23:45:39.787806+00	2026-04-24 23:45:39.787806+00	Huila	FAIL	12	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-24 23:45:46.639+00	v0_pre_buyer_calls	carlos.test@example.com
-40	ICA Fix Test B	573002221002	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 23:04:52.533+00	2026-04-23 23:04:52.533731+00	2026-04-23 23:04:52.533731+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-41	P02 Test Bool True	573009001001	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 23:11:39.968+00	2026-04-23 23:11:39.984006+00	2026-04-23 23:11:39.984006+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-42	P02 Test Bool False	573009001002	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 23:11:40.261+00	2026-04-23 23:11:40.262427+00	2026-04-23 23:11:40.262427+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-43	P02 Test String Yes	573009001003	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 23:11:40.59+00	2026-04-23 23:11:40.590928+00	2026-04-23 23:11:40.590928+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-44	P02 Test String No	573009001004	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 23:11:40.818+00	2026-04-23 23:11:40.818612+00	2026-04-23 23:11:40.818612+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-45	P02 Test Omitted	573009001005	Huila	\N	FARMER	\N	ACTIVE	t	2026-04-23 23:11:41.046+00	2026-04-23 23:11:41.047358+00	2026-04-23 23:11:41.047358+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-46	Smoke Test Minimal	+573001110001	Bogota	\N	FARMER	\N	ACTIVE	t	2026-04-24 02:02:47.308+00	2026-04-24 02:02:47.32497+00	2026-04-24 02:02:47.32497+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-47	Smoke Test Full	+573001110002	Medellin	\N	FARMER	\N	ACTIVE	t	2026-04-24 02:02:47.997+00	2026-04-24 02:02:47.998828+00	2026-04-24 02:02:47.998828+00	Antioquia	\N	\N	\N	\N	\N	\N	\N	\N	\N
-48	Smoke Test ICA	+573001110003	Cali	\N	FARMER	\N	ACTIVE	t	2026-04-24 02:02:48.176+00	2026-04-24 02:02:48.176804+00	2026-04-24 02:02:48.176804+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-49	Pre-T2 Check	+573001119999	Bucaramanga	\N	FARMER	\N	ACTIVE	t	2026-04-24 02:16:45.775+00	2026-04-24 02:16:45.784833+00	2026-04-24 02:16:45.784833+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-50	E2E Test Supplier	3001111111	Test Region	\N	FARMER	Test Officer	ACTIVE	t	2026-04-24 02:17:40.187+00	2026-04-24 02:17:40.19722+00	2026-04-24 02:17:40.19722+00	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N
-51	Pipeline Fix Test	3009990001	Palmira	\N	FARMER	\N	ACTIVE	t	2026-04-24 02:26:56.754+00	2026-04-24 02:26:56.768858+00	2026-04-24 02:26:56.768858+00	\N	FAIL	5	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-24 02:27:03.31+00	v0_pre_buyer_calls	\N
-53	E2E Test Supplier	3001111199	Test Region	\N	FARMER	Test Officer	ACTIVE	t	2026-04-24 02:30:14.79+00	2026-04-24 02:30:14.801141+00	2026-04-24 02:30:14.801141+00	\N	FAIL	35	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-24 02:30:19.954+00	v0_pre_buyer_calls	\N
-54	Pre-T2 Smoke	3007770001	Bogota	\N	FARMER	\N	ACTIVE	t	2026-04-24 02:41:46.15+00	2026-04-24 02:41:46.160223+00	2026-04-24 02:41:46.160223+00	\N	FAIL	5	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "icaRegistration", "fitosanitario"]}	\N	2026-04-24 02:41:51.301+00	v0_pre_buyer_calls	\N
-55	T2 Scoring Test	3008880002	Manizales	\N	FARMER	\N	ACTIVE	t	2026-04-24 02:57:13.763+00	2026-04-24 02:57:13.780288+00	2026-04-24 02:57:13.780288+00	\N	FAIL	35	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-24 02:57:19.572+00	v0_pre_buyer_calls	\N
-61	E2E Test Supplier	3001892303	Test Region	\N	FARMER	Test Officer	ACTIVE	t	2026-04-25 01:08:22.48+00	2026-04-25 01:08:22.481458+00	2026-04-25 01:08:22.481458+00	\N	FAIL	32	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-25 01:08:29.189+00	v0_pre_buyer_calls	\N
-62	Email Hook Supplier	3007777777	Medellín	\N	FARMER	Test Officer	ACTIVE	t	2026-04-25 01:21:04.607+00	2026-04-25 01:21:04.608816+00	2026-04-25 01:21:04.608816+00	\N	FAIL	28	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-25 01:21:10.527+00	v0_pre_buyer_calls	emailhook@supplier.com
-63	Hook Supplier	3007070707	Cali	\N	FARMER	Hook Officer	INACTIVE	t	2026-04-25 01:22:51.055+00	2026-04-25 01:22:51.055976+00	2026-04-25 01:22:51.055976+00	\N	FAIL	35	NOT_READY	D	{"pathwaySteps": ["Complete pathway D requirements"], "missingFields": ["rutDian", "fitosanitario"]}	\N	2026-04-25 01:22:57.198+00	v0_pre_buyer_calls	emailhook_supplier@test.com
 \.
 
 
@@ -3325,26 +3350,24 @@ COPY public.trust_scores (id, company_id, score, orders_completed, certification
 --
 
 COPY public.users (id, email, password_hash, role, created_at, email_verified_at) FROM stdin;
-33	e2everify_suwco-@test.com	$2b$12$LarDWq96sYUVlmK2o5x6L.zrDtYm8GtJ7sc4huY5yIac9sjzl5wK.	BUYER	2026-04-25 01:15:33.175888+00	2026-04-25 01:16:00.305+00
-34	e2eunverified_kt9zb_@test.com	$2b$12$GYkXMds6p4MzBwAvSM6J2OhxJnhmV8T6WasNbdSSXFq/mLWLSdvku	BUYER	2026-04-25 01:16:40.716391+00	\N
 18	irfan@fincava.com	$2b$12$VVbvib3kBfmQ68v.3dmYe.hmjInsHajwO6yxr/q5UFM3DPfmPNmza	ADMIN	2026-04-20 11:57:11.972019+00	\N
-35	e2eadmincreated_test001@test.com	$2b$12$kUWW2fw.fcxJIY06IxdPwO941V1tQ2MC79gSeMP6yIp3W3ljnweK6	SUPPLIER	2026-04-25 01:20:40.919268+00	\N
-36	e2etest_hook001@test.com	$2b$12$AuTmOlOacwnNs8k6Q3neS.YLtmlrzcNx.wfHR3Ff6n5cswCvjPtiO	SUPPLIER	2026-04-25 01:22:28.068829+00	\N
-22	e2e_batch1@fincava.dev	$2b$12$C9pt/b2UfZEP.7K///3HO.1ihUytA5gexoLg4YpU5tsSBlY64n07e	BUYER	2026-04-24 11:31:07.453928+00	\N
 7	info@fincava.com	$2b$12$X824Dr7hhg5ef37tGZmVK.JaNoEEOqK67nanHsrPfTU1nvwYDtbr.	ADMIN	2026-04-14 04:41:33.946046+00	\N
 2	maria@cooperativacacao.co	$2b$12$M604IJxih6WFRkiD9ZTmiO.C0c1Tpy.Ggze7lAi8yMSp2QZcgKd7m	SUPPLIER	2024-10-07 13:34:28.678068+00	\N
 3	jorge@exportcolombia.co	$2b$12$M604IJxih6WFRkiD9ZTmiO.C0c1Tpy.Ggze7lAi8yMSp2QZcgKd7m	SUPPLIER	2025-04-07 13:34:28.678068+00	\N
 4	rosa@santeropremium.co	$2b$12$M604IJxih6WFRkiD9ZTmiO.C0c1Tpy.Ggze7lAi8yMSp2QZcgKd7m	SUPPLIER	2025-10-07 13:34:28.678068+00	\N
-5	buyer1@gulf-trade.ae	$2b$12$hQM3461eN7M1M0Y3A.yO8.HazYcRQ1NqxuJmLxUbm2p68FsbAaeBS	BUYER	2025-04-07 13:34:28.678068+00	\N
-6	buyer2@chinafoods.cn	$2b$12$hQM3461eN7M1M0Y3A.yO8.HazYcRQ1NqxuJmLxUbm2p68FsbAaeBS	BUYER	2025-08-07 13:34:28.678068+00	\N
 1	carlos@cafehuilas.co	$2b$12$fSvu1QYVACo63jcce04j4ekFzxaj5zrpWp44z6ISs066qXHRQg3nG	SUPPLIER	2024-04-07 13:34:28.678068+00	2026-04-25 01:26:12.765373+00
 23	sbirfan@yahoo.com	$2b$12$6yAzc3/tDknCxENRqxtvDeWy17a7FqnT.c.NiP89mcPYF4EvAbTXG	BUYER	2026-04-24 13:10:12.604462+00	\N
 27	social@fincava.com	$2b$12$8Q3bcZtzEvgp6ZV.InWK3uS8ejFbU/wh6p8osEOkbqTynOc9W3xVK	SUPPLIER	2026-04-24 17:26:26.097418+00	\N
 28	buyer@gulf-trade.ae	$2b$12$I.Nda3eBavhTw1OCgRR3sufJIAgQvsg3jESF.oTSNhq7/PIPiip32	BUYER	2026-04-24 17:26:26.433717+00	\N
-29	test@test.com	$2b$12$XcmEzriL1nyS08fgw7akHeY6vUQgiv2YnDeWq84OLd5muzi7Wvnze	BUYER	2026-04-24 17:26:26.762143+00	\N
-30	e2ebuyer_mf_tgm@test.com	$2b$12$cNdE.XQ7z17NbcjZ2x50C.Lamy.WFodReizljvwPKajXMK.K9CXIS	BUYER	2026-04-25 01:11:07.627779+00	\N
-31	e2everify_qaompi@test.com	$2b$12$QEN5stWsGXedGyN07P4JY.QgadfjUFK/Lw/uwlcMwCZYLTm7Tood2	BUYER	2026-04-25 01:15:03.044115+00	\N
-32	e2everify_oo7tnb@test.com	$2b$12$8E4k8XpISf5kckrgku5Mcu.dgXefsckqzKfzoDeKwJXl1lXcO50Z.	BUYER	2026-04-25 01:15:15.167884+00	\N
+37	buyertest_1777219631@example.com	$2b$12$L9zHsdP849kKxA/VBQ0I5.2/WexHNuhYlXV0iPMnCmrNSXqVpaGxm	BUYER	2026-04-26 16:07:12.346452+00	\N
+38	buyer2_1777219654@example.com	$2b$12$OwC.luh.3rmj/cnj/thlrOtK7DgNoQIt20Fg6ZTM5LqdHyYwzKyFS	BUYER	2026-04-26 16:07:34.375129+00	\N
+40	nonadmin_1777219976@x.com	$2b$12$QXJd1cEjWgCb6qghWWxfK.MeObX2ZRa4DMBodKc9qTNKtsrV9VqVi	BUYER	2026-04-26 16:12:56.465786+00	\N
+39	buyer_vis_1777219953@example.com	$2b$12$RM93i.KB0LDq3g/wXG.1uuWiW8Deo9RF2LHrW3EjqrzKN1o9NUYLu	BUYER	2026-04-26 16:12:33.808714+00	2026-04-26 16:17:37.064299+00
+41	intlog_1777220633@example.com	$2b$12$/TDRsPztD1PTROd1WpE.M.7T9SU/8c.apJC5Y1InbPz1c8wQ2qOx6	BUYER	2026-04-26 16:23:54.139525+00	2026-04-26 16:23:54.525049+00
+42	mvp_buyer_1777221012@testcorp.com	$2b$12$Atu65iH246QqeOxe86ul3Ojme3EJ/PkqrtnzUVjw1wvsAshztsYgS	BUYER	2026-04-26 16:30:12.645169+00	2026-04-26 16:30:26.958204+00
+44	s2b_1777227068@test.com	$2b$12$iPLs86wJFSQB43GWjD8/y.e7SQ1sfGC0krCHNoSkoQa2AxizHjuG.	BUYER	2026-04-26 18:11:09.935565+00	\N
+43	s2a_1777227068@test.com	$2b$12$dBvGkct198CXZJpWDiDAd.ImRFmgLncF9re5MqHtScR6oJxIAohhq	BUYER	2026-04-26 18:11:09.413844+00	2026-04-26 18:11:31.082176+00
+45	s5_1777227136@test.com	$2b$12$/Mv.GvupCd7RIIME2P.BXetFkuDkbWqJ3HC/LYvpNbkV2Pjg.lh3W	BUYER	2026-04-26 18:12:17.161297+00	\N
 \.
 
 
@@ -3359,7 +3382,14 @@ SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 2, true);
 -- Name: ai_outputs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.ai_outputs_id_seq', 48, true);
+SELECT pg_catalog.setval('public.ai_outputs_id_seq', 58, true);
+
+
+--
+-- Name: buyer_profiles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.buyer_profiles_id_seq', 14, true);
 
 
 --
@@ -3380,7 +3410,7 @@ SELECT pg_catalog.setval('public.certifications_id_seq', 10, true);
 -- Name: companies_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.companies_id_seq', 29, true);
+SELECT pg_catalog.setval('public.companies_id_seq', 38, true);
 
 
 --
@@ -3394,7 +3424,7 @@ SELECT pg_catalog.setval('public.companies_user_id_seq', 1, false);
 -- Name: compliance_docs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.compliance_docs_id_seq', 55, true);
+SELECT pg_catalog.setval('public.compliance_docs_id_seq', 65, true);
 
 
 --
@@ -3408,21 +3438,21 @@ SELECT pg_catalog.setval('public.compliance_requirements_id_seq', 32, true);
 -- Name: economics_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.economics_id_seq', 39, true);
+SELECT pg_catalog.setval('public.economics_id_seq', 49, true);
 
 
 --
 -- Name: email_verification_tokens_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.email_verification_tokens_id_seq', 7, true);
+SELECT pg_catalog.setval('public.email_verification_tokens_id_seq', 17, true);
 
 
 --
 -- Name: farms_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.farms_id_seq', 47, true);
+SELECT pg_catalog.setval('public.farms_id_seq', 57, true);
 
 
 --
@@ -3440,10 +3470,17 @@ SELECT pg_catalog.setval('public.inquiries_product_id_seq', 1, false);
 
 
 --
+-- Name: interaction_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.interaction_logs_id_seq', 30, true);
+
+
+--
 -- Name: interactions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.interactions_id_seq', 39, true);
+SELECT pg_catalog.setval('public.interactions_id_seq', 49, true);
 
 
 --
@@ -3492,7 +3529,7 @@ SELECT pg_catalog.setval('public.messages_sender_id_seq', 1, false);
 -- Name: order_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.order_items_id_seq', 1, true);
+SELECT pg_catalog.setval('public.order_items_id_seq', 20, true);
 
 
 --
@@ -3520,7 +3557,7 @@ SELECT pg_catalog.setval('public.orders_buyer_id_seq', 1, false);
 -- Name: orders_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.orders_id_seq', 1, true);
+SELECT pg_catalog.setval('public.orders_id_seq', 28, true);
 
 
 --
@@ -3590,7 +3627,7 @@ SELECT pg_catalog.setval('public.products_id_seq', 8, true);
 -- Name: profiles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.profiles_id_seq', 36, true);
+SELECT pg_catalog.setval('public.profiles_id_seq', 45, true);
 
 
 --
@@ -3709,21 +3746,21 @@ SELECT pg_catalog.setval('public.subscriptions_id_seq', 4, true);
 -- Name: supplier_evaluations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.supplier_evaluations_id_seq', 49, true);
+SELECT pg_catalog.setval('public.supplier_evaluations_id_seq', 59, true);
 
 
 --
 -- Name: supplier_state_transitions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.supplier_state_transitions_id_seq', 56, true);
+SELECT pg_catalog.setval('public.supplier_state_transitions_id_seq', 67, true);
 
 
 --
 -- Name: suppliers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.suppliers_id_seq', 63, true);
+SELECT pg_catalog.setval('public.suppliers_id_seq', 73, true);
 
 
 --
@@ -3758,7 +3795,7 @@ SELECT pg_catalog.setval('public.trust_scores_id_seq', 4, true);
 -- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.users_id_seq', 36, true);
+SELECT pg_catalog.setval('public.users_id_seq', 45, true);
 
 
 --
@@ -3775,6 +3812,14 @@ ALTER TABLE ONLY drizzle.__drizzle_migrations
 
 ALTER TABLE ONLY public.ai_outputs
     ADD CONSTRAINT ai_outputs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: buyer_profiles buyer_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.buyer_profiles
+    ADD CONSTRAINT buyer_profiles_pkey PRIMARY KEY (id);
 
 
 --
@@ -3855,6 +3900,14 @@ ALTER TABLE ONLY public.farms
 
 ALTER TABLE ONLY public.inquiries
     ADD CONSTRAINT inquiries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interaction_logs interaction_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.interaction_logs
+    ADD CONSTRAINT interaction_logs_pkey PRIMARY KEY (id);
 
 
 --
@@ -4089,10 +4142,31 @@ CREATE INDEX ai_outputs_supplier_idx ON public.ai_outputs USING btree (supplier_
 
 
 --
+-- Name: buyer_profiles_user_id_unique; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX buyer_profiles_user_id_unique ON public.buyer_profiles USING btree (user_id);
+
+
+--
+-- Name: companies_user_id_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX companies_user_id_idx ON public.companies USING btree (user_id);
+
+
+--
 -- Name: interactions_supplier_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX interactions_supplier_idx ON public.interactions USING btree (supplier_id);
+
+
+--
+-- Name: products_company_id_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX products_company_id_idx ON public.products USING btree (company_id);
 
 
 --
@@ -4110,6 +4184,13 @@ CREATE INDEX supplier_state_transitions_supplier_created_idx ON public.supplier_
 
 
 --
+-- Name: suppliers_sellable_status_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX suppliers_sellable_status_idx ON public.suppliers USING btree (sellable_status) WHERE (sellable_status = ANY (ARRAY['SELLABLE'::public.sellable_status, 'PUBLISHED'::public.sellable_status]));
+
+
+--
 -- Name: suppliers_whatsapp_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -4122,6 +4203,14 @@ CREATE INDEX suppliers_whatsapp_idx ON public.suppliers USING btree (whatsapp_nu
 
 ALTER TABLE ONLY public.ai_outputs
     ADD CONSTRAINT ai_outputs_supplier_id_suppliers_id_fk FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id);
+
+
+--
+-- Name: buyer_profiles buyer_profiles_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.buyer_profiles
+    ADD CONSTRAINT buyer_profiles_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -4317,19 +4406,19 @@ ALTER TABLE ONLY public.reviews
 
 
 --
+-- Name: rfq_responses rfq_responses_company_id_companies_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rfq_responses
+    ADD CONSTRAINT rfq_responses_company_id_companies_id_fk FOREIGN KEY (company_id) REFERENCES public.companies(id);
+
+
+--
 -- Name: rfq_responses rfq_responses_rfq_id_rfqs_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.rfq_responses
     ADD CONSTRAINT rfq_responses_rfq_id_rfqs_id_fk FOREIGN KEY (rfq_id) REFERENCES public.rfqs(id);
-
-
---
--- Name: rfq_responses rfq_responses_supplier_id_companies_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.rfq_responses
-    ADD CONSTRAINT rfq_responses_supplier_id_companies_id_fk FOREIGN KEY (supplier_id) REFERENCES public.companies(id);
 
 
 --
@@ -4416,5 +4505,5 @@ ALTER TABLE ONLY public.trust_scores
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JtABcKKlxkdadrDeviWXm9IJddcolTuhVnqXroX7uUS1ZFTbPY0Mp1ObFZXde2Q
+\unrestrict Xo90dCkPSpJmTSA56kvxJN8hmeqy3CX0bsP0XFANNeEPvje8maMDavPmbQFLJVY
 
