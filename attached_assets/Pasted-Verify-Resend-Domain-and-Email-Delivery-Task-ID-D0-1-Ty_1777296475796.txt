@@ -1,0 +1,72 @@
+Verify Resend Domain and Email Delivery
+Task ID: D0-1
+Type: Day 0 Operational Verification
+Priority: 🟡 HIGH — blocks T17 (Gate-B, buyer onboarding email)
+Estimated effort: 20 minutes
+Dependency: None
+OBJECTIVE
+Confirm that the Resend email integration is active, the sending domain is verified, and transactional emails (specifically the admin buyer notification) are actually delivered. Email failure in production blocks the buyer onboarding admin notification, which is a Gate-B requirement.
+PREFLIGHT CHECK
+•	☐ Access to Resend dashboard (resend.com)
+•	☐ RESEND_API_KEY is set in Replit Secrets
+•	☐ Admin email address is configured in the application
+PERMISSION TO EXECUTE
+Execute immediately. No code changes. Verification only.
+CONFLICT DETECTION
+No conflicts. Sending a test email to the admin address is safe. It will not affect any user data.
+PROPOSED APPROACH
+1.	Check Replit Secrets for RESEND_API_KEY presence
+2.	Check Resend dashboard for domain verification status
+3.	Trigger a real buyer onboarding to force the admin notification email
+4.	Confirm receipt
+Why this approach: The only reliable test of email delivery is a live send. Checking RESEND_API_KEY alone does not confirm domain verification or spam routing.
+ALTERNATIVES
+Alternative	Reason Rejected
+Check Resend dashboard only	Domain verified ≠ email delivered
+Trust prior test	Email infrastructure changes — must verify live
+Skip email verification	Gate-B requires admin email confirmation
+IMPLEMENTATION
+## OBJECTIVE
+Verify Resend domain verification and admin notification email delivery.
+
+## PREFLIGHT
+1. Open Replit → Secrets panel → confirm RESEND_API_KEY present
+2. Open resend.com → Domains → confirm sending domain is Verified (green)
+
+## STEPS
+1. In Replit shell, check the admin email config:
+   grep -r "ADMIN_EMAIL\|adminEmail\|FROM_EMAIL" src/ --include="*.ts" | head -20
+   
+   Note the admin email address used for notifications.
+
+2. Trigger test buyer onboarding (use a test buyer account):
+   curl -X POST http://localhost:5000/api/buyers/onboard \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <buyer-token>" \
+     -d '{...full buyer payload...}'
+
+3. Check Replit logs for Resend API response:
+   Look for: "buyerOnboardAdminAlertEmail sent" or similar
+   Watch for: any Resend API error codes
+
+4. Check admin email inbox → confirm "New Buyer Submission" email received
+
+5. If email not received within 2 minutes:
+   a. Check Resend dashboard → Logs → look for failed sends
+   b. Verify domain DNS records (SPF, DKIM) are correctly set
+   c. Check spam folder
+
+## NO CODE CHANGES PERMITTED IN THIS TASK
+VALIDATION
+•	☐ RESEND_API_KEY present in Replit Secrets
+•	☐ Resend dashboard shows domain as Verified
+•	☐ Test buyer onboarding triggers admin notification
+•	☐ Admin email received within 2 minutes of submission
+BACK-OUT PLAN
+No code was changed. If email delivery fails, log the failure reason and continue with other tasks. Gate-B will flag this as a blocker before Phase 1 Gate is called.
+ACCEPTANCE CRITERIA
+•	☐ RESEND_API_KEY confirmed in Replit Secrets
+•	☐ Sending domain verified in Resend dashboard
+•	☐ Admin notification email received for test buyer submission
+•	☐ No Resend API errors in Replit logs
+•	☐ T17 (Gate-B) email step is now unblocked
