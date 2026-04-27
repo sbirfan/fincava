@@ -120,8 +120,9 @@ export const suppliersTable = pgTable(
     index("suppliers_whatsapp_idx").on(t.whatsappNumber),
     // NOTE:
     // Partial index on sellable_status scoped to SELLABLE/PUBLISHED.
-    // This improves selectivity and performance for marketplace queries.
-    // Do NOT replace with full index without benchmarking.
+    // Optimized for marketplace and admin queries.
+    // If new states are introduced or query patterns change,
+    // re-evaluate index coverage before modifying.
     index("suppliers_sellable_status_idx")
       .on(t.sellableStatus)
       .where(sql`sellable_status IN ('SELLABLE', 'PUBLISHED')`),
