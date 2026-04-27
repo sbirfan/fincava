@@ -1,0 +1,176 @@
+T8 — Add Postgres Indexes on suppliers + supplier_evaluations (Idx)
+
+Task ID: Idx
+Type: TDD Hardening — Performance
+Priority: MEDIUM — parallelizable with T4
+Estimated effort: 1–2 hours
+Dependency: None
+
+---
+
+OBJECTIVE
+
+Add two Postgres indexes to improve admin query performance as the supplier count grows:
+
+1. suppliers(sellable_status) — used by admin suppliers list queries filtered by status
+2. supplier_evaluations(supplier_id, created_at DESC) — used by history lookups and the graduation pipeline
+
+At current scale these queries use sequential scans. As supplier count grows (target: ≥50 SELLABLE for Phase 2 matching), without indexes these queries degrade linearly.
+
+---
+
+PREFLIGHT CHECK
+
+☐ Confirm Drizzle ORM schema files exist:
+
+* src/db/schema/suppliers.ts
+* src/db/schema/supplier-evaluations.ts
+
+☐ Run in psql:
+EXPLAIN ANALYZE SELECT * FROM suppliers WHERE sellable_status = 'SELLABLE';
+EXPLAIN ANALYZE SELECT * FROM supplier_evaluations WHERE supplier_id = 1 ORDER BY created_at DESC;
+
+→ Expect Seq Scan at current small scale (this is normal)
+
+☐ Confirm no indexes already exist:
+\di suppliers*
+\di supplier_evaluations*
+
+---
+
+PERMISSION TO EXECUTE
+
+Execute any time. Index creation is non-destructive and safe for concurrent reads.
+
+---
+
+CONFLICT DETECTION
+
+No conflicts with any other active task. Index creation is safe to run in parallel with application reads.
+
+---
+
+PROPOSED APPROACH
+
+Add index definitions directly in the Drizzle schema files using Drizzle’s index() function, then generate and apply the migration.
+
+This keeps indexes under version control and schema management.
+
+---
+
+ALTERNATIVES
+
+Alternative | Reason Rejected
+Add indexes via raw SQL only | Bypasses Drizzle schema — indexes disappear on schema reset
+Add composite index (sellable_status, id) | Premature optimization — single column sufficient at current scale
+Defer to Phase 2 | Risk of slow admin queries when real suppliers start accumulating
+
+---
+
+IMPLEMENTATION
+
+## STEP 1: Add index to suppliers schema
+
+In src/db/schema/suppliers.ts:
+
+import { pgTable, ..., index } from 'drizzle-orm/pg-core';
+
+export const suppliersTable = pgTable('suppliers', {
+// ... existing columns unchanged ...
+}, (table) => ({
+sellableStatusIdx: index('suppliers_sellable_status_idx').on(table.sellableStatus),
+}));
+
+---
+
+## STEP 2: Add composite index to supplier_evaluations schema
+
+In src/db/schema/supplier-evaluations.ts:
+
+export const supplierEvaluationsTable = pgTable('supplier_evaluations', {
+// ... existing columns unchanged ...
+}, (table) => ({
+supplierIdCreatedAtIdx: index('supplier_evaluations_supplier_id_created_at_idx')
+.on(table.supplierId, table.createdAt.desc()),
+}));
+
+---
+
+## STEP 3: Generate and apply migration
+
+pnpm drizzle-kit generate
+pnpm drizzle-kit migrate
+
+---
+
+## STEP 4: Verify indexes exist
+
+In psql:
+
+\di suppliers_sellable_status_idx
+\di supplier_evaluations_supplier_id_created_at_idx
+
+---
+
+## STEP 5: Verify query plan behavior
+
+EXPLAIN ANALYZE SELECT * FROM suppliers WHERE sellable_status = 'SELLABLE';
+
+Expected:
+
+* May still show Seq Scan at small scale (this is correct Postgres behavior)
+* Index will be used as table size grows or selectivity increases
+
+---
+
+COMMIT MESSAGE FORMAT
+
+perf(db): add indexes on suppliers(sellable_status) and supplier_evaluations(supplier_id, created_at desc)
+
+* Index added via Drizzle schema definition (version controlled)
+* supplier_evaluations index optimized for ORDER BY created_at DESC
+* Improves admin list queries and evaluation history lookups
+* Resolves Idx (TDD hardening)
+
+---
+
+VALIDATION
+
+☐ \di suppliers_sellable_status_idx returns the index
+☐ \di supplier_evaluations_supplier_id_created_at_idx returns the index
+☐ pnpm tsc --noEmit → 0 errors
+☐ Migration applied without error
+
+---
+
+BACK-OUT PLAN
+
+git revert HEAD
+
+Then in psql:
+
+DROP INDEX IF EXISTS suppliers_sellable_status_idx;
+DROP INDEX IF EXISTS supplier_evaluations_supplier_id_created_at_idx;
+
+Dropping indexes never affects data. Zero functional impact.
+
+---
+
+ACCEPTANCE CRITERIA
+
+☐ Both indexes defined in Drizzle schema files
+☐ Both indexes exist in the database (confirmed via \di)
+☐ Migration generated and applied cleanly
+
+---
+
+NOTES (IMPORTANT)
+
+* Do NOT over-optimize sellable_status index at MVP stage
+* Partial index (WHERE sellable_status = 'SELLABLE') can be added later if needed
+* The supplier_evaluations index ordering (DESC) is important for query performance
+* Ensure query patterns match index usage before future optimization
+
+---
+
+END
