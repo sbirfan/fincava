@@ -1,0 +1,66 @@
+OBJECTIVE
+Confirm that ANTHROPIC_API_KEY is set in the Replit environment and that the scoring endpoint returns a valid AI response, not a 500 error. This is the gating prerequisite for AI1 (T4). If the key is missing or expired, all scoring-related work is blocked.
+PREFLIGHT CHECK
+•	☐ You have Replit access to the Fincava project
+•	☐ You know the Replit Secrets panel location
+•	☐ You have a valid Anthropic API key available (or can confirm the existing one is active)
+PERMISSION TO EXECUTE
+Execute immediately. No code changes. Pure verification.
+CONFLICT DETECTION
+No conflicts. This is a read-only check. The API key is scoped to the Replit environment — changes here do not affect any other system.
+PROPOSED APPROACH
+1.	Check Replit Secrets panel for ANTHROPIC_API_KEY presence
+2.	Run a curl test against the scoring endpoint
+3.	Verify the response contains a structured JSON score (not a 500 or auth error)
+Why this approach: Direct endpoint test is the fastest confirmation. Checking the Secrets panel alone is not sufficient — the key could be present but expired or revoked.
+ALTERNATIVES
+Alternative	Reason Rejected
+Check Anthropic dashboard directly	Slower; doesn’t test actual integration
+Run pnpm test	Tests may not exercise the live AI endpoint
+Trust prior operator log	API keys expire — must verify live
+IMPLEMENTATION
+## OBJECTIVE
+Verify ANTHROPIC_API_KEY is active and the scoring pipeline can reach Anthropic AI.
+
+## PREFLIGHT
+1. Open Replit → Secrets panel
+2. Confirm ANTHROPIC_API_KEY is listed (value hidden is OK)
+
+## STEPS
+1. In Replit shell, run:
+   curl -X POST http://localhost:5000/api/suppliers/onboard \
+     -H "Content-Type: application/json" \
+     -d '{"test": true}'
+   (This will fail with 400/validation error — that's fine; confirms server is running)
+
+2. Check the Replit Secrets panel: ANTHROPIC_API_KEY must be present.
+
+3. POST a minimal onboarding request with a real payload:
+   curl -X POST http://localhost:5000/api/suppliers/onboard \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <valid-token>" \
+     -d '{"farmName": "Test Farm", "location": "Santander", ...}'
+   
+   Wait 5s, then:
+   SELECT * FROM ai_outputs ORDER BY created_at DESC LIMIT 1;
+   
+   Expected: row with valid score_data JSON, NOT NULL, NOT error.
+
+4. If scoring returns 500 with "API key" error:
+   → Update ANTHROPIC_API_KEY in Replit Secrets with valid key
+   → Restart the Replit service
+   → Repeat step 3
+
+## NO CODE CHANGES PERMITTED IN THIS TASK
+VALIDATION
+•	☐ ANTHROPIC_API_KEY appears in Replit Secrets panel
+•	☐ A test onboarding request completes without 500 error
+•	☐ SELECT * FROM ai_outputs ORDER BY created_at DESC LIMIT 1; returns a row with score_data
+•	☐ score_data is valid JSON with export_readiness_score field
+BACK-OUT PLAN
+No code was changed. If the API key is invalid, obtain a new key from the Anthropic console and update Replit Secrets. No rollback needed.
+ACCEPTANCE CRITERIA
+•	☐ ANTHROPIC_API_KEY confirmed present in Replit Secrets
+•	☐ Scoring endpoint returns ai_outputs row with valid structured JSON
+•	☐ No 500 errors in Replit logs related to Anthropic API calls
+•	☐ T4 (AI1) is now unblocked
