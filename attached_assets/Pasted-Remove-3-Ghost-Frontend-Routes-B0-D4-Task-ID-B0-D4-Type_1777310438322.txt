@@ -1,0 +1,40 @@
+Remove 3 Ghost Frontend Routes (B0-D4)
+Task ID: B0-D4 Type: TDD Hardening Priority: MEDIUM — parallelizable with T4 Estimated effort: 1–2 hours Dependency: None
+OBJECTIVE
+Remove three frontend routes that exist in the navigation/router with no corresponding backend service: /dashboard/finance, /admin/loans, /investors. These are D4 drift artifacts — routes that were planned but never implemented, creating dead navigation links that confuse real users and surface in the admin UI.
+PREFLIGHT CHECK
+•          ☐ Locate the frontend router file (likely src/App.tsx or src/router.tsx)
+•          ☐ Run grep -r "dashboard/finance\|admin/loans\|investors" src/ --include="*.tsx" --include="*.ts" — map all references
+•          ☐ Confirm no backend route handlers exist for these paths
+PERMISSION TO EXECUTE
+Execute any time — independent of all other tasks. No backend changes required.
+CONFLICT DETECTION
+•          These routes may appear in: router config, nav sidebar/menu components, breadcrumb components, any link that references them
+•          Check all three locations before deleting — a partial removal leaves broken links
+•          Do NOT remove /investors if it refers to a real investor-facing page (verify it’s the dead route, not a legitimate page)
+PROPOSED APPROACH
+1.        Find all references to each of the three paths
+2.        Remove route definitions from router
+3.        Remove navigation links from sidebar/menu
+4.        Confirm no 404 pages are introduced
+ALTERNATIVES
+Alternative	Reason Rejected
+Redirect routes to /dashboard	Adds noise; dead features shouldn’t have redirects
+Leave routes, hide from nav	Routes still accessible by URL — creates confusion
+Add placeholder pages	Scope creep; these features are Phase 2+
+IMPLEMENTATION
+## OBJECTIVE Remove 3 ghost frontend routes that have no backend service. Routes to remove: /dashboard/finance, /admin/loans, /investors  ## PREFLIGHT Run: grep -rn "dashboard/finance\|admin/loans\|/investors" src/ --include="*.tsx" --include="*.ts" List every file and line number. These are your targets.  ## STEP 1: Remove from router Find the router configuration (App.tsx or router.tsx). Delete the Route/Switch entries for all three paths.  ## STEP 2: Remove from navigation Find the sidebar or nav component (likely components/Sidebar.tsx or similar). Remove NavLink/Link entries pointing to these three paths.  ## STEP 3: Remove any remaining references Re-run the grep from preflight. Expected: zero results.  ## STEP 4: Test Run the dev server. Navigate to /dashboard, /admin. Confirm: no broken links, no 404 entries in console, no ghost menu items.  ## ARCHITECTURAL CONSTRAINTS - Do NOT touch any backend route handlers - Do NOT remove any route that has a working page component behind it - Frontend-only change  ## COMMIT MESSAGE FORMAT fix(d4-drift): remove 3 ghost frontend routes with no backend service  - Remove /dashboard/finance, /admin/loans, /investors from router - Remove nav links for all three paths - No backend changes — frontend cleanup only - Resolves G7 (TDD hardening B0-D4)
+VALIDATION
+•          ☐ grep -r "dashboard/finance\|admin/loans\|/investors" src/ returns zero results
+•          ☐ Dev server runs without console errors
+•          ☐ Admin navigation renders without broken links
+•          ☐ No new TypeScript errors (pnpm tsc --noEmit)
+BACK-OUT PLAN
+git revert HEAD
+These routes have no backend — reverting simply restores the dead links. Zero functional impact either way.
+ACCEPTANCE CRITERIA
+•          ☐ /dashboard/finance, /admin/loans, /investors removed from router config
+•          ☐ Nav links to all three paths removed
+•          ☐ Zero grep matches for all three paths in src/
+•          ☐ pnpm tsc --noEmit → 0 errors
+•          ☐ Admin UI renders without broken navigation

@@ -120,7 +120,6 @@ export default function AdminDashboard() {
           {[
             { label: "Manage Users", href: "/admin/users", icon: Users },
             { label: "Review Orders", href: "/admin/orders", icon: ShoppingCart },
-            { label: "Monitor Loans", href: "/admin/loans", icon: Landmark },
           ].map((link) => (
             <a
               key={link.href}

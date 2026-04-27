@@ -27,7 +27,6 @@ const Markets = lazy(() => import("@/pages/markets"));
 const OriginStories = lazy(() => import("@/pages/origin-stories"));
 const About = lazy(() => import("@/pages/about"));
 const Platform = lazy(() => import("@/pages/platform"));
-const Investors = lazy(() => import("@/pages/investors"));
 const Contact = lazy(() => import("@/pages/contact"));
 const RFQs = lazy(() => import("@/pages/rfqs"));
 const RFQDetail = lazy(() => import("@/pages/rfq-detail"));
@@ -46,8 +45,6 @@ const BuyerProfile = lazy(() => import("@/pages/dashboard/profile"));
 const BuyerRFQs = lazy(() => import("@/pages/dashboard/rfqs"));
 const BuyerMarketIntel = lazy(() => import("@/pages/dashboard/market-intel"));
 const BuyerAnalytics = lazy(() => import("@/pages/dashboard/analytics"));
-const BuyerFinance = lazy(() => import("@/pages/dashboard/finance"));
-
 // Supplier Dashboard — lazy
 const SupplierDashboard = lazy(() => import("@/pages/supplier-dashboard/index"));
 const SupplierProducts = lazy(() => import("@/pages/supplier-dashboard/products"));
@@ -62,7 +59,6 @@ const SupplierPerformance = lazy(() => import("@/pages/supplier-dashboard/perfor
 const AdminDashboard = lazy(() => import("@/pages/admin/index"));
 const AdminUsers = lazy(() => import("@/pages/admin/users"));
 const AdminOrders = lazy(() => import("@/pages/admin/orders"));
-const AdminLoans = lazy(() => import("@/pages/admin/loans"));
 const AdminSuppliers = lazy(() => import("@/pages/admin/suppliers"));
 const AdminTeam = lazy(() => import("@/pages/admin/team"));
 
@@ -117,7 +113,6 @@ function Router() {
         <Route path="/origin-stories" component={() => <AppLayout><OriginStories /></AppLayout>} />
         <Route path="/about" component={() => <AppLayout><About /></AppLayout>} />
         <Route path="/platform" component={() => <AppLayout><Platform /></AppLayout>} />
-        <Route path="/investors" component={() => <AppLayout><Investors /></AppLayout>} />
         <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
         <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
         <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
@@ -137,7 +132,6 @@ function Router() {
         <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/finance" component={() => <PrivateRoute component={BuyerFinance} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
 
         {/* Supplier Dashboard */}
@@ -154,7 +148,6 @@ function Router() {
         <Route path="/admin" component={() => <PrivateRoute component={AdminDashboard} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/users" component={() => <PrivateRoute component={AdminUsers} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/orders" component={() => <PrivateRoute component={AdminOrders} roles={["ADMIN"]} layout={AdminLayout} />} />
-        <Route path="/admin/loans" component={() => <PrivateRoute component={AdminLoans} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/suppliers" component={() => <PrivateRoute component={AdminSuppliers} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/team" component={() => <PrivateRoute component={AdminTeam} roles={["ADMIN"]} layout={AdminLayout} />} />
 

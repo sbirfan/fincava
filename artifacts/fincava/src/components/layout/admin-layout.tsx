@@ -6,7 +6,6 @@ import {
   Users,
   UsersRound,
   ShoppingCart,
-  Landmark,
   Sprout,
   LogOut,
   Menu,
@@ -20,7 +19,6 @@ const navigation = [
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Suppliers", href: "/admin/suppliers", icon: Sprout },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
-  { name: "Loans", href: "/admin/loans", icon: Landmark },
   { name: "Team", href: "/admin/team", icon: UsersRound },
 ];
 
