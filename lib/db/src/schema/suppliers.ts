@@ -63,6 +63,11 @@ export const eligibilityStatusEnum = pgEnum("eligibility_status", [
   "FAIL",
 ]);
 
+// NOTE:
+// sellable_status is enforced via PostgreSQL ENUM.
+// Allowed values: NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED
+// This is the single source of truth for supplier lifecycle.
+// Do NOT introduce alternate lifecycle naming or CHECK constraints.
 export const sellableStatusEnum = pgEnum("sellable_status", [
   "NOT_READY",
   "ELIGIBLE",
