@@ -1,0 +1,75 @@
+ npm run build
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm.
+
+> workspace@0.0.0 build
+> pnpm run typecheck && pnpm -r --if-present run build
+
+
+> workspace@0.0.0 typecheck /home/runner/workspace
+> pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+
+
+> workspace@0.0.0 typecheck:libs /home/runner/workspace
+> tsc --build
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'CreateInquiryBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'CreateOrderBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'CreateProductBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'CreateReviewBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'LoginUserBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'RegisterUserBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'SendMessageBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'UpdateInquiryStatusBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'UpdateOrderStatusBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lib/api-zod/src/index.ts:2:1 - error TS2308: Module "./generated/api" has already exported a member named 'UpdateProductBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2 export * from "./generated/types";
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Found 10 errors.
+
+ ELIFECYCLE  Command failed with exit code 2.
+ ELIFECYCLE  Command failed with exit code 2.
+npm notice
+npm notice New minor version of npm available! 11.6.2 -> 11.13.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+npm notice To update run: npm install -g npm@11.13.0
+npm notice
