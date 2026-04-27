@@ -1,0 +1,118 @@
+Continue from current state. Do NOT make changes immediately.
+
+First perform verification steps. Only proceed with updates if all checks pass and no conflicts are found.
+
+---
+
+# T8 — POST-VERIFICATION + DOCUMENTATION LOCK
+
+## OBJECTIVE
+
+Verify that existing indexes already satisfy T8 requirements and, if confirmed, apply ONLY minimal documentation updates to prevent future regression.
+
+---
+
+# STEP 1 — VERIFY EXISTING INDEXES (MANDATORY)
+
+Run in psql:
+
+\di suppliers*
+\di supplier_evaluations*
+
+Confirm:
+
+1. suppliers table has:
+
+   * suppliers_sellable_status_idx
+   * Verify if it is PARTIAL:
+     WHERE sellable_status IN ('SELLABLE', 'PUBLISHED')
+
+2. supplier_evaluations table has:
+
+   * supplier_evaluations_supplier_evaluated_idx
+   * Confirm columns:
+     (supplier_id, evaluated_at DESC)
+
+---
+
+## STEP 2 — VERIFY QUERY PATTERNS
+
+Search codebase:
+
+grep -r "sellable_status" src/
+grep -r "evaluated_at" src/
+
+Confirm:
+
+* Queries use:
+  sellable_status = 'SELLABLE'
+  OR
+  sellable_status IN ('SELLABLE','PUBLISHED')
+
+* No dependency on:
+  created_at for supplier_evaluations
+
+---
+
+## STEP 3 — CONFLICT CHECK
+
+Before proceeding:
+
+* Ensure no migrations are pending related to these indexes
+* Ensure schema files already define these indexes
+* If ANY mismatch between schema and DB → STOP and report
+
+---
+
+# STEP 4 — APPLY MINIMAL DOCUMENTATION UPDATE
+
+ONLY IF all checks pass:
+
+Update src/db/schema/suppliers.ts
+
+Add comment above sellable_status index:
+
+// NOTE:
+// Partial index on sellable_status scoped to SELLABLE/PUBLISHED.
+// This improves selectivity and performance for marketplace queries.
+// Do NOT replace with full index without benchmarking.
+
+---
+
+# STEP 5 — DO NOT MODIFY
+
+* Do NOT create new indexes
+* Do NOT change index definitions
+* Do NOT generate migrations
+* Do NOT alter database schema
+
+---
+
+# VALIDATION
+
+* Confirm no file changes except comment addition
+* pnpm tsc --noEmit → 0 errors
+* git diff shows only documentation change
+
+---
+
+# OUTPUT REQUIREMENT
+
+Return:
+
+1. Verification summary:
+
+   * Index status (exists / partial / correct)
+   * Query alignment confirmed
+
+2. Confirmation that:
+
+   * No schema changes were needed
+   * Only documentation was updated
+
+If any mismatch is found:
+→ STOP and report instead of proceeding
+
+---
+
+END
