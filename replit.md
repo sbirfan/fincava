@@ -131,6 +131,16 @@ V3 origin stories seeded for all 8 products using script run via `scripts/node_m
 - **Admin status change**: `PATCH /api/admin/suppliers/:id/status` fires status-change email to supplier when email is on file; covers ACTIVE/INACTIVE/PENDING statuses
 - **Templates**: `supplierApplicationConfirmationEmail`, `supplierApplicationAdminAlertEmail`, `supplierStatusChangeEmail` in `artifacts/api-server/src/lib/email.ts`
 
+### Object Storage (Product Images)
+- **GCS bucket**: `replit-objstore-824264b6-40a0-4a90-be0d-950a9c5061e4` (Replit-managed, sidecar auth)
+- **Secrets**: `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS`, `PRIVATE_OBJECT_DIR`
+- **Server lib**: `artifacts/api-server/src/lib/objectStorage.ts` + `objectAcl.ts`
+- **Storage routes**: `artifacts/api-server/src/routes/storage.ts` — `POST /api/storage/uploads/request-url` (returns presigned GCS URL + objectPath), `GET /api/storage/objects/*`
+- **Client lib**: `lib/object-storage-web/` (`@workspace/object-storage-web`) — `ObjectUploader` component (Uppy v5 modal) + `useUpload` hook
+- **Upload flow**: Browser calls `/api/storage/uploads/request-url` → receives `{ uploadURL, objectPath }` → PUT file directly to GCS → stores `objectPath` (e.g. `/objects/uploads/<uuid>`) in DB
+- **Serving**: Images stored as objectPath in `product.images[]`; displayed as `/api/storage${objectPath}` in frontend
+- **Supplier product forms**: `product-new.tsx` and `product-edit.tsx` use `ObjectUploader` — drag-and-drop file picker replaces URL input
+
 ### Email Infrastructure
 - **Resend SDK** — installed in `@workspace/api-server`; lazy-initialized in `artifacts/api-server/src/lib/email.ts`
 - **RESEND_API_KEY** — stored as a Replit secret; email is silently skipped (logged as warn) if key is missing

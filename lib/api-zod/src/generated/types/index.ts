@@ -47,6 +47,8 @@ export * from "./updateOrderStatusBodyStatus";
 export * from "./updateProductBody";
 export * from "./updateProfileBody";
 export * from "./updateSupplierBody";
+export * from "./uploadUrlRequest";
+export * from "./uploadUrlResponse";
 export * from "./userWithProfile";
 export * from "./userWithProfileRole";
 export * from "./verifyEmailParams";

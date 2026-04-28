@@ -56,7 +56,11 @@ export default function SupplierProducts() {
             <Card key={product.id} className="overflow-hidden flex flex-col">
               <div className="aspect-video bg-muted relative">
                 {product.images && product.images[0] ? (
-                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                  <img
+                    src={product.images[0].startsWith("/objects/") ? `/api/storage${product.images[0]}` : product.images[0]}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
                     <ImageOff className="w-8 h-8 opacity-40" />

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,8 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGetProduct, useUpdateProduct, getListMyProductsQueryKey, getGetProductQueryKey } from "@workspace/api-client-react";
 import { useLocation, Link, useParams } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Loader2, ImageIcon } from "lucide-react";
+import { ChevronLeft, Loader2, ImageIcon, CheckCircle2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { ObjectUploader } from "@workspace/object-storage-web";
 
 const editSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -26,8 +27,12 @@ const editSchema = z.object({
   altitude: z.string().optional(),
   variety: z.string().optional(),
   process: z.string().optional(),
-  imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 });
+
+function imageDisplayUrl(path: string): string {
+  if (path.startsWith("/objects/")) return `/api/storage${path}`;
+  return path;
+}
 
 export default function SupplierProductEdit() {
   const params = useParams<{ id: string }>();
@@ -36,6 +41,8 @@ export default function SupplierProductEdit() {
   const { toast } = useToast();
   const updateProduct = useUpdateProduct();
   const queryClient = useQueryClient();
+  const [currentImage, setCurrentImage] = useState<string | null>(null);
+  const pendingObjectPath = useRef<string | null>(null);
 
   const { data: product, isLoading } = useGetProduct(productId, {
     query: { queryKey: getGetProductQueryKey(productId), enabled: !!productId },
@@ -54,7 +61,6 @@ export default function SupplierProductEdit() {
       altitude: "",
       variety: "",
       process: "",
-      imageUrl: "",
     },
   });
 
@@ -72,17 +78,25 @@ export default function SupplierProductEdit() {
         altitude: p.altitude ?? "",
         variety: p.variety ?? "",
         process: p.process ?? "",
-        imageUrl: p.images?.[0] ?? "",
       });
+      setCurrentImage(p.images?.[0] ?? null);
     }
   }, [product, form]);
 
-  const imageUrl = form.watch("imageUrl");
+  async function requestUploadParams(file: { name: string; size: number; type: string }) {
+    const res = await fetch("/api/storage/uploads/request-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+    });
+    const data = await res.json() as { uploadURL: string; objectPath: string };
+    pendingObjectPath.current = data.objectPath;
+    return { method: "PUT" as const, url: data.uploadURL, headers: { "Content-Type": file.type } };
+  }
 
   function onSubmit(values: z.infer<typeof editSchema>) {
-    const { imageUrl: imgUrl, ...rest } = values;
-    const images = imgUrl && imgUrl.trim() !== "" ? [imgUrl.trim()] : [];
-    updateProduct.mutate({ id: productId, data: { ...rest, images } }, {
+    const images = currentImage ? [currentImage] : [];
+    updateProduct.mutate({ id: productId, data: { ...values, images } }, {
       onSuccess: () => {
         toast({ title: "Product updated successfully!" });
         queryClient.invalidateQueries({ queryKey: getListMyProductsQueryKey() });
@@ -224,30 +238,63 @@ export default function SupplierProductEdit() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="imageUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Image URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://example.com/product-image.jpg" {...field} />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground">
-                      Paste a publicly accessible image URL (JPEG, PNG, or WebP recommended).
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {imageUrl && imageUrl.trim() !== "" && (
-                <div className="rounded-lg overflow-hidden border border-border bg-muted aspect-video w-full max-w-sm">
-                  <img
-                    src={imageUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
+              {currentImage ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg overflow-hidden border border-border bg-muted aspect-video w-full max-w-sm relative group">
+                    <img
+                      src={imageDisplayUrl(currentImage)}
+                      alt="Product"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCurrentImage(null)}
+                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove image"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-green-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Image ready
+                  </p>
+                  <ObjectUploader
+                    maxNumberOfFiles={1}
+                    maxFileSize={10 * 1024 * 1024}
+                    onGetUploadParameters={requestUploadParams}
+                    onComplete={() => {
+                      if (pendingObjectPath.current) {
+                        setCurrentImage(pendingObjectPath.current);
+                        pendingObjectPath.current = null;
+                      }
+                    }}
+                    buttonClassName="text-sm underline text-muted-foreground hover:text-foreground"
+                  >
+                    Replace image
+                  </ObjectUploader>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center bg-muted/30">
+                  <ImageIcon className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Upload a photo of your product (JPEG, PNG or WebP, up to 10 MB)
+                  </p>
+                  <ObjectUploader
+                    maxNumberOfFiles={1}
+                    maxFileSize={10 * 1024 * 1024}
+                    onGetUploadParameters={requestUploadParams}
+                    onComplete={() => {
+                      if (pendingObjectPath.current) {
+                        setCurrentImage(pendingObjectPath.current);
+                        pendingObjectPath.current = null;
+                      }
+                    }}
+                    buttonClassName="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+                  >
+                    Choose Photo
+                  </ObjectUploader>
                 </div>
               )}
             </CardContent>
