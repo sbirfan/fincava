@@ -1,0 +1,210 @@
+Continue from current state. Do NOT make changes immediately.
+
+First perform ALL verification steps. Only proceed if all checks pass and no conflicts are found. If any issue is detected, STOP and report.
+
+---
+
+T6 — Add officer_applications to Drizzle Schema (G9-fix)
+
+Task ID: G9-fix
+Type: TDD Hardening — Schema Integrity
+Priority: MEDIUM — parallelizable
+Dependency: None
+
+---
+
+OBJECTIVE
+
+Bring officer_applications table under Drizzle ORM schema.
+
+* If table exists → mirror EXACT structure (no changes)
+* If table does not exist → create schema + migration
+
+---
+
+STEP 1 — VERIFY TABLE EXISTENCE
+
+Run in psql:
+
+\d officer_applications
+
+Result:
+
+* If "relation does not exist":
+  → table does NOT exist → will create new schema
+
+* If table exists:
+  → capture FULL structure:
+
+  * columns
+  * types
+  * defaults
+  * constraints
+  * indexes
+
+---
+
+STEP 2 — FIND EXISTING USAGE
+
+Run:
+
+grep -r "officer_applications" src/ --include="*.ts"
+
+Document:
+
+* files using raw SQL
+* confirm no Drizzle schema already exists
+
+---
+
+STEP 3 — VERIFY SCHEMA FILE DOES NOT EXIST
+
+Check:
+
+src/db/schema/officer-applications.ts
+
+If exists:
+→ STOP and report (avoid overwrite)
+
+---
+
+STEP 4 — DETERMINE MODE
+
+CASE A — TABLE EXISTS:
+
+* You MUST:
+
+  * replicate schema EXACTLY as returned by \d
+  * DO NOT guess fields
+  * DO NOT rename columns
+  * DO NOT add/remove fields
+
+* Verify:
+
+  * FK relationships before defining references
+  * If FK unclear → omit reference and report
+
+---
+
+CASE B — TABLE DOES NOT EXIST:
+
+Create table with minimal safe structure:
+
+* id (primary key)
+* supplier_id (optional FK → suppliers, verify before adding FK)
+* officer_name (varchar)
+* application_status (varchar, default 'pending')
+* notes (text)
+* created_at (timestamp default now)
+* updated_at (timestamp default now)
+
+---
+
+STEP 5 — CREATE SCHEMA FILE
+
+Create:
+
+src/db/schema/officer-applications.ts
+
+* Use Drizzle pgTable
+* Match CASE A or CASE B exactly
+* Export:
+
+  * officerApplicationsTable
+  * OfficerApplication
+  * NewOfficerApplication
+
+---
+
+STEP 6 — EXPORT FROM SCHEMA INDEX
+
+Update:
+
+src/db/schema/index.ts
+
+Add:
+
+export * from './officer-applications';
+
+---
+
+STEP 7 — GENERATE MIGRATION
+
+Run:
+
+pnpm drizzle-kit generate
+
+---
+
+STEP 8 — APPLY MIGRATION (SAFE)
+
+Run:
+
+pnpm drizzle-kit migrate
+
+---
+
+IMPORTANT:
+
+* Migration MUST NOT drop or recreate table
+* Migration must be non-destructive
+* If unsafe SQL is generated → STOP and report
+
+---
+
+STEP 9 — VERIFY
+
+Run:
+
+pnpm tsc --noEmit
+
+Confirm:
+
+* 0 errors
+* types available
+
+---
+
+VALIDATION
+
+* schema/officer-applications.ts exists
+* Schema matches DB (if table existed)
+* Types compile clean
+* Migration applied safely
+
+---
+
+BACK-OUT PLAN
+
+git revert HEAD
+
+If needed:
+
+pnpm drizzle-kit drop --name=<migration-name>
+
+---
+
+DO NOT
+
+* Do NOT drop or recreate table
+* Do NOT modify existing tables
+* Do NOT assume schema — always verify
+* Do NOT introduce extra fields
+
+---
+
+OUTPUT
+
+Return:
+
+1. Whether table existed or was created
+2. Final schema definition
+3. Migration summary
+4. Any deviations or uncertainties
+
+If any issue detected:
+→ STOP and report
+
+---
+
+END
