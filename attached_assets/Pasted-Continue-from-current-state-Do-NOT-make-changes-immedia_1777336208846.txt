@@ -1,0 +1,180 @@
+Continue from current state. Do NOT make changes immediately.
+
+First perform ALL verification steps. Only proceed if all checks pass and no conflicts are found. If any issue is detected, STOP and report.
+
+---
+
+T7 — Wrap Promote/Demote Transitions in db.transaction() (Tx)
+
+Task ID: Tx
+Type: TDD Hardening — Data Integrity
+Priority: MEDIUM
+Dependency: None
+
+---
+
+OBJECTIVE
+
+Ensure promote() and demote() operations are fully atomic using db.transaction().
+
+Prevent partial state updates across:
+
+* suppliers
+* supplier_evaluations
+* supplier_state_transitions
+
+---
+
+STEP 1 — VERIFY CURRENT STATE
+
+Open:
+
+src/services/graduation-service.ts
+
+Locate:
+
+* promote()
+* demote()
+
+Run:
+
+grep -n "db.transaction" src/services/graduation-service.ts
+
+If transaction already exists:
+→ VERIFY correctness (tx usage) before proceeding
+
+---
+
+STEP 2 — IDENTIFY ALL DB OPERATIONS
+
+Within promote() and demote(), identify ALL:
+
+* db.insert(...)
+* db.update(...)
+* db.select(...)
+
+---
+
+STEP 3 — WRAP IN TRANSACTION
+
+Wrap full function body:
+
+return await db.transaction(async (tx) => {
+// all DB operations here
+});
+
+---
+
+STEP 4 — REPLACE ALL DB CALLS
+
+Inside transaction block:
+
+* Replace ALL db.* calls with tx.*
+* This includes:
+
+  * inserts
+  * updates
+  * selects
+
+No db.* calls allowed inside transaction.
+
+---
+
+STEP 5 — ERROR HANDLING RULE
+
+* Do NOT swallow errors inside transaction
+* If try/catch exists:
+
+  * must rethrow after logging
+
+Example:
+
+catch (err) {
+logger.warn(...)
+throw err;
+}
+
+---
+
+STEP 6 — VERIFY NO NESTED TRANSACTIONS
+
+Check that promote() / demote() are NOT already called inside another transaction.
+
+If found:
+→ STOP and report
+
+---
+
+STEP 7 — VERIFY
+
+Run:
+
+grep -A 30 "db.transaction" src/services/graduation-service.ts
+
+Confirm:
+
+* Only tx.* calls inside block
+* No db.* calls remain
+
+---
+
+STEP 8 — TYPECHECK
+
+pnpm tsc --noEmit
+
+Expect:
+
+* 0 errors
+
+---
+
+STEP 9 — MANUAL TEST
+
+Perform:
+
+* onboard supplier
+* promote to next status
+* confirm:
+
+  * supplier updated
+  * supplier_evaluations row created
+  * supplier_state_transitions row created
+
+Then simulate failure (if possible):
+
+* force error in one step
+* confirm:
+  → NO partial updates persisted
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* EP4: graduation is append-only — DO NOT modify insert logic
+* Justification requirement unchanged
+* Success path behavior must remain identical
+
+---
+
+BACK-OUT PLAN
+
+git revert HEAD
+
+---
+
+OUTPUT
+
+Return:
+
+1. Whether transaction was added or already existed
+2. Confirmation all db.* replaced with tx.*
+3. Whether any nested transaction risk found
+4. Typecheck result
+5. Manual test result
+
+If any issue:
+→ STOP and report
+
+---
+
+END
