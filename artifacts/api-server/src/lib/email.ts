@@ -11,16 +11,20 @@ function getResend(): Resend | null {
 
 const FROM_ADDRESS = "Fincava <noreply@fincava.com>";
 
+export type EmailResult =
+  | { ok: true }
+  | { ok: false; reason: "no_api_key" | "resend_error" | "exception"; detail?: string };
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   html: string;
   text?: string;
-}): Promise<void> {
+}): Promise<EmailResult> {
   const resend = getResend();
   if (!resend) {
     logger.warn({ to: opts.to, subject: opts.subject }, "RESEND_API_KEY not set — email skipped");
-    return;
+    return { ok: false, reason: "no_api_key" };
   }
   try {
     const { error } = await resend.emails.send({
@@ -32,11 +36,13 @@ export async function sendEmail(opts: {
     });
     if (error) {
       logger.error({ error, to: opts.to, subject: opts.subject }, "Failed to send email via Resend");
-    } else {
-      logger.info({ to: opts.to, subject: opts.subject }, "Email sent");
+      return { ok: false, reason: "resend_error", detail: (error as any).message ?? String(error) };
     }
-  } catch (err) {
+    logger.info({ to: opts.to, subject: opts.subject }, "Email sent");
+    return { ok: true };
+  } catch (err: any) {
     logger.error({ err, to: opts.to, subject: opts.subject }, "Unexpected error sending email");
+    return { ok: false, reason: "exception", detail: err?.message ?? String(err) };
   }
 }
 

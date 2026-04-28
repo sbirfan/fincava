@@ -64,8 +64,12 @@ async function sendVerificationEmail(userId: number, email: string, firstName: s
   await db.insert(emailVerificationTokensTable).values({ userId, token, expiresAt });
   const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${token}`;
   const { html, text, subject } = verificationEmail({ firstName: firstName || "there", verifyUrl });
-  await sendEmail({ to: email, subject, html, text });
-  logger.info({ userId, email }, "Verification email sent");
+  const result = await sendEmail({ to: email, subject, html, text });
+  if (result.ok) {
+    logger.info({ userId, email }, "Verification email sent");
+  } else {
+    logger.error({ userId, email, reason: result.reason, detail: (result as any).detail }, "Verification email delivery failed");
+  }
 }
 
 router.post("/auth/register", async (req, res): Promise<void> => {
@@ -115,15 +119,14 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   // Fire-and-forget: send welcome email + verification email to new registrant
   Promise.resolve().then(async () => {
-    try {
-      const emailContent = welcomeEmail({
-        firstName: firstName || "there",
-        role: user.role,
-        loginUrl: `${getAppBaseUrl()}/login`,
-      });
-      await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
-    } catch (err) {
-      logger.warn({ err, userId: user.id }, "Welcome email failed");
+    const emailContent = welcomeEmail({
+      firstName: firstName || "there",
+      role: user.role,
+      loginUrl: `${getAppBaseUrl()}/login`,
+    });
+    const welcomeResult = await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    if (!welcomeResult.ok) {
+      logger.warn({ userId: user.id, reason: welcomeResult.reason, detail: (welcomeResult as any).detail }, "Welcome email delivery failed");
     }
     try {
       await sendVerificationEmail(user.id, user.email, firstName);
@@ -232,8 +235,12 @@ router.post("/auth/forgot-password", passwordResetLimiter, async (req, res): Pro
   const resetUrl = `${getAppBaseUrl()}/reset-password?token=${token}`;
 
   const { html, text } = passwordResetEmail({ resetUrl, firstName: profile?.firstName ?? "there" });
-  await sendEmail({ to: user.email, subject: "Reset your Fincava password", html, text });
-  logger.info({ userId: user.id, email }, "Password reset email sent");
+  const result = await sendEmail({ to: user.email, subject: "Reset your Fincava password", html, text });
+  if (result.ok) {
+    logger.info({ userId: user.id, email }, "Password reset email sent");
+  } else {
+    logger.error({ userId: user.id, email, reason: result.reason, detail: (result as any).detail }, "Password reset email delivery failed");
+  }
 });
 
 // ── POST /api/auth/reset-password ────────────────────────────────────────────
