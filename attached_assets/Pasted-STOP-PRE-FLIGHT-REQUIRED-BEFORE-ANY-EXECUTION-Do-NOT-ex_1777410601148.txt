@@ -1,0 +1,244 @@
+STOP — PRE-FLIGHT REQUIRED BEFORE ANY EXECUTION
+
+Do NOT execute API calls yet.
+
+---
+
+# PHASE 0 — UNDERSTAND TASK
+
+Summarize in 3 bullets:
+
+* What Gate-A validates (supplier → scoring → evaluation → publish)
+* What final success state is (PUBLISHED supplier visible in marketplace)
+* What systems are involved (onboard → AI → evaluation → admin → marketplace)
+
+---
+
+# PHASE 1 — PRE-FLIGHT CHECKS
+
+## 1. Server readiness
+
+* Confirm API server is running
+* Confirm correct port
+
+## 2. AI readiness
+
+* Verify ANTHROPIC_API_KEY exists
+* Confirm scoring-service is reachable
+* Confirm scoring prompt is imported (no inline strings)
+
+## 3. DB readiness
+
+Check:
+
+* suppliers table exists
+* ai_outputs table exists
+* supplier_evaluations table exists
+* supplier_state_transitions table exists
+
+## 4. Conflict scan
+
+Check for:
+
+* Existing supplier being reused
+* Any test supplier names like "Test Supplier"
+* Any supplier already PUBLISHED (avoid reuse)
+
+## 5. Pipeline readiness
+
+Verify:
+
+* supplier:onboarded event listener registered
+* evaluateSupplier() is triggered after scoring
+* No disabled pipeline flags
+
+---
+
+# PHASE 2 — RISK IDENTIFICATION
+
+List at least 3 risks:
+
+Examples:
+
+* AI scoring fails (missing key or timeout)
+* pipeline not triggering async events
+* supplier stuck at NOT_READY
+* admin route auth failure
+
+---
+
+# PHASE 3 — EXECUTION PLAN
+
+Outline steps BEFORE running:
+
+1 → onboard supplier
+2 → wait for async pipeline
+3 → verify DB outputs
+4 → admin visibility
+5 → promote to SELLABLE (if needed)
+6 → promote to PUBLISHED
+7 → verify marketplace
+8 → verify audit trail
+
+---
+
+# PHASE 4 — PERMISSION GATE
+
+STOP and ask:
+
+"Preflight complete. Proceed with Gate-A execution? (yes/no)"
+
+WAIT for confirmation.
+
+---
+
+# PHASE 5 — EXECUTION
+
+## STEP 1 — Onboard supplier
+
+POST /api/suppliers/onboard
+
+Payload must be REALISTIC:
+
+{
+"businessName": "Finca La Esperanza",
+"location": "Santander, Colombia",
+"productType": "Coffee",
+"farmSizeHectares": 25,
+"monthlyProductionKg": 3000,
+"certifications": ["Organic"],
+"exportExperience": true,
+"targetMarkets": ["UAE", "EU"],
+"contactEmail": "supplier_<timestamp>@gmail.com"
+}
+
+Capture:
+
+* HTTP status
+* supplierId
+
+Expected: 201 Created
+
+---
+
+## STEP 2 — WAIT FOR PIPELINE
+
+Wait 10 seconds.
+
+---
+
+## STEP 3 — VERIFY PIPELINE OUTPUT
+
+Query DB:
+
+* ai_outputs exists
+* supplier_evaluations exists
+* commercial_score populated
+* eligibility_status populated
+
+Return snapshot.
+
+---
+
+## STEP 4 — ADMIN VISIBILITY
+
+GET /api/admin/suppliers
+
+Confirm:
+
+* supplier appears
+* score visible
+* sellableStatus present
+
+---
+
+## STEP 5 — ENSURE SELLABLE
+
+IF sellableStatus != SELLABLE:
+
+PATCH /api/admin/suppliers/:id/status
+
+{
+"sellableStatus": "SELLABLE",
+"justification": "Gate-A validation"
+}
+
+---
+
+## STEP 6 — PROMOTE TO PUBLISHED
+
+PATCH /api/admin/suppliers/:id/status
+
+{
+"sellableStatus": "PUBLISHED",
+"justification": "Gate-A validation"
+}
+
+Expected: success
+
+---
+
+## STEP 7 — MARKETPLACE CHECK
+
+GET /api/suppliers/marketplace
+
+Confirm:
+
+* supplier present
+* correct fields returned
+
+---
+
+## STEP 8 — AUDIT TRAIL
+
+Query:
+
+supplier_state_transitions
+
+Confirm:
+
+* full transition chain exists
+* includes:
+
+  * NOT_READY → ELIGIBLE (or FAIL)
+  * → SELLABLE
+  * → PUBLISHED
+* includes justification + timestamps
+
+---
+
+# PHASE 6 — VALIDATION
+
+PASS only if ALL:
+
+* ai_outputs row exists
+* supplier_evaluations exists
+* supplier reaches PUBLISHED
+* marketplace returns supplier
+* audit trail complete
+* no 500 errors
+
+---
+
+# OUTPUT FORMAT
+
+1. Preflight: PASS / FAIL
+2. Risks identified: [list]
+3. Onboard: SUCCESS / FAIL
+4. Pipeline output: VALID / INVALID
+5. Admin visibility: YES / NO
+6. Final status: PUBLISHED / NOT
+7. Marketplace: YES / NO
+8. Audit trail: COMPLETE / INCOMPLETE
+9. FINAL RESULT: PASS / FAIL
+
+---
+
+CRITICAL RULES:
+
+* Do NOT reuse supplier
+* Do NOT skip async wait
+* Do NOT manually edit DB
+* Do NOT skip audit verification
+
+END

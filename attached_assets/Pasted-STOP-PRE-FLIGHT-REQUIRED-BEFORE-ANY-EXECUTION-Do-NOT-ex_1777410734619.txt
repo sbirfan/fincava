@@ -1,0 +1,264 @@
+STOP — PRE-FLIGHT REQUIRED BEFORE ANY EXECUTION
+
+Do NOT execute API calls yet.
+
+---
+
+# PHASE 0 — UNDERSTAND TASK
+
+Summarize in 3 bullets:
+
+* Validate full supplier pipeline: onboard → AI score → evaluate → SELLABLE → PUBLISHED → marketplace
+* Success = supplier reaches PUBLISHED and is visible in marketplace with full audit trail
+* Systems involved: onboarding route, event pipeline, AI scoring, evaluation service, admin routes, marketplace API
+
+---
+
+# PHASE 1 — PRE-FLIGHT CHECKS
+
+## 1. Server readiness
+
+* Confirm API server running (HTTP 200)
+
+## 2. AI readiness
+
+* Confirm ANTHROPIC_API_KEY present
+* Confirm scoring prompt imported (no inline string)
+
+## 3. DB readiness
+
+Confirm tables exist:
+
+* suppliers
+* ai_outputs
+* supplier_evaluations
+* supplier_state_transitions
+
+## 4. Conflict scan
+
+Check:
+
+* No reuse of prior supplier
+* No "Test Supplier" usage
+* No supplier already PUBLISHED being reused
+
+## 5. Pipeline readiness
+
+* supplier:onboarded event listener registered
+* scoring + evaluation services reachable
+
+---
+
+# PHASE 2 — RISK IDENTIFICATION
+
+List at least 3 risks:
+
+* AI scoring failure
+* async pipeline not firing
+* supplier stuck in NOT_READY
+* admin auth issues
+
+---
+
+# PHASE 3 — EXECUTION PLAN
+
+1 → onboard supplier
+2 → wait for pipeline trigger
+3 → wait for pipeline completion (DB artifacts)
+4 → admin visibility
+5 → ensure SELLABLE
+6 → promote to PUBLISHED
+7 → marketplace verification
+8 → audit trail verification
+
+---
+
+# PHASE 4 — PERMISSION GATE
+
+STOP and ask:
+
+"Preflight complete. Proceed with Gate-A execution? (yes/no)"
+
+WAIT for confirmation.
+
+---
+
+# PHASE 5 — EXECUTION
+
+## STEP 1 — Onboard supplier
+
+POST /api/suppliers/onboard
+
+Payload:
+
+{
+"businessName": "Finca La Esperanza",
+"location": "Santander, Colombia",
+"productType": "Coffee",
+"farmSizeHectares": 25,
+"monthlyProductionKg": 3000,
+"certifications": ["Organic"],
+"exportExperience": true,
+"targetMarkets": ["UAE", "EU"],
+"contactEmail": "supplier_<timestamp>@gmail.com"
+}
+
+Capture:
+
+* HTTP status
+* supplierId
+
+IF not 201:
+→ FAIL
+
+---
+
+## STEP 2 — WAIT FOR PIPELINE TRIGGER (SMART WAIT)
+
+Poll every 2 seconds (max 15 seconds):
+
+Condition:
+
+* supplier exists in DB
+
+Optional:
+
+* check logs for onboarding event
+
+Proceed when confirmed.
+
+---
+
+## STEP 3 — WAIT FOR PIPELINE COMPLETION (CRITICAL)
+
+Poll DB every 2 seconds (max 30 seconds):
+
+Run:
+
+SELECT
+(SELECT COUNT(*) FROM ai_outputs WHERE supplier_id = X) as ai_count,
+(SELECT COUNT(*) FROM supplier_evaluations WHERE supplier_id = X) as eval_count;
+
+Proceed ONLY when:
+
+* ai_count >= 1
+  AND
+* eval_count >= 1
+
+If timeout:
+→ FAIL: "Pipeline did not complete"
+
+---
+
+## STEP 4 — VERIFY PIPELINE OUTPUT
+
+Fetch:
+
+* commercial_score
+* eligibility_status
+* score_data JSON
+
+Confirm:
+
+* values exist and valid
+
+---
+
+## STEP 5 — ADMIN VISIBILITY
+
+GET /api/admin/suppliers
+
+Confirm:
+
+* supplier present
+* score visible
+* sellableStatus present
+
+---
+
+## STEP 6 — ENSURE SELLABLE
+
+IF sellableStatus != SELLABLE:
+
+PATCH /api/admin/suppliers/:id/status
+
+{
+"sellableStatus": "SELLABLE",
+"justification": "Gate-A validation"
+}
+
+---
+
+## STEP 7 — PROMOTE TO PUBLISHED
+
+PATCH /api/admin/suppliers/:id/status
+
+{
+"sellableStatus": "PUBLISHED",
+"justification": "Gate-A validation"
+}
+
+Confirm success.
+
+---
+
+## STEP 8 — MARKETPLACE CHECK
+
+GET /api/suppliers/marketplace
+
+Confirm:
+
+* supplier present
+* fields correct
+
+---
+
+## STEP 9 — AUDIT TRAIL
+
+Query:
+
+supplier_state_transitions
+
+Confirm:
+
+* full transition chain exists
+* includes timestamps + justification
+
+---
+
+# PHASE 6 — VALIDATION
+
+PASS only if ALL:
+
+* ai_outputs exists
+* supplier_evaluations exists
+* supplier reaches PUBLISHED
+* marketplace returns supplier
+* audit trail complete
+* no 500 errors
+
+---
+
+# OUTPUT FORMAT
+
+1. Preflight: PASS / FAIL
+2. Risks: [list]
+3. Onboard: SUCCESS / FAIL
+4. Pipeline completion: SUCCESS / TIMEOUT
+5. Admin visibility: YES / NO
+6. Final status: PUBLISHED / NOT
+7. Marketplace: YES / NO
+8. Audit trail: COMPLETE / INCOMPLETE
+9. FINAL RESULT: PASS / FAIL
+
+---
+
+# CRITICAL RULES
+
+* Do NOT use fixed sleep
+* Do NOT reuse supplier
+* Do NOT modify DB manually
+* Fail fast on timeout
+* Always verify before proceeding
+
+END
