@@ -15,6 +15,7 @@ import { Star, ShieldCheck, MapPin, ChevronRight, Users, Handshake, Leaf, Drople
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { resolveImageUrl } from "@/lib/utils";
 
 export default function ProductDetail() {
   const params = useParams();
@@ -144,7 +145,7 @@ export default function ProductDetail() {
         <div className="lg:col-span-6 xl:col-span-7">
           <div className="aspect-square bg-muted rounded-xl overflow-hidden mb-4 border">
             {product.images && product.images.length > 0 ? (
-              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+              <img src={resolveImageUrl(product.images[0])} alt={product.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">No image available</div>
             )}
@@ -153,7 +154,7 @@ export default function ProductDetail() {
             <div className="grid grid-cols-4 gap-4">
               {product.images.slice(1).map((img, idx) => (
                 <div key={idx} className="aspect-square rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity">
-                  <img src={img} alt={`${product.name} ${idx+1}`} className="w-full h-full object-cover" />
+                  <img src={resolveImageUrl(img)} alt={`${product.name} ${idx+1}`} className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>

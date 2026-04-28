@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Product } from "@workspace/api-client-react";
 import { Star, Leaf, Handshake, Droplets, Users } from "lucide-react";
+import { resolveImageUrl } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
@@ -23,7 +24,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4/3" }}>
           {product.images && product.images.length > 0 ? (
             <img
-              src={product.images[0]}
+              src={resolveImageUrl(product.images[0])}
               alt={product.name}
               className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
             />
