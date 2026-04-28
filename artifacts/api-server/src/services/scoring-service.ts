@@ -13,6 +13,7 @@ import { getAnthropicClient, SCORING_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { logger } from "../lib/logger";
 import { buildScoringInput } from "./scoring-input";
+import { SCORING_PROMPT } from "../config/scoring-prompts";
 
 const VALID_AI_PATHWAYS = ["A", "B", "C", "D"] as const;
 
@@ -37,7 +38,7 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
       const message = await client.messages.create({
         model: SCORING_MODEL,
         max_tokens: 512,
-        system: `You are a Colombian agricultural export readiness scoring system. Score the supplier on: land rights (20pts), production volume (20pts), post-harvest quality (20pts), compliance docs (20pts), commitment (20pts). Return ONLY valid JSON: {"export_readiness_score": integer, "pathway": "A"|"B"|"C"|"D", "pathway_label": string, "capital_capacity_cop": integer, "compliance_gaps": string[], "gap_analysis": string, "primary_recommendation": string}`,
+        system: SCORING_PROMPT,
         messages: [
           {
             role: "user",
