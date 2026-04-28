@@ -1,0 +1,154 @@
+Continue from current state.
+
+CRITICAL:
+
+* [noreply@fincava.com](mailto:noreply@fincava.com) now exists → sender verification issue is fixed
+* Do NOT modify DNS, code, or config
+* This is verification only
+* Use ONLY live results (no prior assumptions)
+
+---
+
+# TASK — T2 FINAL EMAIL DELIVERY VERIFICATION
+
+## OBJECTIVE
+
+Confirm that buyer onboarding triggers an email that is:
+
+1. accepted by Resend
+2. NOT bounced
+3. delivered to [info@fincava.com](mailto:info@fincava.com) inbox
+
+---
+
+## STEP 0 — ENSURE SERVER IS RUNNING
+
+Run:
+curl http://localhost:5000
+
+IF fails:
+export PORT=5000
+pnpm start
+
+Wait for:
+"Server listening"
+
+DO NOT stop the server
+
+---
+
+## STEP 1 — VERIFY API KEY
+
+Run:
+echo $RESEND_API_KEY
+
+Return:
+
+* present (YES/NO)
+* length
+
+---
+
+## STEP 2 — VERIFY EMAIL DESTINATION
+
+Run:
+grep -r "[info@fincava.com](mailto:info@fincava.com)|[noreply@fincava.com](mailto:noreply@fincava.com)" src/ --include="*.ts" | head -20
+
+Confirm:
+
+* FROM = [noreply@fincava.com](mailto:noreply@fincava.com)
+* TO = [info@fincava.com](mailto:info@fincava.com)
+
+---
+
+## STEP 3 — TRIGGER REAL FLOW
+
+Run:
+
+curl -X POST http://localhost:5000/api/buyers/onboard 
+-H "Content-Type: application/json" 
+-d '{
+"companyName": "T2 FINAL TEST",
+"contactName": "Test User",
+"email": "[sbirfan@gmail.com](mailto:sbirfan@gmail.com)",
+"country": "UAE",
+"productInterest": ["coffee"],
+"message": "Final verification after noreply fix"
+}'
+
+Capture:
+
+* HTTP status
+* response body
+
+---
+
+## STEP 4 — CHECK SERVER LOGS
+
+Capture logs for the request.
+
+Look for:
+
+* email send success
+* any error
+
+---
+
+## STEP 5 — CHECK RESEND STATUS
+
+Fetch latest email event.
+
+Return:
+
+* email id
+* last_event
+
+Expected:
+
+* last_event = delivered (NOT bounced)
+
+---
+
+## STEP 6 — WAIT FOR DELIVERY
+
+Wait up to 5 minutes.
+
+Then instruct user:
+
+"Check inbox for [info@fincava.com](mailto:info@fincava.com) (including spam). Did you receive the email? (yes/no)"
+
+WAIT for response.
+
+---
+
+## VALIDATION RULES
+
+PASS only if ALL are true:
+
+* API call succeeds
+* Server logs show no errors
+* Resend last_event is NOT bounced
+* User confirms email received
+
+---
+
+## OUTPUT FORMAT
+
+1. Server running: YES / NO
+2. API key present: YES / NO
+3. API call: SUCCESS / FAIL
+4. Logs: SUCCESS / ERROR
+5. Resend status: delivered / sent / bounced
+6. Email received (user): YES / NO
+7. FINAL RESULT: PASS / FAIL
+
+---
+
+## CRITICAL RULE
+
+Do NOT mark PASS unless:
+
+* bounce is gone
+* AND user confirms delivery
+
+END
