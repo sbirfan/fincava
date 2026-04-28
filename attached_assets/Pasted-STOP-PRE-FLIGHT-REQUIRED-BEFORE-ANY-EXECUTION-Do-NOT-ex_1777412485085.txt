@@ -1,0 +1,285 @@
+STOP — PRE-FLIGHT REQUIRED BEFORE ANY EXECUTION
+
+Do NOT execute API calls yet.
+
+---
+
+# PHASE 0 — UNDERSTAND TASK
+
+Summarize in 3 bullets:
+
+* Validate order creation → fee computation (4%) → admin visibility → fee update → interaction logging
+* Success = order exists with correct fee + admin can update + audit log present
+* Systems involved: buyer auth, orders API, fee logic, admin routes, interaction logs
+
+---
+
+# PHASE 1 — PRE-FLIGHT CHECKS
+
+## 1. Server readiness
+
+* Confirm API server running (HTTP 200)
+
+## 2. Dependencies (from prior gates)
+
+* Confirm at least one **PUBLISHED supplier exists** (from T16)
+* Confirm buyer exists with valid auth token and profile (from T17)
+
+## 3. DB readiness
+
+Confirm tables exist:
+
+* orders
+* interaction_logs
+
+## 4. Conflict scan
+
+* Count existing orders → store as prior_orders_count
+
+* Determine expected feeStatus:
+  IF prior_orders_count < 10 → expected = WAIVED
+  ELSE → expected ≠ WAIVED
+
+* Confirm supplierId is PUBLISHED
+
+* Confirm buyer has buyer_profiles row
+
+## 5. API readiness
+
+Verify routes:
+
+* POST /api/buyer/orders
+* GET /api/admin/orders
+* PATCH /api/admin/orders/:id/fee-status
+
+---
+
+# PHASE 2 — RISK IDENTIFICATION
+
+List at least 3 risks:
+
+* incorrect fee calculation (not 4%)
+* incorrect WAIVED logic
+* admin auth failure
+* interaction log missing
+* rounding issues
+
+---
+
+# PHASE 3 — EXECUTION PLAN
+
+1 → create order
+2 → verify fee computation
+3 → admin visibility
+4 → update fee status
+5 → verify interaction log
+6 → final validation
+
+---
+
+# PHASE 4 — PERMISSION GATE
+
+STOP and ask:
+
+"Preflight complete. Proceed with Gate-C execution? (yes/no)"
+
+WAIT for confirmation.
+
+---
+
+# PHASE 5 — EXECUTION
+
+## STEP 1 — CREATE ORDER
+
+POST /api/buyer/orders
+
+Headers:
+Authorization: Bearer <buyer_token>
+
+Payload:
+
+{
+"supplierId": <publishedSupplierId>,
+"productCategory": "Coffee",
+"quantityKg": 1000,
+"totalUSD": 2500
+}
+
+Capture:
+
+* HTTP status
+* orderId
+
+Expected: 201 Created
+
+IF not 201 → FAIL immediately
+
+---
+
+## STEP 2 — VERIFY FEE COMPUTATION
+
+Query DB:
+
+SELECT
+total_usd,
+fee_percentage,
+fee_amount_usd,
+fee_status
+FROM orders
+WHERE id = <orderId>;
+
+Store:
+
+* total_usd
+* fee_percentage
+* fee_amount_usd
+* fee_status
+
+---
+
+## STEP 3 — ADMIN VISIBILITY
+
+GET /api/admin/orders
+
+Confirm:
+
+* order appears
+* fee fields visible
+
+---
+
+## STEP 4 — UPDATE FEE STATUS
+
+PATCH /api/admin/orders/<orderId>/fee-status
+
+{
+"feeStatus": "INVOICED"
+}
+
+Expected: 200 OK
+
+---
+
+## STEP 5 — VERIFY UPDATED STATUS
+
+GET /api/admin/orders
+
+Confirm:
+
+* feeStatus = INVOICED
+
+---
+
+## STEP 6 — VERIFY INTERACTION LOG
+
+SELECT * FROM interaction_logs
+WHERE entity_type = 'ORDER'
+AND entity_id = <orderId>;
+
+Confirm:
+
+* at least 1 row exists
+
+---
+
+# PHASE 6 — ENFORCED VALIDATION (CRITICAL)
+
+## CHECK 1 — Fee Calculation Integrity
+
+expected_fee = total_usd * 0.04
+
+* difference between expected_fee and fee_amount_usd ≤ 0.01
+* fee_percentage == 4.0
+
+Log:
+"Fee calculation: PASS/FAIL"
+
+---
+
+## CHECK 2 — WAIVED LOGIC
+
+IF prior_orders_count < 10:
+fee_status MUST be "WAIVED"
+
+IF prior_orders_count ≥ 10:
+fee_status MUST NOT be "WAIVED"
+
+Log:
+"Fee waiver logic: PASS/FAIL"
+
+---
+
+## CHECK 3 — Admin Update
+
+* feeStatus changed to INVOICED
+* persisted in DB
+
+Log:
+"Admin update: PASS/FAIL"
+
+---
+
+## CHECK 4 — Interaction Logging
+
+* at least 1 log entry exists
+* entity_type = ORDER
+* entity_id matches
+
+Log:
+"Interaction log: PASS/FAIL"
+
+---
+
+# FINAL GATE VALIDATION
+
+Confirm ALL:
+
+[ ] Supplier reached PUBLISHED (T16)
+[ ] Buyer onboarding completed (T17)
+[ ] Order created with fee tracked (T18)
+[ ] Fee calculation correct
+[ ] Fee waiver logic correct
+[ ] Admin update works
+[ ] Interaction log exists
+
+---
+
+# FINAL RESULT LOGIC
+
+IF ALL checks PASS:
+
+FINAL RESULT: PASS
+
+Output EXACTLY:
+
+"PHASE 1 GATE (M4) COMPLETE — FINCAVA MVP IS FUNCTIONALLY LIVE"
+
+ELSE:
+
+FINAL RESULT: FAIL
+
+---
+
+# OUTPUT FORMAT
+
+1. Preflight: PASS / FAIL
+2. Risks: [list]
+3. Order creation: SUCCESS / FAIL
+4. Fee calculation: PASS / FAIL
+5. Initial feeStatus: [value]
+6. Fee waiver logic: PASS / FAIL
+7. Admin visibility: YES / NO
+8. Admin update: PASS / FAIL
+9. Interaction log: PRESENT / MISSING
+10. FINAL RESULT: PASS / FAIL
+
+---
+
+# CRITICAL RULES
+
+* Do NOT assume fee correctness — calculate it
+* Do NOT skip DB validation
+* Do NOT skip interaction log verification
+* Fail fast on any inconsistency
+
+END
