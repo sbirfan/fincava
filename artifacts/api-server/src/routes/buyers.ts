@@ -106,7 +106,7 @@ router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
   logger.info({ userId, profileId: profile.id, isNewProfile }, "buyer onboarded");
 
   // Respond immediately — async work runs after.
-  res.status(201).json({ profile });
+  res.status(isNewProfile ? 201 : 200).json({ profile });
 
   // ── Interaction signal (fire-and-forget, new profiles only) ───────────────
   if (isNewProfile) {
