@@ -85,7 +85,7 @@ export function Navbar() {
           {isAuthenticated ? (
             <>
               <Link
-                href={user?.role === "SUPPLIER" ? "/supplier-dashboard" : "/dashboard"}
+                href={user?.role === "SUPPLIER" ? "/supplier-dashboard" : user?.role === "ADMIN" ? "/admin" : "/dashboard"}
                 className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
                 {t.nav.dashboard}
