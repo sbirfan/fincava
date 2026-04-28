@@ -1,0 +1,145 @@
+STOP — OBJECTSTORAGE TYPE ERROR FIX (PHASE 1 CLEANUP)
+
+Do NOT refactor broadly.
+Do NOT change business logic.
+Do NOT modify unrelated files.
+
+Goal: Identify and fix the TypeScript error in objectStorage.ts with minimal impact.
+
+---
+
+# PHASE 0 — IDENTIFY THE ERROR
+
+1. Run typecheck and capture FULL error:
+
+pnpm run typecheck
+
+OR:
+
+tsc --noEmit
+
+2. Extract:
+
+* file path
+* line number
+* exact TypeScript error message
+
+Output:
+
+"Error: <message> at <file>:<line>"
+
+---
+
+# PHASE 1 — CLASSIFY THE ERROR
+
+Determine which category:
+
+A. Missing type import
+B. Incorrect type definition
+C. Incompatible return type
+D. Async / Promise mismatch
+E. Unused or dead code
+F. External dependency typing issue
+
+Log classification.
+
+---
+
+# PHASE 2 — CONTEXT CHECK
+
+Open objectStorage.ts and inspect:
+
+* Is this file actively imported anywhere?
+* Search repo:
+
+grep -R "objectStorage" .
+
+If NOT used:
+→ mark as UNUSED
+
+---
+
+# PHASE 3 — FIX STRATEGY (STRICT RULES)
+
+## CASE 1 — UNUSED FILE
+
+If no imports found:
+
+Option A (preferred):
+
+* Add comment at top:
+
+// TODO: unused module — Phase 2 evaluation
+
+* Fix type error minimally (or suppress if trivial)
+
+Option B:
+
+* Remove file ONLY if 100% unused
+
+---
+
+## CASE 2 — SIMPLE TYPE ERROR
+
+Fix minimally:
+
+* correct type annotation
+* add missing type import
+* adjust return type
+
+DO NOT rewrite logic.
+
+---
+
+## CASE 3 — ASYNC / PROMISE ISSUE
+
+Ensure:
+
+* async functions return Promise<T>
+* awaited values typed correctly
+
+---
+
+## CASE 4 — EXTERNAL TYPE ISSUE
+
+If caused by third-party typing:
+
+* use minimal safe cast:
+
+as unknown as <Type>
+
+OR
+
+* narrow type instead of widening
+
+---
+
+# PHASE 4 — VALIDATION
+
+1. Run typecheck again → must PASS
+2. Start server → must run
+3. Run one API call → confirm no regression
+
+---
+
+# PHASE 5 — OUTPUT
+
+1. Error type: [A–F]
+2. File usage: USED / UNUSED
+3. Fix applied: [description]
+4. Typecheck: PASS / FAIL
+5. Runtime check: PASS / FAIL
+6. FINAL RESULT: PASS / FAIL
+
+---
+
+# CRITICAL RULES
+
+* DO NOT refactor entire file
+* DO NOT introduce new abstractions
+* DO NOT modify unrelated modules
+* FIX ONLY what is necessary to pass typecheck
+
+---
+
+END
