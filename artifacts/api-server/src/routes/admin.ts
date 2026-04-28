@@ -12,6 +12,7 @@ import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
 import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
+import { FEE_STATUSES } from "../constants/fee-status";
 
 const router: IRouter = Router();
 
@@ -481,7 +482,7 @@ router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise
 
 // ── PATCH /api/admin/orders/:id/fee-status ───────────────────────────────────
 const AdminOrderFeeStatusBody = z.object({
-  feeStatus: z.enum(["PENDING", "WAIVED", "INVOICED", "PAID"]),
+  feeStatus: z.enum(FEE_STATUSES),
 });
 
 router.patch("/admin/orders/:id/fee-status", ...adminOnly, async (req, res): Promise<void> => {

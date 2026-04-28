@@ -17,11 +17,12 @@
 
 import { db, ordersTable } from "@workspace/db";
 import { and, eq, ne, count } from "drizzle-orm";
+import { FeeStatus } from "../constants/fee-status";
 
 export const FEE_RATE        = 0.04;   // 4 %
 export const WAIVER_THRESHOLD = 10;    // first N orders are free
 
-export type FeeStatus = "PENDING" | "WAIVED" | "INVOICED" | "PAID";
+export type { FeeStatus };
 
 export interface FeeResult {
   feePercentage: number;   // e.g. 4  (stored as the rate value, not a ratio)

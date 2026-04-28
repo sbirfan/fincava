@@ -12,6 +12,7 @@ import { sendEmail, orderStatusEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { computeFee } from "../services/fee-service";
 import { logInteraction } from "../lib/interaction-logger";
+import { isValidFeeStatus } from "../constants/fee-status";
 
 const router: IRouter = Router();
 
@@ -33,7 +34,13 @@ async function buildOrderResponse(order: any) {
     // Fee tracking — nullable on legacy orders that pre-date this feature.
     feePercentage: order.feePercentage ?? null,
     feeAmountUSD:  order.feeAmountUSD  ?? null,
-    feeStatus:     order.feeStatus     ?? null,
+    feeStatus:     (() => {
+      const v = order.feeStatus ?? null;
+      if (v !== null && !isValidFeeStatus(v)) {
+        logger.warn({ orderId: order.id, feeStatus: v }, "Unexpected fee_status value read from DB");
+      }
+      return v;
+    })(),
     itemCount: items.length,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
