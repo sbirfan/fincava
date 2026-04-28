@@ -1,0 +1,144 @@
+STOP — SHARED ENUM CONSOLIDATION + RUNTIME GUARD
+
+Do NOT change business logic.
+Do NOT modify database schema.
+Do NOT introduce new behavior.
+
+This is a consistency + safety improvement only.
+
+---
+
+# OBJECTIVE
+
+Create a single shared constant for fee statuses and:
+
+1. Use it across the codebase (fee-service, Zod, etc.)
+2. Add a runtime validation guard (non-breaking, not enforced yet)
+
+---
+
+# PART 1 — CREATE SHARED MODULE
+
+Create file:
+
+src/constants/fee-status.ts
+
+Add:
+
+export const FEE_STATUSES = ["PENDING", "WAIVED", "INVOICED", "PAID"] as const;
+
+export type FeeStatus = typeof FEE_STATUSES[number];
+
+---
+
+# PART 2 — ADD RUNTIME GUARD (SAFE, NON-BREAKING)
+
+In the same file, add:
+
+export const isValidFeeStatus = (value: string): value is FeeStatus => {
+return (FEE_STATUSES as readonly string[]).includes(value);
+};
+
+---
+
+# PART 3 — UPDATE fee-service.ts
+
+1. Remove local FeeStatus type
+2. Import:
+
+import { FeeStatus } from "@/constants/fee-status";
+
+3. Ensure no type errors
+
+---
+
+# PART 4 — UPDATE ZOD SCHEMA
+
+Replace inline enum with:
+
+import { FEE_STATUSES } from "@/constants/fee-status";
+
+z.enum(FEE_STATUSES)
+
+---
+
+# PART 5 — SEARCH & CLEAN DUPLICATES
+
+Search entire repo for:
+
+* "PENDING"
+* "WAIVED"
+* "INVOICED"
+* "PAID"
+
+Ensure:
+
+* no duplicate enum arrays remain
+* no conflicting definitions
+
+DO NOT change business logic comparisons unless safe.
+
+---
+
+# PART 6 — OPTIONAL LIGHT USAGE (SAFE)
+
+If there are any places where fee_status is read from DB as string:
+
+You MAY add (optional, non-blocking):
+
+if (!isValidFeeStatus(value)) {
+console.warn("Invalid fee_status detected:", value);
+}
+
+DO NOT throw errors.
+DO NOT block execution.
+
+---
+
+# PART 7 — VALIDATION
+
+Run:
+
+1. Type check (no errors)
+2. Order flow:
+
+   * create order
+   * verify fee_status
+3. PATCH fee_status → valid values work
+4. PATCH fee_status → invalid value rejected
+
+---
+
+# PART 8 — NON-BREAKING GUARANTEE
+
+Confirm:
+
+* no change to API responses
+* no change to DB values
+* no regression in order flow
+
+---
+
+# OUTPUT
+
+1. Shared module created: YES/NO
+2. Runtime guard added: YES/NO
+3. fee-service updated: YES/NO
+4. Zod updated: YES/NO
+5. Duplicate enums removed: YES/NO
+6. Type check: PASS/FAIL
+7. Regression check: PASS/FAIL
+8. FINAL RESULT: PASS/FAIL
+
+---
+
+# CRITICAL RULES
+
+* Do NOT enforce the guard yet (log only)
+* Do NOT change enum values
+* Do NOT introduce new states
+* Do NOT modify business logic
+
+---
+
+END
