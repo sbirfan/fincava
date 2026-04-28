@@ -1,0 +1,151 @@
+Continue from current state. Do NOT make changes immediately.
+
+First perform ALL verification steps. Only proceed if all checks pass and the situation is clearly understood. If anything is ambiguous or risky, STOP and report.
+
+---
+
+# FOLLOW-UP — RESOLVE DRIZZLE MIGRATION BLOCK (rfq_responses rename issue)
+
+## OBJECTIVE
+
+Unblock `drizzle-kit generate` by resolving the interactive rename prompt related to:
+
+rfq_responses.supplier_id → company_id
+
+This must be handled safely without data loss or unintended schema changes.
+
+---
+
+# STEP 1 — VERIFY CURRENT DATABASE STATE
+
+Run in psql:
+
+\d rfq_responses
+
+Confirm:
+
+* Does column `supplier_id` exist?
+* Does column `company_id` exist?
+* Do BOTH exist?
+* Column types and constraints
+
+---
+
+# STEP 2 — VERIFY DRIZZLE SCHEMA
+
+Locate schema file for rfq_responses (likely):
+
+src/db/schema/rfq-responses.ts
+
+Check:
+
+* Which column is defined in schema:
+  supplier_id OR company_id
+
+---
+
+# STEP 3 — DETERMINE SCENARIO (MANDATORY)
+
+CASE A — DB has `supplier_id`, schema expects `company_id`
+→ This is a rename situation
+
+CASE B — DB has BOTH columns
+→ Potential partial migration / drift
+
+CASE C — DB has `company_id`, schema matches
+→ Prompt is stale or incorrect
+
+CASE D — Neither matches cleanly
+→ STOP and report
+
+---
+
+# STEP 4 — SAFETY CHECK
+
+Before any action:
+
+* Confirm if table contains real data:
+  SELECT COUNT(*) FROM rfq_responses;
+
+If data exists:
+→ DO NOT drop or recreate table
+→ Only safe operations allowed (rename or no-op)
+
+---
+
+# STEP 5 — RESOLUTION STRATEGY
+
+## IF CASE A (most likely):
+
+Use safe rename:
+
+ALTER TABLE rfq_responses
+RENAME COLUMN supplier_id TO company_id;
+
+---
+
+## IF CASE B:
+
+* Compare both columns
+* Check which one is used in code (grep)
+* DO NOT delete either yet
+  → STOP and report findings
+
+---
+
+## IF CASE C:
+
+* No DB change needed
+* Likely Drizzle cache/state issue
+  → proceed to regeneration
+
+---
+
+# STEP 6 — RE-RUN MIGRATION GENERATION
+
+Run:
+
+pnpm drizzle-kit generate
+
+---
+
+IMPORTANT:
+
+* There should be NO interactive rename prompt now
+* If prompt still appears → STOP and report
+
+---
+
+# STEP 7 — VALIDATION
+
+* Migration file generated successfully
+* pnpm tsc --noEmit → 0 errors
+* No unintended schema changes proposed
+
+---
+
+# DO NOT
+
+* Do NOT drop columns
+* Do NOT recreate table
+* Do NOT migrate data unless explicitly required
+* Do NOT guess column mapping
+
+---
+
+# OUTPUT
+
+Return:
+
+1. DB state (supplier_id vs company_id)
+2. Schema state
+3. Action taken (rename / none / stopped)
+4. Whether drizzle generate succeeded
+5. Any risks or inconsistencies found
+
+If anything unclear:
+→ STOP and report
+
+---
+
+END
