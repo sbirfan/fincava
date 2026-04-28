@@ -1,0 +1,164 @@
+Continue from current state.
+
+IMPORTANT:
+
+* This is a verification-only task
+* Do NOT modify any code or DNS
+* Do NOT change environment variables
+* If server is not running, start it and keep it running
+* Account for Gmail delay behavior (emails may take up to 2 hours)
+
+---
+
+# TASK — T2 Email Delivery Verification (Final)
+
+## OBJECTIVE
+
+Verify that the Resend integration is fully working:
+
+* API call succeeds
+* Email is sent via Resend
+* Email is actually delivered to admin inbox
+
+---
+
+## STEP 0 — ENSURE SERVER IS RUNNING
+
+Check:
+curl http://localhost:5000
+
+IF connection fails:
+
+* Start server:
+
+export PORT=5000
+pnpm start
+
+* Wait for:
+  "Server listening"
+
+* DO NOT stop the server
+
+---
+
+## STEP 1 — VERIFY RESEND API KEY
+
+Run:
+echo $RESEND_API_KEY
+
+Expected:
+
+* Non-empty
+
+---
+
+## STEP 2 — IDENTIFY EMAIL CONFIG
+
+Run:
+grep -r "ADMIN_EMAIL|adminEmail|from:" src/ --include="*.ts" | head -20
+
+Extract:
+
+* destination email (admin)
+* from email address
+
+---
+
+## STEP 3 — TRIGGER BUYER ONBOARDING
+
+Run:
+
+curl -X POST http://localhost:5000/api/buyers/onboard 
+-H "Content-Type: application/json" 
+-d '{
+"companyName": "T2 Buyer Test",
+"contactName": "Test User",
+"email": "[sbirfan@gmail.com](mailto:sbirfan@gmail.com)",
+"country": "UAE",
+"productInterest": ["coffee"],
+"message": "T2 verification test"
+}'
+
+---
+
+## STEP 4 — CHECK SERVER LOGS
+
+Capture logs from running server.
+
+Look for:
+
+* "email sent"
+* "Resend response"
+* any error
+
+---
+
+## STEP 5 — CHECK RESEND DELIVERY STATUS
+
+Confirm:
+
+* API call succeeded
+* no errors returned
+
+---
+
+## STEP 6 — WAIT + VERIFY DELIVERY
+
+IMPORTANT:
+
+* Gmail may delay delivery (up to ~2 hours)
+
+Check:
+
+* inbox
+* spam
+* promotions
+
+---
+
+## STEP 7 — USER CONFIRMATION
+
+Ask user:
+
+"Did you receive the email in your inbox (or spam)? (yes/no)"
+
+WAIT for answer.
+
+---
+
+## VALIDATION RULES
+
+PASS only if:
+
+* API call succeeds
+* No server errors
+* AND email is eventually received
+
+FAIL if:
+
+* API fails
+* Resend error
+* No email after reasonable delay
+
+---
+
+## OUTPUT FORMAT
+
+Return:
+
+1. Server running: YES / NO
+2. API key present: YES / NO
+3. API call result: SUCCESS / FAIL
+4. Server logs: SUCCESS / ERROR
+5. Email received (user confirmed): YES / NO
+6. FINAL RESULT: PASS / FAIL
+
+---
+
+## CRITICAL RULE
+
+Do NOT mark PASS unless email is actually received.
+
+---
+
+END
