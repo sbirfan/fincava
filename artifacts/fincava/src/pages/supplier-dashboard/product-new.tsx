@@ -115,11 +115,13 @@ export default function SupplierProductNew() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Coffee">Coffee</SelectItem>
-                          <SelectItem value="Cacao">Cacao</SelectItem>
-                          <SelectItem value="Exotic Fruits">Exotic Fruits</SelectItem>
-                          <SelectItem value="Superfoods">Superfoods</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
+                          <SelectItem value="COFFEE">Coffee</SelectItem>
+                          <SelectItem value="CACAO">Cacao</SelectItem>
+                          <SelectItem value="AVOCADO">Avocado</SelectItem>
+                          <SelectItem value="EXOTIC_FRUIT">Exotic Fruits</SelectItem>
+                          <SelectItem value="SUPERFOOD">Superfoods</SelectItem>
+                          <SelectItem value="PROCESSED">Processed</SelectItem>
+                          <SelectItem value="OTHER">Other</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

@@ -272,44 +272,58 @@ router.get("/supplier/products", requireAuth, async (req, res): Promise<void> =>
   res.json(products);
 });
 
+const VALID_PRODUCT_CATEGORIES = ["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED", "TEXTILE", "OTHER"] as const;
+
 router.post("/supplier/products", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) {
-    res.status(400).json({ error: "Supplier company not found" });
-    return;
+  try {
+    const userId = (req as any).userId;
+    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
+    if (!company) {
+      res.status(400).json({ error: "Supplier company not found" });
+      return;
+    }
+
+    const parsed = CreateProductBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    if (!(VALID_PRODUCT_CATEGORIES as readonly string[]).includes(parsed.data.category)) {
+      res.status(400).json({
+        error: `Invalid category. Must be one of: ${VALID_PRODUCT_CATEGORIES.join(", ")}`,
+      });
+      return;
+    }
+
+    const [product] = await db.insert(productsTable).values({
+      companyId: company.id,
+      name: parsed.data.name,
+      category: parsed.data.category as any,
+      subCategory: parsed.data.subCategory ?? null,
+      description: parsed.data.description,
+      origin: parsed.data.origin,
+      altitude: parsed.data.altitude ?? null,
+      process: parsed.data.process ?? null,
+      variety: parsed.data.variety ?? null,
+      minOrderKg: parsed.data.minOrderKg,
+      maxOrderKg: parsed.data.maxOrderKg ?? null,
+      pricePerKgUSD: parsed.data.pricePerKgUSD,
+      availableKg: parsed.data.availableKg,
+      harvestSeason: parsed.data.harvestSeason ?? null,
+      images: parsed.data.images ?? [],
+      certifications: parsed.data.certifications ?? [],
+      cupping: parsed.data.cupping ?? null,
+      originStory: parsed.data.originStory ?? null,
+      farmerName: parsed.data.farmerName ?? null,
+    }).returning();
+
+    const result = await buildProductResponse(product, company);
+    res.status(201).json(result);
+  } catch (err: any) {
+    console.error("create product error:", err);
+    res.status(500).json({ error: "Failed to create product" });
   }
-
-  const parsed = CreateProductBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const [product] = await db.insert(productsTable).values({
-    companyId: company.id,
-    name: parsed.data.name,
-    category: parsed.data.category as any,
-    subCategory: parsed.data.subCategory ?? null,
-    description: parsed.data.description,
-    origin: parsed.data.origin,
-    altitude: parsed.data.altitude ?? null,
-    process: parsed.data.process ?? null,
-    variety: parsed.data.variety ?? null,
-    minOrderKg: parsed.data.minOrderKg,
-    maxOrderKg: parsed.data.maxOrderKg ?? null,
-    pricePerKgUSD: parsed.data.pricePerKgUSD,
-    availableKg: parsed.data.availableKg,
-    harvestSeason: parsed.data.harvestSeason ?? null,
-    images: parsed.data.images ?? [],
-    certifications: parsed.data.certifications ?? [],
-    cupping: parsed.data.cupping ?? null,
-    originStory: parsed.data.originStory ?? null,
-    farmerName: parsed.data.farmerName ?? null,
-  }).returning();
-
-  const result = await buildProductResponse(product, company);
-  res.status(201).json(result);
 });
 
 router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {
