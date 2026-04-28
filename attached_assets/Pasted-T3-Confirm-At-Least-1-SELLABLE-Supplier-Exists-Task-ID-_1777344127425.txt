@@ -1,0 +1,36 @@
+T3 Confirm At Least 1 SELLABLE Supplier Exists
+Task ID: D0-2 Type: Day 0 Operational Verification Priority: 🟡 HIGH — required for T16 (Gate-A) and T18 (Gate-C) Estimated effort: 30 minutes (includes creating one if missing) Dependency: T1 (D0-5 — API key must be active to score a supplier)
+OBJECTIVE
+Confirm the database contains at least one supplier with sellableStatus = SELLABLE that has passed through the full graduation pipeline. If no SELLABLE supplier exists, Gate-A and Gate-C cannot be executed. If needed, onboard a real (or staging) supplier to create one.
+PREFLIGHT CHECK
+•          ☐ T1 (D0-5) is complete — ANTHROPIC_API_KEY confirmed active
+•          ☐ Admin credentials available for the admin console
+•          ☐ At least one valid supplier profile ready for onboarding (if DB is empty)
+PERMISSION TO EXECUTE
+Execute after T1. Read-only check first. If a SELLABLE supplier already exists, T3 is done immediately. Only proceed to onboarding if the check returns no SELLABLE suppliers.
+CONFLICT DETECTION
+If the database was already truncated (D0-4 has been run), there will be no suppliers at all. Do not run T3 after T14 (D0-4). T3 must be completed before test data cleanup.
+PROPOSED APPROACH
+1.        Query DB for current supplier states
+2.        If SELLABLE supplier exists → done
+3.        If not, onboard a staging supplier and verify it scores through the graduation pipeline
+4.        Admin override to SELLABLE if pipeline produces ELIGIBLE but score is borderline
+Why this approach: The graduation pipeline is the real test. Admin override is a fallback, not the primary path.
+ALTERNATIVES
+Alternative	Reason Rejected
+Skip this check	Gate-A requires a SELLABLE supplier — no supplier = gate fails
+Admin-override to SELLABLE directly	Bypasses pipeline test; only use as fallback
+Use fake/seeded data	Not a real gate test
+IMPLEMENTATION
+## OBJECTIVE Confirm at least 1 SELLABLE supplier exists, or create one via the graduation pipeline.  ## PREFLIGHT - T1 (ANTHROPIC_API_KEY) confirmed complete  ## STEP 1: Check current state Run in psql: SELECT id, business_name, sellable_status, eligibility_status, commercial_score FROM suppliers WHERE sellable_status = 'SELLABLE' LIMIT 5;  If result returns ≥1 row → T3 COMPLETE. Skip to acceptance criteria.  ## STEP 2: If no SELLABLE supplier, check ELIGIBLE SELECT id, business_name, sellable_status, eligibility_status, commercial_score FROM suppliers WHERE sellable_status IN ('ELIGIBLE', 'SELLABLE') ORDER BY commercial_score DESC LIMIT 5;  If ELIGIBLE supplier exists with commercialScore ≥ 60: → Admin override: PATCH /api/admin/suppliers/:id/status   { "sellableStatus": "SELLABLE", "justification": "D0-2 gate prep — confirmed eligible" }  ## STEP 3: If no ELIGIBLE supplier, onboard a new one POST /api/suppliers/onboard with complete, realistic payload. Wait 5 seconds for async pipeline. Then re-run Step 1 query.  ## STEP 4: Verify graduation GET /api/admin/suppliers/:id Confirm: - eligibilityStatus: PASS - commercialScore: number (ideally ≥ 60) - sellableStatus: SELLABLE (via pipeline or admin override)
+VALIDATION
+•          ☐ SELECT COUNT(*) FROM suppliers WHERE sellable_status = 'SELLABLE'; returns ≥ 1
+•          ☐ The SELLABLE supplier has a valid supplier_evaluations row
+•          ☐ Admin console shows the supplier with correct sellableStatus badge
+BACK-OUT PLAN
+If a supplier was onboarded in Step 3, note its ID. When D0-4 (test data cleanup) is run, this test supplier will be truncated along with all others — this is expected and correct.
+ACCEPTANCE CRITERIA
+•          ☐ Database contains ≥ 1 supplier with sellable_status = 'SELLABLE'
+•          ☐ The SELLABLE supplier has corresponding supplier_evaluations row
+•          ☐ Admin console renders the supplier with SELLABLE badge (color-coded)
+•          ☐ T16 (Gate-A) and T18 (Gate-C) are now unblocked
