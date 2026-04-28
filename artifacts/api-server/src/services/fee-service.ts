@@ -7,10 +7,10 @@
 //           are free — feeStatus = "WAIVED", feeAmountUSD = 0.
 //
 // feeStatus values:
-//   PENDING   — fee applies and has not yet been collected
-//   WAIVED    — waived under the free-tier promotion
-//   COLLECTED — fee has been settled (admin-settable)
-//   EXEMPT    — manually exempted (admin-settable)
+//   PENDING  — fee applies and has not yet been collected
+//   WAIVED   — waived under the free-tier promotion
+//   INVOICED — fee has been invoiced to the buyer (admin-settable)
+//   PAID     — fee has been settled (admin-settable)
 //
 // Fail-safe: if totalUSD is 0 or negative the fee amount is 0 but feeStatus
 // is still computed correctly (WAIVED or PENDING) so promotion tracking works.
@@ -21,7 +21,7 @@ import { and, eq, ne, count } from "drizzle-orm";
 export const FEE_RATE        = 0.04;   // 4 %
 export const WAIVER_THRESHOLD = 10;    // first N orders are free
 
-export type FeeStatus = "PENDING" | "WAIVED" | "COLLECTED" | "EXEMPT";
+export type FeeStatus = "PENDING" | "WAIVED" | "INVOICED" | "PAID";
 
 export interface FeeResult {
   feePercentage: number;   // e.g. 4  (stored as the rate value, not a ratio)

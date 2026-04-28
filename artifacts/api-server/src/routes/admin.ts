@@ -481,7 +481,7 @@ router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise
 
 // ── PATCH /api/admin/orders/:id/fee-status ───────────────────────────────────
 const AdminOrderFeeStatusBody = z.object({
-  feeStatus: z.enum(["WAIVED", "INVOICED", "PAID"]),
+  feeStatus: z.enum(["PENDING", "WAIVED", "INVOICED", "PAID"]),
 });
 
 router.patch("/admin/orders/:id/fee-status", ...adminOnly, async (req, res): Promise<void> => {
