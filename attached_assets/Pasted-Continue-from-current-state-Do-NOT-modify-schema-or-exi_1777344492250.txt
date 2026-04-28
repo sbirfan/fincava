@@ -1,0 +1,178 @@
+Continue from current state. Do NOT modify schema or existing business logic.
+
+Create only temporary test data as needed and clean it up at the end if instructed.
+
+---
+
+# T3B — Create Pipeline-Graduated SELLABLE Supplier (No Admin Override)
+
+Task ID: T3B
+Type: Validation — Graduation Pipeline (End-to-End)
+Priority: HIGH (validates AI + lifecycle integrity)
+Dependency: T1 complete (Anthropic working)
+
+---
+
+## OBJECTIVE
+
+Ensure at least one supplier reaches `SELLABLE` **via the graduation pipeline**, not via admin override.
+
+---
+
+## SUCCESS CRITERIA
+
+A supplier exists such that:
+
+* `sellable_status = 'SELLABLE'`
+* Latest `supplier_evaluations` row indicates a **passing/eligible** outcome
+* `commercial_score >= 60` (or meets system threshold)
+* No admin override endpoint used
+
+---
+
+## STEP 0 — PRECHECK
+
+1. Verify Anthropic works (recent ai_outputs rows exist)
+2. Confirm tables:
+
+   * suppliers
+   * supplier_evaluations
+   * supplier_state_transitions
+
+---
+
+## STEP 1 — CHECK IF ALREADY EXISTS
+
+Run:
+
+SELECT s.id, s.nombre_completo, s.sellable_status, s.commercial_score
+FROM suppliers s
+WHERE s.sellable_status = 'SELLABLE'
+ORDER BY s.id DESC
+LIMIT 5;
+
+For each candidate, verify pipeline origin:
+
+SELECT e.supplier_id, e.commercial_score, e.pathway, e.created_at
+FROM supplier_evaluations e
+WHERE e.supplier_id = <id>
+ORDER BY e.created_at DESC
+LIMIT 1;
+
+IF you find a supplier where:
+
+* evaluation indicates PASS/eligible (score >= 60), and
+* no evidence of admin override (no contradictory evaluation like NOT_READY with SELLABLE)
+
+→ OUTPUT "T3B already satisfied" and STOP.
+
+---
+
+## STEP 2 — CREATE HIGH-QUALITY SUPPLIER (IF NEEDED)
+
+POST /api/suppliers/onboard
+
+Use a **strong, realistic payload** to increase score likelihood:
+
+{
+"nombreCompleto": "Finca Alto Horizonte",
+"email": "[altohorizonte@example.com](mailto:altohorizonte@example.com)",
+"pais": "Colombia",
+"departamento": "Huila",
+"municipio": "Pitalito",
+"descripcion": "Specialty coffee farm with 15 years export experience, certified organic, direct trade relationships in EU and US.",
+"productos": ["coffee"],
+"certificaciones": ["Organic", "Fair Trade"],
+"produccionAnualKg": 12000,
+"capacidadExportacion": true,
+"experienciaExportacion": "10+ years exporting to Europe and North America",
+"infraestructura": "Wet mill, drying patios, cupping lab",
+"idiomas": ["Spanish", "English"]
+}
+
+Capture returned `supplierId`.
+
+---
+
+## STEP 3 — WAIT FOR PIPELINE
+
+Wait 5–10 seconds for async scoring.
+
+---
+
+## STEP 4 — VERIFY GRADUATION
+
+Run:
+
+SELECT id, nombre_completo, sellable_status, commercial_score
+FROM suppliers
+WHERE id = <supplierId>;
+
+Then:
+
+SELECT *
+FROM supplier_evaluations
+WHERE supplier_id = <supplierId>
+ORDER BY created_at DESC
+LIMIT 1;
+
+---
+
+## STEP 5 — DECISION
+
+IF:
+
+* `sellable_status = 'SELLABLE'`
+* `commercial_score >= 60`
+* evaluation reflects PASS/eligible
+
+→ SUCCESS
+
+---
+
+IF NOT:
+
+Repeat onboarding with an **even stronger profile** (adjust fields, add certifications, increase experience).
+
+DO NOT use admin override.
+
+Retry up to 3 attempts.
+
+---
+
+## STEP 6 — OUTPUT
+
+Return:
+
+1. Final supplierId
+2. sellable_status
+3. commercial_score
+4. evaluation pathway/result
+5. Number of attempts
+
+Explicitly confirm:
+
+"Graduated via pipeline: YES (no admin override used)"
+
+---
+
+## CLEANUP (OPTIONAL)
+
+If instructed:
+
+DELETE FROM supplier_state_transitions WHERE supplier_id = <supplierId>;
+DELETE FROM supplier_evaluations WHERE supplier_id = <supplierId>;
+DELETE FROM suppliers WHERE id = <supplierId>;
+
+---
+
+## DO NOT
+
+* Do NOT use admin override endpoint
+* Do NOT modify scoring logic
+* Do NOT modify thresholds
+* Do NOT insert directly into DB
+
+---
+
+END
