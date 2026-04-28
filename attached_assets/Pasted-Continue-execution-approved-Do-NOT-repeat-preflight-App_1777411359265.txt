@@ -1,0 +1,153 @@
+Continue — execution approved.
+
+Do NOT repeat preflight. Apply the following execution corrections and enhancements.
+
+---
+
+# ENHANCEMENT 1 — MARKETPLACE DOUBLE VERIFICATION
+
+Add TWO checks:
+
+## After SELLABLE transition
+
+Immediately run:
+
+GET /api/suppliers/marketplace
+
+Confirm:
+
+* supplier appears in results
+* fields populated
+
+Log:
+"Marketplace visibility at SELLABLE: YES/NO"
+
+---
+
+## After PUBLISHED promotion
+
+Run again:
+
+GET /api/suppliers/marketplace
+
+Confirm:
+
+* supplier still appears
+* no regression
+
+Log:
+"Marketplace visibility at PUBLISHED: YES/NO"
+
+---
+
+# ENHANCEMENT 2 — STRICT PIPELINE OUTPUT VALIDATION
+
+After pipeline completion (ai_outputs + supplier_evaluations exist):
+
+Explicitly validate:
+
+* commercial_score IS NOT NULL
+* eligibility_status IS NOT NULL
+* score_data IS valid JSON (parse succeeds)
+
+If ANY fail:
+→ STOP and mark FAIL: "Partial pipeline execution"
+
+---
+
+# ENHANCEMENT 3 — STATE MACHINE ENFORCEMENT (CRITICAL)
+
+Before any transition:
+
+Fetch current state:
+
+SELECT sellable_status FROM suppliers WHERE id = <supplierId>;
+
+---
+
+## Transition logic MUST follow:
+
+IF state == NOT_READY:
+→ FIRST transition to ELIGIBLE
+
+POST /api/admin/suppliers/:id/transition
+{
+"toState": "ELIGIBLE",
+"actor": "ADMIN",
+"justification": "Gate-A enforced progression"
+}
+
+Confirm success
+
+THEN:
+→ transition to SELLABLE
+
+---
+
+IF state == ELIGIBLE:
+→ transition directly to SELLABLE
+
+---
+
+IF state == SELLABLE:
+→ proceed to publish
+
+---
+
+DO NOT:
+
+* skip intermediate states
+* force invalid transitions
+
+If transition fails:
+→ STOP and report error
+
+---
+
+# ENHANCEMENT 4 — EXTENDED PIPELINE POLLING
+
+Update polling:
+
+* interval: 3 seconds
+* timeout: 60 seconds
+
+Condition:
+
+* ai_outputs >= 1
+* supplier_evaluations >= 1
+
+Log each poll attempt:
+"Polling attempt X: ai_count=*, eval_count=*"
+
+---
+
+# ENHANCEMENT 5 — EXECUTION LOGGING
+
+Add explicit logs:
+
+* initial state
+* post-pipeline state
+* post-transition state
+* final state (must be PUBLISHED)
+
+---
+
+# FINAL OUTPUT ADDITIONS
+
+Include:
+
+* Marketplace (SELLABLE): YES/NO
+* Marketplace (PUBLISHED): YES/NO
+* Pipeline completeness: FULL / PARTIAL
+* State transitions followed correctly: YES/NO
+
+---
+
+# CRITICAL RULES
+
+* Do NOT skip validation checks
+* Do NOT assume pipeline success without verifying fields
+* Do NOT bypass state machine
+* Fail fast on any inconsistency
+
+END
