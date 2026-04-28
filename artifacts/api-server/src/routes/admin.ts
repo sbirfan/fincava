@@ -415,7 +415,8 @@ router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> 
     await db.delete(usersTable).where(eq(usersTable.id, userId));
     res.json({ success: true });
   } catch (err: any) {
-    if (err?.code === "23503") {
+    const pgCode = err?.code ?? err?.cause?.code;
+    if (pgCode === "23503") {
       res.status(409).json({
         error:
           "Cannot delete user: they have associated orders, RFQs, messages, or other records. Deactivate the account instead.",
