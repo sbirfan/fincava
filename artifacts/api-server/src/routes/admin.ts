@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable } from "@workspace/db";
@@ -10,6 +11,7 @@ import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOr
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
 import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { logInteraction } from "../lib/interaction-logger";
 
 const router: IRouter = Router();
 
@@ -149,6 +151,9 @@ router.get("/admin/orders", ...adminOnly, async (req, res): Promise<void> => {
       buyerEmail: usersTable.email,
       buyerFirstName: profilesTable.firstName,
       buyerLastName: profilesTable.lastName,
+      feePercentage: ordersTable.feePercentage,
+      feeAmountUSD:  ordersTable.feeAmountUSD,
+      feeStatus:     ordersTable.feeStatus,
     })
     .from(ordersTable)
     .leftJoin(usersTable, eq(usersTable.id, ordersTable.buyerId))
@@ -472,6 +477,37 @@ router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise
       logger.warn({ err, orderId: id }, "Admin order status email failed");
     }
   });
+});
+
+// ── PATCH /api/admin/orders/:id/fee-status ───────────────────────────────────
+const AdminOrderFeeStatusBody = z.object({
+  feeStatus: z.enum(["WAIVED", "INVOICED", "PAID"]),
+});
+
+router.patch("/admin/orders/:id/fee-status", ...adminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
+
+  const parsed = AdminOrderFeeStatusBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
+
+  const [updated] = await db
+    .update(ordersTable)
+    .set({ feeStatus: parsed.data.feeStatus, updatedAt: new Date() })
+    .where(eq(ordersTable.id, id))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Order not found" }); return; }
+
+  logInteraction({
+    eventType:     "fee_status_updated",
+    actorType:     "admin",
+    referenceId:   updated.id,
+    referenceType: "order",
+    payload:       { newStatus: parsed.data.feeStatus },
+  });
+
+  res.json({ success: true, id: updated.id, feeStatus: updated.feeStatus });
 });
 
 // ── PATCH /api/admin/loans/:id/status ────────────────────────────────────────

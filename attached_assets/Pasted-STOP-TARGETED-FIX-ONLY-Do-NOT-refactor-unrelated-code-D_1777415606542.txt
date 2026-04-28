@@ -1,0 +1,180 @@
+STOP — TARGETED FIX ONLY
+
+Do NOT refactor unrelated code.
+Do NOT modify order creation logic.
+Do NOT change database schema unless explicitly required below.
+
+---
+
+# OBJECTIVE
+
+Fix two gaps identified in Gate-C:
+
+1. Add admin route to update fee_status
+2. Expose fee fields in admin orders API
+
+Additionally:
+3. Add SAFE groundwork for future supplier ↔ product mapping (non-breaking only)
+
+---
+
+# PART 1 — ADD FEE STATUS UPDATE ROUTE
+
+## Create route:
+
+PATCH /api/admin/orders/:id/fee-status
+
+---
+
+## Requirements:
+
+* Auth: requireAdmin
+* Validate body:
+
+{
+"feeStatus": "WAIVED" | "INVOICED" | "PAID"
+}
+
+* Reject invalid enum values
+
+---
+
+## Implementation:
+
+1. Find orders table schema → confirm column name (fee_status)
+
+2. Update query:
+
+UPDATE orders
+SET fee_status = $1,
+updated_at = NOW()
+WHERE id = $2
+RETURNING *;
+
+3. Return updated order
+
+---
+
+## Logging (IMPORTANT):
+
+Insert into interaction_logs:
+
+{
+reference_type: "order",
+reference_id: <orderId>,
+event_type: "fee_status_updated",
+payload: {
+newStatus: <feeStatus>
+}
+}
+
+---
+
+# PART 2 — EXPOSE FEE FIELDS IN ADMIN API
+
+## Modify:
+
+GET /api/admin/orders
+
+---
+
+## Ensure response includes:
+
+* feePercentage
+* feeAmountUSD
+* feeStatus
+
+Match naming convention already used in API (camelCase or snake_case consistently)
+
+DO NOT change existing fields.
+
+---
+
+# PART 3 — VALIDATION (MANDATORY)
+
+Run:
+
+1. GET /api/admin/orders
+   → confirm fee fields visible
+
+2. PATCH /api/admin/orders/:id/fee-status
+   → set to INVOICED
+
+3. GET /api/admin/orders
+   → confirm status updated
+
+4. DB check:
+   SELECT fee_status FROM orders WHERE id = X;
+
+5. Interaction log check:
+   SELECT * FROM interaction_logs WHERE event_type = 'fee_status_updated';
+
+---
+
+# PART 4 — SAFE SUPPLIER ↔ PRODUCT MAPPING PREP (NON-BREAKING)
+
+DO NOT change order logic.
+
+ONLY:
+
+## Step 1 — Inspect schema
+
+Check if products table already has:
+
+* supplier_id OR
+* company_id mapping
+
+---
+
+## Step 2 — If supplier_id DOES NOT exist:
+
+Add OPTIONAL column:
+
+ALTER TABLE products
+ADD COLUMN supplier_id INTEGER NULL;
+
+---
+
+## Step 3 — DO NOT:
+
+* populate it
+* enforce FK constraints yet
+* modify order flow
+* modify marketplace logic
+
+---
+
+## Step 4 — Log mapping gap
+
+Output:
+
+"Supplier ↔ Product mapping not yet enforced — groundwork added only"
+
+---
+
+# FINAL OUTPUT
+
+Return:
+
+1. Fee-status route: CREATED / FAILED
+2. Admin API fields: UPDATED / FAILED
+3. Fee update test: PASS / FAIL
+4. Interaction log: PASS / FAIL
+5. Mapping groundwork: ADDED / SKIPPED
+6. FINAL RESULT: PASS / FAIL
+
+---
+
+# SUCCESS CRITERIA
+
+PASS if:
+
+* fee-status route works
+* admin API shows fee fields
+* status updates persist
+* interaction log created
+* no regression in order flow
+
+---
+
+END
