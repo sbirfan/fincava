@@ -1,0 +1,128 @@
+Continue from current state. Do NOT modify any database schema or application code.
+
+This is a READ-ONLY diagnostic task.
+
+---
+
+# TASK — VERIFY DATABASE SCHEMA FOR T3
+
+## OBJECTIVE
+
+Determine the actual database schema and confirm whether the system uses:
+
+* `suppliers` table (expected by execution plan)
+  OR
+* `companies` table (reported by earlier check)
+
+---
+
+# STEP 1 — CONNECT TO DATABASE
+
+Use existing DB connection from environment.
+
+If needed, use:
+
+process.env.DATABASE_URL
+
+---
+
+# STEP 2 — LIST ALL TABLES
+
+Run:
+
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
+
+---
+
+# STEP 3 — CHECK CRITICAL TABLES
+
+Check existence of:
+
+* suppliers
+* supplier_evaluations
+* supplier_state_transitions
+* companies
+
+---
+
+# STEP 4 — INSPECT STRUCTURE
+
+IF `suppliers` exists:
+
+Run:
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'suppliers'
+ORDER BY ordinal_position;
+
+---
+
+IF `companies` exists:
+
+Run:
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'companies'
+ORDER BY ordinal_position;
+
+---
+
+# STEP 5 — VERIFY DATA PRESENCE
+
+Run:
+
+SELECT COUNT(*) FROM suppliers;
+SELECT COUNT(*) FROM supplier_evaluations;
+SELECT COUNT(*) FROM supplier_state_transitions;
+
+(If suppliers does not exist, skip and report)
+
+---
+
+# STEP 6 — CODE ALIGNMENT CHECK
+
+Search codebase:
+
+grep -r "suppliersTable" src/
+grep -r "companiesTable" src/
+
+---
+
+# STEP 7 — OUTPUT (CRITICAL)
+
+Return a structured summary:
+
+1. Tables present in DB
+2. Whether `suppliers` exists (YES/NO)
+3. Whether `companies` exists (YES/NO)
+4. Column structure of relevant table
+5. Row counts for supplier-related tables
+6. Which table is used in code (suppliers vs companies)
+
+---
+
+# DECISION LOGIC
+
+Based on findings, clearly state ONE of:
+
+A) Schema is correct → proceed with T3 as written
+B) Schema mismatch → T3 must be rewritten
+C) Environment mismatch → DB connection issue
+
+---
+
+# DO NOT
+
+* Do NOT create tables
+* Do NOT modify schema
+* Do NOT run migrations
+* Do NOT insert data
+
+---
+
+# END
