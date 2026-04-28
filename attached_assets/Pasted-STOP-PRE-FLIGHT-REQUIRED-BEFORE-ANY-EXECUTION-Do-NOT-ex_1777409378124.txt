@@ -1,0 +1,130 @@
+STOP — PRE-FLIGHT REQUIRED BEFORE ANY EXECUTION
+
+Do NOT execute any API calls yet.
+
+---
+
+# PHASE 0 — UNDERSTAND TASK
+
+Summarize in 3 bullets:
+
+* What Gate-B is validating
+* What success looks like
+* What could fail
+
+---
+
+# PHASE 1 — PRE-FLIGHT CHECKS
+
+## 1. Server readiness
+
+Check:
+
+* API server running
+* correct port
+
+## 2. Email config
+
+Verify:
+
+* admin email destination (should be [sbirfan@gmail.com](mailto:sbirfan@gmail.com))
+* FROM address = [noreply@fincava.com](mailto:noreply@fincava.com)
+
+## 3. Dependency validation
+
+Confirm:
+
+* T2 complete (email works via Gmail)
+* buyer onboarding route exists
+* admin GET /api/admin/buyers exists
+
+## 4. Conflict scan
+
+Check for:
+
+* Existing buyer accounts reused in prior tests
+* Any buyer email reused in logs
+* Any hardcoded test email in code
+* Any condition where onboarding returns isNewProfile: false
+
+## 5. DB state sanity
+
+Check:
+
+* buyer_profiles table exists
+* no duplicate rows constraint issues
+* ability to query buyer_profiles
+
+---
+
+# PHASE 2 — RISK IDENTIFICATION
+
+List at least 3 risks:
+
+Example:
+
+* duplicate user causing onboarding skip
+* email not firing due to upsert logic
+* admin endpoint requiring auth
+
+---
+
+# PHASE 3 — EXECUTION PLAN
+
+Outline steps BEFORE running:
+1 → register buyer
+2 → onboard
+3 → admin check
+4 → email verification
+5 → upsert test
+6 → DB validation
+
+---
+
+# PHASE 4 — PERMISSION GATE
+
+STOP and ask:
+
+"Preflight complete. Proceed with Gate-B execution? (yes/no)"
+
+WAIT for confirmation.
+
+---
+
+# PHASE 5 — EXECUTION
+
+(Then run the previously defined steps exactly as written)
+
+---
+
+# PHASE 6 — VALIDATION
+
+Apply strict PASS criteria:
+
+FAIL if ANY:
+
+* email not received
+* duplicate row exists
+* second email sent
+* onboarding skipped
+
+---
+
+# OUTPUT FORMAT
+
+1. Preflight status: PASS / FAIL
+2. Risks identified: [list]
+3. Execution status: SUCCESS / FAIL
+4. Validation results: [detailed]
+5. FINAL RESULT: PASS / FAIL
+
+---
+
+CRITICAL RULES:
+
+* Do NOT skip preflight
+* Do NOT reuse emails
+* Do NOT assume success without verification
+* Pause before execution
+
+END
