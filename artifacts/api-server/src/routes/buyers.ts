@@ -159,7 +159,7 @@ router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
         });
 
         await sendEmail({
-          to: "info@fincava.com",
+          to: "sbirfan@gmail.com",
           subject: `New buyer onboarded: ${buyerName}`,
           html: emailContent.html,
           text: emailContent.text,

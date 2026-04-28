@@ -258,7 +258,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       adminUrl,
     });
     sendEmail({
-      to: "info@fincava.com",
+      to: "sbirfan@gmail.com",
       subject: `New supplier application — ${nombreCompleto}`,
       ...adminAlertContent,
     }).catch((err) => logger.warn({ err, supplierId: supplier.id }, "Admin alert email failed"));
