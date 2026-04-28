@@ -1,0 +1,182 @@
+Continue from current state. Do NOT modify any application code.
+
+This is a verification-only task.
+
+If any step fails or produces ambiguous results → STOP and report clearly.
+
+---
+
+# T2 — Verify Resend Domain and Email Delivery
+
+Task ID: D0-1
+Type: Operational Verification
+Priority: HIGH (blocks Gate-B)
+
+---
+
+## OBJECTIVE
+
+Confirm that:
+
+1. Resend API is correctly configured
+2. Domain is verified
+3. Email is actually delivered end-to-end (not just accepted)
+
+---
+
+## PREFLIGHT (MANDATORY)
+
+1. Confirm RESEND_API_KEY exists:
+
+echo $RESEND_API_KEY
+
+Expected:
+
+* Non-empty value
+
+---
+
+2. Confirm admin email config:
+
+grep -r "ADMIN_EMAIL|adminEmail|FROM_EMAIL" src/ --include="*.ts" | head -20
+
+Extract:
+
+* destination email (admin inbox)
+* sender email (must match verified domain)
+
+---
+
+## STEP 1 — VERIFY RESEND DOMAIN
+
+Manual check required:
+
+* Go to https://resend.com/domains
+* Confirm:
+
+  * Domain = VERIFIED (green)
+  * DKIM = PASS
+  * SPF = PASS
+
+IF not verified:
+→ STOP (cannot proceed)
+
+---
+
+## STEP 2 — TRIGGER REAL EMAIL
+
+Use a real API call (NOT mocked):
+
+curl -X POST http://localhost:5000/api/buyers/onboard 
+-H "Content-Type: application/json" 
+-H "Authorization: Bearer <VALID_TEST_TOKEN>" 
+-d '{
+"companyName": "Test Buyer Co",
+"contactName": "Test User",
+"email": "[testbuyer@example.com](mailto:testbuyer@example.com)",
+"country": "UAE",
+"productInterest": ["coffee"],
+"message": "Test onboarding for email verification"
+}'
+
+---
+
+## STEP 3 — CHECK SERVER LOGS
+
+Watch Replit logs immediately after request.
+
+Look for:
+
+SUCCESS SIGNAL:
+
+* "email sent"
+* "Resend response: 200"
+
+FAIL SIGNAL:
+
+* 4xx / 5xx errors
+* "domain not verified"
+* "missing API key"
+
+---
+
+## STEP 4 — VERIFY RESEND DASHBOARD LOGS
+
+Go to:
+https://resend.com/emails
+
+Check latest send:
+
+Confirm:
+
+* Status = delivered OR sent
+* No failure reason
+
+---
+
+## STEP 5 — VERIFY INBOX DELIVERY (CRITICAL)
+
+Check admin email inbox:
+
+* Email received within 2 minutes
+
+Also check:
+
+* Spam folder
+* Promotions tab (Gmail)
+
+---
+
+## STEP 6 — FAILURE DIAGNOSIS (ONLY IF NEEDED)
+
+IF email NOT received:
+
+1. Check Resend logs:
+
+   * bounced?
+   * rejected?
+
+2. Verify:
+
+   * FROM_EMAIL uses verified domain
+   * SPF record includes resend
+   * DKIM fully propagated
+
+3. Confirm:
+
+   * Admin email is valid and reachable
+
+---
+
+## VALIDATION (ALL MUST PASS)
+
+* RESEND_API_KEY present
+* Domain verified (Resend dashboard)
+* API call triggers email send
+* No Resend API errors
+* Email visible in Resend logs
+* Email received in inbox within 2 minutes
+
+---
+
+## OUTPUT (MANDATORY)
+
+Return:
+
+1. API key present: YES / NO
+2. Domain verified: YES / NO
+3. Resend API response: SUCCESS / FAIL
+4. Resend dashboard status: SENT / FAILED
+5. Inbox delivery: RECEIVED / NOT RECEIVED
+6. Final result: PASS / FAIL
+
+---
+
+## IMPORTANT RULE
+
+Do NOT mark PASS unless:
+→ Email is physically received in inbox
+
+---
+
+END
