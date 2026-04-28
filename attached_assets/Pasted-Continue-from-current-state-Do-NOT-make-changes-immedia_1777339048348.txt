@@ -1,0 +1,230 @@
+Continue from current state. Do NOT make changes immediately.
+
+First perform ALL preflight checks. Only proceed if all checks pass and no conflicts are found. If anything is inconsistent, STOP and report.
+
+---
+
+T4B — Extract Route-Level Document Prompt to Registry (EP8 Extension)
+
+Task ID: T4B
+Type: Code Refactor — EP8 Completion
+Priority: HIGH (completes prompt centralization)
+Dependency: T4 complete
+
+---
+
+OBJECTIVE
+
+Extract the hardcoded document-generation prompt from:
+
+src/routes/suppliers.ts
+
+into:
+
+src/config/scoring-prompts.ts
+
+as DOCUMENT_PROMPT_V0
+
+This is a PURE REFACTOR — ZERO behavior change.
+
+---
+
+PRE-FLIGHT (MANDATORY)
+
+1. Confirm registry exists:
+   ls src/config/scoring-prompts.ts
+
+   If file does NOT exist:
+   → STOP (T4 not complete)
+
+---
+
+2. Locate route prompt:
+
+Open:
+src/routes/suppliers.ts
+
+Find the hardcoded prompt (~line 419 or similar)
+
+Confirm:
+
+* It is a static string passed to AI call
+* Not dynamically constructed
+
+---
+
+3. Ensure prompt not already extracted:
+
+grep -r "DOCUMENT_PROMPT" src/
+
+Expected:
+
+* No active DOCUMENT_PROMPT in use
+
+---
+
+4. Confirm clean TypeScript:
+
+pnpm tsc --noEmit
+
+---
+
+STEP 1 — UPDATE REGISTRY
+
+Open:
+
+src/config/scoring-prompts.ts
+
+Uncomment and update:
+
+export const DOCUMENT_PROMPT_V0 = `[PASTE EXACT PROMPT VERBATIM — DO NOT EDIT]`;
+
+export const DOCUMENT_PROMPT = DOCUMENT_PROMPT_V0;
+
+---
+
+CRITICAL RULES
+
+* Copy prompt EXACTLY as-is
+* Do NOT change formatting, spacing, indentation, or line breaks
+* Do NOT modify a single character
+* Preserve template string backticks (`...`) if used
+* Do NOT convert to quotes
+
+---
+
+STEP 2 — UPDATE ROUTE FILE
+
+Open:
+
+src/routes/suppliers.ts
+
+1. Remove hardcoded prompt string
+2. Add import (adjust path if needed):
+
+import { DOCUMENT_PROMPT } from '../config/scoring-prompts';
+
+3. Replace usage with DOCUMENT_PROMPT
+
+---
+
+CRITICAL
+
+* Do NOT modify any other logic
+* Do NOT change request handling
+* Do NOT change response structure
+* Do NOT alter AI call parameters except prompt source
+
+---
+
+STEP 3 — VALIDATION
+
+1. Type check:
+
+pnpm tsc --noEmit
+
+Expected: 0 errors
+
+---
+
+2. Confirm no prompt remains in route:
+
+grep -r "Generate|You are|Write|Document" src/routes/ --include="*.ts"
+
+Expected:
+
+* No large prompt strings remaining
+
+---
+
+3. Confirm correct usage:
+
+grep -r "DOCUMENT_PROMPT" src/
+
+Expected:
+
+* scoring-prompts.ts (definition)
+* suppliers.ts (import usage)
+
+---
+
+4. Ensure no duplicate definitions:
+
+grep -r "DOCUMENT_PROMPT_V0" src/
+
+Expected:
+
+* ONLY in scoring-prompts.ts
+
+---
+
+5. Visual validation:
+
+Compare original prompt vs extracted prompt
+
+They MUST be IDENTICAL
+
+---
+
+STEP 4 — SMOKE TEST
+
+Trigger document generation endpoint:
+
+POST /api/suppliers/generate-document
+
+(or equivalent route)
+
+Verify:
+
+* Response succeeds
+* Output matches previous behavior
+* No runtime errors
+
+---
+
+STEP 5 — CLEAN VALIDATION
+
+grep -r "prompt" src/routes/ --include="*.ts"
+
+Expected:
+
+* No inline prompts left
+
+---
+
+ARCHITECTURAL CONSTRAINTS
+
+* EP2: prompts = configuration
+* EP8: centralized registry complete after this task
+* ZERO behavior change
+* No logic added to config file
+
+---
+
+BACK-OUT PLAN
+
+git revert HEAD
+
+or:
+
+git checkout HEAD~1 -- src/routes/suppliers.ts
+git checkout HEAD~1 -- src/config/scoring-prompts.ts
+
+---
+
+OUTPUT
+
+Return:
+
+1. Whether prompt was found and extracted
+2. TypeScript result
+3. Validation results
+4. Confirmation prompt is identical
+5. Smoke test result
+
+If any issue:
+→ STOP and report
+
+---
+
+END

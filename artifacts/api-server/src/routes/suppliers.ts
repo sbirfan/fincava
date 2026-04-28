@@ -32,6 +32,7 @@ import {
 import { runOnboardPipeline } from "../services/onboard-pipeline";
 import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
+import { DOCUMENT_PROMPT } from "../config/scoring-prompts";
 
 const router: IRouter = Router();
 
@@ -416,7 +417,7 @@ router.post(
       const message = await client.messages.create({
         model: DOCUMENT_MODEL,
         max_tokens: 1500,
-        system: `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide in plain Spanish for a smallholder farmer. Use usted. Maximum 800 words. Structure: greeting with name, their score summary, missing documents, numbered steps with WHERE/WHAT/COST for each step, total cost estimate, next Fincava contact.`,
+        system: DOCUMENT_PROMPT,
         messages: [
           {
             role: "user",

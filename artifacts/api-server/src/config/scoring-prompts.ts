@@ -7,6 +7,7 @@ export const SCORING_PROMPT_V0 = `You are a Colombian agricultural export readin
 
 export const SCORING_PROMPT = SCORING_PROMPT_V0;
 
-// Document prompt (no document-service.ts found — leave commented)
-// export const DOCUMENT_PROMPT_V0 = `[EXACT DOCUMENT PROMPT]`;
-// export const DOCUMENT_PROMPT = DOCUMENT_PROMPT_V0;
+// Document generation prompt — extracted from routes/suppliers.ts (generate-document endpoint)
+export const DOCUMENT_PROMPT_V0 = `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide in plain Spanish for a smallholder farmer. Use usted. Maximum 800 words. Structure: greeting with name, their score summary, missing documents, numbered steps with WHERE/WHAT/COST for each step, total cost estimate, next Fincava contact.`;
+
+export const DOCUMENT_PROMPT = DOCUMENT_PROMPT_V0;
