@@ -49,6 +49,7 @@ const BuyerAnalytics = lazy(() => import("@/pages/dashboard/analytics"));
 const SupplierDashboard = lazy(() => import("@/pages/supplier-dashboard/index"));
 const SupplierProducts = lazy(() => import("@/pages/supplier-dashboard/products"));
 const SupplierProductNew = lazy(() => import("@/pages/supplier-dashboard/product-new"));
+const SupplierProductEdit = lazy(() => import("@/pages/supplier-dashboard/product-edit"));
 const SupplierInquiries = lazy(() => import("@/pages/supplier-dashboard/inquiries"));
 const SupplierOrders = lazy(() => import("@/pages/supplier-dashboard/orders"));
 const SupplierProfile = lazy(() => import("@/pages/supplier-dashboard/profile"));
@@ -138,6 +139,7 @@ function Router() {
         <Route path="/supplier-dashboard" component={() => <PrivateRoute component={SupplierDashboard} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/products" component={() => <PrivateRoute component={SupplierProducts} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/products/new" component={() => <PrivateRoute component={SupplierProductNew} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        <Route path="/supplier-dashboard/products/:id/edit" component={() => <PrivateRoute component={SupplierProductEdit} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/inquiries" component={() => <PrivateRoute component={SupplierInquiries} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/orders" component={() => <PrivateRoute component={SupplierOrders} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/rfqs" component={() => <PrivateRoute component={SupplierRFQs} roles={["SUPPLIER"]} layout={DashboardLayout} />} />

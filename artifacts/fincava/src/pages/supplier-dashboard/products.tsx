@@ -1,11 +1,10 @@
 import { useListMyProducts, useDeleteProduct } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { PlusCircle, Edit, Trash2, MoreVertical, Package } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { PlusCircle, Edit, Trash2, Package, ImageOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListMyProductsQueryKey } from "@workspace/api-client-react";
@@ -16,16 +15,16 @@ export default function SupplierProducts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this product?")) {
+  const handleDelete = (id: number, name: string) => {
+    if (confirm(`Delete "${name}"? This cannot be undone.`)) {
       deleteProduct.mutate({ id }, {
         onSuccess: () => {
-          toast({ title: "Product deleted successfully" });
+          toast({ title: "Product deleted" });
           queryClient.invalidateQueries({ queryKey: getListMyProductsQueryKey() });
         },
         onError: () => {
           toast({ title: "Failed to delete product", variant: "destructive" });
-        }
+        },
       });
     }
   };
@@ -48,7 +47,7 @@ export default function SupplierProducts() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 w-full rounded-xl" />
+            <Skeleton key={i} className="h-80 w-full rounded-xl" />
           ))}
         </div>
       ) : products && products.length > 0 ? (
@@ -59,38 +58,24 @@ export default function SupplierProducts() {
                 {product.images && product.images[0] ? (
                   <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">No image</div>
+                  <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
+                    <ImageOff className="w-8 h-8 opacity-40" />
+                    <span className="text-xs">No image</span>
+                  </div>
                 )}
-                <div className="absolute top-2 right-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="secondary" size="icon" className="h-8 w-8 bg-background/80 backdrop-blur">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Edit className="w-4 h-4 mr-2" /> Edit Product
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={() => handleDelete(product.id)}>
-                        <Trash2 className="w-4 h-4 mr-2" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
                 <div className="absolute bottom-2 left-2 flex gap-1">
                   <Badge variant={product.active ? "default" : "secondary"}>
                     {product.active ? "Active" : "Inactive"}
                   </Badge>
-                  <Badge variant="outline" className="bg-background/80 backdrop-blur">
+                  <Badge variant="outline" className="bg-background/80 backdrop-blur text-xs">
                     {product.category}
                   </Badge>
                 </div>
               </div>
+
               <CardContent className="p-4 flex-1 flex flex-col">
                 <h3 className="font-bold text-lg mb-1 truncate">{product.name}</h3>
-                <div className="text-sm text-muted-foreground mb-4 line-clamp-2">{product.description}</div>
-                
+                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{product.description}</p>
                 <div className="mt-auto grid grid-cols-2 gap-4 text-sm border-t pt-4">
                   <div>
                     <p className="text-muted-foreground text-xs mb-1">Price/kg (USD)</p>
@@ -102,6 +87,25 @@ export default function SupplierProducts() {
                   </div>
                 </div>
               </CardContent>
+
+              <CardFooter className="px-4 pb-4 pt-0 flex gap-2">
+                <Link href={`/supplier-dashboard/products/${product.id}/edit`} className="flex-1">
+                  <Button variant="outline" size="sm" className="w-full">
+                    <Edit className="w-3.5 h-3.5 mr-1.5" />
+                    Edit
+                  </Button>
+                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => handleDelete(product.id, product.name)}
+                  disabled={deleteProduct.isPending}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Delete
+                </Button>
+              </CardFooter>
             </Card>
           ))}
         </div>
@@ -110,7 +114,9 @@ export default function SupplierProducts() {
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Package className="w-12 h-12 text-muted-foreground mb-4 opacity-50" />
             <p className="text-xl font-serif font-bold mb-2">No products yet</p>
-            <p className="text-muted-foreground mb-6 max-w-md">Start building your catalog to connect with international buyers looking for premium Colombian agriculture.</p>
+            <p className="text-muted-foreground mb-6 max-w-md">
+              Start building your catalog to connect with international buyers looking for premium Colombian agriculture.
+            </p>
             <Link href="/supplier-dashboard/products/new">
               <Button>
                 <PlusCircle className="w-4 h-4 mr-2" />
