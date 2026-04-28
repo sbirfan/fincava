@@ -1,0 +1,161 @@
+Continue from current state. Do NOT modify existing business logic permanently.
+
+You may create temporary test code/scripts but must remove or isolate them after execution.
+
+---
+
+# TASK — E2E VALIDATION FOR TRANSACTION (Tx STACK)
+
+## OBJECTIVE
+
+Validate that supplier graduation flow is fully atomic and consistent across:
+
+* suppliers
+* supplier_evaluations
+* supplier_state_transitions
+
+---
+
+# STEP 1 — IDENTIFY ENTRY POINT
+
+Locate how to trigger:
+
+* evaluateSupplier() OR
+* transitionTo()
+
+Prefer:
+
+* direct service call (fastest)
+* or API endpoint if required
+
+---
+
+# STEP 2 — CREATE TEMP TEST SCRIPT
+
+Create:
+
+scripts/test-tx-e2e.ts
+
+---
+
+## SCRIPT REQUIREMENTS
+
+### A. Setup
+
+* Create or select a test supplier
+* Store supplierId
+
+---
+
+### B. TEST 1 — HAPPY PATH
+
+* Call transition function (valid state change)
+
+Verify:
+
+* suppliers.status updated
+* 1 row in supplier_evaluations
+* 1 row in supplier_state_transitions
+
+Log result
+
+---
+
+### C. TEST 2 — FORCED FAILURE (CRITICAL)
+
+Temporarily inject failure:
+
+Option 1 (preferred):
+
+* Add conditional inside service:
+
+if (process.env.TEST_TX_FAIL === "true") throw new Error("forced failure");
+
+Then:
+
+* Run with TEST_TX_FAIL=true
+
+Verify:
+
+* supplier status unchanged
+* NO new rows in:
+
+  * supplier_evaluations
+  * supplier_state_transitions
+
+---
+
+### D. TEST 3 — DOUBLE EXECUTION
+
+* Run same transition twice
+
+Verify:
+
+* No duplicate rows
+* Final state consistent
+
+---
+
+### E. TEST 4 — INVALID TRANSITION
+
+* Attempt invalid status change
+
+Verify:
+
+* Error thrown
+* No DB changes
+
+---
+
+# STEP 3 — DB VALIDATION
+
+Use direct DB queries after each test:
+
+* SELECT supplier status
+* COUNT rows in evaluation + transitions
+
+---
+
+# STEP 4 — OUTPUT
+
+Print clear results:
+
+PASS / FAIL for each test
+
+If any FAIL:
+→ STOP and report
+
+---
+
+# STEP 5 — CLEANUP
+
+* Remove or disable TEST_TX_FAIL logic
+* Ensure no test-only code remains in production paths
+
+---
+
+# STEP 6 — TYPECHECK
+
+pnpm tsc --noEmit
+
+---
+
+# DO NOT
+
+* Do NOT modify schema
+* Do NOT persist test-only logic
+* Do NOT leave debug code active
+
+---
+
+# OUTPUT
+
+Return:
+
+1. Results of all 4 tests
+2. Any inconsistencies found
+3. Confirmation cleanup completed
+
+---
+
+END
