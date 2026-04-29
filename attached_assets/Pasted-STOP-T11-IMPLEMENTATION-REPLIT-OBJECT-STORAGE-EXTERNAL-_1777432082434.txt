@@ -1,0 +1,219 @@
+STOP — T11 IMPLEMENTATION (REPLIT OBJECT STORAGE + EXTERNAL TRIGGER)
+
+Do NOT deviate from this design.
+Do NOT use AWS CLI.
+Do NOT use cron inside container.
+
+---
+
+# OBJECTIVE
+
+Implement daily PostgreSQL backups using:
+
+* Node service (not bash)
+* Replit Object Storage
+* External trigger (HTTP endpoint)
+
+---
+
+# PART 1 — CREATE BACKUP SERVICE
+
+Create file:
+
+src/services/backup-service.ts
+
+---
+
+## REQUIREMENTS
+
+* Use child_process to run pg_dump
+* Use custom format (-Fc)
+* Generate timestamped filename:
+  fincava_YYYYMMDD_HHMM.dump
+* Store temporarily in /tmp
+* Upload to Replit Object Storage
+* Delete temp file after upload
+
+---
+
+## IMPLEMENTATION
+
+```ts
+import { exec } from "child_process";
+import { promisify } from "util";
+import fs from "fs";
+import path from "path";
+import { ObjectStorageClient } from "@replit/object-storage";
+
+const execAsync = promisify(exec);
+
+export async function runBackup() {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `fincava_${timestamp}.dump`;
+  const filePath = `/tmp/${filename}`;
+
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error("DATABASE_URL missing");
+
+  // Step 1 — pg_dump
+  await execAsync(`pg_dump -Fc "${dbUrl}" -f ${filePath}`);
+
+  // Step 2 — read file
+  const fileBuffer = fs.readFileSync(filePath);
+
+  // Step 3 — upload to Replit Object Storage
+  const client = new ObjectStorageClient();
+  const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+
+  if (!bucketId) throw new Error("Bucket ID missing");
+
+  await client.upload({
+    bucketId,
+    key: filename,
+    data: fileBuffer,
+  });
+
+  // Step 4 — cleanup
+  fs.unlinkSync(filePath);
+
+  return { filename };
+}
+```
+
+---
+
+# PART 2 — ADD ADMIN ENDPOINT
+
+In:
+
+src/routes/admin.ts
+
+---
+
+## ADD ROUTE
+
+```ts
+import { runBackup } from "../services/backup-service";
+
+router.post("/backup/run", requireAdmin, async (req, res) => {
+  try {
+    const result = await runBackup();
+    res.json({ success: true, file: result.filename });
+  } catch (err) {
+    console.error("Backup failed:", err);
+    res.status(500).json({ error: "Backup failed" });
+  }
+});
+```
+
+---
+
+# PART 3 — ADD RETENTION (INSIDE SERVICE)
+
+After upload, enforce:
+
+* keep last 7 backups
+
+---
+
+## ADD THIS LOGIC
+
+```ts
+const objects = await client.list({ bucketId });
+
+const sorted = objects
+  .filter(o => o.key.startsWith("fincava_"))
+  .sort((a, b) => b.key.localeCompare(a.key));
+
+const toDelete = sorted.slice(7);
+
+for (const obj of toDelete) {
+  await client.delete({
+    bucketId,
+    key: obj.key,
+  });
+}
+```
+
+---
+
+# PART 4 — EXTERNAL TRIGGER (MANDATORY)
+
+Set up external cron:
+
+Recommended:
+
+* https://cron-job.org
+
+---
+
+## CONFIG
+
+* Method: POST
+
+* URL:
+  https://<your-app>.replit.app/api/admin/backup/run
+
+* Headers:
+  Authorization: Bearer <admin_token>
+
+* Schedule:
+  Daily at 02:00 UTC
+
+---
+
+# PART 5 — MANUAL TEST (REQUIRED)
+
+Call endpoint manually:
+
+POST /api/admin/backup/run
+
+---
+
+## VERIFY
+
+* Response success = true
+* File appears in object storage
+* File size > 0
+
+---
+
+# PART 6 — RESTORE TEST (MANDATORY)
+
+1. Download backup file
+2. Run:
+
+pg_restore -d test_db <file>
+
+---
+
+## VERIFY
+
+* tables exist
+* row counts > 0
+* no errors
+
+---
+
+# OUTPUT
+
+1. Backup service created: YES/NO
+2. Endpoint working: YES/NO
+3. Object storage upload: YES/NO
+4. Retention working: YES/NO
+5. External trigger configured: YES/NO
+6. Restore test successful: YES/NO
+7. FINAL RESULT: PASS/FAIL
+
+---
+
+# CRITICAL RULES
+
+* No restore test = FAIL
+* No external trigger = FAIL
+* No retention = FAIL
+* No temp file cleanup = FAIL
+
+---
+
+END
