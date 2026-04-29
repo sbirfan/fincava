@@ -88,3 +88,6 @@ channel = "stable-25_05"
 packages = ["dig"]
 
 [userenv]
+
+[userenv.shared]
+FINCAVA_COMPANY_ID = "17"

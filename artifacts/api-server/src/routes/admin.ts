@@ -776,30 +776,62 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
     return;
   }
 
-  // Derive companyId: strict fail-fast lookup against the FINCAVA platform
-  // company. Zero matches or ambiguous matches both abort with HTTP 500.
-  const fincavaRows = await db
-    .select({ id: companiesTable.id })
-    .from(companiesTable)
-    .where(eq(companiesTable.name, "FINCAVA"));
+  // Derive companyId: env-var override takes priority; falls through to strict
+  // fail-fast name lookup if the var is absent. Both paths abort on any
+  // ambiguity or missing row — no silent fallbacks.
+  let companyId: number;
 
-  const matchCount = fincavaRows.length;
+  const envCompanyId = process.env.FINCAVA_COMPANY_ID;
 
-  if (matchCount === 0) {
-    logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
-      "Company resolution failed");
-    res.status(500).json({ error: "FINCAVA company not found — cannot create product" });
-    return;
+  if (envCompanyId !== undefined) {
+    const parsed = parseInt(envCompanyId, 10);
+    if (isNaN(parsed)) {
+      logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId,
+        envCompanyId }, "Company resolution failed");
+      res.status(500).json({ error: "Configured FINCAVA_COMPANY_ID not found" });
+      return;
+    }
+
+    const [envRow] = await db
+      .select({ id: companiesTable.id })
+      .from(companiesTable)
+      .where(eq(companiesTable.id, parsed))
+      .limit(1);
+
+    if (!envRow) {
+      logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId,
+        envCompanyId }, "Company resolution failed");
+      res.status(500).json({ error: "Configured FINCAVA_COMPANY_ID not found" });
+      return;
+    }
+
+    logger.info({ event: "COMPANY_RESOLUTION_ENV", companyId: envCompanyId });
+    companyId = envRow.id;
+  } else {
+    // Strict fail-fast name lookup — requires exactly one match.
+    const fincavaRows = await db
+      .select({ id: companiesTable.id })
+      .from(companiesTable)
+      .where(eq(companiesTable.name, "FINCAVA"));
+
+    const matchCount = fincavaRows.length;
+
+    if (matchCount === 0) {
+      logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
+        "Company resolution failed");
+      res.status(500).json({ error: "FINCAVA company not found — cannot create product" });
+      return;
+    }
+
+    if (matchCount > 1) {
+      logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
+        "Company resolution failed");
+      res.status(500).json({ error: "Ambiguous company match — aborting product creation" });
+      return;
+    }
+
+    companyId = fincavaRows[0].id;
   }
-
-  if (matchCount > 1) {
-    logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
-      "Company resolution failed");
-    res.status(500).json({ error: "Ambiguous company match — aborting product creation" });
-    return;
-  }
-
-  const companyId = fincavaRows[0].id;
 
   const origin = supplier.municipio?.trim() || "Colombia";
 
