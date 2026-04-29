@@ -27,6 +27,7 @@ const Markets = lazy(() => import("@/pages/markets"));
 const OriginStories = lazy(() => import("@/pages/origin-stories"));
 const About = lazy(() => import("@/pages/about"));
 const Platform = lazy(() => import("@/pages/platform"));
+const Investors = lazy(() => import("@/pages/investors"));
 const Contact = lazy(() => import("@/pages/contact"));
 const RFQs = lazy(() => import("@/pages/rfqs"));
 const RFQDetail = lazy(() => import("@/pages/rfq-detail"));
@@ -114,6 +115,7 @@ function Router() {
         <Route path="/origin-stories" component={() => <AppLayout><OriginStories /></AppLayout>} />
         <Route path="/about" component={() => <AppLayout><About /></AppLayout>} />
         <Route path="/platform" component={() => <AppLayout><Platform /></AppLayout>} />
+        <Route path="/investors" component={() => <AppLayout><Investors /></AppLayout>} />
         <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
         <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
         <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />

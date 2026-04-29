@@ -33,13 +33,19 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ### Product Summary
 Full-stack B2B trade platform connecting Colombian agricultural producers with international buyers (Middle East, Asia, Africa). Specialty coffee, cacao, avocado, exotic fruits, superfoods.
 
+### Phase 2 Hardening (Active)
+- **Observability** — Structured pino logs: CONFIG_LOADED/CONFIG_MISSING at startup, SUPPLIER_ONBOARDED, PRODUCT_CREATED, ORDER_CREATED; milestone EVENT_VOLUME_COUNTERS_RESET every 10 events (aggregate-only, no entity IDs)
+- **Fail-fast company resolution** — `POST /api/admin/suppliers/:id/create-product` resolves company via `FINCAVA_COMPANY_ID` env var (=17) first; falls back to name lookup requiring exactly 1 match; logs COMPANY_RESOLUTION_FAILED on error
+- **TypeScript fixes** — `lib/object-storage-web/tsconfig.json` now has `composite`, `declarationMap`, `emitDeclarationOnly` (required for composite lib emission); `product-edit.tsx` and `product-new.tsx` `requestUploadParams` callback typed `size: number | null` to match `UppyFile.size`
+- **All packages typecheck clean** — libs, api-server, fincava all exit 0
+
 ### V5 — Full Platform Features (Active)
 - **Checkout Flow** — Product detail page has a primary "Place Order" button (BUYER-only) opening a dialog with: quantity (kg), incoterm select (FOB/CIF/CFR/EXW/DDP), destination port, shipping method, notes, real-time total calculation; submits to `POST /api/buyer/orders` and redirects to `/dashboard/orders`
 - **Platform Page** (`/platform`) — "Three Layers. One Operating System." deep dive: 3 system layer cards with feature lists, competitor comparison table (Fincava vs. Trade Broker vs. Traditional Import), 6-card technical architecture grid
-- **Investors Page** (`/investors`) — Dark hero matching homepage, market opportunity metrics ($180B TAM, 800K+ producers, $2.1B gap, Dastgyr parallel), traction checklist, 3-stream revenue model, 4 competitive moats, team section, CTA
+- **Investors Page** (`/investors`) — Dark bg, emerald accents; market opportunity ($180B TAM, 800K+ producers, $2.1B finance gap, 60+ markets); 3-stream revenue model (marketplace commission, embedded finance spread, SaaS); 4 competitive moats; traction checklist; seed round CTA; EN/ES navbar link included
 - **Live Messaging** — `dashboard/messages.tsx` fully rewritten: conversation selection, message thread with time-stamped bubbles, live polling every 3s (conversations every 5s), auto-scroll to bottom, send form with optimistic-update mutation
 - **Analytics Dashboard** (`/dashboard/analytics`) — Recharts-powered: stat cards (orders, value, products, AOV), dual-axis line chart (orders + value over 7 months), bar chart (product views/inquiries), pie chart (by category), regional demand index horizontal bars; added to buyer dashboard sidebar nav
-- **Navbar updated** — Added Platform and Investors links to primary nav (6 links total)
+- **Navbar updated** — 6 links: Products, Platform, Suppliers, Markets, Impact, Investors (EN) / Inversores (ES)
 - **Dashboard sidebar** — Added "Analytics" link for buyers (uses existing BarChart2 icon)
 
 ### V4 — Investor-Grade Repositioning (Active)

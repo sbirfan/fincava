@@ -83,7 +83,7 @@ export default function SupplierProductEdit() {
     }
   }, [product, form]);
 
-  async function requestUploadParams(file: { name: string; size: number; type: string }) {
+  async function requestUploadParams(file: { name: string; size: number | null; type: string }) {
     const res = await fetch("/api/storage/uploads/request-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
