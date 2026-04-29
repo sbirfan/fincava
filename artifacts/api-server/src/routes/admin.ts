@@ -746,6 +746,97 @@ router.post("/admin/suppliers/:companyId/recompute-trust", ...adminOnly, async (
   res.json({ companyId, score });
 });
 
+// ── POST /api/admin/suppliers/:id/create-product ─────────────────────────────
+const AdminCreateProductBody = z.object({
+  name:          z.string().min(1),
+  pricePerKgUSD: z.number().positive(),
+});
+
+router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const supplierId = parseInt(req.params.id as string, 10);
+  if (isNaN(supplierId)) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+
+  const parsed = AdminCreateProductBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const [supplier] = await db
+    .select({ id: suppliersTable.id, municipio: suppliersTable.municipio })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!supplier) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  // Derive companyId: reuse from an existing linked product, else fall back to
+  // the platform (FINCAVA) company so we never hardcode a row id.
+  let companyId: number | undefined;
+
+  const [linked] = await db
+    .select({ companyId: productsTable.companyId })
+    .from(productsTable)
+    .where(eq(productsTable.supplierId, supplierId))
+    .limit(1);
+
+  if (linked) {
+    companyId = linked.companyId;
+  } else {
+    const [platform] = await db
+      .select({ id: companiesTable.id })
+      .from(companiesTable)
+      .where(eq(companiesTable.name, "FINCAVA"))
+      .limit(1);
+    companyId = platform?.id;
+  }
+
+  if (!companyId) {
+    res.status(500).json({ error: "No company available to associate with this product" });
+    return;
+  }
+
+  const origin = supplier.municipio?.trim() || "Colombia";
+
+  const [product] = await db
+    .insert(productsTable)
+    .values({
+      companyId,
+      supplierId,
+      name:          parsed.data.name,
+      pricePerKgUSD: parsed.data.pricePerKgUSD,
+      description:   "Initial product",
+      origin,
+      certifications: [],
+      organic:        false,
+      directTrade:    false,
+    })
+    .returning();
+
+  logInteraction({
+    eventType:     "product_created",
+    actorType:     "admin",
+    referenceType: "product",
+    referenceId:   product.id,
+    payload:       { supplierId },
+  });
+
+  logger.info({ productId: product.id, supplierId }, "Admin created product for supplier");
+
+  res.status(201).json({
+    id:            product.id,
+    name:          product.name,
+    pricePerKgUSD: product.pricePerKgUSD,
+    supplierId:    product.supplierId,
+  });
+});
+
 // ── POST /api/admin/backup/run ────────────────────────────────────────────────
 // Two valid auth paths:
 //   1. X-Backup-Token: <BACKUP_SECRET_V2>  — external cron caller (cron-job.org)
