@@ -1,0 +1,187 @@
+STOP — P2-T2 BATCH CONFIRMATION (SAFE IMPLEMENTATION)
+
+Do NOT create new business logic
+Do NOT bypass validation
+Reuse existing single-confirm flow only
+
+---
+
+# OBJECTIVE
+
+Allow confirming multiple structured supplier leads in one request
+
+---
+
+# PART 1 — PREFLIGHT
+
+1. Locate existing single confirm handler:
+   Example:
+   POST /api/admin/ingestion/confirm (or similar)
+
+2. Verify:
+
+   * It creates supplier correctly
+   * It handles duplicates
+   * It logs interaction
+
+3. Test manually:
+   Confirm 1 lead → ensure supplier created
+
+IF NOT WORKING → STOP
+
+---
+
+# PART 2 — IMPLEMENT BATCH ENDPOINT
+
+File:
+artifacts/api-server/src/routes/admin.ts
+
+---
+
+## ADD:
+
+POST /api/admin/ingestion/batch-confirm
+
+---
+
+## REQUEST BODY:
+
+{
+"leadIds": [1, 2, 3]
+}
+
+---
+
+## IMPLEMENTATION RULES:
+
+* Loop through leadIds
+* For EACH lead:
+  → Call existing confirm function/service
+  → DO NOT duplicate logic
+
+---
+
+## RESPONSE FORMAT:
+
+{
+"success": [1, 2],
+"failed": [
+{ "leadId": 3, "error": "Duplicate supplier detected" }
+]
+}
+
+---
+
+# PART 3 — IDEMPOTENCY GUARD
+
+Before confirming each lead:
+
+* Check if already confirmed (e.g., supplier exists or status flag)
+* If yes → skip and add to success (idempotent behavior)
+
+---
+
+# PART 4 — LOGGING
+
+Add:
+
+logger.info({
+event: "BATCH_CONFIRM_EXECUTED",
+total: leadIds.length,
+successCount,
+failureCount
+})
+
+---
+
+# PART 5 — TYPECHECK
+
+pnpm --filter @workspace/api-server exec tsc --noEmit
+
+---
+
+# PART 6 — MANUAL TEST (UI)
+
+1. Go to Admin Panel
+
+2. Navigate:
+   Ingestion → Structured Leads
+
+3. Select 3–5 leads using checkboxes
+
+4. Click:
+   "Confirm Selected" (if UI not present → use API directly)
+
+5. Verify:
+
+   * All valid leads appear in Suppliers list
+   * No duplicates created
+
+6. Refresh page:
+
+   * Confirm persistence
+
+---
+
+# PART 7 — API TEST
+
+Call:
+
+POST /api/admin/ingestion/batch-confirm
+
+Body:
+{
+"leadIds": [validId1, validId2]
+}
+
+---
+
+## EXPECT:
+
+* HTTP 200
+* success array populated
+* no duplicate suppliers created
+
+---
+
+# PART 8 — FAILURE TEST
+
+Include:
+
+* duplicate lead
+* invalid leadId
+
+Expect:
+
+* partial success
+* proper failure messages
+
+---
+
+# PART 9 — ROLLBACK
+
+* Remove batch endpoint
+* No DB changes required
+* Single confirm remains intact
+
+---
+
+# SUCCESS CRITERIA
+
+✔ Multiple leads confirmed in one call
+✔ No duplicate suppliers created
+✔ Partial failures handled cleanly
+✔ Idempotent behavior verified
+
+---
+
+# CRITICAL RULES
+
+* DO NOT rewrite confirm logic
+* DO NOT insert suppliers directly
+* DO NOT skip duplicate detection
+* DO NOT fail entire batch if one fails
+
+---
+
+END
