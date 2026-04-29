@@ -1,0 +1,148 @@
+STOP — T14 TEST DATA CLEANUP (IRREVERSIBLE)
+
+This operation deletes all supplier graph data.
+Proceed ONLY if T15 restore test has PASSED.
+
+---
+
+# OBJECTIVE
+
+Remove all supplier test data and reset system for production onboarding.
+
+---
+
+# PART 0 — ENVIRONMENT CONFIRMATION (MANDATORY)
+
+Run:
+
+SELECT current_database();
+
+Confirm expected DB name.
+
+If unsure → STOP.
+
+---
+
+# PART 1 — BASELINE CHECK (BEFORE DELETE)
+
+Run:
+
+SELECT 'suppliers', COUNT(*) FROM suppliers
+UNION ALL SELECT 'ai_outputs', COUNT(*) FROM ai_outputs
+UNION ALL SELECT 'supplier_evaluations', COUNT(*) FROM supplier_evaluations
+UNION ALL SELECT 'supplier_state_transitions', COUNT(*) FROM supplier_state_transitions;
+
+Record results.
+
+---
+
+# PART 2 — SAFETY CHECK
+
+Confirm:
+
+* T15 backup exists and restore tested ✅
+* Supplier data = test data only ✅
+* Users / orders may exist — DO NOT block execution
+
+If real supplier data exists → STOP permanently.
+
+---
+
+# PART 3 — EXECUTE (CONTROLLED)
+
+BEGIN;
+
+TRUNCATE TABLE
+supplier_state_transitions,
+supplier_evaluations,
+ai_outputs,
+compliance_docs,
+economics,
+farms,
+suppliers
+RESTART IDENTITY CASCADE;
+
+-- DO NOT COMMIT YET
+
+---
+
+# PART 4 — VERIFY INSIDE TRANSACTION
+
+Run:
+
+SELECT COUNT(*) FROM suppliers;
+SELECT COUNT(*) FROM ai_outputs;
+SELECT COUNT(*) FROM supplier_evaluations;
+SELECT COUNT(*) FROM supplier_state_transitions;
+
+Expected: all = 0
+
+---
+
+# PART 5 — FINAL DECISION
+
+If results correct:
+
+COMMIT;
+
+Else:
+
+ROLLBACK;
+
+---
+
+# PART 6 — POST-COMMIT VALIDATION
+
+Run:
+
+SELECT last_value FROM suppliers_id_seq;
+
+Expected: 1
+
+Confirm untouched tables:
+
+SELECT COUNT(*) FROM users;
+SELECT COUNT(*) FROM buyer_profiles;
+SELECT COUNT(*) FROM orders;
+
+Expected: unchanged
+
+---
+
+# PART 7 — LOG ENTRY
+
+"D0-4 TRUNCATE executed at <timestamp>
+baseline_counts=<values>
+post_counts=0
+db=<database_name>"
+
+---
+
+# BACKOUT (IF NEEDED)
+
+createdb fincava_restore
+pg_restore -d fincava_restore <backup_file>
+
+---
+
+# OUTPUT
+
+1. Baseline recorded: YES/NO
+2. Transaction used: YES/NO
+3. Tables cleared: YES/NO
+4. Sequences reset: YES/NO
+5. Non-target tables intact: YES/NO
+6. FINAL RESULT: PASS/FAIL
+
+---
+
+# CRITICAL RULES
+
+* DO NOT skip transaction wrapper
+* DO NOT run outside verified DB
+* DO NOT include non-supplier tables
+* DO NOT proceed without T15 PASS
+
+---
+
+END
