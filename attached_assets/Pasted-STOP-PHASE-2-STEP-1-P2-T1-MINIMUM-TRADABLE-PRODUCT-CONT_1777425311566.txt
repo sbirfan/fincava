@@ -1,0 +1,149 @@
+STOP — PHASE 2 STEP 1 (P2-T1)
+MINIMUM TRADABLE PRODUCT — CONTROLLED IMPLEMENTATION
+
+Do NOT build a product system.
+Do NOT add new endpoints unless absolutely required.
+Do NOT modify order flow logic.
+
+Goal: Link ONE existing product to ONE supplier and make it usable for real orders.
+
+---
+
+# OBJECTIVE
+
+Enable a real buyer → product → supplier → order flow using existing infrastructure.
+
+---
+
+# PHASE 1 — PRECHECK
+
+1. Confirm:
+
+* At least one PUBLISHED supplier exists (from Gate-A)
+* At least one product exists in products table
+
+2. Identify:
+
+SELECT id, name, company_id FROM products LIMIT 5;
+
+3. Identify supplier:
+
+SELECT id, name FROM suppliers WHERE sellable_status='PUBLISHED' LIMIT 1;
+
+---
+
+# PHASE 2 — LINK PRODUCT TO SUPPLIER (NON-BREAKING)
+
+Use ONE product (e.g. id=9).
+
+Run:
+
+UPDATE products
+SET supplier_id = <publishedSupplierId>
+WHERE id = <productId>;
+
+---
+
+# PHASE 3 — VERIFY LINKAGE
+
+Run:
+
+SELECT id, name, supplier_id FROM products WHERE id = <productId>;
+
+Expected:
+
+* supplier_id correctly set
+* no other fields changed
+
+---
+
+# PHASE 4 — TRACE PATH VALIDATION
+
+Verify full chain:
+
+Order → order_items → product → supplier_id
+
+Run:
+
+SELECT
+o.id as order_id,
+oi.product_id,
+p.supplier_id
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+WHERE p.id = <productId>
+LIMIT 5;
+
+---
+
+# PHASE 5 — SAFE ORDER TEST
+
+1. Create new order using existing endpoint:
+
+POST /api/buyer/orders
+{
+"items": [{ "productId": <productId>, "quantityKg": 500 }],
+"incoterm": "FOB"
+}
+
+2. Verify:
+
+* HTTP 201
+* Order created successfully
+
+---
+
+# PHASE 6 — LINKAGE CONFIRMATION
+
+Query:
+
+SELECT
+o.id,
+p.name,
+p.supplier_id
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+WHERE o.id = <newOrderId>;
+
+Expected:
+
+* product linked
+* supplier_id present
+
+---
+
+# PHASE 7 — NO REGRESSION CHECK
+
+Confirm:
+
+* Existing orders still work
+* No null pointer / undefined errors
+* No changes in API responses
+
+---
+
+# OUTPUT
+
+1. Product selected: <id>
+2. Supplier selected: <id>
+3. Link created: YES/NO
+4. Order test: PASS/FAIL
+5. Linkage verified in DB: YES/NO
+6. Regression: PASS/FAIL
+7. FINAL RESULT: PASS/FAIL
+
+---
+
+# CRITICAL RULES
+
+* DO NOT create new product schema
+* DO NOT modify order logic
+* DO NOT enforce NOT NULL on supplier_id
+* DO NOT backfill all products
+* LINK ONLY ONE product
+
+---
+
+END
