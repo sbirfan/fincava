@@ -558,16 +558,21 @@ router.get("/suppliers", requireAuth, requireAdmin, async (req, res): Promise<vo
 
 // ── GET /api/suppliers/marketplace ───────────────────────────────────────────
 router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
+  // FIX 1: Filter at DB level — only suppliers with at least one linked product.
   const rows = await db
     .select({
       id: suppliersTable.id,
       nombreCompleto: suppliersTable.nombreCompleto,
       municipio: suppliersTable.municipio,
       department: suppliersTable.department,
-      sellableStatus: suppliersTable.sellableStatus,
     })
     .from(suppliersTable)
-    .where(inArray(suppliersTable.sellableStatus, ["SELLABLE", "PUBLISHED"]))
+    .where(
+      and(
+        inArray(suppliersTable.sellableStatus, ["SELLABLE", "PUBLISHED"]),
+        sql`EXISTS (SELECT 1 FROM products p WHERE p.supplier_id = ${suppliersTable.id})`,
+      )
+    )
     .orderBy(sql`${suppliersTable.lastEvaluatedAt} DESC NULLS LAST`)
     .limit(20);
 
@@ -580,6 +585,12 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
           name: productsTable.name,
           pricePerKgUSD: productsTable.pricePerKgUSD,
           supplierId: productsTable.supplierId,
+          // FIX 2: Add product decision fields that exist in DB.
+          description: productsTable.description,
+          origin: productsTable.origin,
+          certifications: productsTable.certifications,
+          organic: productsTable.organic,
+          directTrade: productsTable.directTrade,
         })
         .from(productsTable)
         .where(inArray(productsTable.supplierId, supplierIds))
@@ -599,11 +610,16 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
     location: r.department
       ? `${r.municipio}, ${r.department}`
       : r.municipio,
-    sellableStatus: r.sellableStatus,
+    // FIX 3: sellableStatus removed — internal state, not buyer-facing.
     products: (productsBySupplier.get(r.id) ?? []).map((p) => ({
       id: p.id,
       name: p.name,
       pricePerKgUSD: p.pricePerKgUSD,
+      description: p.description,
+      origin: p.origin,
+      certifications: p.certifications,
+      organic: p.organic,
+      directTrade: p.directTrade,
     })),
   }));
 
