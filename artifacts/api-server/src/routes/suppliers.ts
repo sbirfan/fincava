@@ -10,6 +10,7 @@ import {
   interactionsTable,
   supplierEvaluationsTable,
   supplierStateTransitionsTable,
+  productsTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import {
@@ -557,10 +558,6 @@ router.get("/suppliers", requireAuth, requireAdmin, async (req, res): Promise<vo
 
 // ── GET /api/suppliers/marketplace ───────────────────────────────────────────
 router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
-  // T6 NOTE: This endpoint returns supplier-side data only (graduation scores, farm info).
-  // It cannot JOIN to products because suppliers and products are on disconnected entity graphs.
-  // To show products alongside suppliers, enrich this response with a secondary products query
-  // filtered by company_id — do not attempt a direct JOIN.
   const rows = await db
     .select({
       id: suppliersTable.id,
@@ -574,6 +571,28 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
     .orderBy(sql`${suppliersTable.lastEvaluatedAt} DESC NULLS LAST`)
     .limit(20);
 
+  // Secondary query: fetch products linked to these suppliers via supplier_id.
+  const supplierIds = rows.map((r) => r.id);
+  const linkedProducts = supplierIds.length > 0
+    ? await db
+        .select({
+          id: productsTable.id,
+          name: productsTable.name,
+          pricePerKgUSD: productsTable.pricePerKgUSD,
+          supplierId: productsTable.supplierId,
+        })
+        .from(productsTable)
+        .where(inArray(productsTable.supplierId, supplierIds))
+    : [];
+
+  const productsBySupplier = new Map<number, typeof linkedProducts>();
+  for (const p of linkedProducts) {
+    if (p.supplierId == null) continue;
+    const list = productsBySupplier.get(p.supplierId) ?? [];
+    list.push(p);
+    productsBySupplier.set(p.supplierId, list);
+  }
+
   const suppliers = rows.map((r) => ({
     id: r.id,
     name: r.nombreCompleto,
@@ -581,6 +600,11 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
       ? `${r.municipio}, ${r.department}`
       : r.municipio,
     sellableStatus: r.sellableStatus,
+    products: (productsBySupplier.get(r.id) ?? []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      pricePerKgUSD: p.pricePerKgUSD,
+    })),
   }));
 
   res.json({ suppliers });
