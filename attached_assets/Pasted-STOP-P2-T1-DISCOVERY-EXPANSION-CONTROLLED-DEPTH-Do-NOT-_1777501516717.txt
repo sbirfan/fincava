@@ -1,0 +1,141 @@
+STOP — P2-T1 DISCOVERY EXPANSION (CONTROLLED DEPTH)
+
+Do NOT modify database
+Do NOT change API contracts
+Do NOT increase cost unbounded
+This is a controlled improvement only
+
+---
+
+# OBJECTIVE
+
+Improve discovery quality by allowing **limited 1-level link exploration**
+
+---
+
+# PART 1 — UPDATE SYSTEM CONSTRAINTS
+
+File:
+services/discovery-engine.ts
+and/or
+config/ingestion-prompts.ts
+
+---
+
+## MODIFY DISCOVERY RULES
+
+Replace:
+
+"Do NOT follow links beyond initial search results"
+
+WITH:
+
+"Follow at most ONE level deeper from the initial result, ONLY if:
+
+* the link is clearly a company website
+* the content is publicly accessible
+* no login or interaction required
+
+DO NOT follow more than 2–3 links per result.
+DO NOT chain navigation beyond one level."
+
+---
+
+# PART 2 — ADD HARD LIMITS (CRITICAL)
+
+In discovery engine logic:
+
+Define:
+
+MAX_DEPTH = 1
+MAX_LINKS_PER_RESULT = 3
+MAX_TOTAL_LINKS = 10
+
+---
+
+## ENFORCE:
+
+* No recursive calls
+* No loops
+* Stop once limits reached
+
+---
+
+# PART 3 — VALIDATION GUARD
+
+After AI returns results:
+
+Check:
+
+* Each lead must still contain ONLY:
+
+  * business name
+  * approximate location
+  * public website
+  * product category hint
+
+If extra fields appear → discard result
+
+---
+
+# PART 4 — LOGGING (IMPORTANT)
+
+Add:
+
+logger.info({
+event: "DISCOVERY_EXPANSION_USED",
+linksFollowed: <count>
+})
+
+---
+
+# PART 5 — TYPECHECK
+
+pnpm --filter @workspace/api-server exec tsc --noEmit
+
+---
+
+# PART 6 — VALIDATION
+
+Run:
+
+1. Discovery BEFORE change (baseline)
+2. Discovery AFTER change
+
+Compare:
+
+* % leads with valid websites
+* % leads with clearer product categories
+* response time increase
+
+---
+
+# SUCCESS CRITERIA
+
+✔ Lead quality improved (manual inspection)
+✔ No increase in malformed outputs
+✔ Response time increase < acceptable threshold
+✔ No unexpected fields returned
+
+---
+
+# BACK-OUT PLAN
+
+Revert:
+
+* prompt rule change
+* depth limits
+
+Return to original single-layer discovery
+
+---
+
+# CRITICAL RULES
+
+* DO NOT remove existing safety constraints
+* DO NOT allow multi-level traversal
+* DO NOT store raw AI output without validation
+
+---
+
+END
