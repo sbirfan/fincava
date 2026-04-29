@@ -1,0 +1,37 @@
+Admin Filter: Show Scored-But-Not-Evaluated Suppliers (G1-fix)
+Task ID: G1-fix Type: TDD Hardening — Admin Workflow Priority: MEDIUM — parallelizable with T4 Estimated effort: 2–3 hours Dependency: None (complements T12/Dig, but independent)
+OBJECTIVE
+Add a filter to GET /api/admin/suppliers that returns suppliers who have an ai_outputs row (scored by AI) but no corresponding supplier_evaluations row (human evaluation not yet done). This is the admin’s daily action queue — the list of suppliers waiting for human review to graduate.
+Without this filter, the admin must scroll through all suppliers to find which ones need attention. As supplier count grows, this becomes operationally unworkable.
+PREFLIGHT CHECK
+•          ☐ Read routes/admin.ts or routes/suppliers.ts — find GET /api/admin/suppliers
+•          ☐ Confirm ai_outputs table has supplier_id FK
+•          ☐ Confirm supplier_evaluations table has supplier_id FK
+•          ☐ Test current admin supplier endpoint — note existing filter params
+PERMISSION TO EXECUTE
+Execute any time. Additive change — existing admin functionality unchanged.
+CONFLICT DETECTION
+•          T12 (Dig — daily digest email) also queries scored-but-not-evaluated suppliers. T10 adds the API filter; T12 adds the scheduled email using the same logic. Do not duplicate the query — extract to a shared service function if building T10 and T12 together.
+•          No conflict with T4 (AI1) — this task doesn’t touch scoring logic
+PROPOSED APPROACH
+Add ?filter=scored_not_evaluated query parameter to the existing admin suppliers endpoint. The query: SELECT s.* FROM suppliers s INNER JOIN ai_outputs ao ON ao.supplier_id = s.id LEFT JOIN supplier_evaluations se ON se.supplier_id = s.id WHERE se.id IS NULL.
+ALTERNATIVES
+Alternative	Reason Rejected
+New endpoint /api/admin/suppliers/pending-review	Adds API surface; filter param is simpler and consistent with existing pattern
+Frontend-side filtering	Requires fetching all suppliers; doesn’t scale
+Defer to T12 email	T12 notifies; T10 enables the admin UI workflow — both needed
+IMPLEMENTATION
+## OBJECTIVE Add ?filter=scored_not_evaluated to GET /api/admin/suppliers. Returns suppliers who have ai_outputs but no supplier_evaluations row.  ## PREFLIGHT 1. Read the GET /api/admin/suppliers handler.    Note current WHERE clauses and filter parameters. 2. Run this query manually to verify logic:    SELECT s.id, s.business_name    FROM suppliers s    INNER JOIN ai_outputs ao ON ao.supplier_id = s.id    LEFT JOIN supplier_evaluations se ON se.supplier_id = s.id    WHERE se.id IS NULL;    Confirm it returns the expected set.  ## STEP 1: Add filter parameter handling  In the admin suppliers route handler:  const filter = req.query.filter as string | undefined;  if (filter === 'scored_not_evaluated') {   // Add LEFT JOIN supplier_evaluations + WHERE se.id IS NULL condition   // to existing Drizzle query }  ## STEP 2: Build the filtered Drizzle query  Using Drizzle ORM: const results = await db   .select({ ...suppliersFields })   .from(suppliersTable)   .innerJoin(aiOutputsTable, eq(aiOutputsTable.supplierId, suppliersTable.id))   .leftJoin(supplierEvaluationsTable, eq(supplierEvaluationsTable.supplierId, suppliersTable.id))   .where(isNull(supplierEvaluationsTable.id))   .orderBy(desc(aiOutputsTable.createdAt));  ## STEP 3: Return consistent response format (EP7) return res.json({ success: true, data: results });  ## STEP 4: Add TypeScript types for the filter param Consider: type AdminSupplierFilter = 'scored_not_evaluated' | undefined  ## STEP 5: Test GET /api/admin/suppliers?filter=scored_not_evaluated (admin token) Expected: only suppliers with ai_outputs but no supplier_evaluations.  GET /api/admin/suppliers (no filter) Expected: unchanged behavior — all suppliers.  ## ARCHITECTURAL CONSTRAINTS - EP7: response format { success: boolean, data: any, error? } - Filter must be additive — do NOT change unfiltered behavior - If building T10 and T12 together: extract the scored_not_evaluated query   to a shared service function (e.g., services/graduation-service.ts or   services/admin-service.ts)  ## COMMIT MESSAGE FORMAT feat(admin): add ?filter=scored_not_evaluated to admin suppliers endpoint  - GET /api/admin/suppliers?filter=scored_not_evaluated returns action queue - Suppliers with ai_outputs but no supplier_evaluations - No change to unfiltered endpoint behavior - Resolves G1-fix (TDD hardening)
+VALIDATION
+•          ☐ GET /api/admin/suppliers?filter=scored_not_evaluated returns only unreviewed suppliers
+•          ☐ GET /api/admin/suppliers (no filter) returns all suppliers unchanged
+•          ☐ Response format follows EP7: { success: true, data: [...] }
+•          ☐ pnpm tsc --noEmit → 0 errors
+BACK-OUT PLAN
+git revert HEAD
+Additive change — reverting simply removes the filter option. No data affected.
+ACCEPTANCE CRITERIA
+•          ☐ GET /api/admin/suppliers?filter=scored_not_evaluated returns correct subset
+•          ☐ Existing unfiltered endpoint behavior unchanged
+•          ☐ EP7 response format maintained
+•          ☐ pnpm tsc --noEmit → 0 errors
