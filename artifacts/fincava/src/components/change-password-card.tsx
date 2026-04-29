@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff, KeyRound } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const schema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
@@ -43,7 +44,7 @@ function PasswordInput({ field, placeholder }: { field: any; placeholder?: strin
   );
 }
 
-export function ChangePasswordCard() {
+export function ChangePasswordCard({ className }: { className?: string }) {
   const { toast } = useToast();
   const [isPending, setIsPending] = useState(false);
 
@@ -83,7 +84,7 @@ export function ChangePasswordCard() {
   }
 
   return (
-    <Card>
+    <Card className={cn(className)}>
       <CardHeader>
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-muted-foreground" />

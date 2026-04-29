@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "wouter";
 import { Users, ShoppingCart, Landmark, TrendingUp, AlertTriangle, DollarSign } from "lucide-react";
 import { ChangePasswordCard } from "@/components/change-password-card";
+import { cn } from "@/lib/utils";
 
 function StatCard({
   icon: Icon,
@@ -9,12 +11,14 @@ function StatCard({
   value,
   sub,
   accent = "emerald",
+  href,
 }: {
   icon: any;
   label: string;
   value: string | number;
   sub?: string;
   accent?: string;
+  href?: string;
 }) {
   const colors: Record<string, string> = {
     emerald: "bg-emerald-500/15 text-emerald-300 border-emerald-500/20",
@@ -22,8 +26,9 @@ function StatCard({
     amber: "bg-amber-500/15 text-amber-300 border-amber-500/20",
     red: "bg-red-500/15 text-red-300 border-red-500/20",
   };
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-6 flex flex-col gap-3">
+
+  const inner = (
+    <>
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${colors[accent]}`}>
         <Icon className="h-5 w-5" />
       </div>
@@ -32,8 +37,23 @@ function StatCard({
         <p className="text-2xl font-bold text-white mt-0.5">{value}</p>
         {sub && <p className="text-xs text-white/40 mt-1">{sub}</p>}
       </div>
-    </div>
+    </>
   );
+
+  const base = cn(
+    "rounded-xl border border-white/10 bg-white/5 p-6 flex flex-col gap-3",
+    href && "cursor-pointer hover:bg-white/10 hover:border-white/20 transition-colors"
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={base}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return <div className={base}>{inner}</div>;
 }
 
 export default function AdminDashboard() {
@@ -73,6 +93,7 @@ export default function AdminDashboard() {
             value={stats?.users ?? 0}
             sub="Registered accounts"
             accent="emerald"
+            href="/admin/users"
           />
           <StatCard
             icon={ShoppingCart}
@@ -80,6 +101,7 @@ export default function AdminDashboard() {
             value={stats?.orders ?? 0}
             sub="All-time order count"
             accent="blue"
+            href="/admin/orders"
           />
           <StatCard
             icon={DollarSign}
@@ -134,7 +156,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="max-w-md">
-        <ChangePasswordCard />
+        <ChangePasswordCard className="border-white/10 bg-white/5 text-white [&_p]:text-white/50 [&_label]:text-white/70 [&_h3]:text-white [&_.text-muted-foreground]:text-white/50" />
       </div>
     </div>
   );
