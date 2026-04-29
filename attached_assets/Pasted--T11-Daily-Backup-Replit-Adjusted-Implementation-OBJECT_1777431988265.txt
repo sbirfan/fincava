@@ -1,0 +1,146 @@
+## T11 — Daily Backup (Replit-Adjusted Implementation)
+
+---
+
+### OBJECTIVE
+
+Automated daily PostgreSQL backups stored in Replit Object Storage, with verified restore capability.
+
+---
+
+### DESIGN (MANDATORY ARCHITECTURE)
+
+Backup must run via:
+
+```text
+External trigger → internal API endpoint → Node backup service → Object Storage
+```
+
+---
+
+### PART 1 — BACKUP SERVICE (Node, not bash)
+
+Create:
+
+`src/services/backup-service.ts`
+
+Responsibilities:
+
+* run pg_dump (via child_process)
+* generate timestamped filename
+* stream or upload to Object Storage
+
+---
+
+### PART 2 — OBJECT STORAGE (REPLIT)
+
+Use:
+
+* DEFAULT_OBJECT_STORAGE_BUCKET_ID
+* @replit/object-storage client
+
+Example flow:
+
+```ts
+const client = new ObjectStorageClient();
+await client.upload({
+  bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID,
+  key: filename,
+  data: fileBuffer
+});
+```
+
+---
+
+### PART 3 — TRIGGER ENDPOINT
+
+Create protected endpoint:
+
+```text
+POST /api/admin/backup/run
+```
+
+Requirements:
+
+* admin-auth protected
+* triggers backup service
+* returns success/failure
+
+---
+
+### PART 4 — SCHEDULER (REQUIRED)
+
+Choose ONE (must be explicit):
+
+#### Option A — External cron (recommended)
+
+* cron-job.org OR GitHub Actions
+* calls:
+  POST /api/admin/backup/run
+
+#### Option B — Replit Deployments (if available)
+
+* scheduled job hitting endpoint
+
+👉 Standard cron inside container = NOT allowed
+
+---
+
+### PART 5 — RETENTION POLICY
+
+Inside backup service:
+
+* list existing objects
+* keep last 7 backups
+* delete older ones
+
+---
+
+### PART 6 — RESTORE TEST (MANDATORY)
+
+Download latest backup from object storage:
+
+```text
+pg_restore -d test_db <downloaded_file>
+```
+
+Verify:
+
+* tables exist
+* data present
+
+---
+
+### PART 7 — LOGGING
+
+Log:
+
+* timestamp
+* file size
+* upload success
+* errors
+
+---
+
+### VALIDATION
+
+* ☐ Backup endpoint works manually
+* ☐ Backup stored in object storage
+* ☐ Scheduler triggers daily
+* ☐ Retention enforced
+* ☐ Restore test successful
+
+---
+
+### ACCEPTANCE CRITERIA
+
+* ☐ Backup is automated (external trigger)
+* ☐ Backup stored off-instance (Object Storage)
+* ☐ Restore verified
+* ☐ No reliance on container persistence
+
+---
+
+### FINAL RESULT
+
+PASS / FAIL
