@@ -130,7 +130,10 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
   ));
 
   const result = await buildOrderResponse(order);
-  res.status(201).json(result);
+  res.status(201).json({
+    ...result,
+    statusDescription: "Your request has been submitted. The supplier will be contacted.",
+  });
 });
 
 router.get("/buyer/orders/:id", requireAuth, async (req, res): Promise<void> => {

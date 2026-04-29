@@ -585,12 +585,12 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
           name: productsTable.name,
           pricePerKgUSD: productsTable.pricePerKgUSD,
           supplierId: productsTable.supplierId,
-          // FIX 2: Add product decision fields that exist in DB.
           description: productsTable.description,
           origin: productsTable.origin,
           certifications: productsTable.certifications,
           organic: productsTable.organic,
           directTrade: productsTable.directTrade,
+          minOrderKg: productsTable.minOrderKg,
         })
         .from(productsTable)
         .where(inArray(productsTable.supplierId, supplierIds))
@@ -620,10 +620,13 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
       certifications: p.certifications,
       organic: p.organic,
       directTrade: p.directTrade,
+      ...(p.minOrderKg != null ? { minOrderKg: p.minOrderKg } : {}),
     })),
   }));
 
-  res.json({ suppliers });
+  // platformFeePercent is a static platform rate; surfaced here so buyers
+  // can see the cost of trade before submitting an order.
+  res.json({ suppliers, platformFeePercent: 4 });
 });
 
 // ── GET /api/suppliers/:id/evaluations ───────────────────────────────────────
