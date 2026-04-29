@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Mail, Phone } from "lucide-react";
+import { MapPin, Mail, Phone, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const contactSchema = z.object({
@@ -72,8 +72,15 @@ export default function Contact() {
               <div className="flex items-start">
                 <Phone className="w-5 h-5 text-primary mr-4 mt-0.5" />
                 <div>
-                  <h4 className="font-medium">WhatsApp Support</h4>
+                  <h4 className="font-medium">Phone</h4>
                   <p className="text-muted-foreground text-sm">Colombia: +57 316 656 3613</p>
+                  <p className="text-muted-foreground text-sm">US: +1 512 360 0118</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <MessageCircle className="w-5 h-5 text-[#25D366] mr-4 mt-0.5" />
+                <div>
+                  <h4 className="font-medium">WhatsApp Support</h4>
                   <p className="text-muted-foreground text-sm">US: +1 512 360 0118</p>
                   <Button variant="outline" className="mt-3 text-[#25D366] border-[#25D366] hover:bg-[#25D366] hover:text-white" onClick={() => window.open('https://wa.me/15123600118', '_blank')}>
                     Chat on WhatsApp
