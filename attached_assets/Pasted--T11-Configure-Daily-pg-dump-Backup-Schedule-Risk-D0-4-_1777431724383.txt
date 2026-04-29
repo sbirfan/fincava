@@ -1,0 +1,179 @@
+## T11 — Configure Daily pg_dump Backup Schedule (Risk / D0-4)
+
+---
+
+### OBJECTIVE
+
+Ensure reliable, automated, and restorable PostgreSQL backups are created daily and stored off-platform, with verified recovery capability.
+
+---
+
+### PREFLIGHT CHECK
+
+* ☐ DATABASE_URL is available and valid
+* ☐ PostgreSQL access confirmed (manual pg_dump test possible)
+* ☐ Storage destination defined (NOT local-only)
+* ☐ Disk space sufficient for at least 7 backups
+* ☐ pg_dump and pg_restore available in environment
+
+---
+
+### PERMISSION TO EXECUTE
+
+Execute ONLY after:
+
+* T2 (email infra) verified
+* Before T14 (data cleanup)
+* Before any production deployment
+
+---
+
+### CONFLICT DETECTION
+
+* Replit environment may not support persistent cron → fallback required
+* Local-only storage = invalid (must use external storage)
+* Large DB size may cause timeout → test runtime
+* Credentials exposure risk → ensure env variables used
+
+---
+
+### PROPOSED APPROACH
+
+1. Create backup script (pg_dump → timestamped file)
+2. Store backups in external location (S3 / remote server)
+3. Automate execution (cron or scheduler)
+4. Implement retention (7-day rolling window)
+5. Perform restore test to validate integrity
+
+---
+
+### ALTERNATIVES
+
+| Option                              | Pros           | Cons                             |
+| ----------------------------------- | -------------- | -------------------------------- |
+| Managed DB backups (Supabase, etc.) | Easy, reliable | Less control                     |
+| Manual backups                      | Simple         | Not scalable / error-prone       |
+| Local-only cron                     | Fast setup     | Unsafe (single point of failure) |
+
+👉 Preferred: Automated + external storage
+
+---
+
+### IMPLEMENTATION
+
+#### Step 1 — Backup Script
+
+Create: `scripts/backup.sh`
+
+```bash
+#!/bin/bash
+
+TIMESTAMP=$(date +"%Y%m%d_%H%M")
+FILENAME="fincava_${TIMESTAMP}.dump"
+
+pg_dump -Fc "$DATABASE_URL" -f "./backups/$FILENAME"
+```
+
+---
+
+#### Step 2 — External Storage
+
+Upload backup after creation:
+
+Example (S3):
+
+```bash
+aws s3 cp ./backups/$FILENAME s3://your-bucket/fincava-backups/
+```
+
+👉 MUST NOT rely on local storage only
+
+---
+
+#### Step 3 — Automation
+
+Option A: cron (preferred if supported)
+
+```bash
+0 2 * * * /path/to/backup.sh
+```
+
+Option B: Replit scheduled task / external trigger
+
+---
+
+#### Step 4 — Retention Policy
+
+Keep last 7 backups:
+
+```bash
+ls -t backups/ | tail -n +8 | xargs rm -f
+```
+
+Also apply retention in external storage if possible
+
+---
+
+#### Step 5 — Restore Test (MANDATORY)
+
+```bash
+createdb test_restore
+
+pg_restore -d test_restore ./backups/<latest_file>.dump
+```
+
+Verify:
+
+* Tables exist
+* Row counts present
+* No errors
+
+---
+
+#### Step 6 — Logging
+
+Append logs:
+
+```bash
+echo "$(date) Backup completed: $FILENAME" >> backup.log
+```
+
+---
+
+### VALIDATION
+
+* ☐ Backup file created successfully
+* ☐ File uploaded to external storage
+* ☐ Scheduler triggers daily
+* ☐ Retention keeps last 7 backups
+* ☐ Restore test successful (non-empty DB)
+* ☐ No errors in logs
+
+---
+
+### BACK-OUT PLAN
+
+If failure occurs:
+
+1. Stop scheduler
+2. Fix script or credentials
+3. Re-run backup manually
+4. Re-test restore
+
+No rollback required — non-destructive task
+
+---
+
+### ACCEPTANCE CRITERIA
+
+* ☐ Daily automated backups running
+* ☐ Backups stored off-platform
+* ☐ Restore test verified
+* ☐ Retention policy active
+* ☐ Logs confirm successful runs
+
+---
+
+### FINAL RESULT
+
+PASS / FAIL (based on validation)
