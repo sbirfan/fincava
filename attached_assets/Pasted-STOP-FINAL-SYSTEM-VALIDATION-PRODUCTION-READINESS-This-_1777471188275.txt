@@ -1,0 +1,189 @@
+STOP — FINAL SYSTEM VALIDATION (PRODUCTION READINESS)
+
+This is the first full run on a CLEAN database after T14.
+Treat all actions as real production behavior.
+
+---
+
+# OBJECTIVE
+
+Validate end-to-end system:
+Supplier onboarding → AI pipeline → marketplace → buyer onboarding → order → fee tracking
+
+---
+
+# STEP 0 — CLEAN STATE CHECK
+
+Run:
+
+SELECT COUNT(*) FROM suppliers;
+SELECT COUNT(*) FROM products WHERE supplier_id IS NOT NULL;
+
+Expected:
+suppliers = 0
+products.supplier_id = NULL for all
+
+---
+
+# STEP 1 — SUPPLIER ONBOARDING
+
+POST /api/suppliers/onboard
+
+Use realistic payload (NOT test garbage):
+
+* real-looking name
+* real location
+* realistic volume
+
+Capture:
+supplierId
+
+Expected:
+HTTP 201
+
+---
+
+# STEP 2 — PIPELINE COMPLETION
+
+Poll DB:
+
+SELECT COUNT(*) FROM ai_outputs WHERE supplier_id = <id>;
+SELECT COUNT(*) FROM supplier_evaluations WHERE supplier_id = <id>;
+
+Expected:
+≥ 1 row each
+
+Capture:
+
+* commercial_score
+* eligibility_status
+
+---
+
+# STEP 3 — ADMIN PROMOTION
+
+Use admin token:
+
+POST /api/admin/suppliers/:id/transition → ELIGIBLE
+POST /api/admin/suppliers/:id/transition → SELLABLE
+POST /api/admin/suppliers/:id/publish
+
+Expected:
+HTTP 200 each
+
+---
+
+# STEP 4 — MARKETPLACE CHECK
+
+GET /api/suppliers/marketplace
+
+Expected:
+
+* Supplier visible
+* Product attached
+* Fields populated (price, name, etc.)
+
+---
+
+# STEP 5 — BUYER ONBOARDING
+
+Register new buyer (fresh email)
+
+POST /api/auth/register
+POST /api/buyer/onboard
+
+Expected:
+
+* Profile created
+* No duplicate email sent
+
+---
+
+# STEP 6 — ORDER CREATION
+
+POST /api/buyer/orders
+
+Use:
+
+* productId from marketplace
+* realistic quantity
+
+Expected:
+
+* HTTP 201
+* feePercentage = 4
+* feeStatus = WAIVED (if <10 orders)
+
+---
+
+# STEP 7 — ADMIN ORDER VIEW
+
+GET /api/admin/orders
+
+Expected:
+
+* Order visible
+* fee fields present
+* supplier linkage correct
+
+---
+
+# STEP 8 — FEE UPDATE
+
+PATCH /api/admin/orders/:id/fee-status
+
+Set:
+INVOICED
+
+Expected:
+
+* HTTP 200
+* reflected in DB
+
+---
+
+# STEP 9 — INTERACTION LOG CHECK
+
+SELECT COUNT(*) FROM interaction_logs WHERE reference_type='order';
+
+Expected:
+≥ 1 row
+
+---
+
+# STEP 10 — CONSISTENCY CHECK
+
+Verify:
+
+* order_items.supplier_id NOT NULL
+* product → supplier linkage correct
+* no orphan references
+
+---
+
+# OUTPUT
+
+1. Supplier onboard: PASS/FAIL
+2. Pipeline: PASS/FAIL
+3. Admin promotion: PASS/FAIL
+4. Marketplace: PASS/FAIL
+5. Buyer onboarding: PASS/FAIL
+6. Order creation: PASS/FAIL
+7. Fee logic: PASS/FAIL
+8. Admin visibility: PASS/FAIL
+9. Interaction log: PASS/FAIL
+10. Data consistency: PASS/FAIL
+
+FINAL RESULT: PASS / FAIL
+
+---
+
+# CRITICAL RULES
+
+* No schema changes
+* No data patching mid-run
+* If ANY step fails → STOP
+
+---
+
+END
