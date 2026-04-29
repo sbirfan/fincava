@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
@@ -13,6 +13,7 @@ import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { FEE_STATUSES } from "../constants/fee-status";
+import { runBackup } from "../services/backup-service";
 
 const router: IRouter = Router();
 
@@ -743,6 +744,40 @@ router.post("/admin/suppliers/:companyId/recompute-trust", ...adminOnly, async (
 
   const score = await computeTrustScore(companyId);
   res.json({ companyId, score });
+});
+
+// ── POST /api/admin/backup/run ────────────────────────────────────────────────
+// Two valid auth paths:
+//   1. X-Backup-Token: <BACKUP_SECRET>  — external cron caller (cron-job.org)
+//   2. Standard admin JWT               — manual trigger by admin user
+router.post("/admin/backup/run", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const backupSecret = process.env.BACKUP_SECRET;
+  const tokenHeader  = req.headers["x-backup-token"];
+
+  if (backupSecret && tokenHeader === backupSecret) {
+    // Cron path — bypass JWT middleware
+    try {
+      const result = await runBackup();
+      res.json({ success: true, file: result.filename, fileSizeBytes: result.fileSizeBytes });
+    } catch (err) {
+      logger.error({ err }, "Backup failed (cron path)");
+      res.status(500).json({ error: "Backup failed" });
+    }
+    return;
+  }
+
+  // Admin JWT path — run adminOnly middleware chain then execute backup
+  adminOnly[0](req, res, () => {
+    adminOnly[1](req, res, async () => {
+      try {
+        const result = await runBackup();
+        res.json({ success: true, file: result.filename, fileSizeBytes: result.fileSizeBytes });
+      } catch (err) {
+        logger.error({ err }, "Backup failed (admin path)");
+        res.status(500).json({ error: "Backup failed" });
+      }
+    });
+  });
 });
 
 export default router;
