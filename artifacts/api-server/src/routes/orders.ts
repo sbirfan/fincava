@@ -75,7 +75,7 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     const itemTotal = item.quantityKg * product.pricePerKgUSD;
     totalUSD += itemTotal;
     if (product.supplierId == null) {
-      logger.warn({ productId: item.productId, orderContext: "order creation" }, "Missing supplier_id for product");
+      logger.warn({ event: "ORDER_MISSING_SUPPLIER_ID", orderContext: "order_creation", productId: product.id }, "Missing supplier_id for product");
     }
     return { productId: item.productId, quantityKg: item.quantityKg, pricePerKg: product.pricePerKgUSD, totalUSD: itemTotal, supplierId: product.supplierId ?? null };
   }));
