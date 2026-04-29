@@ -45,4 +45,7 @@ app.listen(port, (err) => {
     logger.info({ event: "CONFIG_LOADED", key: "FINCAVA_COMPANY_ID",
       value: process.env.FINCAVA_COMPANY_ID }, "FINCAVA_COMPANY_ID loaded");
   }
+
+  logger.info({ event: "EVENT_VOLUME_COUNTERS_RESET", approximate: true },
+    "Volume counters initialized (in-memory, reset on restart)");
 });

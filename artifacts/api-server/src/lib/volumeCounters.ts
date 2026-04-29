@@ -20,7 +20,6 @@ export function incrementAndMaybeLog(
       entity:      type,
       count,
       approximate: true,
-      ...meta,
     }, `Volume milestone reached for ${type}: ${count}`);
   }
 }
