@@ -14,6 +14,7 @@ import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { FEE_STATUSES } from "../constants/fee-status";
 import { runBackup } from "../services/backup-service";
+import { incrementAndMaybeLog } from "../lib/volumeCounters";
 
 const router: IRouter = Router();
 
@@ -862,6 +863,7 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
 
   logger.info({ event: "PRODUCT_CREATED", supplierId, productId: product.id },
     "Admin created product for supplier");
+  incrementAndMaybeLog(logger, "products", { supplierId, productId: product.id });
 
   res.status(201).json({
     id:            product.id,

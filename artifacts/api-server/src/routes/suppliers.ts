@@ -34,6 +34,7 @@ import { runOnboardPipeline } from "../services/onboard-pipeline";
 import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 import { DOCUMENT_PROMPT } from "../config/scoring-prompts";
+import { incrementAndMaybeLog } from "../lib/volumeCounters";
 
 const router: IRouter = Router();
 
@@ -228,6 +229,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     });
 
     logger.info({ event: "SUPPLIER_ONBOARDED", supplierId: supplier.id });
+    incrementAndMaybeLog(logger, "suppliers", { supplierId: supplier.id });
 
     // ── Post-onboard emails (fire-and-forget, runs after response) ───────────
     const appBaseUrl = process.env["FRONTEND_URL"]

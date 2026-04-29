@@ -12,6 +12,7 @@ import { sendEmail, orderStatusEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { computeFee } from "../services/fee-service";
 import { logInteraction } from "../lib/interaction-logger";
+import { incrementAndMaybeLog } from "../lib/volumeCounters";
 import { isValidFeeStatus } from "../constants/fee-status";
 
 const router: IRouter = Router();
@@ -107,6 +108,10 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     orderId:    order.id,
     supplierId: itemsWithPrices[0]?.supplierId ?? null,
     totalUSD,
+  });
+  incrementAndMaybeLog(logger, "orders", {
+    orderId:    order.id,
+    supplierId: itemsWithPrices[0]?.supplierId ?? null,
   });
 
   // ── Interaction signal (fire-and-forget) ─────────────────────────────────
