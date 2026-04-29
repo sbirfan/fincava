@@ -748,10 +748,10 @@ router.post("/admin/suppliers/:companyId/recompute-trust", ...adminOnly, async (
 
 // ── POST /api/admin/backup/run ────────────────────────────────────────────────
 // Two valid auth paths:
-//   1. X-Backup-Token: <BACKUP_SECRET>  — external cron caller (cron-job.org)
-//   2. Standard admin JWT               — manual trigger by admin user
+//   1. X-Backup-Token: <BACKUP_SECRET_V2>  — external cron caller (cron-job.org)
+//   2. Standard admin JWT                  — manual trigger by admin user
 router.post("/admin/backup/run", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const backupSecret = process.env.BACKUP_SECRET;
+  const backupSecret = process.env.BACKUP_SECRET_V2;
   const tokenHeader  = req.headers["x-backup-token"];
 
   if (backupSecret && tokenHeader === backupSecret) {
