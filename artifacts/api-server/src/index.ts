@@ -37,4 +37,12 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   logListenerCounts();
   seedAdminAccounts().catch((e) => logger.error({ err: e }, "Admin seed failed"));
+
+  if (!process.env.FINCAVA_COMPANY_ID) {
+    logger.warn({ event: "CONFIG_MISSING", key: "FINCAVA_COMPANY_ID" },
+      "FINCAVA_COMPANY_ID not set — falling back to name lookup");
+  } else {
+    logger.info({ event: "CONFIG_LOADED", key: "FINCAVA_COMPANY_ID",
+      value: process.env.FINCAVA_COMPANY_ID }, "FINCAVA_COMPANY_ID loaded");
+  }
 });

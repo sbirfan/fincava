@@ -75,7 +75,8 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     const itemTotal = item.quantityKg * product.pricePerKgUSD;
     totalUSD += itemTotal;
     if (product.supplierId == null) {
-      logger.warn({ event: "ORDER_MISSING_SUPPLIER_ID", orderContext: "order_creation", productId: product.id }, "Missing supplier_id for product");
+      logger.warn({ event: "ORDER_PRODUCT_NO_SUPPLIER", productId: product.id },
+        "Order attempted with product missing supplier_id");
     }
     return { productId: item.productId, quantityKg: item.quantityKg, pricePerKg: product.pricePerKgUSD, totalUSD: itemTotal, supplierId: product.supplierId ?? null };
   }));
@@ -101,6 +102,12 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     { orderId: order.id, buyerId: userId, totalUSD, ...fee },
     "order created with fee",
   );
+  logger.info({
+    event:      "ORDER_CREATED",
+    orderId:    order.id,
+    supplierId: itemsWithPrices[0]?.supplierId ?? null,
+    totalUSD,
+  });
 
   // ── Interaction signal (fire-and-forget) ─────────────────────────────────
   logInteraction({

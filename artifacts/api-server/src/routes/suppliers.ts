@@ -227,6 +227,8 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       message: `Registration successful for ${nombreCompleto}`,
     });
 
+    logger.info({ event: "SUPPLIER_ONBOARDED", supplierId: supplier.id });
+
     // ── Post-onboard emails (fire-and-forget, runs after response) ───────────
     const appBaseUrl = process.env["FRONTEND_URL"]
       ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");

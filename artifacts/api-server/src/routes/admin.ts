@@ -772,6 +772,8 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
     .limit(1);
 
   if (!supplier) {
+    logger.error({ event: "PRODUCT_CREATE_SUPPLIER_MISSING", supplierId },
+      "Supplier not found during product creation");
     res.status(404).json({ error: "Supplier not found" });
     return;
   }
@@ -858,7 +860,8 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
     payload:       { supplierId },
   });
 
-  logger.info({ productId: product.id, supplierId }, "Admin created product for supplier");
+  logger.info({ event: "PRODUCT_CREATED", supplierId, productId: product.id },
+    "Admin created product for supplier");
 
   res.status(201).json({
     id:            product.id,
