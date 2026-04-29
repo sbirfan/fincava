@@ -29,3 +29,9 @@ id = "4RD9eixdVt09x-chWDBSb"
 uri = "file://fincava-architecture.md"
 type = "text"
 title = "Fincava — Architecture Document"
+
+[[outputs]]
+id = "Fferql2Tjva-Vp1Q1kpf3"
+uri = "file://.local/exports/fincava_dev_review_2026-04-29.txt"
+type = "text"
+title = "Fincava Dev DB — 2026-04-29"

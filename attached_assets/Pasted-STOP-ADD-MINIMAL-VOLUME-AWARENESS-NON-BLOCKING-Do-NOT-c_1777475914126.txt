@@ -1,0 +1,137 @@
+STOP — ADD MINIMAL VOLUME AWARENESS (NON-BLOCKING)
+
+Do NOT change schema.
+Do NOT add dependencies.
+Do NOT write to DB.
+This is logging-only, best-effort counters.
+
+---
+
+# OBJECTIVE
+
+Add per-event in-memory counters and milestone logs for:
+
+* supplier onboarding
+* product creation
+* order creation
+
+---
+
+# PART 1 — CREATE COUNTER MODULE
+
+Create file:
+artifacts/api-server/src/lib/volumeCounters.ts
+
+---
+
+## CONTENT
+
+// Best-effort in-memory counters (reset on restart)
+export const volumeCounters = {
+suppliers: 0,
+products: 0,
+orders: 0,
+};
+
+export function incrementAndMaybeLog(
+logger: any,
+type: "suppliers" | "products" | "orders",
+meta: Record<string, any> = {}
+) {
+volumeCounters[type]++;
+
+const count = volumeCounters[type];
+
+// Log every 10 events (configurable if needed)
+if (count % 10 === 0) {
+logger.info({
+event: "EVENT_VOLUME_MILESTONE",
+entity: type,
+count,
+approximate: true, // important: not persisted
+...meta
+}, `Volume milestone reached for ${type}: ${count}`);
+}
+}
+
+---
+
+# PART 2 — SUPPLIER ONBOARDING
+
+File:
+suppliers.ts
+
+---
+
+## AFTER existing SUPPLIER_ONBOARDED log, add:
+
+import { incrementAndMaybeLog } from "../lib/volumeCounters";
+
+incrementAndMaybeLog(logger, "suppliers", { supplierId });
+
+---
+
+# PART 3 — PRODUCT CREATION
+
+File:
+admin.ts → create-product handler
+
+---
+
+## AFTER PRODUCT_CREATED log, add:
+
+incrementAndMaybeLog(logger, "products", { supplierId, productId });
+
+---
+
+# PART 4 — ORDER CREATION
+
+File:
+orders.ts
+
+---
+
+## AFTER ORDER_CREATED log, add:
+
+incrementAndMaybeLog(logger, "orders", { orderId, supplierId });
+
+---
+
+# PART 5 — TYPECHECK
+
+pnpm --filter @workspace/api-server exec tsc --noEmit
+
+Must pass.
+
+---
+
+# PART 6 — VALIDATION
+
+Trigger:
+
+* Create 10 suppliers → expect EVENT_VOLUME_MILESTONE (suppliers, count=10)
+* Create 10 products → expect EVENT_VOLUME_MILESTONE (products, count=10)
+* Create 10 orders → expect EVENT_VOLUME_MILESTONE (orders, count=10)
+
+---
+
+# OUTPUT
+
+1. Counter module added: YES/NO
+2. Supplier milestones logging: YES/NO
+3. Product milestones logging: YES/NO
+4. Order milestones logging: YES/NO
+5. Typecheck: PASS/FAIL
+
+---
+
+# CRITICAL RULES
+
+* Do NOT persist counters
+* Do NOT rely on counters for logic
+* Do NOT block execution
+* Logs only, best-effort
+
+---
+
+END
