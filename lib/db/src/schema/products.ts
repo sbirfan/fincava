@@ -40,6 +40,7 @@ export const productsTable = pgTable("products", {
   climateResilient: boolean("climate_resilient").notNull().default(false),
   organic: boolean("organic").notNull().default(false),
   familiesSupported: integer("families_supported"),
+  supplierId: integer("supplier_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 },
 (t) => [index("products_company_id_idx").on(t.companyId)],

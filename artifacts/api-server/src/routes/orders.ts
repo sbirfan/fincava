@@ -74,7 +74,10 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
     if (!product) throw new Error(`Product ${item.productId} not found`);
     const itemTotal = item.quantityKg * product.pricePerKgUSD;
     totalUSD += itemTotal;
-    return { productId: item.productId, quantityKg: item.quantityKg, pricePerKg: product.pricePerKgUSD, totalUSD: itemTotal };
+    if (product.supplierId == null) {
+      logger.warn({ productId: item.productId }, "Missing supplier_id for product during order creation");
+    }
+    return { productId: item.productId, quantityKg: item.quantityKg, pricePerKg: product.pricePerKgUSD, totalUSD: itemTotal, supplierId: product.supplierId ?? null };
   }));
 
   // Compute platform fee before inserting so it lands in the first write.
@@ -122,6 +125,7 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
       quantityKg: item.quantityKg,
       pricePerKg: item.pricePerKg,
       totalUSD: item.totalUSD,
+      supplierId: item.supplierId,
     })
   ));
 

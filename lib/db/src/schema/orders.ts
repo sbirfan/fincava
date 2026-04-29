@@ -35,6 +35,7 @@ export const orderItemsTable = pgTable("order_items", {
   quantityKg: real("quantity_kg").notNull(),
   pricePerKg: real("price_per_kg").notNull(),
   totalUSD: real("total_usd").notNull(),
+  supplierId: integer("supplier_id"),
 });
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
