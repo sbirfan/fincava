@@ -776,31 +776,30 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
     return;
   }
 
-  // Derive companyId: reuse from an existing linked product, else fall back to
-  // the platform (FINCAVA) company so we never hardcode a row id.
-  let companyId: number | undefined;
+  // Derive companyId: strict fail-fast lookup against the FINCAVA platform
+  // company. Zero matches or ambiguous matches both abort with HTTP 500.
+  const fincavaRows = await db
+    .select({ id: companiesTable.id })
+    .from(companiesTable)
+    .where(eq(companiesTable.name, "FINCAVA"));
 
-  const [linked] = await db
-    .select({ companyId: productsTable.companyId })
-    .from(productsTable)
-    .where(eq(productsTable.supplierId, supplierId))
-    .limit(1);
+  const matchCount = fincavaRows.length;
 
-  if (linked) {
-    companyId = linked.companyId;
-  } else {
-    const [platform] = await db
-      .select({ id: companiesTable.id })
-      .from(companiesTable)
-      .where(eq(companiesTable.name, "FINCAVA"))
-      .limit(1);
-    companyId = platform?.id;
-  }
-
-  if (!companyId) {
-    res.status(500).json({ error: "No company available to associate with this product" });
+  if (matchCount === 0) {
+    logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
+      "Company resolution failed");
+    res.status(500).json({ error: "FINCAVA company not found — cannot create product" });
     return;
   }
+
+  if (matchCount > 1) {
+    logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
+      "Company resolution failed");
+    res.status(500).json({ error: "Ambiguous company match — aborting product creation" });
+    return;
+  }
+
+  const companyId = fincavaRows[0].id;
 
   const origin = supplier.municipio?.trim() || "Colombia";
 
