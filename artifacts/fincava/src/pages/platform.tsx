@@ -51,7 +51,7 @@ const LAYERS = [
     color: "bg-sky-50 border-sky-200 text-sky-700",
     dot: "bg-sky-500",
     icon: Package,
-    title: "Distribution",
+    title: "Distribution (Launching Soon)",
     subtitle: "End-to-end logistics and compliance from farm gate to destination port.",
     features: [
       "Cross-border freight booking (sea, air, multimodal)",

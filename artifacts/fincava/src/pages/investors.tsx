@@ -48,7 +48,7 @@ const REVENUE_STREAMS = [
     color: "bg-amber-50 border-amber-200 text-amber-700",
     dot: "bg-amber-500",
     icon: DollarSign,
-    title: "Embedded Finance Spread",
+    title: "Embedded Finance Spread (Launching Soon)",
     subtitle: "Yield on trade loans and purchase-order financing.",
     details: [
       "PO financing at 3–6% net margin",
