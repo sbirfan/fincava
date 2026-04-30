@@ -1048,6 +1048,40 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
   res.status(201).json(supplier);
 });
 
+// ── Shared helper: setIngestionStatus ────────────────────────────────────────
+// Single source of truth for the ingestionStatus DB write used by both the T1
+// PATCH route and batch-confirm. Logs INGESTION_BATCH_SUBMITTED on every call.
+// Returns the updated row, or null if the supplier was not found.
+
+type IngestionStatus = "DRAFT" | "ENRICHED" | "READY" | "REJECTED";
+
+async function setIngestionStatus(
+  supplierId: number,
+  newStatus: IngestionStatus,
+  adminId: number,
+): Promise<{ id: number; ingestionStatus: IngestionStatus | null } | null> {
+  const [updated] = await db
+    .update(suppliersTable)
+    .set({ ingestionStatus: newStatus, updatedAt: new Date() })
+    .where(eq(suppliersTable.id, supplierId))
+    .returning({ id: suppliersTable.id, ingestionStatus: suppliersTable.ingestionStatus });
+
+  if (!updated) {
+    return null;
+  }
+
+  logInteraction({
+    eventType: INTERACTION_TYPES.INGESTION_BATCH_SUBMITTED,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: supplierId,
+    referenceType: "supplier",
+    payload: { newStatus },
+  });
+
+  return updated;
+}
+
 // PATCH /api/admin/ingestion/suppliers/:id/ingestion-status — update ingestion status
 router.patch("/admin/ingestion/suppliers/:id/ingestion-status", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
   const supplierId = Number(req.params.id);
@@ -1062,25 +1096,11 @@ router.patch("/admin/ingestion/suppliers/:id/ingestion-status", ...adminOnly, as
   }
   const adminId = (req as any).userId as number;
 
-  const [updated] = await db
-    .update(suppliersTable)
-    .set({ ingestionStatus: body.data.ingestionStatus, updatedAt: new Date() })
-    .where(eq(suppliersTable.id, supplierId))
-    .returning({ id: suppliersTable.id, ingestionStatus: suppliersTable.ingestionStatus });
-
+  const updated = await setIngestionStatus(supplierId, body.data.ingestionStatus, adminId);
   if (!updated) {
     res.status(404).json({ error: "Supplier not found" });
     return;
   }
-
-  logInteraction({
-    eventType: INTERACTION_TYPES.INGESTION_BATCH_SUBMITTED,
-    actorId: adminId,
-    actorType: "admin",
-    referenceId: supplierId,
-    referenceType: "supplier",
-    payload: { newStatus: body.data.ingestionStatus },
-  });
 
   res.json(updated);
 });
@@ -1170,25 +1190,14 @@ async function confirmSingleIngestion(supplierId: number, adminId: number): Prom
     throw new Error(`Supplier ${supplierId} is REJECTED and cannot be batch-confirmed`);
   }
 
-  // DRAFT and ENRICHED are both promotable → READY (matches T1 ingestion-status route logic)
-  const [updated] = await db
-    .update(suppliersTable)
-    .set({ ingestionStatus: "READY", updatedAt: new Date() })
-    .where(eq(suppliersTable.id, supplierId))
-    .returning({ id: suppliersTable.id });
-
+  // DRAFT and ENRICHED are both promotable → READY.
+  // Delegate to setIngestionStatus — the canonical T1 status-update path (shared with
+  // PATCH /admin/ingestion/suppliers/:id/ingestion-status). This keeps all DB writes
+  // and INGESTION_BATCH_SUBMITTED logging in one place.
+  const updated = await setIngestionStatus(supplierId, "READY", adminId);
   if (!updated) {
     throw new Error(`Failed to confirm supplier ${supplierId}`);
   }
-
-  logInteraction({
-    eventType: INTERACTION_TYPES.INGESTION_SUBMITTED,
-    actorId: adminId,
-    actorType: "admin",
-    referenceId: updated.id,
-    referenceType: "supplier",
-    payload: { source: "BATCH_CONFIRM", supplierId: updated.id },
-  });
 
   return updated.id;
 }
@@ -1232,7 +1241,9 @@ router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request,
     },
   });
 
-  res.status(failed.length === leadIds.length ? 422 : 201).json({
+  // Always 201 — 4xx is reserved for invalid request shape (handled above).
+  // Callers inspect { success, failed } to determine per-item outcomes.
+  res.status(201).json({
     success: successIds,
     failed,
   });
