@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, real, pgEnum, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, real, pgEnum, integer, decimal, boolean, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -20,6 +20,25 @@ export const rfqsTable = pgTable("rfqs", {
   deadline: timestamp("deadline", { withTimezone: true }).notNull(),
   status: rfqStatusEnum("status").notNull().default("OPEN"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+  // ── Buyer-layer rich matching columns (BG3) ─────────────────────────────────
+  // All nullable / defaulted — existing RFQ create/list endpoints unchanged.
+  originRequirements: text("origin_requirements"),
+  processingMethod: varchar("processing_method", { length: 50 }),
+  qualityGrade: varchar("quality_grade", { length: 100 }),
+  requiredCertifications: text("required_certifications").array().notNull().default([]),
+  preferredCertifications: text("preferred_certifications").array().notNull().default([]),
+  requiredDocuments: text("required_documents").array().notNull().default([]),
+  importRegs: text("import_regs"),
+  annualVolumeMt: decimal("annual_volume_mt", { precision: 10, scale: 2 }),
+  moqMt: decimal("moq_mt", { precision: 10, scale: 2 }),
+  orderFrequency: varchar("order_frequency", { length: 30 }),
+  priceRangeMinUsdKg: decimal("price_range_min_usd_kg", { precision: 8, scale: 2 }),
+  priceRangeMaxUsdKg: decimal("price_range_max_usd_kg", { precision: 8, scale: 2 }),
+  incoterms: varchar("incoterms", { length: 10 }),
+  leadTimeWeeks: integer("lead_time_weeks"),
+  coldChainRequired: boolean("cold_chain_required").notNull().default(false),
+  packagingRequirements: text("packaging_requirements").array().notNull().default([]),
 });
 
 export const rfqResponsesTable = pgTable("rfq_responses", {

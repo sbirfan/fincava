@@ -1,5 +1,9 @@
 // buyers.ts
-// POST /api/buyers/onboard  — create or update a buyer profile (upsert).
+// POST /api/buyers/register — Phase 1 registration (PUBLIC — full transaction:
+//                              create user, send verification email, create
+//                              company, create buyer_profile with Phase 1 data).
+// POST /api/buyers/onboard  — create or update a buyer profile (legacy upsert,
+//                              requires existing authenticated user).
 // GET  /api/buyers/profile  — fetch the authenticated buyer's profile.
 //
 // Duplicate-prevention: UNIQUE(user_id) enforced at DB + upsert ON CONFLICT.
@@ -7,15 +11,250 @@
 // is logged and never propagated to the caller).
 
 import { Router, type IRouter } from "express";
+import { randomBytes } from "crypto";
 import { z } from "zod";
-import { db, buyerProfilesTable, usersTable, profilesTable } from "@workspace/db";
+import {
+  db,
+  buyerProfilesTable,
+  usersTable,
+  profilesTable,
+  companiesTable,
+  emailVerificationTokensTable,
+} from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { hashPassword, generateToken, requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
-import { sendEmail, buyerOnboardAdminAlertEmail } from "../lib/email";
+import {
+  sendEmail,
+  buyerOnboardAdminAlertEmail,
+  verificationEmail,
+} from "../lib/email";
 import { logInteraction } from "../lib/interaction-logger";
 
 const router: IRouter = Router();
+
+// ── Replit-aware cookie + base URL helpers (mirrored from auth.ts) ────────────
+const IS_REPLIT = !!process.env["REPLIT_DOMAINS"];
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: (IS_REPLIT ? "none" : "lax") as "none" | "lax",
+  secure: IS_REPLIT || process.env.NODE_ENV === "production",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: "/",
+};
+
+function getAppBaseUrl(): string {
+  return (
+    process.env["FRONTEND_URL"] ??
+    (process.env["REPLIT_DOMAINS"]
+      ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}`
+      : "http://localhost:25876")
+  );
+}
+
+// ── Phase 1 registration schema (BG11) ────────────────────────────────────────
+const Phase1RegistrationBody = z.object({
+  // Account
+  email: z.string().email().max(200),
+  password: z.string().min(8).max(200),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100).optional(),
+  // Company
+  companyName: z.string().min(2).max(200),
+  companyType: z.enum([
+    "IMPORTER",
+    "DISTRIBUTOR",
+    "ROASTER",
+    "MANUFACTURER",
+    "COOPERATIVE",
+    "EXPORTER",
+    "SMALLHOLDER",
+  ]),
+  country: z.string().min(2).max(100),
+  // Phase 1 trade intent
+  productCategories: z
+    .array(
+      z.enum([
+        "COFFEE",
+        "CACAO",
+        "AVOCADO",
+        "EXOTIC_FRUIT",
+        "SUPERFOOD",
+        "PROCESSED",
+        "TEXTILE",
+        "OTHER",
+      ]),
+    )
+    .min(1)
+    .max(8),
+  volumeBand: z.enum(["<10MT", "10-50MT", "50-200MT", "200+MT"]),
+  requiredCerts: z.array(z.string().min(1).max(80)).max(20).default([]),
+  timeToFirstOrder: z.enum(["WITHIN_30D", "1_3M", "3_6M", "EXPLORATORY"]),
+  // Optional
+  marketingOptIn: z.boolean().default(false),
+});
+
+// ── POST /api/buyers/register (PUBLIC, transactional) ─────────────────────────
+router.post("/buyers/register", async (req, res): Promise<void> => {
+  const parsed = Phase1RegistrationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const data = parsed.data;
+  const email = data.email.toLowerCase().trim();
+
+  // Conflict: email already registered
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email));
+  if (existing) {
+    res.status(409).json({ error: "Email already registered" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(data.password);
+
+  // ── Transaction: user + profile + company + buyer_profile ───────────────────
+  const result = await db.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(usersTable)
+      .values({ email, passwordHash, role: "BUYER" })
+      .returning();
+
+    const [userProfile] = await tx
+      .insert(profilesTable)
+      .values({
+        userId: user.id,
+        firstName: data.firstName,
+        lastName: data.lastName ?? null,
+        country: data.country,
+        language: "en",
+      })
+      .returning();
+
+    const [company] = await tx
+      .insert(companiesTable)
+      .values({
+        userId: user.id,
+        name: data.companyName,
+        type: data.companyType as any,
+        country: data.country,
+        description: "",
+        verified: false,
+      })
+      .returning();
+
+    const [buyerProfile] = await tx
+      .insert(buyerProfilesTable)
+      .values({
+        userId: user.id,
+        companyName: data.companyName,
+        country: data.country,
+        // Phase 1 enrichment
+        state: "REGISTERED",
+        volumeBand: data.volumeBand,
+        requiredCertsP1: data.requiredCerts,
+        timeToFirstOrder: data.timeToFirstOrder,
+        targetProducts: data.productCategories,
+        marketingOptIn: data.marketingOptIn,
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    return { user, userProfile, company, buyerProfile };
+  });
+
+  // ── Issue session cookie so user lands authenticated ────────────────────────
+  const sessionToken = generateToken(result.user.id);
+  res.cookie("fincava_auth", sessionToken, COOKIE_OPTIONS);
+
+  res.status(201).json({
+    success: true,
+    data: {
+      userId: result.user.id,
+      companyId: result.company.id,
+      buyerProfileId: result.buyerProfile.id,
+      state: result.buyerProfile.state,
+    },
+  });
+
+  // ── Fire-and-forget: verification email ─────────────────────────────────────
+  Promise.resolve().then(async () => {
+    try {
+      const verifyToken = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db
+        .insert(emailVerificationTokensTable)
+        .values({ userId: result.user.id, token: verifyToken, expiresAt });
+
+      const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${verifyToken}`;
+      const { html, text, subject } = verificationEmail({
+        firstName: data.firstName,
+        verifyUrl,
+      });
+      const sendResult = await sendEmail({ to: email, subject, html, text });
+      if (!sendResult.ok) {
+        req.log.error(
+          { userId: result.user.id, reason: sendResult.reason },
+          "buyer register verification email failed",
+        );
+      }
+    } catch (err) {
+      req.log.error({ err, userId: result.user.id }, "buyer verification email error");
+    }
+  });
+
+  // ── Fire-and-forget: admin alert ────────────────────────────────────────────
+  Promise.resolve().then(async () => {
+    try {
+      const buyerName = `${data.firstName}${data.lastName ? " " + data.lastName : ""}`.trim();
+      const emailContent = buyerOnboardAdminAlertEmail({
+        buyerName,
+        email,
+        companyName: data.companyName,
+        country: data.country,
+        targetProducts: data.productCategories,
+        preferredIncoterm: null,
+        intendedVolumeMt: null,
+        importFrequency: data.timeToFirstOrder,
+        userId: result.user.id,
+        adminUrl: `${getAppBaseUrl()}/admin/buyers`,
+      });
+      await sendEmail({
+        to: "sbirfan@gmail.com",
+        subject: `New buyer registered (Phase 1): ${buyerName}`,
+        html: emailContent.html,
+        text: emailContent.text,
+      });
+    } catch (err) {
+      req.log.error({ err, userId: result.user.id }, "buyer register admin alert failed");
+    }
+  });
+
+  // ── Interaction signal ──────────────────────────────────────────────────────
+  logInteraction({
+    eventType: "buyer_register_phase1",
+    actorId: result.user.id,
+    actorType: "buyer",
+    referenceId: result.buyerProfile.id,
+    referenceType: "buyer_profile",
+    payload: {
+      companyType: data.companyType,
+      country: data.country,
+      volumeBand: data.volumeBand,
+      productCategories: data.productCategories,
+      timeToFirstOrder: data.timeToFirstOrder,
+    },
+  });
+
+  logger.info(
+    { userId: result.user.id, buyerProfileId: result.buyerProfile.id },
+    "buyer registered (Phase 1)",
+  );
+});
 
 // ── Validation schema ─────────────────────────────────────────────────────────
 const BuyerOnboardBody = z.object({

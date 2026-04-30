@@ -16,5 +16,7 @@ export * from "./staff-roles";
 export * from "./password-reset-tokens";
 export * from "./email-verification-tokens";
 export * from "./buyer-profiles";
+export * from "./buyer-matches";
+export * from "./buyer-gap-briefs";
 export * from "./interaction-logs";
 export * from "./officer-applications";
