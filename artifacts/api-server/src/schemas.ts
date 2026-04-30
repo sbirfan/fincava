@@ -136,18 +136,9 @@ export const DiscoveryRequestBody = z.object({
 });
 
 // ── Batch confirm (T4) ────────────────────────────────────────────────────────
-// Accepts an array of ephemeral discovery leads and directly creates suppliers.
-// Limit of 20 enforced by Zod only (no DB constraint).
-
-export const BatchConfirmLeadSchema = z.object({
-  name: z.string().min(1).max(200),
-  location: z.string().min(1).max(100),
-  website: z.string().url().nullable().optional(),
-  categoryHint: z.string().max(100),
-});
+// Accepts supplier IDs (already created as DRAFT via T1 form or quick-create)
+// and transitions each to ingestionStatus = READY. Limit of 20 (Zod only).
 
 export const BatchConfirmBody = z.object({
-  leads: z.array(BatchConfirmLeadSchema).min(1).max(20),
+  leadIds: z.array(z.number().int().positive()).min(1).max(20),
 });
-
-export type BatchConfirmLead = z.infer<typeof BatchConfirmLeadSchema>;

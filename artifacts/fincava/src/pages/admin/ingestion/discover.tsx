@@ -58,7 +58,7 @@ export default function AdminIngestionDiscover() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchResult, setBatchResult] = useState<{
     success: number[];
-    failed: { name: string; error: string }[];
+    failed: { leadId: number; name: string; error: string }[];
   } | null>(null);
 
   const canDiscover = category.trim().length > 0 && region.trim().length > 0 && !loading;
@@ -138,18 +138,69 @@ export default function AdminIngestionDiscover() {
     setBatchLoading(true);
     setBatchResult(null);
     try {
-      const res = await fetch("/api/admin/ingestion/batch-confirm", {
+      // Step 1: Quick-create each selected lead as a DRAFT supplier
+      const createdIds: number[] = [];
+      const createFailed: { name: string; error: string }[] = [];
+
+      for (const lead of selectedLeads) {
+        try {
+          const res = await fetch("/api/admin/ingestion/suppliers", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              nombreCompleto: lead.name,
+              municipio: lead.location,
+              sourceUrl: lead.website ?? null,
+              categoryHint: lead.categoryHint,
+              country: "Colombia",
+            }),
+          });
+          if (res.status === 409) {
+            // Duplicate — fetch the existing supplier ID if available
+            const dup = await res.json();
+            if (dup.duplicate?.matchedSupplierId) {
+              createdIds.push(dup.duplicate.matchedSupplierId);
+            } else {
+              createFailed.push({ name: lead.name, error: "Duplicate — already exists" });
+            }
+          } else if (!res.ok) {
+            const data = await res.json();
+            createFailed.push({ name: lead.name, error: data.error ?? "Create failed" });
+          } else {
+            const data = await res.json();
+            if (data.id) createdIds.push(data.id);
+          }
+        } catch {
+          createFailed.push({ name: lead.name, error: "Network error" });
+        }
+      }
+
+      if (createdIds.length === 0) {
+        setBatchResult({ success: [], failed: createFailed.map((f) => ({ leadId: -1, name: f.name, error: f.error })) });
+        return;
+      }
+
+      // Step 2: Batch-confirm the created supplier IDs (DRAFT → READY)
+      const batchRes = await fetch("/api/admin/ingestion/batch-confirm", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leads: selectedLeads }),
+        body: JSON.stringify({ leadIds: createdIds }),
       });
-      const data = await res.json();
-      if (!res.ok && res.status !== 201 && res.status !== 422) {
-        setError(data.error ?? "Batch confirm failed — please try again.");
-        return;
-      }
-      setBatchResult({ success: data.success ?? [], failed: data.failed ?? [] });
+      const batchData = await batchRes.json();
+
+      setBatchResult({
+        success: batchData.success ?? [],
+        failed: [
+          ...(batchData.failed ?? []).map((f: { leadId: number; error: string }) => ({
+            leadId: f.leadId,
+            name: `Supplier #${f.leadId}`,
+            error: f.error,
+          })),
+          ...createFailed.map((f) => ({ leadId: -1, name: f.name, error: f.error })),
+        ],
+      });
       setSelected(new Set());
     } catch {
       setError("Network error — please check your connection and try again.");
@@ -366,7 +417,9 @@ export default function AdminIngestionDiscover() {
               <ul className="ml-6 space-y-0.5">
                 {batchResult.failed.map((f, i) => (
                   <li key={i} className="text-xs text-red-300/80">
-                    <span className="font-medium">{f.name}</span> — {f.error}
+                    <span className="font-medium">{f.name}</span>
+                    {f.leadId > 0 && <span className="text-white/30"> (#{f.leadId})</span>}
+                    {" — "}{f.error}
                   </li>
                 ))}
               </ul>

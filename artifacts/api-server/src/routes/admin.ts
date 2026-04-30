@@ -1144,10 +1144,52 @@ router.post("/admin/ingestion/discover", ...adminOnly, async (req: Request, res:
   }
 });
 
-// ── POST /api/admin/ingestion/batch-confirm — directly create suppliers from discovery leads ──
-// Accepts an array of ephemeral discovery leads and creates supplier records without going
-// through the single-entry form. Idempotent: already-existing leads (fingerprint match) are
-// silently skipped. One failure does not abort others — always returns partial success.
+// ── Helper: confirmSingleIngestion ────────────────────────────────────────────
+// Extracted T1 confirm logic — transitions a DRAFT/ENRICHED supplier to READY.
+// Idempotent: if already READY or SUBMITTED, returns the supplierId without error.
+// Throws on not-found or unexpected DB errors — callers handle partial failures.
+
+async function confirmSingleIngestion(supplierId: number, adminId: number): Promise<number> {
+  const [existing] = await db
+    .select({ id: suppliersTable.id, ingestionStatus: suppliersTable.ingestionStatus })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId));
+
+  if (!existing) {
+    throw new Error(`Supplier ${supplierId} not found`);
+  }
+
+  // Idempotent: already confirmed — skip silently and return the ID
+  if (existing.ingestionStatus === "READY" || existing.ingestionStatus === "ENRICHED") {
+    return existing.id;
+  }
+
+  const [updated] = await db
+    .update(suppliersTable)
+    .set({ ingestionStatus: "READY", updatedAt: new Date() })
+    .where(eq(suppliersTable.id, supplierId))
+    .returning({ id: suppliersTable.id });
+
+  if (!updated) {
+    throw new Error(`Failed to confirm supplier ${supplierId}`);
+  }
+
+  logInteraction({
+    eventType: "INGESTION_SUBMITTED",
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: updated.id,
+    referenceType: "supplier",
+    payload: { source: "BATCH_CONFIRM", supplierId: updated.id },
+  });
+
+  return updated.id;
+}
+
+// ── POST /api/admin/ingestion/batch-confirm ────────────────────────────────────
+// Accepts supplier IDs (DRAFT suppliers created via T1 form or quick-create) and
+// transitions each to ingestionStatus = READY via the extracted T1 confirm logic.
+// One failing lead does not abort others — always returns partial success.
 router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
   const parsed = BatchConfirmBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1156,72 +1198,19 @@ router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request,
   }
 
   const adminId = (req as any).userId as number;
-  const { leads } = parsed.data;
+  const { leadIds } = parsed.data;
 
   const successIds: number[] = [];
-  const failed: { name: string; error: string }[] = [];
+  const failed: { leadId: number; error: string }[] = [];
 
-  for (const lead of leads) {
+  for (const leadId of leadIds) {
     try {
-      const country = "Colombia";
-      const dupResult = await checkDuplicate(lead.name, country);
-
-      if (dupResult.hasDuplicate && dupResult.matchedSupplierId !== null) {
-        // Silently skip — already exists; treat as success (idempotent)
-        successIds.push(dupResult.matchedSupplierId);
-        continue;
-      }
-
-      const fingerprint = computeSupplierFingerprint(lead.name, country);
-
-      const [supplier] = await db
-        .insert(suppliersTable)
-        .values({
-          nombreCompleto: lead.name,
-          municipio: lead.location,
-          department: null,
-          vereda: null,
-          whatsappNumber: null,
-          email: null,
-          supplierType: "FARMER",
-          status: "ACTIVE",
-          consentGiven: false,
-          normalizedName: null,
-          description: null,
-          sourceUrl: lead.website ?? null,
-          country,
-          supplierFingerprint: fingerprint,
-          ingestionSource: "ADMIN_ENTRY",
-          ingestionStatus: "DRAFT",
-          claimStatus: "UNCLAIMED",
-          createdByAdminId: adminId,
-          batchId: null,
-        })
-        .returning();
-
-      if (lead.categoryHint) {
-        await db.insert(productPlaceholdersTable).values({
-          supplierId: supplier.id,
-          categoryHint: lead.categoryHint,
-          dataOrigin: "inferred",
-          verificationStatus: "unverified",
-        });
-      }
-
-      logInteraction({
-        eventType: "INGESTION_SUBMITTED",
-        actorId: adminId,
-        actorType: "admin",
-        referenceId: supplier.id,
-        referenceType: "supplier",
-        payload: { source: "BATCH_CONFIRM", fingerprint, name: lead.name },
-      });
-
-      successIds.push(supplier.id);
+      const confirmedId = await confirmSingleIngestion(leadId, adminId);
+      successIds.push(confirmedId);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      req.log.warn({ err, name: lead.name }, "admin/ingestion/batch-confirm: lead creation failed");
-      failed.push({ name: lead.name, error: message });
+      req.log.warn({ err, leadId }, "admin/ingestion/batch-confirm: lead confirmation failed");
+      failed.push({ leadId, error: message });
     }
   }
 
@@ -1229,10 +1218,14 @@ router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request,
     eventType: "BATCH_CONFIRM_EXECUTED",
     actorId: adminId,
     actorType: "admin",
-    payload: { total: leads.length, successCount: successIds.length, failureCount: failed.length },
+    payload: {
+      total: leadIds.length,
+      successCount: successIds.length,
+      failureCount: failed.length,
+    },
   });
 
-  res.status(failed.length === leads.length ? 422 : 201).json({
+  res.status(failed.length === leadIds.length ? 422 : 201).json({
     success: successIds,
     failed,
   });
