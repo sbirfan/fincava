@@ -419,13 +419,13 @@ router.post(
         .limit(1);
 
       const requestedLang = (req.body as any)?.language === "es" ? "Spanish" : "English";
-      const languageInstruction = `\n\nIMPORTANT: Write the ENTIRE document in ${requestedLang}. Do not use any other language.`;
+      const languagePrefix = `LANGUAGE: You must write every word of this document in ${requestedLang} only. Do not use ${requestedLang === "English" ? "Spanish" : "English"} anywhere — not in greetings, headings, labels, or body text.\n\n`;
 
       const client = getAnthropicClient();
       const message = await client.messages.create({
         model: DOCUMENT_MODEL,
         max_tokens: 1500,
-        system: DOCUMENT_PROMPT + languageInstruction,
+        system: languagePrefix + DOCUMENT_PROMPT,
         messages: [
           {
             role: "user",
