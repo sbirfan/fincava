@@ -4,7 +4,7 @@ import {
   db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable, usersTable
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
-import { sendEmail, rfqResponseEmail } from "../lib/email";
+import { sendEmail, rfqResponseEmail, rfqAwardEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -163,6 +163,41 @@ router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promis
   await db.update(rfqsTable).set({ status: "AWARDED" }).where(eq(rfqsTable.id, rfqId));
 
   res.json({ success: true });
+
+  // Fire-and-forget: notify winning supplier
+  try {
+    const [[response], [rfq]] = await Promise.all([
+      db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.id, responseId)),
+      db.select().from(rfqsTable).where(eq(rfqsTable.id, rfqId)),
+    ]);
+    if (!response || !rfq) return;
+
+    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, response.companyId));
+    if (!company) return;
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, company.userId));
+    if (!user?.email) return;
+
+    const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, company.userId));
+    const supplierName = profile
+      ? `${profile.firstName} ${profile.lastName}`
+      : company.name;
+
+    const appBaseUrl = process.env["FRONTEND_URL"]
+      ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+    const emailContent = rfqAwardEmail({
+      supplierName,
+      rfqTitle: rfq.title,
+      pricePerKgUSD: response.pricePerKgUSD,
+      leadTimeDays: response.leadTimeDays,
+      rfqUrl: `${appBaseUrl}/rfqs/${rfqId}`,
+    });
+
+    await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+  } catch (err) {
+    logger.warn({ err, rfqId, responseId }, "RFQ award supplier email failed");
+  }
 });
 
 router.get("/supplier/rfqs", requireAuth, async (req, res): Promise<void> => {

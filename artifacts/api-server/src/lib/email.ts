@@ -406,6 +406,62 @@ export function rfqResponseEmail(opts: {
   return { html, text, subject };
 }
 
+// ── RFQ award notification (supplier-facing) ─────────────────────────────────
+
+export function rfqAwardEmail(opts: {
+  supplierName: string;
+  rfqTitle: string;
+  pricePerKgUSD: number;
+  leadTimeDays: number;
+  rfqUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = `Your bid has been awarded — ${opts.rfqTitle}`;
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.supplierName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Your bid has been awarded ✓</h2>
+    <p>Congratulations! The buyer has selected your response for the following RFQ on Fincava.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">RFQ</td><td style="padding:6px 0;font-weight:600;">${esc(opts.rfqTitle)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Your quoted price</td><td style="padding:6px 0;">$${opts.pricePerKgUSD.toFixed(2)} / kg</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Lead time</td><td style="padding:6px 0;">${opts.leadTimeDays} days</td></tr>
+    </table>
+    <p>The buyer will be in touch to confirm the next steps. Log in to your Fincava account to view the full details.</p>
+    <p><a href="${opts.rfqUrl}" class="btn">View RFQ</a></p>
+    <p class="note">Questions? Contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.supplierName},\n\nCongratulations! Your bid for RFQ "${opts.rfqTitle}" has been awarded.\n\nYour quoted price: $${opts.pricePerKgUSD.toFixed(2)} / kg\nLead time: ${opts.leadTimeDays} days\n\nThe buyer will be in touch to confirm next steps.\n\nView the RFQ: ${opts.rfqUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+// ── Loan repaid notification (buyer-facing) ───────────────────────────────────
+
+export function loanRepaidBuyerEmail(opts: {
+  buyerName: string;
+  orderRef: string | null;
+  principalUSD: number;
+  newCreditScore: number;
+  newCreditLimit: number;
+  loansUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = "Your Fincava financing is fully repaid";
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.buyerName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Financing fully repaid ✓</h2>
+    <p>Great news — your financing has been <strong>fully repaid</strong>. Your credit history on Fincava has been updated to reflect this.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      ${opts.orderRef ? `<tr><td style="padding:6px 0;color:#78716c;width:160px;">Order</td><td style="padding:6px 0;font-weight:600;">${esc(opts.orderRef)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">Amount financed</td><td style="padding:6px 0;">$${opts.principalUSD.toFixed(2)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">New credit score</td><td style="padding:6px 0;font-weight:600;">${opts.newCreditScore}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">New credit limit</td><td style="padding:6px 0;font-weight:600;">$${opts.newCreditLimit.toLocaleString()}</td></tr>
+    </table>
+    <p>Your updated credit limit is now available for your next order on Fincava.</p>
+    <p><a href="${opts.loansUrl}" class="btn">View my financing history</a></p>
+    <p class="note">Questions? Contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.buyerName},\n\nYour Fincava financing has been fully repaid.${opts.orderRef ? `\n\nOrder: ${opts.orderRef}` : ""}\nAmount financed: $${opts.principalUSD.toFixed(2)}\nNew credit score: ${opts.newCreditScore}\nNew credit limit: $${opts.newCreditLimit.toLocaleString()}\n\nView your financing history: ${opts.loansUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 // ── Buyer onboarding admin alert ─────────────────────────────────────────────
 
 export function buyerOnboardAdminAlertEmail(opts: {

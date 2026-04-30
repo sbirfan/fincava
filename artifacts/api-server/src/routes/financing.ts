@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, loansTable, repaymentsTable, ordersTable, usersTable } from "@workspace/db";
+import { db, loansTable, repaymentsTable, ordersTable, usersTable, profilesTable } from "@workspace/db";
 import { requireAuth, requireVerifiedEmail } from "../lib/auth";
+import { sendEmail, loanRepaidBuyerEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -166,7 +168,9 @@ router.post("/finance/repay", requireAuth, async (req, res): Promise<void> => {
   const allRepayments = await db.select().from(repaymentsTable).where(eq(repaymentsTable.loanId, loanId));
   const totalPaid = allRepayments.reduce((sum, r) => sum + r.amountUSD, 0);
 
-  if (totalPaid >= loan.totalRepaymentUSD) {
+  const fullyRepaid = totalPaid >= loan.totalRepaymentUSD;
+
+  if (fullyRepaid) {
     await db.update(loansTable)
       .set({ status: "REPAID", updatedAt: new Date() })
       .where(eq(loansTable.id, loanId));
@@ -178,10 +182,43 @@ router.post("/finance/repay", requireAuth, async (req, res): Promise<void> => {
     success: true,
     totalPaid,
     remaining: Math.max(0, loan.totalRepaymentUSD - totalPaid),
-    loanStatus: totalPaid >= loan.totalRepaymentUSD ? "REPAID" : "ACTIVE",
+    loanStatus: fullyRepaid ? "REPAID" : "ACTIVE",
     newCreditScore: score,
     newCreditLimit: limit,
   });
+
+  // Fire-and-forget: notify buyer when loan is fully repaid
+  if (fullyRepaid) {
+    try {
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+      if (!user?.email) return;
+
+      const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
+      const buyerName = profile ? `${profile.firstName} ${profile.lastName}` : user.email;
+
+      let orderRef: string | null = null;
+      if (loan.orderId != null) {
+        const [order] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.id, loan.orderId));
+        if (order) orderRef = `ORD-${String(order.id).padStart(4, "0")}`;
+      }
+
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const emailContent = loanRepaidBuyerEmail({
+        buyerName,
+        orderRef,
+        principalUSD: loan.principalUSD,
+        newCreditScore: score,
+        newCreditLimit: limit,
+        loansUrl: `${appBaseUrl}/dashboard`,
+      });
+
+      await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    } catch (err) {
+      logger.warn({ err, loanId, userId }, "Loan repaid buyer email failed");
+    }
+  }
 });
 
 export default router;
