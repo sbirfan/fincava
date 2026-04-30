@@ -8,7 +8,7 @@ import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TY
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
-import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody } from "../schemas";
+import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody, BatchConfirmBody } from "../schemas";
 import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
 import { checkDuplicate, computeSupplierFingerprint } from "../services/duplicate-detector";
 import { discoverLeads } from "../services/discovery-engine";
@@ -1125,16 +1125,117 @@ router.post("/admin/ingestion/discover", ...adminOnly, async (req: Request, res:
     return;
   }
 
+  const adminId = (req as any).userId as number;
   const { category, region, maxResults } = parsed.data;
 
   try {
     const leads = await discoverLeads({ category, region, maxResults });
+    logInteraction({
+      eventType: "SUPPLIER_DISCOVERED",
+      actorId: adminId,
+      actorType: "admin",
+      payload: { category, region, maxResults, count: leads.length },
+    });
     res.json({ leads, count: leads.length });
   } catch (err) {
     req.log.warn({ err, category, region }, "admin/ingestion/discover: discovery failed");
     const message = err instanceof Error ? err.message : "Discovery failed — please try again.";
     res.status(502).json({ error: message });
   }
+});
+
+// ── POST /api/admin/ingestion/batch-confirm — directly create suppliers from discovery leads ──
+// Accepts an array of ephemeral discovery leads and creates supplier records without going
+// through the single-entry form. Idempotent: already-existing leads (fingerprint match) are
+// silently skipped. One failure does not abort others — always returns partial success.
+router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const parsed = BatchConfirmBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(422).json({ error: "Invalid batch-confirm request", issues: parsed.error.issues });
+    return;
+  }
+
+  const adminId = (req as any).userId as number;
+  const { leads } = parsed.data;
+
+  const successIds: number[] = [];
+  const failed: { name: string; error: string }[] = [];
+
+  for (const lead of leads) {
+    try {
+      const country = "Colombia";
+      const dupResult = await checkDuplicate(lead.name, country);
+
+      if (dupResult.hasDuplicate && dupResult.matchedSupplierId !== null) {
+        // Silently skip — already exists; treat as success (idempotent)
+        successIds.push(dupResult.matchedSupplierId);
+        continue;
+      }
+
+      const fingerprint = computeSupplierFingerprint(lead.name, country);
+
+      const [supplier] = await db
+        .insert(suppliersTable)
+        .values({
+          nombreCompleto: lead.name,
+          municipio: lead.location,
+          department: null,
+          vereda: null,
+          whatsappNumber: null,
+          email: null,
+          supplierType: "FARMER",
+          status: "ACTIVE",
+          consentGiven: false,
+          normalizedName: null,
+          description: null,
+          sourceUrl: lead.website ?? null,
+          country,
+          supplierFingerprint: fingerprint,
+          ingestionSource: "ADMIN_ENTRY",
+          ingestionStatus: "DRAFT",
+          claimStatus: "UNCLAIMED",
+          createdByAdminId: adminId,
+          batchId: null,
+        })
+        .returning();
+
+      if (lead.categoryHint) {
+        await db.insert(productPlaceholdersTable).values({
+          supplierId: supplier.id,
+          categoryHint: lead.categoryHint,
+          dataOrigin: "inferred",
+          verificationStatus: "unverified",
+        });
+      }
+
+      logInteraction({
+        eventType: "INGESTION_SUBMITTED",
+        actorId: adminId,
+        actorType: "admin",
+        referenceId: supplier.id,
+        referenceType: "supplier",
+        payload: { source: "BATCH_CONFIRM", fingerprint, name: lead.name },
+      });
+
+      successIds.push(supplier.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      req.log.warn({ err, name: lead.name }, "admin/ingestion/batch-confirm: lead creation failed");
+      failed.push({ name: lead.name, error: message });
+    }
+  }
+
+  logInteraction({
+    eventType: "BATCH_CONFIRM_EXECUTED",
+    actorId: adminId,
+    actorType: "admin",
+    payload: { total: leads.length, successCount: successIds.length, failureCount: failed.length },
+  });
+
+  res.status(failed.length === leads.length ? 422 : 201).json({
+    success: successIds,
+    failed,
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

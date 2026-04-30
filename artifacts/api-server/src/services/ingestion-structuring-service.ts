@@ -5,6 +5,7 @@
 
 import { getAnthropicClient, ENRICHMENT_MODEL } from "../lib/anthropic";
 import { logger } from "../lib/logger";
+import { logInteraction } from "../lib/interaction-logger";
 import { z } from "zod";
 
 // ── AI output schema — extra fields discarded by .strip() (default) ───────────
@@ -82,6 +83,18 @@ export async function enrichSupplierWithAI(
       "AI enrichment returned incomplete data — save without enrichment or try again.",
     );
   }
+
+  logInteraction({
+    eventType: "SUPPLIER_STRUCTURED",
+    payload: {
+      nombreCompleto: input.nombreCompleto,
+      categoryHint: input.categoryHint ?? null,
+      dataCompletenessScore: result.data.dataCompletenessScore ?? null,
+      fieldsEnriched: Object.keys(result.data).filter(
+        (k) => result.data[k as keyof typeof result.data] !== null,
+      ),
+    },
+  });
 
   return result.data;
 }

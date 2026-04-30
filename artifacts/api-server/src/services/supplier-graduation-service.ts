@@ -13,6 +13,8 @@ import {
 import type { Supplier } from "@workspace/db";
 import { THRESHOLDS } from "../../../../lib/config/thresholds";
 import { eq, desc, and } from "drizzle-orm";
+import { logger } from "../lib/logger";
+import { logInteraction } from "../lib/interaction-logger";
 
 // ── Sentry breadcrumb shim ────────────────────────────────────────────────────
 // Optional integration — MUST NOT throw if @sentry/node is not installed.
@@ -27,7 +29,7 @@ void (import("@sentry/node") as Promise<any>)
 
 function addBreadcrumb(data: Record<string, unknown>): void {
   if (_sentry) _sentry.addBreadcrumb(data);
-  else console.debug("[breadcrumb]", data);
+  else logger.debug(data, "[breadcrumb]");
 }
 
 // ── Error types ───────────────────────────────────────────────────────────────
@@ -258,11 +260,33 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       .returning();
 
     // 14. Instrumentation.
-    console.log(
-      `[graduation] evaluate supplierId=${supplierId} ` +
-        `fromState=${fromState ?? "null"} toState=${sellableStatus} ` +
-        `score=${commercialScore} thresholdVersion=${THRESHOLDS.version}`,
+    logger.info(
+      {
+        event: "SUPPLIER_EVALUATED",
+        supplierId,
+        fromState: fromState ?? null,
+        toState: sellableStatus,
+        score: commercialScore,
+        thresholdVersion: THRESHOLDS.version,
+      },
+      "graduation: evaluate",
     );
+
+    // 15. Funnel event — fire when sellableStatus first reaches SELLABLE.
+    if (sellableStatus === "SELLABLE") {
+      logInteraction({
+        eventType: "SUPPLIER_SELLABLE",
+        referenceId: supplierId,
+        referenceType: "supplier",
+        payload: {
+          fromState: fromState ?? null,
+          commercialScore,
+          thresholdVersion: THRESHOLDS.version,
+          evaluationId: evaluation.id,
+        },
+      });
+    }
+
     if (transition) {
       addBreadcrumb({
         category: "graduation.transition",
@@ -345,10 +369,16 @@ export async function transitionTo(
       .where(eq(suppliersTable.id, supplierId));
 
     // Instrumentation.
-    console.log(
-      `[graduation] transition supplierId=${supplierId} ` +
-        `fromState=${fromState ?? "null"} toState=${toState} ` +
-        `actor=${actor} thresholdVersion=${THRESHOLDS.version}`,
+    logger.info(
+      {
+        event: "SUPPLIER_TRANSITIONED",
+        supplierId,
+        fromState: fromState ?? null,
+        toState,
+        actor,
+        thresholdVersion: THRESHOLDS.version,
+      },
+      "graduation: manual transition",
     );
     addBreadcrumb({
       category: "graduation.transition",

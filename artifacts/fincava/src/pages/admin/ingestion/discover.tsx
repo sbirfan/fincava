@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, DatabaseZap, Globe, MapPin, Leaf, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { Search, DatabaseZap, Globe, MapPin, Leaf, ArrowRight, Loader2, AlertCircle, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +55,11 @@ export default function AdminIngestionDiscover() {
   const [leads, setLeads] = useState<CandidateLead[]>([]);
   const [discovered, setDiscovered] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchResult, setBatchResult] = useState<{
+    success: number[];
+    failed: { name: string; error: string }[];
+  } | null>(null);
 
   const canDiscover = category.trim().length > 0 && region.trim().length > 0 && !loading;
 
@@ -64,6 +69,7 @@ export default function AdminIngestionDiscover() {
     setLeads([]);
     setSelected(new Set());
     setDiscovered(false);
+    setBatchResult(null);
 
     try {
       const res = await fetch("/api/admin/ingestion/discover", {
@@ -124,6 +130,32 @@ export default function AdminIngestionDiscover() {
       ...(first.website ? { sourceUrl: first.website } : {}),
     });
     setLocation(`/admin/ingestion/new?${params.toString()}`);
+  }
+
+  async function handleBatchConfirm() {
+    const selectedLeads = Array.from(selected).sort((a, b) => a - b).map((i) => leads[i]);
+    if (selectedLeads.length === 0) return;
+    setBatchLoading(true);
+    setBatchResult(null);
+    try {
+      const res = await fetch("/api/admin/ingestion/batch-confirm", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leads: selectedLeads }),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 201 && res.status !== 422) {
+        setError(data.error ?? "Batch confirm failed — please try again.");
+        return;
+      }
+      setBatchResult({ success: data.success ?? [], failed: data.failed ?? [] });
+      setSelected(new Set());
+    } catch {
+      setError("Network error — please check your connection and try again.");
+    } finally {
+      setBatchLoading(false);
+    }
   }
 
   return (
@@ -288,15 +320,60 @@ export default function AdminIngestionDiscover() {
           </div>
 
           {selected.size > 0 && (
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <Button
-                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                variant="outline"
+                className="gap-2 border-white/10 text-white/70 hover:text-white hover:bg-white/5 bg-transparent"
                 onClick={handleConfirm}
               >
-                Confirm Selected ({selected.size})
+                Confirm via Form ({selected.size})
                 <ArrowRight className="h-4 w-4" />
               </Button>
+              <Button
+                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={handleBatchConfirm}
+                disabled={batchLoading}
+              >
+                {batchLoading ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Confirming…</>
+                ) : (
+                  <><Zap className="h-4 w-4" /> Quick Confirm ({selected.size})</>
+                )}
+              </Button>
             </div>
+          )}
+        </div>
+      )}
+
+      {batchResult && (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
+          <p className="text-white/70 text-sm font-medium">Batch Confirm Result</p>
+          {batchResult.success.length > 0 && (
+            <div className="flex items-start gap-2 text-emerald-400 text-sm">
+              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                {batchResult.success.length} supplier{batchResult.success.length !== 1 ? "s" : ""} created
+                {" "}(IDs: {batchResult.success.join(", ")})
+              </span>
+            </div>
+          )}
+          {batchResult.failed.length > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-red-400 text-sm">
+                <XCircle className="h-4 w-4 shrink-0" />
+                <span>{batchResult.failed.length} lead{batchResult.failed.length !== 1 ? "s" : ""} failed:</span>
+              </div>
+              <ul className="ml-6 space-y-0.5">
+                {batchResult.failed.map((f, i) => (
+                  <li key={i} className="text-xs text-red-300/80">
+                    <span className="font-medium">{f.name}</span> — {f.error}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {batchResult.success.length > 0 && batchResult.failed.length === 0 && (
+            <p className="text-xs text-white/30">All leads confirmed successfully.</p>
           )}
         </div>
       )}
