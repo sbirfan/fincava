@@ -375,6 +375,15 @@ Ingested suppliers (status=READY) are **not automatically scored**. Scoring only
 
 ## 5. AI Scoring Contract
 
+### Scoring prompt version
+`SCORING_PROMPT_V1` is the active prompt (in `artifacts/api-server/src/config/scoring-prompts.ts`). It provides:
+- Field-by-field guidance for all 5 input blocks (supplier, farm, economics, compliance, ingestion)
+- Explicit scoring rubric: land rights, production volume, post-harvest quality, compliance, commitment (20pts each)
+- Pathway thresholds: A≥75, B 60–74, C 40–59, D<40
+- `primary_recommendation` returned in Spanish for the farmer
+
+`SCORING_PROMPT_V0` retained as reference. Update `SCORING_PROMPT` export to switch versions.
+
 ### Input to Claude (current — 5 keys)
 
 ```json
@@ -554,7 +563,8 @@ Exposed on: `GET /api/suppliers/:id/profile`, `GET /api/suppliers/marketplace`, 
 ### Farmer Profiles — Authenticated
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/suppliers/my-profile` | User | Matches logged-in email to suppliersTable; returns profileCompleteness |
+| `GET` | `/api/suppliers/my-profile` | User | Matches logged-in email to suppliersTable; returns profileCompleteness + claimStatus |
+| `PATCH` | `/api/suppliers/:id/claim` | User | Claim a farmer record by email match; sets claimStatus=CLAIMED |
 
 ### Farmer Management — Admin
 | Method | Path | Auth | Description |
@@ -630,10 +640,10 @@ Exposed on: `GET /api/suppliers/:id/profile`, `GET /api/suppliers/marketplace`, 
 - Officers currently need full ADMIN role (`requireAdmin` on `/officer/dashboard`)
 - Exposes user management, commercial data, and all admin actions to officers
 
-**G9: Claim flow not implemented**
-- `claimStatus` and `claimToken` columns exist but no endpoint generates a token or sets CLAIMED
-- `GET /api/suppliers/my-profile` email-match is the only bridge — no token-based UX
-- Public trust score awards 1 point for CLAIMED but this state is unreachable
+**G9: Claim flow — email-match claim implemented** (token-based claim still open)
+- `PATCH /api/suppliers/:id/claim` — auth required; verifies logged-in user email matches `suppliersTable.email`; sets `claimStatus = 'CLAIMED'`; 403 if mismatch
+- Supplier dashboard shows amber "Claim your profile" panel with button; confirms with green banner on success
+- `claimToken`-based claim (shareable link) not yet implemented — `claimToken` column exists but is never populated
 
 **G10: Officer applications have no promotion flow**
 - No admin UI to view, approve, or reject officer applications

@@ -68,11 +68,10 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     };
 
     if (process.env.NODE_ENV !== "production") {
-      console.log("typedInput preview", {
-        fullName: typedInput.fullName,
-        phone: typedInput.phone,
-        productType: typedInput.productType,
-      });
+      req.log.debug(
+        { fullName: typedInput.fullName, phone: typedInput.phone, productType: typedInput.productType },
+        "typedInput preview",
+      );
     }
 
     // Accept both English (new form) and Spanish (legacy) field names
@@ -999,6 +998,65 @@ router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void>
   };
 
   res.json({ found: true, supplierId, supplier, profileCompleteness });
+});
+
+// ── PATCH /api/suppliers/:id/claim ────────────────────────────────────────────
+// Allows a logged-in user to claim a farmer record when their account email
+// matches the supplier's email. Sets claimStatus → CLAIMED, which awards a
+// public trust score point and formally links the B2B account to the farmer record.
+router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void> => {
+  const supplierId = Number(req.params.id);
+  if (isNaN(supplierId)) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+
+  const userId = (req as any).userId as number;
+
+  const [user] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
+  if (!user?.email) {
+    res.status(403).json({ error: "Account has no email — cannot claim" });
+    return;
+  }
+
+  const [supplier] = await db
+    .select({
+      id:          suppliersTable.id,
+      email:       suppliersTable.email,
+      claimStatus: suppliersTable.claimStatus,
+    })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!supplier) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  if (supplier.claimStatus === "CLAIMED") {
+    res.json({ ok: true, claimStatus: "CLAIMED", message: "Already claimed" });
+    return;
+  }
+
+  if (!supplier.email || supplier.email.toLowerCase() !== user.email.toLowerCase()) {
+    res.status(403).json({ error: "Email does not match this supplier record" });
+    return;
+  }
+
+  await db
+    .update(suppliersTable)
+    .set({ claimStatus: "CLAIMED" })
+    .where(eq(suppliersTable.id, supplierId));
+
+  logger.info({ userId, supplierId }, "supplier claimed");
+
+  res.json({ ok: true, claimStatus: "CLAIMED" });
 });
 
 // ── GET /api/suppliers/:id ────────────────────────────────────────────────────

@@ -2,8 +2,9 @@ import { useGetSupplierStats } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, MessageSquare, ShoppingCart, DollarSign, CheckCircle2, Circle, ChevronRight, Leaf } from "lucide-react";
+import { Package, MessageSquare, ShoppingCart, DollarSign, CheckCircle2, Circle, ChevronRight, Leaf, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 
 // ── Profile completeness types ─────────────────────────────────────────────────
@@ -21,7 +22,11 @@ type MyProfileResponse =
   | {
       found: true;
       supplierId: number;
-      supplier: { nombreCompleto: string | null; municipio: string | null };
+      supplier: {
+        nombreCompleto: string | null;
+        municipio: string | null;
+        claimStatus: string | null;
+      };
       profileCompleteness: ProfileCompleteness;
     };
 
@@ -29,6 +34,8 @@ type MyProfileResponse =
 
 function ProfileCompletenessWidget() {
   const [data, setData] = useState<MyProfileResponse | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [claimDone, setClaimDone] = useState(false);
 
   useEffect(() => {
     fetch("/api/suppliers/my-profile", { credentials: "include" })
@@ -37,10 +44,24 @@ function ProfileCompletenessWidget() {
       .catch(() => setData({ found: false }));
   }, []);
 
+  const handleClaim = async (supplierId: number) => {
+    setClaiming(true);
+    try {
+      const r = await fetch(`/api/suppliers/${supplierId}/claim`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (r.ok) setClaimDone(true);
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   if (data === null) return null;
   if (!data.found) return null;
 
   const { supplierId, supplier, profileCompleteness: pc } = data;
+  const isClaimed = claimDone || supplier.claimStatus === "CLAIMED";
   const onboardingBase = `/onboarding?supplierId=${supplierId}&prefill=1`;
 
   const dimensions = [
@@ -132,6 +153,34 @@ function ProfileCompletenessWidget() {
             >
               Complete your farm profile
             </Link>
+          </div>
+        )}
+
+        {/* Claim profile section */}
+        {!isClaimed && (
+          <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+            <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-amber-800">Claim your profile</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Claiming links your farmer record to your account and boosts your public trust score.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 h-7 text-xs border-amber-400 text-amber-800 hover:bg-amber-100"
+                disabled={claiming}
+                onClick={() => handleClaim(supplierId)}
+              >
+                {claiming ? "Claiming…" : "Claim profile"}
+              </Button>
+            </div>
+          </div>
+        )}
+        {isClaimed && (
+          <div className="mt-3 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-2.5">
+            <ShieldCheck className="w-4 h-4 text-green-600 shrink-0" />
+            <p className="text-xs text-green-700 font-medium">Profile claimed — trust score boosted</p>
           </div>
         )}
       </CardContent>

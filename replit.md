@@ -58,6 +58,25 @@ Four-phase system connecting ingestion, field collection, AI scoring, and self-c
 - `ProfileCompletenessWidget` in supplier dashboard: % progress bar, 5 dimension rows with "Complete →" per-row links, full-width CTA
 - Widget silently hides when no linked supplier record found
 
+### Supplier Self-Claim (Complete)
+- `PATCH /api/suppliers/:id/claim` — auth required; verifies logged-in user email matches `suppliersTable.email`; sets `claimStatus = 'CLAIMED'`; returns 403 if email mismatch
+- `GET /api/suppliers/my-profile` already returns `claimStatus` in the supplier object
+- Supplier dashboard `ProfileCompletenessWidget` extended: amber "Claim your profile" panel with button when unclaimed; green confirmation banner on success; optimistic state update without page reload
+- Claiming awards the public trust score point for `claimStatus=CLAIMED` (previously unreachable)
+
+### AI Scoring Prompt — V1 (Complete)
+- `SCORING_PROMPT_V1` in `scoring-prompts.ts` replaces generic V0 (5-sentence prompt)
+- Field-by-field guide for all 5 input blocks: `supplier`, `farm`, `economics`, `compliance`, `ingestion`
+- Detailed rubric table: land rights, production volume, post-harvest quality, compliance readiness, commitment (20pts each)
+- Pathway thresholds explicitly documented: A≥75, B 60–74, C 40–59, D<40
+- Claude now has full context to use `tenenciaTierra`, `metodoSecado`, `tipoComprador`, `haIntentadoExportar`, etc.
+
+### MVP Banner (Complete)
+- Dismissible dark-green banner rendered at the top of every page above the navbar
+- Text: "Fincava is in early access. We are actively building — some features may be unstable or incomplete."
+- Dismissal stored in `localStorage` (`fincava_mvp_banner_dismissed`) — persists across refreshes
+- Implemented in `App.tsx` via `MvpBanner` component
+
 ### Supplier Layer Hardening — G1–G7 (Complete)
 
 Closed the seven gaps identified in the architecture audit:

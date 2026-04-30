@@ -1,5 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -68,6 +69,39 @@ const AdminIngestion = lazy(() => import("@/pages/admin/ingestion/index"));
 const AdminIngestionNew = lazy(() => import("@/pages/admin/ingestion/new"));
 const AdminIngestionDiscover = lazy(() => import("@/pages/admin/ingestion/discover"));
 const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
+
+// ── MVP Early-Access Banner ────────────────────────────────────────────────────
+const BANNER_KEY = "fincava_mvp_banner_dismissed";
+
+function MvpBanner() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem(BANNER_KEY)) setVisible(true);
+  }, []);
+
+  const dismiss = () => {
+    localStorage.setItem(BANNER_KEY, "1");
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div className="relative z-50 bg-[#1B5E20] text-white text-sm px-4 py-2.5 flex items-center justify-center gap-3">
+      <span className="text-center leading-snug">
+        <strong>Fincava is in early access.</strong> We are actively building — some features may be unstable or incomplete.
+      </span>
+      <button
+        onClick={dismiss}
+        aria-label="Dismiss"
+        className="shrink-0 rounded p-0.5 hover:bg-white/20 transition-colors"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -179,6 +213,7 @@ function App() {
       <TooltipProvider>
         <LanguageProvider>
           <AuthProvider>
+            <MvpBanner />
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <Router />
             </WouterRouter>
