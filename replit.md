@@ -56,6 +56,7 @@ Fincava is built as a pnpm workspace monorepo utilizing TypeScript.
   - Supplier self-claim: `PATCH /api/suppliers/:id/claim` endpoint; supplier dashboard shows amber claim panel / green success state.
   - Graduation email pipeline complete through G16 (PUBLISHED state fires email via `markPublished()`).
 - **AI Scoring Prompt V1**: Detailed, field-by-field AI scoring prompt for improved supplier evaluation based on 5 input blocks and a comprehensive rubric.
+- **Buyer Layer Architecture (BG-series defined)**: `Buyer_Layer_Architecture.md` documents the full buyer layer: General Buyer Persona strategy (Marco Vogel + GCC/Asian archetypes), buyer state machine (REGISTERED→ACTIVE→PROFILING→MATCHED→GAP_SCANNED→ENGAGING→TRADING), two new tables (`buyer_matches`, `buyer_gap_briefs`), Phase 2 profile sections A–F, AI matching via Sonnet 4.6, gap analysis + ingestion pipeline escalation, admin buyer management, and marketing opt-in email layer. Finance layer parked from buyer scope. FINCAVA Certified Badge, buyer financing, and persona-specific UI modes documented as backlog.
 - **RFQ System**: Buyers can post sourcing requests, suppliers can bid, and buyers can award.
 - **Trust Scores**: 0-100 scores for suppliers (Basic/Silver/Gold/Platinum tiers) visible across the platform.
 - **Shipment Tracking**: Timeline widget for order status.
