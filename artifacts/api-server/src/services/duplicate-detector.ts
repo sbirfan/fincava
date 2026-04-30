@@ -6,9 +6,10 @@
 // No external libraries needed — uses Node's built-in crypto module.
 
 import { createHash } from "crypto";
-import { db, suppliersTable } from "@workspace/db";
+import { db, suppliersTable, INTERACTION_TYPES } from "@workspace/db";
 import { eq, ilike, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { logInteraction } from "../lib/interaction-logger";
 
 export type MatchType = "EXACT_FINGERPRINT" | "FUZZY_NAME" | "NONE";
 
@@ -105,6 +106,39 @@ export async function checkDuplicate(
   }
 
   return noMatch();
+}
+
+// ── Duplicate override audit log ──────────────────────────────────────────────
+
+// logDuplicateOverride fires a DUPLICATE_OVERRIDE interaction event (fire-and-forget).
+// Validates that override_reason is non-empty before logging.
+export function logDuplicateOverride(
+  supplierId: number,
+  matchedSupplierId: number,
+  overrideReason: string,
+  adminId: number,
+): void {
+  const reason = overrideReason.trim();
+  if (!reason) {
+    logger.warn(
+      { supplierId, matchedSupplierId, adminId },
+      "duplicate-detector: logDuplicateOverride called with empty override_reason — event skipped",
+    );
+    return;
+  }
+
+  logInteraction({
+    eventType: INTERACTION_TYPES.DUPLICATE_OVERRIDE,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: supplierId,
+    referenceType: "supplier",
+    payload: {
+      override_reason: reason,
+      admin_id: adminId,
+      matched_supplier_id: matchedSupplierId,
+    },
+  });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

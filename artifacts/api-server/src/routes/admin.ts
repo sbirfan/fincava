@@ -10,7 +10,7 @@ import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody, BatchConfirmBody } from "../schemas";
 import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
-import { checkDuplicate, computeSupplierFingerprint } from "../services/duplicate-detector";
+import { checkDuplicate, computeSupplierFingerprint, logDuplicateOverride } from "../services/duplicate-detector";
 import { discoverLeads } from "../services/discovery-engine";
 import { randomUUID } from "crypto";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
@@ -962,8 +962,16 @@ router.post("/admin/ingestion/enrich", ...adminOnly, async (req: Request, res: R
     actorType: "admin",
     referenceId: body.data.supplierId ?? null,
     referenceType: "supplier",
-    payload: { supplierId: body.data.supplierId, fieldsAdded: Object.keys(enriched) },
+    payload: { supplierId: body.data.supplierId, fieldsAdded: Object.keys(enriched), confidenceScore: enriched.confidenceScore },
   });
+
+  // T5: Persist confidence score to the supplier record when supplierId is provided.
+  if (body.data.supplierId) {
+    await db
+      .update(suppliersTable)
+      .set({ confidenceScore: enriched.confidenceScore.toString(), updatedAt: new Date() })
+      .where(eq(suppliersTable.id, body.data.supplierId));
+  }
 
   res.json(enriched);
 });
@@ -1044,6 +1052,11 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
       overriddenDuplicateId: overrideDuplicateId ?? null,
     },
   });
+
+  // T5: Audit log for duplicate override.
+  if (dupResult.hasDuplicate && overrideDuplicateId && overrideJustification && dupResult.matchedSupplierId) {
+    logDuplicateOverride(supplier.id, dupResult.matchedSupplierId, overrideJustification, adminId);
+  }
 
   res.status(201).json(supplier);
 });

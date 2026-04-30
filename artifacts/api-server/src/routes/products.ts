@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, ilike, sql, desc, asc } from "drizzle-orm";
-import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable } from "@workspace/db";
+import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable, productPlaceholdersTable } from "@workspace/db";
 import {
   ListProductsQueryParams,
   CreateProductBody,
@@ -11,6 +11,7 @@ import {
   GetSimilarProductsParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
+import { requireAdmin } from "../middleware/admin";
 import { z } from "zod";
 
 const BooleanFilters = z.object({
@@ -398,5 +399,41 @@ router.delete("/supplier/products/:id", requireAuth, async (req, res): Promise<v
   await db.delete(productsTable).where(eq(productsTable.id, params.data.id));
   res.sendStatus(204);
 });
+
+// ── GET /api/admin/ingestion/suppliers/:id/product-placeholders ───────────────
+// Returns product placeholders for an ingested supplier.
+// Each placeholder includes a computed `status` field:
+//   "UNVERIFIED_INFERRED" — dataOrigin="inferred" AND verificationStatus="unverified"
+//   "VERIFIED"            — verificationStatus="verified"
+//   otherwise             — verificationStatus value passed through verbatim
+router.get(
+  "/admin/ingestion/suppliers/:id/product-placeholders",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    const rows = await db
+      .select()
+      .from(productPlaceholdersTable)
+      .where(eq(productPlaceholdersTable.supplierId, supplierId));
+
+    const placeholders = rows.map((p) => ({
+      ...p,
+      status:
+        p.dataOrigin === "inferred" && p.verificationStatus === "unverified"
+          ? "UNVERIFIED_INFERRED"
+          : p.verificationStatus === "verified"
+            ? "VERIFIED"
+            : p.verificationStatus,
+    }));
+
+    res.json({ placeholders });
+  },
+);
 
 export default router;

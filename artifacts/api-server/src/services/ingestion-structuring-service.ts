@@ -7,6 +7,7 @@ import { getAnthropicClient, ENRICHMENT_MODEL } from "../lib/anthropic";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { INTERACTION_TYPES } from "@workspace/db";
+import { computeConfidenceScore } from "./confidence-scorer";
 import { z } from "zod";
 
 // ── AI output schema — extra fields discarded by .strip() (default) ───────────
@@ -21,7 +22,12 @@ const AiEnrichmentOutput = z.object({
   dataCompletenessScore: z.number().min(0).max(100).nullable().optional(),
 });
 
-export type AiEnrichmentResult = z.infer<typeof AiEnrichmentOutput>;
+type AiEnrichmentBase = z.infer<typeof AiEnrichmentOutput>;
+
+// T5: Extended return type — includes confidence score computed after AI validation.
+export interface AiEnrichmentResult extends AiEnrichmentBase {
+  confidenceScore: number;
+}
 
 export interface IngestionEnrichmentInput {
   nombreCompleto: string;
@@ -65,8 +71,14 @@ export async function enrichSupplierWithAI(
   }
 
   let parsed: unknown;
+  let aiRawFieldCount: number | undefined;
   try {
-    parsed = JSON.parse(extractJson(rawText));
+    const parsedJson = JSON.parse(extractJson(rawText));
+    parsed = parsedJson;
+    // Count raw AI fields before Zod strips extras — used by confidence scorer.
+    if (parsedJson && typeof parsedJson === "object" && !Array.isArray(parsedJson)) {
+      aiRawFieldCount = Object.keys(parsedJson as Record<string, unknown>).length;
+    }
   } catch {
     logger.error({ rawText }, "ingestion-structuring-service: AI output was not valid JSON");
     throw new Error(
@@ -85,19 +97,32 @@ export async function enrichSupplierWithAI(
     );
   }
 
+  // T5: Compute confidence score from all available signals.
+  const confidenceScore = computeConfidenceScore({
+    nombreCompleto: input.nombreCompleto,
+    municipio: input.municipio,
+    sourceUrl: input.sourceUrl,
+    whatsappNumber: input.whatsappNumber,
+    email: input.email,
+    categoryHint: input.categoryHint,
+    normalizedName: result.data.normalizedName,
+    aiRawFieldCount,
+  });
+
   logInteraction({
     eventType: INTERACTION_TYPES.SUPPLIER_STRUCTURED,
     payload: {
       nombreCompleto: input.nombreCompleto,
       categoryHint: input.categoryHint ?? null,
       dataCompletenessScore: result.data.dataCompletenessScore ?? null,
+      confidenceScore,
       fieldsEnriched: Object.keys(result.data).filter(
         (k) => result.data[k as keyof typeof result.data] !== null,
       ),
     },
   });
 
-  return result.data;
+  return { ...result.data, confidenceScore };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

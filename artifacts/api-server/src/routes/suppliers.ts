@@ -19,6 +19,7 @@ import {
   supplierApplicationAdminAlertEmail,
 } from "../lib/email";
 import { requireAdmin } from "../middleware/admin";
+import { computePublicTrustScore } from "../services/confidence-scorer";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
@@ -733,7 +734,16 @@ router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promis
     return;
   }
 
-  res.json({ supplier });
+  // T5: Compute public trust score from safe, public-facing signals.
+  const public_trust_score = computePublicTrustScore({
+    sourceUrl: supplier.sourceUrl,
+    normalizedName: supplier.normalizedName,
+    description: supplier.description,
+    municipio: supplier.municipio,
+    claimStatus: supplier.claimStatus,
+  });
+
+  res.json({ supplier, public_trust_score });
 });
 
 // ── POST /api/admin/suppliers/:id/transition ─────────────────────────────────
