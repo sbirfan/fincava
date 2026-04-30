@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useState, useCallback, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import {
   Sparkles,
   Save,
@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   Loader2,
+  ListOrdered,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,8 +67,11 @@ const EMPTY_FORM: FormState = {
   categoryHint: "",
 };
 
+const DISCOVERY_QUEUE_KEY = "fincava_discovery_queue";
+
 export default function AdminIngestionNew() {
   const [, navigate] = useLocation();
+  const search = useSearch();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [enriched, setEnriched] = useState<EnrichedProfile | null>(null);
   const [duplicate, setDuplicate] = useState<DuplicateResult | null>(null);
@@ -77,6 +81,35 @@ export default function AdminIngestionNew() {
   const [saving, setSaving] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [queueRemaining, setQueueRemaining] = useState(0);
+
+  // Pre-fill form from URL query params (supplied by the discovery engine handoff)
+  useEffect(() => {
+    if (!search) return;
+    const params = new URLSearchParams(search);
+    const patch: Partial<FormState> = {};
+    const name = params.get("nombreCompleto");
+    const municipio = params.get("municipio");
+    const categoryHint = params.get("categoryHint");
+    const sourceUrl = params.get("sourceUrl");
+    if (name) patch.nombreCompleto = name;
+    if (municipio) patch.municipio = municipio;
+    if (categoryHint) patch.categoryHint = categoryHint;
+    if (sourceUrl) patch.sourceUrl = sourceUrl;
+    if (Object.keys(patch).length > 0) {
+      setForm((f) => ({ ...f, ...patch }));
+    }
+    // Check if there are more leads queued in sessionStorage
+    try {
+      const raw = sessionStorage.getItem(DISCOVERY_QUEUE_KEY);
+      if (raw) {
+        const queue: unknown[] = JSON.parse(raw);
+        setQueueRemaining(Array.isArray(queue) ? queue.length : 0);
+      }
+    } catch {
+      // ignore
+    }
+  }, [search]);
 
   const set = (field: keyof FormState) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -187,6 +220,32 @@ export default function AdminIngestionNew() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Save failed — please try again.");
       }
+      // Pop next lead from sessionStorage queue, if any
+      try {
+        const raw = sessionStorage.getItem(DISCOVERY_QUEUE_KEY);
+        if (raw) {
+          const queue: Array<{ name: string; location: string; website: string | null; categoryHint: string }> = JSON.parse(raw);
+          if (Array.isArray(queue) && queue.length > 0) {
+            const next = queue[0];
+            const remaining = queue.slice(1);
+            if (remaining.length > 0) {
+              sessionStorage.setItem(DISCOVERY_QUEUE_KEY, JSON.stringify(remaining));
+            } else {
+              sessionStorage.removeItem(DISCOVERY_QUEUE_KEY);
+            }
+            const params = new URLSearchParams({
+              nombreCompleto: next.name,
+              municipio: next.location,
+              categoryHint: next.categoryHint,
+              ...(next.website ? { sourceUrl: next.website } : {}),
+            });
+            navigate(`/admin/ingestion/new?${params.toString()}`);
+            return;
+          }
+        }
+      } catch {
+        // ignore queue errors
+      }
       navigate("/admin/ingestion");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed.");
@@ -219,6 +278,17 @@ export default function AdminIngestionNew() {
           </p>
         </div>
       </div>
+
+      {/* Discovery queue banner */}
+      {queueRemaining > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-300">
+          <ListOrdered className="h-4 w-4 shrink-0" />
+          <span>
+            {queueRemaining} more lead{queueRemaining !== 1 ? "s" : ""} queued from discovery —
+            they will open automatically after you save this one.
+          </span>
+        </div>
+      )}
 
       {/* Form card */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-5">

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const DISCOVERY_QUEUE_KEY = "fincava_discovery_queue";
+
 interface CandidateLead {
   name: string;
   location: string;
@@ -98,9 +100,23 @@ export default function AdminIngestionDiscover() {
   }
 
   function handleConfirm() {
-    const selectedLeads = Array.from(selected).map((i) => leads[i]);
+    const selectedLeads = Array.from(selected).sort((a, b) => a - b).map((i) => leads[i]);
     if (selectedLeads.length === 0) return;
-    const first = selectedLeads[0];
+    const [first, ...rest] = selectedLeads;
+    // Store remaining leads in sessionStorage queue for sequential processing
+    if (rest.length > 0) {
+      try {
+        sessionStorage.setItem(DISCOVERY_QUEUE_KEY, JSON.stringify(rest));
+      } catch {
+        // ignore storage errors
+      }
+    } else {
+      try {
+        sessionStorage.removeItem(DISCOVERY_QUEUE_KEY);
+      } catch {
+        // ignore
+      }
+    }
     const params = new URLSearchParams({
       nombreCompleto: first.name,
       municipio: first.location,
