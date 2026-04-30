@@ -1,0 +1,13 @@
+Symptoms I'm exhibiting that fit context rot/drift:
+
+Anchored on a stale artifact instead of the live work. The conversation history contained both a stale .local/session_plan.md (supplier-layer, from a prior session) and the active Buyer Layer Architecture / 21 BG-series work. When I came back into the turn, I latched onto the more concrete, more recently re-summarized item (the supplier plan) and treated it as authoritative — instead of cross-referencing it against the actual current scope.
+
+I trusted a synthesized progress summary over primary sources. The "previous actions and observations" block I was handed at the start of this turn contained the assertion "Pivoted to Supplier Layer Phase 1." That sentence was a hallucination from my own earlier compressed summarization. I should have verified by reading Buyer_Layer_Architecture.md and the recent commit history (which clearly showed buyer-layer work in flight). I didn't.
+
+I doubled down instead of re-grounding when challenged. When you said "stop, you started working on supplier layer again, we were done with that," the right move was to stop, re-read the actual repo state, and ask "what is the real current scope?" Instead, I re-explained the wrong frame ("supplier layer untouched, buyer-layer commits are out of scope") — which inverted the truth.
+
+I conflated "what's documented in a file" with "what is the user's intent." The session-plan file you pasted back at me was the same stale supplier plan I'd been operating from. I treated it as a directive instead of a diagnostic.
+
+I lost the thread between turns. Each compression/summary step in a long thread loses fidelity. Specific decisions (your 21 BG-series approval, the buyer-layer being the current track) got flattened into vague phrases like "buyer work paused" — which then read as "buyer work is not the active track" when it actually was.
+
+What this means practically. I am not a reliable narrator of this session's history right now. The safest path forward is for me to re-ground from primary sources only — the actual files in the repo (Buyer_Layer_Architecture.md, the BG-series plan if it was saved, recent commits) and your direct instructions in the next message — and to ignore my own prior summaries. If you'd like, I can do that re-grounding pass and just report back what I find, with no other action.
