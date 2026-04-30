@@ -63,7 +63,7 @@ export interface SupplierOnboardingInput {
    * WhatsApp-capable phone number in E.164 format (e.g. +573001234567).
    * Required. Must be unique — duplicate triggers 409.
    *
-   * DB: suppliers.whatsapp_number (text, NOT NULL, UNIQUE)
+   * DB: suppliers.whatsapp_number (text, nullable, partial UNIQUE where NOT NULL)
    * Mapping: direct
    * Validation: non-empty; E.164 format recommended
    */
@@ -266,7 +266,7 @@ export interface SupplierOnboardingInput {
  *   fullName           → suppliers.nombre_completo          CONFIRMED
  *   phone              → suppliers.whatsapp_number          CONFIRMED
  *   email              → (none)                             GAP
- *   country            → (none — implied Colombia)          MISMATCH (no column)
+ *   country            → suppliers.country                   CONFIRMED (default 'Colombia')
  *
  * Section B — Farm Profile
  *   farmSizeHectares   → farms.hectareas_produccion         CONFIRMED
