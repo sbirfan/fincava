@@ -326,7 +326,7 @@ export const supplierContactsTable = pgTable(
     supplierId: integer("supplier_id")
       .notNull()
       .references(() => suppliersTable.id),
-    contactType: text("contact_type"),         // e.g. "whatsapp" | "email" | "phone"
+    contactType: text("contact_type").notNull(), // e.g. "whatsapp" | "email" | "phone"
     contactValue: text("contact_value"),
     source: text("source"),                    // where this contact was found
     consentStatus: text("consent_status").default("UNKNOWN"),
