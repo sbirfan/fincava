@@ -58,6 +58,20 @@ Four-phase system connecting ingestion, field collection, AI scoring, and self-c
 - `ProfileCompletenessWidget` in supplier dashboard: % progress bar, 5 dimension rows with "Complete →" per-row links, full-width CTA
 - Widget silently hides when no linked supplier record found
 
+### Supplier Layer Hardening — G1–G7 (Complete)
+
+Closed the seven gaps identified in the architecture audit:
+
+- **G1 — Contact Supplier dialog**: `supplier-detail.tsx` — "Contact Supplier" button (hidden for guests) opens an in-page dialog with product picker, optional quantity, required message. Posts `POST /api/inquiries`. Guests redirected to `/login`.
+- **G2 — Product inquiry dialog**: `product-detail.tsx` — "Request Quote / Inquiry" now opens an in-page dialog (product + quantity + message) instead of redirecting to the read-only inquiry list.
+- **G3 — Public supplier directory**: `suppliers.tsx` calls `GET /api/suppliers/marketplace` (no auth, SELLABLE/PUBLISHED only) with client-side search; removed the admin-restricted generated hook.
+- **G4 — Public supplier profile endpoint**: `supplier-detail.tsx` fetches `GET /api/suppliers/:id/profile` (no auth) via `useEffect/fetch` instead of the admin-restricted generated hook.
+- **G5 — Admin Score Now**: `POST /api/admin/suppliers/:id/score` fires `runOnboardPipeline()` asynchronously; "⚡ Score Now" button added to the admin detail drawer with started/failed feedback states.
+- **G6 — Compliance update re-evaluation**: `PATCH /api/admin/suppliers/:id/compliance` now calls `evaluateSupplier()` after updating, guarded by checking an `ONBOARD_SCORE` ai_outputs row exists first. Returns `evaluation` field in response when re-evaluation ran.
+- **G7 — Graduation email**: `supplierGraduationEmail()` template added to `email.ts` (SELLABLE + PUBLISHED variants, Spanish). SELLABLE notification wired in `evaluateSupplier()` at the transition guard (non-fatal async); supplier receives email the first time they reach SELLABLE state.
+
+Key files: `artifacts/api-server/src/routes/suppliers.ts`, `artifacts/api-server/src/services/supplier-graduation-service.ts`, `artifacts/api-server/src/lib/email.ts`, `artifacts/fincava/src/pages/supplier-detail.tsx`, `artifacts/fincava/src/pages/product-detail.tsx`, `artifacts/fincava/src/pages/suppliers.tsx`, `artifacts/fincava/src/pages/admin/suppliers.tsx`.
+
 ### Phase 2 Hardening (Active)
 - **Observability** — Structured pino logs: CONFIG_LOADED/CONFIG_MISSING at startup, SUPPLIER_ONBOARDED, PRODUCT_CREATED, ORDER_CREATED; milestone EVENT_VOLUME_COUNTERS_RESET every 10 events (aggregate-only, no entity IDs)
 - **Fail-fast company resolution** — `POST /api/admin/suppliers/:id/create-product` resolves company via `FINCAVA_COMPANY_ID` env var (=17) first; falls back to name lookup requiring exactly 1 match; logs COMPANY_RESOLUTION_FAILED on error
