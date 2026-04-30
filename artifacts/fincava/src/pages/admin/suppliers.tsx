@@ -1,13 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import ReactMarkdown from "react-markdown";
 import { useLanguage } from "../../contexts/LanguageContext";
 
+
+interface ProfileCompleteness {
+  hasFarmData: boolean;
+  hasEconomicsData: boolean;
+  hasComplianceData: boolean;
+  hasAiScore: boolean;
+  isGraduated: boolean;
+}
 
 interface Supplier {
   id: number;
   nombreCompleto: string;
   contactName?: string;
   phone?: string;
+  email?: string | null;
   department?: string | null;
   municipio: string;
   supplierType: string;
@@ -192,10 +202,13 @@ function DocModal({
 
 export default function AdminSuppliersPage() {
   const { lang } = useLanguage();
+  const [, setLocation] = useLocation();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Supplier | null>(null);
+  const [completeness, setCompleteness] = useState<ProfileCompleteness | null>(null);
+  const [loadingCompleteness, setLoadingCompleteness] = useState(false);
   const [generating, setGenerating] = useState<number | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [pendingInactive, setPendingInactive] = useState<{ supplierId: number } | null>(null);
@@ -219,6 +232,16 @@ export default function AdminSuppliersPage() {
     fetchSuppliers(controller.signal);
     return () => controller.abort();
   }, [filterPathway, filterStatus]);
+
+  useEffect(() => {
+    if (!selected) { setCompleteness(null); return; }
+    setLoadingCompleteness(true);
+    fetch(`/api/suppliers/${selected.id}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => { if (data.profileCompleteness) setCompleteness(data.profileCompleteness); })
+      .catch(() => {})
+      .finally(() => setLoadingCompleteness(false));
+  }, [selected?.id]);
 
   async function fetchSuppliers(signal?: AbortSignal) {
     setLoading(true);
@@ -840,7 +863,69 @@ export default function AdminSuppliersPage() {
               />
             </div>
 
-            <div className="mt-8 space-y-3">
+            {/* ── Profile Completeness ──────────────────────────────── */}
+            <div className="mt-6 border border-gray-100 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {lang === "es" ? "Completitud del Perfil" : "Profile Completeness"}
+                </h3>
+                {loadingCompleteness && (
+                  <span className="text-xs text-gray-400">{lang === "es" ? "Cargando…" : "Loading…"}</span>
+                )}
+              </div>
+              {completeness ? (
+                <div className="space-y-2">
+                  {([
+                    { key: "hasFarmData",       labelEn: "Farm data",       labelEs: "Datos de finca" },
+                    { key: "hasEconomicsData",  labelEn: "Economics",       labelEs: "Economía" },
+                    { key: "hasComplianceData", labelEn: "Compliance",      labelEs: "Cumplimiento" },
+                    { key: "hasAiScore",        labelEn: "AI score",        labelEs: "Score IA" },
+                    { key: "isGraduated",       labelEn: "Graduated",       labelEs: "Graduado" },
+                  ] as const).map(({ key, labelEn, labelEs }) => {
+                    const done = completeness[key];
+                    return (
+                      <div key={key} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">{lang === "es" ? labelEs : labelEn}</span>
+                        <span className={done ? "text-green-600 font-medium" : "text-gray-300"}>
+                          {done ? "✓" : "○"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                !loadingCompleteness && (
+                  <p className="text-xs text-gray-400">
+                    {lang === "es" ? "No disponible" : "Not available"}
+                  </p>
+                )
+              )}
+
+              {/* Collect Farm Data button — shown when farm data is missing */}
+              {completeness && !completeness.hasFarmData && (
+                <button
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      supplierId: String(selected.id),
+                      prefill: "1",
+                    });
+                    setLocation(`/onboarding?${params}`);
+                  }}
+                  className="mt-4 w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition"
+                >
+                  {lang === "es" ? "Recopilar datos de finca →" : "Collect farm data →"}
+                </button>
+              )}
+              {completeness && completeness.hasFarmData && !completeness.hasAiScore && (
+                <p className="mt-3 text-xs text-amber-600 text-center">
+                  {lang === "es"
+                    ? "Datos capturados. El score IA se generará en breve."
+                    : "Data captured. AI score will generate shortly."}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-6 space-y-3">
               <div>
                 <p className="text-xs text-gray-500 mb-1.5">
                   {lang === "es" ? "Idioma del documento" : "Document language"}

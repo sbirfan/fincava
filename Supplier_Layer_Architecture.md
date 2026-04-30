@@ -258,3 +258,122 @@ Override requires non-empty `overrideJustification` (whitespace-only rejected).
 | `GET` | `/api/suppliers/:id/profile` | None | Public curated profile + `public_trust_score` (no `confidenceScore`) |
 | `GET` | `/api/suppliers/:id` | Admin | Full supplier record + `public_trust_score` |
 | `GET` | `/api/admin/ingestion/suppliers/:id/product-placeholders` | Admin | Inferred product list with computed `status` |
+
+---
+
+## 7. Unified Supplier Layer — Design Strategy
+
+> Added: April 2026. Captures the agreed design direction for combining the three entry points and two pipelines.
+
+### Core Mental Model
+
+The two pipelines collect complementary data, not competing data:
+
+- **Ingestion** = *what we discover about the supplier from outside* (market intelligence, AI enrichment, web presence)
+- **Onboarding** = *what the supplier tells us about themselves* (ground truth: farm, compliance, economics)
+
+Goal: **one supplier record, two collection modes, one AI that sees both.**
+
+---
+
+### Three Entry Points — Agreed Design
+
+#### 1. Supplier Self-Service (exists, needs small gaps closed)
+- 5-step onboarding form at `/onboarding` works for digitally capable suppliers
+- **Gap:** No "resume" prompt from the supplier dashboard if they created an account but never completed the questionnaire
+- **Gap:** No mechanism for an ingestion-discovered supplier to claim their profile and then fill in farm data
+
+#### 2. Field Officer (backend ready, no UI)
+- `officer_name` + `officer_code` fields already exist in the onboarding schema
+- **Gap:** No dedicated officer launch page or mobile-optimised entry point
+- Officers have an account (`FIELD_OFFICER` role) but no dashboard or onboarding launcher
+- Needed: a simple officer dashboard with supplier search + "Start farm visit" button
+
+#### 3. Admin Console (biggest current gap)
+- Admin can see ingestion batches but has no unified view of total profile completeness per supplier
+- **Gap:** No side-by-side view showing "Ingestion data: complete / Farm data: missing / AI score: missing"
+- **Gap:** No "Initiate onboarding for this supplier" action that pre-fills from the existing ingestion record
+
+---
+
+### What to Keep Separate vs. Combine
+
+**Keep separate:**
+- The three UI entry points — each serves a different actor with different context and device
+- The ingestion workflow (DRAFT → ENRICHED → READY) — internal admin quality gate
+- The onboarding consent + compliance capture — carries legal weight, must remain explicit
+
+**Combine — AI scoring input:**
+
+When a supplier has BOTH ingestion data AND onboarding data, the Claude scoring prompt should receive:
+
+```json
+{
+  "supplier":   { "...core fields..." },
+  "farm":       { "...onboarding farm data..." },
+  "economics":  { "...onboarding economics..." },
+  "compliance": { "...onboarding compliance..." },
+  "ingestion":  {
+    "normalizedName":             "...",
+    "description":                "...",
+    "categoryHints":              ["..."],
+    "exportReadinessNarrative":   "...",
+    "sourceUrl":                  "...",
+    "confidenceScore":            0.85
+  }
+}
+```
+
+**Combine — Marketplace profile:**
+The supplier's public page should show: AI-written description (from ingestion) + product mix + farm location + certifications + organic status — a far richer buyer-facing profile than either dataset alone.
+
+---
+
+### Completeness Status Model
+
+Each supplier record should expose a `profileCompleteness` summary:
+
+| Dimension | Source | Check |
+|---|---|---|
+| Ingestion data | `ingestionStatus` | `READY` |
+| Farm data | `farms` table | Row exists for `supplierId` |
+| Economics data | `economics` table | Row exists for `supplierId` |
+| Compliance data | `compliance_docs` table | Row exists for `supplierId` |
+| AI score | `ai_outputs` table | Row exists for `supplierId` |
+| Graduated | `supplier_evaluations` | `sellableStatus` ≠ `NOT_READY` |
+
+---
+
+### The One Key Architectural Decision
+
+The current `POST /api/suppliers/onboard` always creates a new supplier. To support admin-initiated onboarding for an already-ingested supplier, the route will accept an optional `supplierId` body field:
+
+- **If absent:** current behavior — creates new supplier record
+- **If present:** updates the existing record; upserts farms/economics/compliance tables; runs the post-onboard pipeline against the existing ID
+
+This keeps one endpoint, one form, three entry points.
+
+---
+
+### Build Roadmap — Four Phases
+
+#### Phase 1 — Close the Admin Loop *(HIGH priority — unblocks all other phases)*
+1. `GET /api/suppliers/:id` returns `profileCompleteness` object (hasFarmData, hasEconomicsData, hasComplianceData, hasAiScore)
+2. `POST /api/suppliers/onboard` accepts optional `supplierId` → update mode
+3. Admin supplier detail panel shows completeness status for each dimension
+4. "Collect Farm Data" button on any ingested supplier → pre-filled onboarding form linked to existing supplierId
+
+#### Phase 2 — Field Officer Launch Point *(MEDIUM priority — quick win, backend already ready)*
+1. Officer dashboard page with supplier search + "Start farm visit" action
+2. Mobile-optimised entry (most field visits happen on a phone)
+3. Onboarding form pre-populates `officer_name`, `officer_code` from logged-in officer
+
+#### Phase 3 — Combined AI Input *(MEDIUM priority — highest long-term value)*
+1. When scoring a supplier that also has ingestion enrichment, include ingestion AI output in the Claude prompt
+2. Store richer combined profile output in `ai_outputs`
+3. Feed combined output to the marketplace profile page
+
+#### Phase 4 — Supplier Self-Completion *(LOWER priority — user-facing polish)*
+1. Supplier dashboard shows profile completeness percentage
+2. Incomplete sections link back to the questionnaire with progress saved
+3. Ingestion-discovered suppliers can claim their profile via a link/code

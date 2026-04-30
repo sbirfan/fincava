@@ -94,6 +94,162 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         ? rawBody.email.trim().toLowerCase()
         : null;
 
+    // ── UPDATE MODE: supplierId provided — complete an existing ingested supplier ──
+    // When admin initiates onboarding for an already-ingested supplier, the payload
+    // includes an explicit supplierId. We update rather than create.
+    const updateSupplierId = rawBody.supplierId ? Number(rawBody.supplierId) : null;
+    if (updateSupplierId) {
+      const [existing] = await db
+        .select({ id: suppliersTable.id, nombreCompleto: suppliersTable.nombreCompleto })
+        .from(suppliersTable)
+        .where(eq(suppliersTable.id, updateSupplierId))
+        .limit(1);
+
+      if (!existing) {
+        res.status(404).json({ error: `Supplier ${updateSupplierId} not found` });
+        return;
+      }
+
+      // Update core supplier row with any additional data from the form.
+      await db
+        .update(suppliersTable)
+        .set({
+          nombreCompleto: nombreCompleto || existing.nombreCompleto,
+          whatsappNumber: whatsappNumber || undefined,
+          email: supplierEmail ?? undefined,
+          municipio: municipio || undefined,
+          department: rawBody.department ?? undefined,
+          vereda: rawBody.vereda ?? undefined,
+          supplierType: (supplierType as string).toUpperCase() as any,
+          registeredBy: registeredBy ?? undefined,
+          consentGiven: rawBody.consentGiven ?? true,
+          consentDate: new Date(),
+        })
+        .where(eq(suppliersTable.id, updateSupplierId));
+
+      // Farm data — upsert pattern: try insert, on conflict update.
+      const primaryProduct = rawBody.primary_product || rawBody.farm?.cultivoPrincipal || null;
+      const farmSize = rawBody.farm_size_hectares?.toString() || rawBody.farm?.hectareasProduccion?.toString() || null;
+      const annualVolume = rawBody.annual_volume_kg || rawBody.farm?.volumenKgUltimaCosecha || null;
+
+      const [existingFarm] = await db
+        .select({ id: farmsTable.id })
+        .from(farmsTable)
+        .where(eq(farmsTable.supplierId, updateSupplierId))
+        .limit(1);
+
+      if (existingFarm) {
+        await db
+          .update(farmsTable)
+          .set({
+            cultivoPrincipal: primaryProduct,
+            variedadCafe: rawBody.harvest_months || rawBody.farm?.variedadCafe || null,
+            hectareasProduccion: farmSize,
+            edadPlantasAnos: rawBody.farm?.edadPlantasAnos ?? null,
+            cosechasPorAno: rawBody.farm?.cosechasPorAno ?? null,
+            metodoSecado: rawBody.farm?.metodoSecado ?? null,
+            accesoAgua: rawBody.farm?.accesoAgua ?? null,
+            anosEnFinca: rawBody.farm?.anosEnFinca ?? null,
+            tenenciaTierra: rawBody.farm?.tenenciaTierra ?? null,
+            asistenciaTecnica: rawBody.farm?.asistenciaTecnica ?? null,
+          })
+          .where(eq(farmsTable.supplierId, updateSupplierId));
+      } else {
+        await db.insert(farmsTable).values({
+          supplierId: updateSupplierId,
+          cultivoPrincipal: primaryProduct,
+          variedadCafe: rawBody.harvest_months || rawBody.farm?.variedadCafe || null,
+          hectareasProduccion: farmSize,
+          edadPlantasAnos: rawBody.farm?.edadPlantasAnos ?? null,
+          cosechasPorAno: rawBody.farm?.cosechasPorAno ?? null,
+          metodoSecado: rawBody.farm?.metodoSecado ?? null,
+          accesoAgua: rawBody.farm?.accesoAgua ?? null,
+          anosEnFinca: rawBody.farm?.anosEnFinca ?? null,
+          tenenciaTierra: rawBody.farm?.tenenciaTierra ?? null,
+          asistenciaTecnica: rawBody.farm?.asistenciaTecnica ?? null,
+        });
+      }
+
+      // Economics — upsert.
+      const [existingEcon] = await db
+        .select({ id: economicsTable.id })
+        .from(economicsTable)
+        .where(eq(economicsTable.supplierId, updateSupplierId))
+        .limit(1);
+
+      const econValues = {
+        tipoComprador: rawBody.currently_exporting === "yes" ? "EXPORT" as const : (rawBody.economics?.tipoComprador ?? null),
+        volumenKgUltimaCosecha: annualVolume ? Number(annualVolume) : null,
+        precioVentaBanda: rawBody.economics?.precioVentaBanda ?? null,
+        tiempoPagoDias: rawBody.economics?.tiempoPagoDias ?? null,
+        deudaActual: rawBody.working_capital_needed?.toString() || rawBody.economics?.deudaActual || null,
+        usoCapital: Array.isArray(rawBody.economics?.usoCapital) ? rawBody.economics.usoCapital : rawBody.export_blocker ? [rawBody.export_blocker] : null,
+        comodidadPagos: rawBody.economics?.comodidadPagos ?? null,
+        personasDependientes: rawBody.economics?.personasDependientes ?? null,
+        otrasFuentesIngreso: rawBody.economics?.otrasFuentesIngreso ?? null,
+        situacionEconomica: rawBody.economics?.situacionEconomica ?? null,
+        interesCanalPremium: rawBody.economics?.interesCanalPremium ?? null,
+        conocePrecioExportacion: rawBody.economics?.conocePrecioExportacion ?? null,
+        haIntentadoExportar: rawBody.currently_exporting === "yes" ? true : rawBody.currently_exporting === "no" ? false : (rawBody.economics?.haIntentadoExportar ?? null),
+      };
+
+      if (existingEcon) {
+        await db.update(economicsTable).set(econValues).where(eq(economicsTable.supplierId, updateSupplierId));
+      } else {
+        await db.insert(economicsTable).values({ supplierId: updateSupplierId, ...econValues });
+      }
+
+      // Compliance — upsert with ON CONFLICT (supplierId has unique constraint).
+      const icaRegisteredTrue = rawBody.ica_registered === true || rawBody.ica_registered === "yes";
+      await db
+        .insert(complianceDocsTable)
+        .values({ supplierId: updateSupplierId, icaRegistro: icaRegisteredTrue })
+        .onConflictDoNothing({ target: complianceDocsTable.supplierId });
+      if (icaRegisteredTrue) {
+        await db.update(complianceDocsTable).set({ icaRegistro: true }).where(eq(complianceDocsTable.supplierId, updateSupplierId));
+      }
+
+      // Interaction log.
+      await db.insert(interactionsTable).values({
+        supplierId: updateSupplierId,
+        interactionType: "FORM_SUBMISSION",
+        actor: registeredBy ?? "ADMIN",
+        notes: rawBody.visit_notes || "Farm data collected via admin-initiated onboarding",
+        metadata: {
+          mode:                "admin_profile_completion",
+          officer_code:        rawBody.officer_code        ?? null,
+          department:          rawBody.department          ?? null,
+          organic_certified:   rawBody.organic_certified   ?? null,
+          has_rut:             rawBody.has_rut             ?? null,
+          has_bank_account:    rawBody.has_bank_account    ?? null,
+          ica_registered:      rawBody.ica_registered      ?? null,
+        },
+      });
+
+      res.status(200).json({
+        success: true,
+        supplierId: updateSupplierId,
+        mode: "profile_completion",
+        message: `Profile data collected for ${existing.nombreCompleto}`,
+      });
+
+      logger.info({ event: "SUPPLIER_PROFILE_COMPLETED", supplierId: updateSupplierId });
+
+      // Fire the same post-onboard pipeline so scoring + graduation run on combined data.
+      const correlationId = crypto.randomUUID();
+      setImmediate(() => {
+        const listenerCount = pipelineEmitter.listenerCount(SUPPLIER_ONBOARD_EVENT);
+        if (listenerCount > 0) {
+          pipelineEmitter.emit(SUPPLIER_ONBOARD_EVENT, { supplierId: updateSupplierId, correlationId });
+        } else {
+          void runOnboardPipeline({ supplierId: updateSupplierId, correlationId });
+        }
+      });
+
+      return;
+    }
+    // ── END UPDATE MODE ────────────────────────────────────────────────────────
+
     const [supplier] = await db
       .insert(suppliersTable)
       .values({
@@ -796,6 +952,22 @@ router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promis
     return;
   }
 
+  // Profile completeness — parallel checks across related tables.
+  const [farmRows, econRows, complianceRows, aiRows] = await Promise.all([
+    db.select({ id: farmsTable.id }).from(farmsTable).where(eq(farmsTable.supplierId, supplierId)).limit(1),
+    db.select({ id: economicsTable.id }).from(economicsTable).where(eq(economicsTable.supplierId, supplierId)).limit(1),
+    db.select({ id: complianceDocsTable.id }).from(complianceDocsTable).where(eq(complianceDocsTable.supplierId, supplierId)).limit(1),
+    db.select({ id: aiOutputsTable.id }).from(aiOutputsTable).where(eq(aiOutputsTable.supplierId, supplierId)).limit(1),
+  ]);
+
+  const profileCompleteness = {
+    hasFarmData:       farmRows.length > 0,
+    hasEconomicsData:  econRows.length > 0,
+    hasComplianceData: complianceRows.length > 0,
+    hasAiScore:        aiRows.length > 0,
+    isGraduated:       supplier.sellableStatus != null && supplier.sellableStatus !== "NOT_READY",
+  };
+
   // T5: Compute public trust score from safe, public-facing signals.
   const public_trust_score = computePublicTrustScore({
     sourceUrl: supplier.sourceUrl,
@@ -805,7 +977,7 @@ router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promis
     claimStatus: supplier.claimStatus,
   });
 
-  res.json({ supplier, public_trust_score });
+  res.json({ supplier, public_trust_score, profileCompleteness });
 });
 
 // ── POST /api/admin/suppliers/:id/transition ─────────────────────────────────

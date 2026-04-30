@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useLanguage } from "../contexts/LanguageContext";
 import { StepFarmIdentity } from "@/components/onboarding/StepFarmIdentity";
 import { StepProduction } from "@/components/onboarding/StepProduction";
@@ -54,11 +54,45 @@ const INITIAL: FormData = {
 export default function OnboardingPage() {
   const { lang } = useLanguage();
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormData>(INITIAL);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [prefillName, setPrefillName] = useState<string | null>(null);
+  const [prefillSupplierId, setPrefillSupplierId] = useState<number | null>(null);
+
+  // ── Pre-fill mode: populate form from an existing ingested supplier ──────
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const sid = params.get("supplierId");
+    const prefill = params.get("prefill");
+    if (!sid || prefill !== "1") return;
+    const id = Number(sid);
+    if (isNaN(id)) return;
+    setPrefillLoading(true);
+    fetch(`/api/suppliers/${id}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        const s = data.supplier;
+        if (!s) return;
+        setPrefillSupplierId(id);
+        setPrefillName(s.nombreCompleto || s.normalizedName || "");
+        setForm((prev) => ({
+          ...prev,
+          owner_name:  s.nombreCompleto || "",
+          farm_name:   s.normalizedName || s.nombreCompleto || "",
+          phone:       s.whatsappNumber || "",
+          email:       s.email || "",
+          department:  s.department || "",
+          municipio:   s.municipio || "",
+        }));
+      })
+      .catch(() => {})
+      .finally(() => setPrefillLoading(false));
+  }, [searchString]);
 
   const set = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -71,7 +105,8 @@ export default function OnboardingPage() {
     setSubmitting(true);
     setSubmitError("");
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
+        ...(prefillSupplierId ? { supplierId: prefillSupplierId } : {}),
         business_name: form.farm_name,
         contact_name: form.owner_name,
         phone: form.phone,
@@ -127,18 +162,26 @@ export default function OnboardingPage() {
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
           <div className="text-5xl mb-4">🌱</div>
           <h2 className="text-2xl font-bold text-green-700 mb-2">
-            {lang === "es" ? "¡Registro Exitoso!" : "Registration Successful!"}
+            {prefillSupplierId
+              ? (lang === "es" ? "¡Perfil Completado!" : "Profile Complete!")
+              : (lang === "es" ? "¡Registro Exitoso!" : "Registration Successful!")}
           </h2>
           <p className="text-gray-600 mb-6">
-            {lang === "es"
-              ? "Hemos recibido la información de su finca. Un asesor de Fincava se comunicará con usted pronto."
-              : "We've received your farm information. A Fincava advisor will reach out shortly."}
+            {prefillSupplierId
+              ? (lang === "es"
+                  ? "Los datos de finca han sido guardados. El score IA se generará en breve."
+                  : "Farm data saved. The AI score will be generated shortly.")
+              : (lang === "es"
+                  ? "Hemos recibido la información de su finca. Un asesor de Fincava se comunicará con usted pronto."
+                  : "We've received your farm information. A Fincava advisor will reach out shortly.")}
           </p>
           <button
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation(prefillSupplierId ? "/admin/suppliers" : "/")}
             className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
           >
-            {lang === "es" ? "Volver al Inicio" : "Back to Home"}
+            {prefillSupplierId
+              ? (lang === "es" ? "Volver a Proveedores" : "Back to Suppliers")
+              : (lang === "es" ? "Volver al Inicio" : "Back to Home")}
           </button>
         </div>
       </div>
@@ -235,12 +278,45 @@ export default function OnboardingPage() {
     return true;
   };
 
+  if (prefillLoading) {
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center">
+        <p className="text-gray-500 text-sm">{lang === "es" ? "Cargando datos del proveedor…" : "Loading supplier data…"}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-white py-8 px-4">
       <div className="max-w-2xl mx-auto">
+
+        {/* Pre-fill mode banner */}
+        {prefillSupplierId && (
+          <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+            <span className="text-amber-500 text-lg mt-0.5">⚙</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">
+                {lang === "es" ? "Modo: Completar perfil de proveedor" : "Mode: Complete supplier profile"}
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {lang === "es"
+                  ? `Recopilando datos de finca para: ${prefillName}`
+                  : `Collecting farm data for: ${prefillName}`}
+              </p>
+              <p className="text-xs text-amber-600 mt-1">
+                {lang === "es"
+                  ? "Los campos de identidad están bloqueados. Complete los datos de producción y cumplimiento."
+                  : "Identity fields are locked. Please complete the production and compliance sections."}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-green-800">
-            {lang === "es" ? "Registro de Proveedor" : "Supplier Registration"}
+            {prefillSupplierId
+              ? (lang === "es" ? "Completar Perfil" : "Complete Profile")
+              : (lang === "es" ? "Registro de Proveedor" : "Supplier Registration")}
           </h1>
           <p className="text-gray-500 mt-1 text-sm">
             {lang === "es"
@@ -282,7 +358,7 @@ export default function OnboardingPage() {
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-md p-6">
           {step === 1 && (
-            <StepFarmIdentity form={form} set={set} lang={lang} inputClass={inputClass} labelClass={labelClass} />
+            <StepFarmIdentity form={form} set={set} lang={lang} inputClass={inputClass} labelClass={labelClass} locked={!!prefillSupplierId} />
           )}
           {step === 2 && (
             <StepProduction form={form} set={set} lang={lang} inputClass={inputClass} labelClass={labelClass} />
