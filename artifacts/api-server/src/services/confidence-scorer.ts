@@ -169,13 +169,18 @@ export function computePublicTrustScore(supplier: {
     earned++;
   }
 
-  // Signal 4: Located in a recognised Colombian region
+  // Signal 4: Located in a recognised Colombian municipio
   if (supplier.municipio) {
     const norm = stripDiacritics(supplier.municipio.trim().toLowerCase());
     if (KNOWN_MUNICIPIOS.has(norm)) earned++;
   }
 
-  return Math.round((earned / 4) * 100) / 100;
+  // Signal 5: Supplier identity claimed (highest-trust signal — owner verified)
+  if (supplier.claimStatus === "CLAIMED") {
+    earned++;
+  }
+
+  return Math.round((earned / 5) * 100) / 100;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

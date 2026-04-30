@@ -729,6 +729,54 @@ router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, 
   res.json({ transitions });
 });
 
+// ── GET /api/suppliers/:id/profile — public supplier profile ─────────────────
+// No authentication required. Returns a curated public profile with
+// `public_trust_score` computed from safe signals. Internal fields such as
+// `confidenceScore`, ingestion metadata, and admin notes are intentionally excluded.
+router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
+  const supplierId = Number(req.params.id);
+  if (isNaN(supplierId)) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+
+  const [supplier] = await db
+    .select({
+      id: suppliersTable.id,
+      nombreCompleto: suppliersTable.nombreCompleto,
+      normalizedName: suppliersTable.normalizedName,
+      municipio: suppliersTable.municipio,
+      department: suppliersTable.department,
+      vereda: suppliersTable.vereda,
+      description: suppliersTable.description,
+      sourceUrl: suppliersTable.sourceUrl,
+      country: suppliersTable.country,
+      supplierType: suppliersTable.supplierType,
+      sellableStatus: suppliersTable.sellableStatus,
+      claimStatus: suppliersTable.claimStatus,
+      createdAt: suppliersTable.createdAt,
+    })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!supplier) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  // Compute public trust score from safe public signals — confidence_score (internal) excluded.
+  const public_trust_score = computePublicTrustScore({
+    sourceUrl: supplier.sourceUrl,
+    normalizedName: supplier.normalizedName,
+    description: supplier.description,
+    municipio: supplier.municipio,
+    claimStatus: supplier.claimStatus,
+  });
+
+  res.json({ supplier, public_trust_score });
+});
+
 // ── GET /api/suppliers/:id ────────────────────────────────────────────────────
 router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
