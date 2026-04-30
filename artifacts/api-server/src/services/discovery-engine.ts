@@ -18,11 +18,30 @@ const MAX_LINKS_PER_RESULT = 3;  // Max URL candidates tried per lead
 const MAX_TOTAL_LINKS = 10;      // Safety cap across all leads in one call
 const LINK_TIMEOUT_MS = 5_000;   // Per-link fetch timeout (ms)
 
-// Domains that may require auth or are social media — never follow
+// Domains that may require auth or are social media — never follow (pre- and post-redirect)
 const BLOCKED_DOMAINS = [
   "facebook.com", "instagram.com", "twitter.com", "x.com",
   "linkedin.com", "youtube.com", "tiktok.com", "pinterest.com",
   "whatsapp.com", "t.me", "wa.me",
+];
+
+// Hostnames / patterns that indicate SSRF risk — block these before any fetch
+// Covers: loopback, link-local, private RFC1918, cloud metadata endpoints, .local
+const SSRF_BLOCKED_PATTERNS = [
+  /^localhost$/i,
+  /^127\.\d+\.\d+\.\d+$/,       // IPv4 loopback
+  /^::1$/,                        // IPv6 loopback
+  /^0\.0\.0\.0$/,                 // unspecified
+  /^10\.\d+\.\d+\.\d+$/,         // RFC1918 10.x
+  /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/, // RFC1918 172.16-31
+  /^192\.168\.\d+\.\d+$/,        // RFC1918 192.168.x
+  /^169\.254\.\d+\.\d+$/,        // link-local
+  /^fd[0-9a-f]{2}:/i,            // IPv6 unique-local (fd00::/8)
+  /^fe80:/i,                      // IPv6 link-local
+  /^metadata\.google\.internal$/i,
+  /\.local$/i,                    // .local mDNS
+  /\.internal$/i,                 // .internal TLD
+  /^\[/,                          // IPv6 literal in URL host (e.g. [::1])
 ];
 
 // ── Output schema — exactly 4 allowed fields; extras discarded by .strip() ────
@@ -170,12 +189,11 @@ async function expandLeadsWithLinks(leads: CandidateLead[]): Promise<CandidateLe
     }
   }
 
-  if (linksFollowed > 0) {
-    logger.info(
-      { linksFollowed },
-      "discovery-engine: DISCOVERY_EXPANSION_USED",
-    );
-  }
+  // Always log expansion result — linksFollowed = 0 means no qualifying URLs were found
+  logger.info(
+    { linksFollowed },
+    "discovery-engine: DISCOVERY_EXPANSION_USED",
+  );
 
   return enhanced;
 }
@@ -190,13 +208,33 @@ function extractJsonArray(text: string): string {
   return text.trim();
 }
 
-function isBlockedUrl(url: string): boolean {
+// Returns true if the URL is on a blocked domain (social media / requires auth)
+function isBlockedDomain(url: string): boolean {
   try {
     const { hostname } = new URL(url);
     return BLOCKED_DOMAINS.some((d) => hostname === d || hostname.endsWith(`.${d}`));
   } catch {
     return true;
   }
+}
+
+// Returns true if the URL poses SSRF risk: non-http(s), IP literals,
+// loopback, private/link-local, metadata endpoints, or .local/.internal.
+function isSsrfRisk(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return true; // unparseable — reject
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return true;
+  const h = parsed.hostname;
+  return SSRF_BLOCKED_PATTERNS.some((re) => re.test(h));
+}
+
+// Combined safety gate: blocked domain OR SSRF risk → not safe
+function isBlockedUrl(url: string): boolean {
+  return isBlockedDomain(url) || isSsrfRisk(url);
 }
 
 // Returns homepage variant URLs to try (www and non-www).
@@ -224,8 +262,17 @@ async function fetchPageHtml(url: string): Promise<string | null> {
         "User-Agent": "Fincava-Discovery-Bot/1.0 (agro-export research; +https://fincava.com)",
         Accept: "text/html,application/xhtml+xml",
       },
+      // Follow redirects but cap at browser default (20); we validate final URL below
       redirect: "follow",
     });
+
+    // Re-check the FINAL URL after redirects — this guards against redirect chains
+    // that land on social media, login-gated pages, or internal/SSRF targets.
+    if (isBlockedUrl(res.url)) {
+      logger.warn({ originalUrl: url, finalUrl: res.url }, "discovery-engine: redirect landed on blocked URL — skipping");
+      return null;
+    }
+
     if (!res.ok) return null;
     const contentType = res.headers.get("content-type") ?? "";
     if (!contentType.includes("html")) return null;
