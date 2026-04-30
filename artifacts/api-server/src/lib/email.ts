@@ -653,6 +653,36 @@ export function passwordResetEmail(opts: { resetUrl: string; firstName: string }
   return { html, text };
 }
 
+// ── Buyer match-ready notification (Phase 3) ──────────────────────────────────
+
+export function buyerMatchReadyEmail(opts: {
+  firstName: string;
+  matchCount: number;
+  dashboardUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject =
+    opts.matchCount > 0
+      ? `Your Fincava matches are ready (${opts.matchCount} suppliers)`
+      : "Your Fincava matching run is complete";
+  const headline =
+    opts.matchCount > 0
+      ? "Your supplier matches are ready ✓"
+      : "We finished a matching run for you";
+  const body =
+    opts.matchCount > 0
+      ? `We've matched your sourcing requirements against verified Colombian suppliers and identified <strong>${opts.matchCount} candidate${opts.matchCount === 1 ? "" : "s"}</strong>. Open your dashboard to review each match, see why it scored well, and reach out.`
+      : `Our matching engine ran against the current supplier catalog. We didn't find a strong match this time — completing the rest of your buyer profile typically unlocks more candidates.`;
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.firstName)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${headline}</h2>
+    <p>${body}</p>
+    <p><a href="${opts.dashboardUrl}" class="btn">View my matches</a></p>
+    <p class="note">Each match includes a confidence score, a short rationale, and the profile fields you can fill to lift the score.</p>
+  `);
+  const text = `Hello ${opts.firstName},\n\n${headline}\n\n${body.replace(/<[^>]+>/g, "")}\n\nView your matches: ${opts.dashboardUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 export function verificationEmail(opts: { firstName: string; verifyUrl: string }): { html: string; text: string; subject: string } {
   const subject = "Confirm your email address — Fincava";
   const html = baseTemplate(`

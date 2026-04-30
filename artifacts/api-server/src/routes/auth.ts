@@ -7,6 +7,7 @@ import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendEmail, passwordResetEmail, welcomeEmail, verificationEmail } from "../lib/email";
+import { runMatching as runBuyerMatching } from "../services/buyer-matching-service";
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -417,6 +418,32 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
         }
       } catch (err) {
         logger.error({ err, userId: record.claimed.userId }, "Buyer welcome email (post-verify) error");
+      }
+    });
+
+    // Phase 3: if the buyer pre-completed sections A+B before verifying email,
+    // matching never fired through PATCH. Run it now (fire-and-forget).
+    Promise.resolve().then(async () => {
+      try {
+        const [bp] = await db
+          .select({
+            id: buyerProfilesTable.id,
+            sectionsDone: buyerProfilesTable.p2SectionsDone,
+            matchingRunCount: buyerProfilesTable.matchingRunCount,
+          })
+          .from(buyerProfilesTable)
+          .where(eq(buyerProfilesTable.userId, record.claimed.userId));
+        if (!bp) return;
+        const sections = (bp.sectionsDone ?? []) as string[];
+        const hasAB = sections.includes("A") && sections.includes("B");
+        if (hasAB && (bp.matchingRunCount ?? 0) === 0) {
+          await runBuyerMatching(bp.id);
+        }
+      } catch (err) {
+        logger.warn(
+          { err, userId: record.claimed.userId },
+          "post-verify buyer matching trigger failed (non-fatal)",
+        );
       }
     });
   }

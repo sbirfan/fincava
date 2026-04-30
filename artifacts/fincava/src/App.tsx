@@ -48,6 +48,7 @@ const BuyerProfile = lazy(() => import("@/pages/dashboard/profile"));
 const BuyerRFQs = lazy(() => import("@/pages/dashboard/rfqs"));
 const BuyerMarketIntel = lazy(() => import("@/pages/dashboard/market-intel"));
 const BuyerAnalytics = lazy(() => import("@/pages/dashboard/analytics"));
+const BuyerMatches = lazy(() => import("@/pages/dashboard/matches"));
 const AiAssistant = lazy(() => import("@/pages/dashboard/ai-assistant"));
 // Supplier Dashboard — lazy
 const SupplierDashboard = lazy(() => import("@/pages/supplier-dashboard/index"));
@@ -177,6 +178,7 @@ function Router() {
         <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
+        <Route path="/dashboard/matches" component={() => <PrivateRoute component={BuyerMatches} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["BUYER"]} layout={DashboardLayout} />} />
 

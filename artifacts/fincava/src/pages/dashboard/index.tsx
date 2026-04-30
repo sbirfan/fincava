@@ -1,9 +1,103 @@
 import { useGetBuyerStats } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, MessageSquare, ShoppingCart, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Package, MessageSquare, ShoppingCart, Clock, Sparkles, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+// Phase 3 — teaser banner shown on the main dashboard before/while matches are loading.
+function TeaserMatchBanner() {
+  const { data: profileResp } = useQuery<{
+    profile: {
+      id: number;
+      state: string;
+      p2SectionsDone: string[];
+      matchingRunCount: number;
+    };
+  }>({
+    queryKey: ["buyer-profile"],
+    queryFn: async () => {
+      const res = await fetch("/api/buyers/profile", { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load profile (${res.status})`);
+      return res.json();
+    },
+  });
+
+  const profile = profileResp?.profile;
+  const profileId = profile?.id;
+  const teaserStates = ["REGISTERED", "ACTIVE", "PROFILING"];
+  const inTeaserState = profile ? teaserStates.includes(profile.state) : false;
+
+  const { data: preview } = useQuery<{
+    preview: true;
+    candidate_count: number;
+    state: string;
+    matching_run_count: number;
+  }>({
+    queryKey: ["buyer-matches-preview", profileId],
+    enabled: !!profileId && inTeaserState,
+    queryFn: async () => {
+      const res = await fetch(`/api/buyers/${profileId}/matches?preview=true`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Failed to load preview (${res.status})`);
+      return res.json();
+    },
+  });
+
+  if (!profile || !inTeaserState) return null;
+
+  const sectionsDone = profile.p2SectionsDone ?? [];
+  const hasAB = sectionsDone.includes("A") && sectionsDone.includes("B");
+  const candidateCount = preview?.candidate_count ?? 0;
+
+  // Title and body adapt based on whether the buyer has finished A+B and
+  // whether the coarse Phase-1 prefilter already found candidate suppliers.
+  let title: string;
+  let body: string;
+  if (hasAB) {
+    if (candidateCount > 0) {
+      title = `We see ~${candidateCount} potential supplier${candidateCount === 1 ? "" : "s"} for you`;
+      body = "Open your matches dashboard for ranked, scored supplier recommendations.";
+    } else {
+      title = "We're scanning Colombian suppliers for your fit";
+      body = "Complete more profile fields to expand your candidate pool.";
+    }
+  } else {
+    if (candidateCount > 0) {
+      title = `We've identified ~${candidateCount} candidate supplier${candidateCount === 1 ? "" : "s"} for you`;
+      body = "Complete Product Detail and Commercial Terms to unlock ranked, scored matches.";
+    } else {
+      title = "Unlock matches with Sections A & B";
+      body = "Finish Product Detail and Commercial Terms so our matching engine can run.";
+    }
+  }
+
+  return (
+    <Card
+      className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-amber-50"
+      data-testid="teaser-match-banner"
+    >
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg font-serif flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-emerald-600" />
+          {title}
+        </CardTitle>
+        <CardDescription>{body}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Link href={hasAB ? "/dashboard/matches" : "/dashboard/profile"}>
+          <Button>
+            {hasAB ? "View matches" : "Complete my profile"}
+            <ArrowRight className="ml-2 w-4 h-4" />
+          </Button>
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function BuyerDashboard() {
   const { data: stats, isLoading } = useGetBuyerStats();
@@ -27,6 +121,8 @@ export default function BuyerDashboard() {
         <h1 className="text-3xl font-serif font-bold tracking-tight">Buyer Dashboard</h1>
         <p className="text-muted-foreground mt-2">Manage your sourcing operations, inquiries, and orders.</p>
       </div>
+
+      <TeaserMatchBanner />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Link href="/dashboard/inquiries" className="block group">

@@ -16,12 +16,15 @@ import { z } from "zod";
 import {
   db,
   buyerProfilesTable,
+  buyerMatchesTable,
+  suppliersTable,
+  productsTable,
   usersTable,
   profilesTable,
   companiesTable,
   emailVerificationTokensTable,
 } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { hashPassword, generateToken, requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
 import {
@@ -30,6 +33,11 @@ import {
   verificationEmail,
 } from "../lib/email";
 import { logInteraction } from "../lib/interaction-logger";
+import {
+  runMatching as runBuyerMatching,
+  countCoarseMatches,
+  computeFieldsThatImproveMatch,
+} from "../services/buyer-matching-service";
 
 const router: IRouter = Router();
 
@@ -606,7 +614,13 @@ router.patch(
       .where(eq(buyerProfilesTable.id, id))
       .returning();
 
-    if (matchingTriggered) {
+    // Phase 3 — fire matching when sections A+B first complete, when a new
+    // section is added after the first run, or when all six are complete.
+    const allComplete = newSectionsDone.length === SECTION_KEYS.length;
+    const shouldRunMatching =
+      matchingTriggered || (allComplete && prevSectionsDone.length < SECTION_KEYS.length);
+
+    if (shouldRunMatching) {
       req.log.info(
         {
           userId,
@@ -616,15 +630,222 @@ router.patch(
           completionPct: newPct,
           prevMatchingRunCount,
         },
-        "buyer profile matching trigger condition met (Phase 2 placeholder)",
+        "buyer profile matching trigger fired",
       );
+      // Fire-and-forget: never block the PATCH response.
+      void runBuyerMatching(id).catch((err) => {
+        req.log.error(
+          { err, buyerProfileId: id },
+          "buyer matching service failed (non-fatal)",
+        );
+      });
     }
 
     res.json({
       section,
       completion_pct: updated.p2CompletionPct,
       sections_done: updated.p2SectionsDone,
-      matching_triggered: matchingTriggered,
+      matching_triggered: shouldRunMatching,
+    });
+  },
+);
+
+// ── GET /api/buyers/:id/matches ───────────────────────────────────────────────
+// Returns the current matches for a buyer, sorted desc by match_score.
+// `?preview=true` returns a Phase 1-only coarse candidate count without
+// touching the matches table or invoking Sonnet.
+router.get(
+  "/buyers/:id/matches",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId: number = (req as any).userId;
+
+    const idParam = req.params.id;
+    const id = typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid buyer profile id" });
+      return;
+    }
+
+    const [profile] = await db
+      .select()
+      .from(buyerProfilesTable)
+      .where(eq(buyerProfilesTable.id, id));
+
+    if (!profile) {
+      res.status(404).json({ error: "Buyer profile not found" });
+      return;
+    }
+    if (profile.userId !== userId) {
+      res.status(403).json({ error: "Not your profile" });
+      return;
+    }
+
+    const isPreview = String(req.query["preview"] ?? "") === "true";
+    if (isPreview) {
+      const count = await countCoarseMatches(id);
+      res.json({
+        preview: true,
+        candidate_count: count,
+        sections_done: profile.p2SectionsDone ?? [],
+      });
+      return;
+    }
+
+    // Full current-match set joined with supplier display fields.
+    const rows = await db
+      .select({
+        id: buyerMatchesTable.id,
+        supplierId: buyerMatchesTable.supplierId,
+        matchScore: buyerMatchesTable.matchScore,
+        scoreBreakdown: buyerMatchesTable.scoreBreakdown,
+        disqualifiers: buyerMatchesTable.disqualifiers,
+        matchNotes: buyerMatchesTable.matchNotes,
+        sectionsAtRun: buyerMatchesTable.sectionsAtRun,
+        createdAt: buyerMatchesTable.createdAt,
+        supplierName: suppliersTable.nombreCompleto,
+        supplierMunicipio: suppliersTable.municipio,
+        supplierDepartment: suppliersTable.department,
+        supplierType: suppliersTable.supplierType,
+        sellableStatus: suppliersTable.sellableStatus,
+        graduationPathway: suppliersTable.graduationPathway,
+        commercialScore: suppliersTable.commercialScore,
+      })
+      .from(buyerMatchesTable)
+      .innerJoin(suppliersTable, eq(buyerMatchesTable.supplierId, suppliersTable.id))
+      .where(
+        and(
+          eq(buyerMatchesTable.buyerProfileId, id),
+          eq(buyerMatchesTable.isCurrent, true),
+        ),
+      )
+      .orderBy(desc(buyerMatchesTable.matchScore));
+
+    // Fetch per-supplier product details so the UI can render category, certs,
+    // altitude, and SCA cupping signals required by the match card spec.
+    const supplierIds = rows
+      .map((r) => r.supplierId)
+      .filter((sid): sid is number => sid != null);
+
+    type SupplierSignals = {
+      categories: string[];
+      subCategories: string[];
+      certifications: string[];
+      altitudes: string[];
+      cuppingMin: number | null;
+      cuppingMax: number | null;
+      productCount: number;
+      topProducts: Array<{
+        id: number;
+        name: string;
+        category: string;
+        subCategory: string | null;
+        origin: string;
+        altitude: string | null;
+        cupping: number | null;
+        process: string | null;
+        variety: string | null;
+        certifications: string[];
+      }>;
+    };
+
+    const signalsBySupplier = new Map<number, SupplierSignals>();
+
+    if (supplierIds.length > 0) {
+      const productRows = await db
+        .select({
+          id: productsTable.id,
+          supplierId: productsTable.supplierId,
+          name: productsTable.name,
+          category: productsTable.category,
+          subCategory: productsTable.subCategory,
+          origin: productsTable.origin,
+          altitude: productsTable.altitude,
+          cupping: productsTable.cupping,
+          process: productsTable.process,
+          variety: productsTable.variety,
+          certifications: productsTable.certifications,
+        })
+        .from(productsTable)
+        .where(
+          and(
+            eq(productsTable.active, true),
+            inArray(productsTable.supplierId, supplierIds),
+          ),
+        );
+
+      for (const p of productRows) {
+        if (p.supplierId == null) continue;
+        const sig =
+          signalsBySupplier.get(p.supplierId) ??
+          ({
+            categories: [],
+            subCategories: [],
+            certifications: [],
+            altitudes: [],
+            cuppingMin: null,
+            cuppingMax: null,
+            productCount: 0,
+            topProducts: [],
+          } satisfies SupplierSignals);
+
+        sig.productCount += 1;
+        if (p.category && !sig.categories.includes(p.category)) {
+          sig.categories.push(p.category);
+        }
+        if (p.subCategory && !sig.subCategories.includes(p.subCategory)) {
+          sig.subCategories.push(p.subCategory);
+        }
+        for (const c of p.certifications ?? []) {
+          if (!sig.certifications.includes(c)) sig.certifications.push(c);
+        }
+        if (p.altitude && !sig.altitudes.includes(p.altitude)) {
+          sig.altitudes.push(p.altitude);
+        }
+        if (p.cupping != null) {
+          sig.cuppingMin = sig.cuppingMin == null ? p.cupping : Math.min(sig.cuppingMin, p.cupping);
+          sig.cuppingMax = sig.cuppingMax == null ? p.cupping : Math.max(sig.cuppingMax, p.cupping);
+        }
+        if (sig.topProducts.length < 3) {
+          sig.topProducts.push({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            subCategory: p.subCategory,
+            origin: p.origin,
+            altitude: p.altitude,
+            cupping: p.cupping,
+            process: p.process,
+            variety: p.variety,
+            certifications: p.certifications ?? [],
+          });
+        }
+        signalsBySupplier.set(p.supplierId, sig);
+      }
+    }
+
+    const matches = rows.map((r) => {
+      const sig = r.supplierId != null ? signalsBySupplier.get(r.supplierId) : undefined;
+      return {
+        ...r,
+        productCategories: sig?.categories ?? [],
+        productSubCategories: sig?.subCategories ?? [],
+        certifications: sig?.certifications ?? [],
+        altitudes: sig?.altitudes ?? [],
+        cuppingMin: sig?.cuppingMin ?? null,
+        cuppingMax: sig?.cuppingMax ?? null,
+        productCount: sig?.productCount ?? 0,
+        topProducts: sig?.topProducts ?? [],
+      };
+    });
+
+    res.json({
+      preview: false,
+      matches,
+      fields_that_improve_match: computeFieldsThatImproveMatch(profile),
+      matching_run_count: profile.matchingRunCount,
+      last_matched_at: profile.lastMatchedAt,
+      state: profile.state,
     });
   },
 );
