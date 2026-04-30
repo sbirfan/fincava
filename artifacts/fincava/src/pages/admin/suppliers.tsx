@@ -58,25 +58,47 @@ const ELIGIBILITY_COLORS: Record<string, string> = {
 
 function DocModal({
   supplierName,
+  supplierId,
   content,
   lang,
   onClose,
   onRegenerate,
 }: {
   supplierName: string;
+  supplierId: number | null;
   content: string;
   lang: string;
   onClose: () => void;
   onRegenerate?: () => void;
 }) {
-  function download() {
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${supplierName.replace(/\s+/g, "_")}_document.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const [downloadingLang, setDownloadingLang] = useState<"en" | "es" | null>(null);
+
+  async function downloadInLanguage(dlLang: "en" | "es") {
+    setDownloadingLang(dlLang);
+    try {
+      let text = content;
+      if (supplierId != null) {
+        const res = await fetch(`/api/suppliers/${supplierId}/generate-document`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ doc_type: "supplier_profile", language: dlLang }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          text = data.documentContent;
+        }
+      }
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${supplierName.replace(/\s+/g, "_")}_${dlLang.toUpperCase()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingLang(null);
+    }
   }
 
   return (
@@ -104,27 +126,43 @@ function DocModal({
             {content}
           </pre>
         </div>
-        <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
-          <button
-            onClick={download}
-            className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition"
-          >
-            {lang === "es" ? "Descargar TXT" : "Download as TXT"}
-          </button>
-          {onRegenerate && (
+        <div className="border-t border-gray-100 px-6 py-4 shrink-0 space-y-3">
+          <div className="flex gap-2">
             <button
-              onClick={onRegenerate}
-              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
+              onClick={() => downloadInLanguage("en")}
+              disabled={downloadingLang !== null}
+              className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-lg text-sm font-medium transition"
             >
-              {lang === "es" ? "Regenerar" : "Regenerate"}
+              {downloadingLang === "en"
+                ? "Generating…"
+                : "↓ English"}
             </button>
-          )}
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition"
-          >
-            {lang === "es" ? "Cerrar" : "Close"}
-          </button>
+            <button
+              onClick={() => downloadInLanguage("es")}
+              disabled={downloadingLang !== null}
+              className="flex-1 py-2.5 bg-green-700 hover:bg-green-800 disabled:opacity-60 text-white rounded-lg text-sm font-medium transition"
+            >
+              {downloadingLang === "es"
+                ? "Generando…"
+                : "↓ Español"}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium transition"
+              >
+                {lang === "es" ? "Regenerar" : "Regenerate"}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition"
+            >
+              {lang === "es" ? "Cerrar" : "Close"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -335,6 +373,7 @@ export default function AdminSuppliersPage() {
       {docModalOpen && docContent && docSupplierName && (
         <DocModal
           supplierName={docSupplierName}
+          supplierId={docSupplierId}
           content={docContent}
           lang={lang}
           onClose={() => setDocModalOpen(false)}
