@@ -38,6 +38,7 @@ import {
   countCoarseMatches,
   computeFieldsThatImproveMatch,
 } from "../services/buyer-matching-service";
+import { analyseGaps as analyseBuyerGaps } from "../services/buyer-gap-service";
 
 const router: IRouter = Router();
 
@@ -637,6 +638,22 @@ router.patch(
         req.log.error(
           { err, buyerProfileId: id },
           "buyer matching service failed (non-fatal)",
+        );
+      });
+    }
+
+    // Phase 4 — Section E ("Gap Sourcing") triggers Sonnet-powered gap
+    // analysis against the eligible supplier catalog. Fire-and-forget;
+    // discovery escalation for HIGH gaps happens inside the service.
+    if (section === "E" && safeValue !== null && safeValue !== undefined) {
+      req.log.info(
+        { userId, buyerProfileId: id, field },
+        "buyer gap analysis trigger fired",
+      );
+      void analyseBuyerGaps(id).catch((err) => {
+        req.log.error(
+          { err, buyerProfileId: id },
+          "buyer gap analysis failed (non-fatal)",
         );
       });
     }
