@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { buyerProfilesTable } from "./buyer-profiles";
+import { supplierIngestionBatchesTable } from "./suppliers";
 
 export const buyerGapBriefsTable = pgTable(
   "buyer_gap_briefs",
@@ -29,9 +30,9 @@ export const buyerGapBriefsTable = pgTable(
     volumeTargetMt: decimal("volume_target_mt", { precision: 10, scale: 2 }),
     buyerUrgencyNote: text("buyer_urgency_note"),
     discoverySearchTerms: text("discovery_search_terms").array(),
-    // ingestionBatchId is a soft reference (no FK) — supplier_ingestion_batches table
-    // does not yet exist. FK will be added when that table is built (Phase 4 / TI-8).
-    ingestionBatchId: integer("ingestion_batch_id"),
+    ingestionBatchId: integer("ingestion_batch_id").references(
+      () => supplierIngestionBatchesTable.id,
+    ),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

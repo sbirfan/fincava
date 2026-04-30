@@ -36,6 +36,7 @@ const Impact = lazy(() => import("@/pages/impact"));
 const SupplierMarketplace = lazy(() => import("@/pages/supplier-marketplace"));
 const OnboardingPage = lazy(() => import("@/pages/onboarding"));
 const OfficerRegisterPage = lazy(() => import("@/pages/officer-register"));
+const BuyerRegisterPage = lazy(() => import("@/pages/buyer-register"));
 
 // Buyer Dashboard — lazy
 const BuyerDashboard = lazy(() => import("@/pages/dashboard/index"));
@@ -159,6 +160,7 @@ function Router() {
         <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
         <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
         <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
+        <Route path="/buyer-register" component={() => <AppLayout><BuyerRegisterPage /></AppLayout>} />
         <Route path="/forgot-password" component={() => <AppLayout><ForgotPassword /></AppLayout>} />
         <Route path="/reset-password" component={() => <AppLayout><ResetPassword /></AppLayout>} />
         <Route path="/verify-email" component={() => <VerifyEmail />} />

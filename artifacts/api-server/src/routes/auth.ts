@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, gt, isNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import rateLimit from "express-rate-limit";
-import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable, emailVerificationTokensTable } from "@workspace/db";
+import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable, emailVerificationTokensTable, buyerProfilesTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -357,7 +357,29 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
         ),
       );
 
-    return claimed;
+    // For BUYERs, transition Phase 1 buyer_profiles.state REGISTERED → ACTIVE.
+    // Idempotent: only updates rows currently in REGISTERED state.
+    const [user] = await tx
+      .select({ id: usersTable.id, role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, claimed.userId));
+
+    let buyerActivated = false;
+    if (user?.role === "BUYER") {
+      const transitioned = await tx
+        .update(buyerProfilesTable)
+        .set({ state: "ACTIVE", updatedAt: now })
+        .where(
+          and(
+            eq(buyerProfilesTable.userId, claimed.userId),
+            eq(buyerProfilesTable.state, "REGISTERED"),
+          ),
+        )
+        .returning({ id: buyerProfilesTable.id });
+      buyerActivated = transitioned.length > 0;
+    }
+
+    return { claimed, role: user?.role ?? null, buyerActivated };
   });
 
   if (!record) {
@@ -365,8 +387,39 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
     return;
   }
 
-  logger.info({ userId: record.userId }, "Email verified successfully");
+  logger.info({ userId: record.claimed.userId, role: record.role }, "Email verified successfully");
   res.json({ message: "Email verified successfully. You can now close this page." });
+
+  // Fire-and-forget: send welcome email to verified buyers.
+  if (record.role === "BUYER") {
+    Promise.resolve().then(async () => {
+      try {
+        const [profile] = await db
+          .select({ firstName: profilesTable.firstName })
+          .from(profilesTable)
+          .where(eq(profilesTable.userId, record.claimed.userId));
+        const [u] = await db
+          .select({ email: usersTable.email })
+          .from(usersTable)
+          .where(eq(usersTable.id, record.claimed.userId));
+        if (!u) return;
+        const { html, text, subject } = welcomeEmail({
+          firstName: profile?.firstName ?? "there",
+          role: "BUYER",
+          loginUrl: `${getAppBaseUrl()}/dashboard`,
+        });
+        const result = await sendEmail({ to: u.email, subject, html, text });
+        if (!result.ok) {
+          logger.warn(
+            { userId: record.claimed.userId, reason: result.reason },
+            "Buyer welcome email (post-verify) delivery failed",
+          );
+        }
+      } catch (err) {
+        logger.error({ err, userId: record.claimed.userId }, "Buyer welcome email (post-verify) error");
+      }
+    });
+  }
 });
 
 // ── POST /api/auth/resend-verification ───────────────────────────────────────

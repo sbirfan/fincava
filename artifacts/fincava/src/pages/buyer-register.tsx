@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -81,7 +80,6 @@ type FormData = z.infer<typeof formSchema>;
 export default function BuyerRegisterPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const { refresh } = useAuth();
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
 
@@ -123,7 +121,6 @@ export default function BuyerRegisterPage() {
         return;
       }
       // Cookie is set server-side; refresh auth context.
-      await refresh();
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       toast({
         title: "Welcome to Fincava",
