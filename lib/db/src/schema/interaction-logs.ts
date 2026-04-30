@@ -32,6 +32,20 @@ import { pgTable, serial, text, integer, jsonb, timestamp } from "drizzle-orm/pg
 //                                                  payload: { supplierId, token }
 //   INTERACTION_TYPES.SUPPLIER_CLAIMED           — supplier completed claim flow
 //                                                  payload: { supplierId, userId }
+//
+// Discovery + batch funnel (T2 → T4):
+//   INTERACTION_TYPES.SUPPLIER_DISCOVERED  — ephemeral leads returned from discovery engine
+//                                            payload: { category, region, maxResults, count }
+//   INTERACTION_TYPES.SUPPLIER_STRUCTURED  — AI enrichment pass completed for a lead
+//                                            payload: { nombreCompleto, categoryHint,
+//                                                       dataCompletenessScore, fieldsEnriched }
+//   INTERACTION_TYPES.INGESTION_SUBMITTED  — single lead confirmed (DRAFT/ENRICHED → READY)
+//                                            payload: { source, supplierId }
+//   INTERACTION_TYPES.BATCH_CONFIRM_EXECUTED — batch-confirm run completed
+//                                             payload: { total, successCount, failureCount }
+//   INTERACTION_TYPES.SUPPLIER_SELLABLE    — supplier transitioned into SELLABLE state
+//                                            payload: { fromState, commercialScore,
+//                                                       thresholdVersion, evaluationId }
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const INTERACTION_TYPES = {
@@ -47,6 +61,12 @@ export const INTERACTION_TYPES = {
   SUPPLIER_ENRICHED: "SUPPLIER_ENRICHED",
   SUPPLIER_CLAIM_INITIATED: "SUPPLIER_CLAIM_INITIATED",
   SUPPLIER_CLAIMED: "SUPPLIER_CLAIMED",
+  // Discovery + batch funnel (T2 → T4)
+  SUPPLIER_DISCOVERED: "SUPPLIER_DISCOVERED",
+  SUPPLIER_STRUCTURED: "SUPPLIER_STRUCTURED",
+  INGESTION_SUBMITTED: "INGESTION_SUBMITTED",
+  BATCH_CONFIRM_EXECUTED: "BATCH_CONFIRM_EXECUTED",
+  SUPPLIER_SELLABLE: "SUPPLIER_SELLABLE",
 } as const;
 
 export type InteractionType = (typeof INTERACTION_TYPES)[keyof typeof INTERACTION_TYPES];

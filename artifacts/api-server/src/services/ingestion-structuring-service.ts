@@ -6,6 +6,7 @@
 import { getAnthropicClient, ENRICHMENT_MODEL } from "../lib/anthropic";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
+import { INTERACTION_TYPES } from "@workspace/db";
 import { z } from "zod";
 
 // ── AI output schema — extra fields discarded by .strip() (default) ───────────
@@ -85,7 +86,7 @@ export async function enrichSupplierWithAI(
   }
 
   logInteraction({
-    eventType: "SUPPLIER_STRUCTURED",
+    eventType: INTERACTION_TYPES.SUPPLIER_STRUCTURED,
     payload: {
       nombreCompleto: input.nombreCompleto,
       categoryHint: input.categoryHint ?? null,

@@ -1131,7 +1131,7 @@ router.post("/admin/ingestion/discover", ...adminOnly, async (req: Request, res:
   try {
     const leads = await discoverLeads({ category, region, maxResults });
     logInteraction({
-      eventType: "SUPPLIER_DISCOVERED",
+      eventType: INTERACTION_TYPES.SUPPLIER_DISCOVERED,
       actorId: adminId,
       actorType: "admin",
       payload: { category, region, maxResults, count: leads.length },
@@ -1182,7 +1182,7 @@ async function confirmSingleIngestion(supplierId: number, adminId: number): Prom
   }
 
   logInteraction({
-    eventType: "INGESTION_SUBMITTED",
+    eventType: INTERACTION_TYPES.INGESTION_SUBMITTED,
     actorId: adminId,
     actorType: "admin",
     referenceId: updated.id,
@@ -1222,7 +1222,7 @@ router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request,
   }
 
   logInteraction({
-    eventType: "BATCH_CONFIRM_EXECUTED",
+    eventType: INTERACTION_TYPES.BATCH_CONFIRM_EXECUTED,
     actorId: adminId,
     actorType: "admin",
     payload: {

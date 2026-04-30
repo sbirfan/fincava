@@ -9,6 +9,7 @@ import {
   aiOutputsTable,
   supplierEvaluationsTable,
   supplierStateTransitionsTable,
+  INTERACTION_TYPES,
 } from "@workspace/db";
 import type { Supplier } from "@workspace/db";
 import { THRESHOLDS } from "../../../../lib/config/thresholds";
@@ -277,7 +278,7 @@ export async function evaluateSupplier(supplierId: number): Promise<{
     // an already-sellable supplier. transition existence confirms a real state change.
     if (sellableStatus === "SELLABLE" && transition && fromState !== "SELLABLE") {
       logInteraction({
-        eventType: "SUPPLIER_SELLABLE",
+        eventType: INTERACTION_TYPES.SUPPLIER_SELLABLE,
         referenceId: supplierId,
         referenceType: "supplier",
         payload: {
