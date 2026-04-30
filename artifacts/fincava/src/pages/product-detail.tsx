@@ -32,6 +32,12 @@ export default function ProductDetail() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Inquiry dialog state — declared here (before any early returns) to satisfy rules of hooks
+  const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [inquiryMessage, setInquiryMessage] = useState("");
+  const [inquiryQty, setInquiryQty] = useState("");
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
+
   async function handlePlaceOrder() {
     const qtyNum = parseFloat(qty);
     if (!qtyNum || qtyNum <= 0) {
@@ -120,11 +126,6 @@ export default function ProductDetail() {
     p.organic && { label: "Certified Organic", icon: Leaf, color: "bg-green-50 text-green-700 border-green-200" },
     p.climateResilient && { label: "Climate-Resilient", icon: Droplets, color: "bg-sky-50 text-sky-700 border-sky-200" },
   ].filter(Boolean) as { label: string; icon: any; color: string }[];
-
-  const [inquiryOpen, setInquiryOpen] = useState(false);
-  const [inquiryMessage, setInquiryMessage] = useState("");
-  const [inquiryQty, setInquiryQty] = useState("");
-  const [inquirySubmitting, setInquirySubmitting] = useState(false);
 
   function handleInquiry() {
     if (!isAuthenticated) {

@@ -1,220 +1,89 @@
-# Workspace
+# Fincava — Colombian Agricultural B2B Marketplace
 
 ## Overview
+Fincava is a full-stack B2B trade platform designed to connect Colombian agricultural producers with international buyers, primarily in the Middle East, Asia, and Africa. The platform focuses on specialty products such as coffee, cacao, avocado, exotic fruits, and superfoods. Its core purpose is to streamline trade, provide market access, facilitate embedded finance, and improve distribution for emerging market commerce. The project aims to become the "Operating System for Emerging Market Commerce" across Latin America, moving beyond a traditional marketplace model.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Key capabilities include a unified supplier layer for onboarding and management, AI-driven supplier scoring, comprehensive B2B transaction flows (RFQ, Checkout), and detailed impact reporting to highlight direct trade and farmer support.
 
-## Stack
+## User Preferences
+The agent should prioritize iterative development. Ask before making major changes.
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+## System Architecture
 
-## Key Commands
+Fincava is built as a pnpm workspace monorepo utilizing TypeScript.
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/db run generate` — generate a new Drizzle migration file from schema changes
-- `pnpm --filter @workspace/db run migrate` — apply pending Drizzle migrations to the database
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+### UI/UX Decisions
+- Dismissible dark-green MVP banner on all pages.
+- Mobile-first design for field officer dashboards.
+- Investor-grade landing page with a 10-section layout, dark full-bleed hero, grid overlays, and primary-color headline emphasis.
+- "Three Layers. One Operating System." deep dive on the `/platform` page.
+- Investor page with dark background, emerald accents, and market opportunity focus.
+- Product cards display farmer identity and impact flags.
+- "Meet the Farmer" section on product detail pages.
+- Marketplace sidebar includes impact filters (Direct Trade, Smallholder Farm, Women-Led Farm, Certified Organic).
+- Dashboard analytics powered by Recharts, featuring stat cards, dual-axis line charts, bar charts, and pie charts.
+- Updated navigation bar with consistent styling and active states.
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+### Technical Implementations
+- **Monorepo Management**: pnpm workspaces for managing multiple packages.
+- **Node.js & TypeScript**: Node.js v24 and TypeScript v5.9 are used across the project.
+- **API Framework**: Express 5 for building robust APIs.
+- **Database & ORM**: PostgreSQL as the primary database, managed with Drizzle ORM for schema definitions and migrations.
+- **Validation**: Zod is used for schema validation, including `drizzle-zod` for integration with Drizzle.
+- **API Codegen**: Orval generates API hooks and Zod schemas from an OpenAPI specification.
+- **Build System**: esbuild is used for bundling into CJS.
+- **Authentication**: JWTs are stored in httpOnly cookies (`fincava_auth`), with `requireAuth` middleware supporting both cookie and `Authorization: Bearer` header. Frontend uses `AuthContext` with `credentials: "include"`. bcrypt is used for password hashing with transparent legacy SHA-256 migration.
+- **Authorization**: Role-based access control (BUYER, SUPPLIER, ADMIN) with shared `requireAdmin` middleware.
+- **Security**: Helmet for HTTP security headers, restricted CORS, 1MB global JSON body limit.
+- **Error Handling**: Global Express error handler with pino logging and standardized JSON error responses.
+- **AI Integration**: Anthropic SDK for AI scoring, with model names configurable via environment variables.
+- **Object Storage**: Integration with Google Cloud Storage (GCS) for product images, using presigned URLs for direct client uploads and server-side serving.
+- **Email Infrastructure**: Resend SDK for sending emails, supporting supplier confirmations, admin alerts, status changes, and password reset flows. Email templates are centralized.
+- **Observability**: Structured pino logs for key events (e.g., CONFIG_LOADED, SUPPLIER_ONBOARDED, PRODUCT_CREATED).
+- **TypeScript Strictness**: All packages maintain clean typecheck exits.
+- **Validation**: Extensive Zod validation for all API endpoints.
+- **Ownership Checks**: Robust ownership verification for sensitive operations.
+- **Pagination**: Standardized pagination for all admin list endpoints.
+- **Concurrency Control**: `AbortController` implemented for cancelling in-flight requests on filter changes.
+- **Frontend Data Handling**: All frontend fetch calls guard with `res.ok` before processing JSON.
 
-## Fincava — Colombian Agricultural B2B Marketplace
+### Feature Specifications
+- **Unified Supplier Layer (Phase 1 complete)**: A four-phase system covering ingestion, field collection, AI scoring, and self-completion. Phase 1 is fully closed:
+  - `GET /api/suppliers/:id` returns `profileCompleteness` object (`hasFarmData`, `hasEconomicsData`, `hasComplianceData`, `hasAiScore`, `isGraduated`).
+  - `POST /api/suppliers/onboard` supports update mode via optional `supplierId` body field (upserts farm, economics, compliance rows, logs interaction).
+  - Admin supplier drawer shows a Profile Completeness panel with per-dimension indicators and an amber "Collect farm data →" CTA when `hasFarmData=false`.
+  - Onboarding page (`/onboarding?supplierId=:id&prefill=1`) pre-populates Step 1 from the ingested supplier record and includes `supplierId` in submit payload so update mode is triggered.
+  - Supplier self-claim: `PATCH /api/suppliers/:id/claim` endpoint; supplier dashboard shows amber claim panel / green success state.
+  - Graduation email pipeline complete through G16 (PUBLISHED state fires email via `markPublished()`).
+- **AI Scoring Prompt V1**: Detailed, field-by-field AI scoring prompt for improved supplier evaluation based on 5 input blocks and a comprehensive rubric.
+- **RFQ System**: Buyers can post sourcing requests, suppliers can bid, and buyers can award.
+- **Trust Scores**: 0-100 scores for suppliers (Basic/Silver/Gold/Platinum tiers) visible across the platform.
+- **Shipment Tracking**: Timeline widget for order status.
+- **Payment Milestones**: 3-stage payment release mechanism.
+- **Market Intelligence**: Tools for demand signals, price benchmarks, and compliance guides.
+- **Supplier Performance Dashboard**: Provides trade history and performance metrics.
+- **Product Analytics**: Tracks views and trending products.
+- **Checkout Flow**: Comprehensive buyer-only checkout process with quantity, incoterm, destination, shipping, notes, and real-time total.
+- **Live Messaging**: Real-time conversation selection, message threads with polling, and optimistic updates.
+- **Farmer Identity & Impact**: Displays farmer details, impact flags, origin stories, and supports impact-focused filtering.
+- **Email Notifications**: Automated emails for supplier onboarding confirmation, admin alerts, status changes, and password resets.
 
-### Product Summary
-Full-stack B2B trade platform connecting Colombian agricultural producers with international buyers (Middle East, Asia, Africa). Specialty coffee, cacao, avocado, exotic fruits, superfoods.
+## External Dependencies
 
-### Unified Supplier Layer (All 4 Phases Complete)
-
-Four-phase system connecting ingestion, field collection, AI scoring, and self-completion into one unified flow. Architecture doc: `Supplier_Layer_Architecture.md`.
-
-**Phase 1 — Admin Loop:**
-- `GET /api/suppliers/:id` → returns `profileCompleteness: { hasFarmData, hasEconomicsData, hasComplianceData, hasAiScore, isGraduated }`
-- `POST /api/suppliers/onboard` accepts optional `supplierId` → update mode (HTTP 200 + `mode: "profile_completion"`)
-- Admin supplier detail drawer: 5-dimension completeness panel with ✓/○; amber "Collect farm data →" link to pre-filled onboarding
-- Onboarding page: `?supplierId=&prefill=1` pre-fills and locks identity fields
-
-**Phase 2 — Field Officer Dashboard:**
-- `/officer/dashboard` — mobile-first, green officer header with name + FO-{id} code
-- Server-side ILIKE text search on admin-list endpoint (`?q=` param) across name/municipio/department/product
-- Admin sidebar: "Field Visits" link (MapPin icon) between Ingestion and Orders
-- Onboarding reads `?officerName=&officerCode=` to pre-fill Step 4 officer fields
-
-**Phase 3 — Combined AI Input:**
-- `buildScoringInput` fetches `productPlaceholdersTable` → builds `ingestion` block with normalizedName, description, confidenceScore, dataCompletenessScore, categoryHints[]
-- `scoreSupplier` sends `{ supplier, farm, economics, compliance, ingestion }` to Claude — ingestion-enriched suppliers get market context in AI scoring
-
-**Phase 4 — Supplier Self-Completion:**
-- `GET /api/suppliers/my-profile` — matches logged-in user email to `suppliersTable.email`, returns profileCompleteness
-- `ProfileCompletenessWidget` in supplier dashboard: % progress bar, 5 dimension rows with "Complete →" per-row links, full-width CTA
-- Widget silently hides when no linked supplier record found
-
-### Supplier Self-Claim (Complete)
-- `PATCH /api/suppliers/:id/claim` — auth required; verifies logged-in user email matches `suppliersTable.email`; sets `claimStatus = 'CLAIMED'`; returns 403 if email mismatch
-- `GET /api/suppliers/my-profile` already returns `claimStatus` in the supplier object
-- Supplier dashboard `ProfileCompletenessWidget` extended: amber "Claim your profile" panel with button when unclaimed; green confirmation banner on success; optimistic state update without page reload
-- Claiming awards the public trust score point for `claimStatus=CLAIMED` (previously unreachable)
-
-### AI Scoring Prompt — V1 (Complete)
-- `SCORING_PROMPT_V1` in `scoring-prompts.ts` replaces generic V0 (5-sentence prompt)
-- Field-by-field guide for all 5 input blocks: `supplier`, `farm`, `economics`, `compliance`, `ingestion`
-- Detailed rubric table: land rights, production volume, post-harvest quality, compliance readiness, commitment (20pts each)
-- Pathway thresholds explicitly documented: A≥75, B 60–74, C 40–59, D<40
-- Claude now has full context to use `tenenciaTierra`, `metodoSecado`, `tipoComprador`, `haIntentadoExportar`, etc.
-
-### MVP Banner (Complete)
-- Dismissible dark-green banner rendered at the top of every page above the navbar
-- Text: "Fincava is in early access. We are actively building — some features may be unstable or incomplete."
-- Dismissal stored in `localStorage` (`fincava_mvp_banner_dismissed`) — persists across refreshes
-- Implemented in `App.tsx` via `MvpBanner` component
-
-### Supplier Layer Hardening — G1–G7 (Complete)
-
-Closed the seven gaps identified in the architecture audit:
-
-- **G1 — Contact Supplier dialog**: `supplier-detail.tsx` — "Contact Supplier" button (hidden for guests) opens an in-page dialog with product picker, optional quantity, required message. Posts `POST /api/inquiries`. Guests redirected to `/login`.
-- **G2 — Product inquiry dialog**: `product-detail.tsx` — "Request Quote / Inquiry" now opens an in-page dialog (product + quantity + message) instead of redirecting to the read-only inquiry list.
-- **G3 — Public supplier directory**: `suppliers.tsx` calls `GET /api/suppliers/marketplace` (no auth, SELLABLE/PUBLISHED only) with client-side search; removed the admin-restricted generated hook.
-- **G4 — Public supplier profile endpoint**: `supplier-detail.tsx` fetches `GET /api/suppliers/:id/profile` (no auth) via `useEffect/fetch` instead of the admin-restricted generated hook.
-- **G5 — Admin Score Now**: `POST /api/admin/suppliers/:id/score` fires `runOnboardPipeline()` asynchronously; "⚡ Score Now" button added to the admin detail drawer with started/failed feedback states.
-- **G6 — Compliance update re-evaluation**: `PATCH /api/admin/suppliers/:id/compliance` now calls `evaluateSupplier()` after updating, guarded by checking an `ONBOARD_SCORE` ai_outputs row exists first. Returns `evaluation` field in response when re-evaluation ran.
-- **G7 — Graduation email**: `supplierGraduationEmail()` template added to `email.ts` (SELLABLE + PUBLISHED variants, Spanish). SELLABLE notification wired in `evaluateSupplier()` at the transition guard (non-fatal async); supplier receives email the first time they reach SELLABLE state.
-
-Key files: `artifacts/api-server/src/routes/suppliers.ts`, `artifacts/api-server/src/services/supplier-graduation-service.ts`, `artifacts/api-server/src/lib/email.ts`, `artifacts/fincava/src/pages/supplier-detail.tsx`, `artifacts/fincava/src/pages/product-detail.tsx`, `artifacts/fincava/src/pages/suppliers.tsx`, `artifacts/fincava/src/pages/admin/suppliers.tsx`.
-
-### Phase 2 Hardening (Active)
-- **Observability** — Structured pino logs: CONFIG_LOADED/CONFIG_MISSING at startup, SUPPLIER_ONBOARDED, PRODUCT_CREATED, ORDER_CREATED; milestone EVENT_VOLUME_COUNTERS_RESET every 10 events (aggregate-only, no entity IDs)
-- **Fail-fast company resolution** — `POST /api/admin/suppliers/:id/create-product` resolves company via `FINCAVA_COMPANY_ID` env var (=17) first; falls back to name lookup requiring exactly 1 match; logs COMPANY_RESOLUTION_FAILED on error
-- **TypeScript fixes** — `lib/object-storage-web/tsconfig.json` now has `composite`, `declarationMap`, `emitDeclarationOnly` (required for composite lib emission); `product-edit.tsx` and `product-new.tsx` `requestUploadParams` callback typed `size: number | null` to match `UppyFile.size`
-- **All packages typecheck clean** — libs, api-server, fincava all exit 0
-
-### V5 — Full Platform Features (Active)
-- **Checkout Flow** — Product detail page has a primary "Place Order" button (BUYER-only) opening a dialog with: quantity (kg), incoterm select (FOB/CIF/CFR/EXW/DDP), destination port, shipping method, notes, real-time total calculation; submits to `POST /api/buyer/orders` and redirects to `/dashboard/orders`
-- **Platform Page** (`/platform`) — "Three Layers. One Operating System." deep dive: 3 system layer cards with feature lists, competitor comparison table (Fincava vs. Trade Broker vs. Traditional Import), 6-card technical architecture grid
-- **Investors Page** (`/investors`) — Dark bg, emerald accents; market opportunity ($180B TAM, 800K+ producers, $2.1B finance gap, 60+ markets); 3-stream revenue model (marketplace commission, embedded finance spread, SaaS); 4 competitive moats; traction checklist; seed round CTA; EN/ES navbar link included
-- **Live Messaging** — `dashboard/messages.tsx` fully rewritten: conversation selection, message thread with time-stamped bubbles, live polling every 3s (conversations every 5s), auto-scroll to bottom, send form with optimistic-update mutation
-- **Analytics Dashboard** (`/dashboard/analytics`) — Recharts-powered: stat cards (orders, value, products, AOV), dual-axis line chart (orders + value over 7 months), bar chart (product views/inquiries), pie chart (by category), regional demand index horizontal bars; added to buyer dashboard sidebar nav
-- **Navbar updated** — 6 links: Products, Platform, Suppliers, Markets, Impact, Investors (EN) / Inversores (ES)
-- **Dashboard sidebar** — Added "Analytics" link for buyers (uses existing BarChart2 icon)
-
-### V4 — Investor-Grade Repositioning (Active)
-- **New Brand Position** — "The Operating System for Emerging Market Commerce" (not a marketplace)
-- **Navbar** — "Commerce OS" badge, active-state nav links, "Get Started" CTA replacing "Sign up", "Products" replaces "Marketplace" label
-- **Homepage** — 10-section investor-grade landing page:
-  1. Hero (dark full-bleed, grid overlay, primary-color headline emphasis, metrics bar)
-  2. Problem (4 problem cards with real stats: fragmented chains, market access, capital, distribution)
-  3. Solution (3 System Layers: Market Access / Embedded Finance / Distribution, dark section)
-  4. Architecture ("Built as a Modular Agentic System" with interactive ASCII-style diagram)
-  5. Why Now (Colombia opportunity, Dastgyr parallel, emerging market demand surge)
-  6. Traction (ground-level relationships, live platform stats)
-  7. Business Model (3 revenue streams: 2–4% transaction, 8–18% financing APR, future SaaS)
-  8. Competitive Advantage (4 moats: local depth, architecture, data flywheel, compliance)
-  9. Vision ("Infrastructure for commerce across Latin America", expansion roadmap)
-  10. CTA (Partner / Join / Contact three-card grid + primary buttons)
-
-### V3 Features — Story + Impact Layer (Active)
-- **Farmer Identity Cards** — every product card shows farmer name, farm, impact flags (Smallholder, Direct Trade, Organic, Climate-Resilient), families supported count
-- **Origin Story Engine** — `origin_stories` DB table with farmerName, farmerPhoto, farmName, region, elevation, farmSizeHa, yearsFarming, story, challenges, impact
-- **"Meet the Farmer" Section** — full split-layout panel on product detail page with portrait, farm stats, "Their Story" narrative, "The Challenge" and "Your Impact" columns
-- **Impact Filters** — marketplace sidebar checkboxes: Direct Trade, Smallholder Farm, Women-Led Farm, Certified Organic
-- **`/impact` Page** — live platform impact stats (farmers, families, regions, direct trade), farmer voices carousel, direct trade value comparison, UN SDG alignment, CTA
-- **Homepage Mission Section** — "The farmer should earn more than the broker" split layout with farmer portrait, 3 mini stats, "See our full impact report →" link
-- **Impact badges** — product page sticky info shows "Direct trade price — 40–70% above commodity market paid to farmer"
-- **New API routes** — `GET /stories/:productId`, `GET /impact`; products list + detail now include all impact flags
-
-### New DB Columns / Tables (V3)
-- `products`: `smallholder`, `women_led`, `direct_trade`, `climate_resilient`, `organic` booleans; `families_supported` int
-- `origin_stories`: full farmer narrative table (productId FK, farmerPhoto, story, challenges, impact, images[], etc.)
-
-### Seed note
-V3 origin stories seeded for all 8 products using script run via `scripts/node_modules/.bin/tsx artifacts/api-server/src/seed-v3.ts` from workspace root.
-
-### V2 Features (Active)
-- **RFQ System** — buyers post sourcing requests, suppliers bid, buyers award; public `/rfqs` board + dashboard pages
-- **Trust Scores** — 0-100 scores (Basic/Silver/Gold/Platinum tiers) per supplier; visible on cards, detail pages, and bid comparisons
-- **Shipment Tracking** — timeline widget on order detail with 5-step status (CREATED → EXPORT_CUSTOMS → IN_TRANSIT → IMPORT_CUSTOMS → DELIVERED)
-- **Payment Milestones** — 3-stage release (Deposit 30%, Pre-Shipment 40%, On-Delivery 30%) with unlock button
-- **Market Intelligence** — live demand signals, price benchmarks, compliance guide by market+product, regulatory alerts
-- **Supplier Performance Dashboard** — trade history, export destinations, trust score breakdown, avg response time
-- **Product Analytics** — view tracking, trending products per category
-
-### Auth Pattern
-- Token stored as `fincava_auth` **httpOnly cookie** (sameSite:strict, secure in prod, 7-day maxAge); signed JWT (HS256) via `JWT_SECRET` env var
-- `requireAuth` middleware: checks cookie first, then `Authorization: Bearer` fallback (for API/curl clients)
-- Frontend: `AuthContext` uses always-enabled `/api/auth/me` query; login/logout via `/api/auth/login` + `/api/auth/logout`
-- All frontend pages use `credentials: "include"` on every fetch (no localStorage token or manual Authorization header)
-- Password hash: bcrypt (12 rounds). Legacy SHA-256 hashes auto-upgraded to bcrypt on next login (transparent migration)
-- Roles: BUYER, SUPPLIER, ADMIN
-- Rate limiting: login/register 20 req/15 min, onboarding 30 req/hour
-
-### Security & Architecture
-- **Helmet** — HTTP security headers on all responses
-- **CORS** — restricted to `ALLOWED_ORIGIN` env var (default: Replit dev domain); wildcard removed
-- **Body size limit** — 1 MB global limit on all JSON bodies
-- **Global error handler** — 4-arg Express middleware; logs via pino, returns `{error}` JSON
-- **Anthropic singleton** — `lib/anthropic.ts`; model names env-overridable via `ANTHROPIC_SCORING_MODEL` / `ANTHROPIC_DOCUMENT_MODEL`
-- **Shared requireAdmin** — `middleware/admin.ts`; imported by both admin and supplier routes
-- **Zod validation** — `src/schemas.ts` + inline validators; covers all admin endpoints, product boolean filters
-- **Ownership checks** — PATCH /supplier/inquiries/:id, PATCH /supplier/orders/:id/status, GET /buyer/inquiries all verified
-- **Admin user delete** — FK constraint violations return 409 (not 500) with a clear message to deactivate instead
-- **Paginated admin endpoints** — all list endpoints return `{ data, total, page, limit, totalPages }` (default limit=50, max=100); `totalPages` is always ≥ 1
-- **Drizzle migrations** — baseline SQL generated at `lib/db/drizzle/0000_baseline.sql`; apply with `pnpm --filter @workspace/db run migrate`
-- **AbortController** — supplier admin filter fetches cancel in-flight requests on filter change (race condition fix)
-- **res.ok guards** — all frontend fetch calls check `res.ok` before calling `.json()` (admin/team, admin/users, messages)
-
-### Key API Routes (V2)
-- `GET/POST /rfqs` — public RFQ board + create (buyer auth)
-- `GET /rfqs/:id` — detail with responses
-- `POST /rfqs/:id/respond` — supplier bids
-- `POST /rfqs/:id/award/:responseId` — buyer awards
-- `GET /buyer/rfqs` — buyer's own RFQs
-- `GET /supplier/rfqs` — open RFQs for supplier inbox
-- `GET /trust/:companyId` — trust score with factor breakdown
-- `GET /markets/intelligence` — demand signals, trending, prices, highlights
-- `GET /analytics/trending` — top products by inquiries
-- `GET /analytics/trade-history/:companyId`
-- `GET /orders/:id/shipment` — shipment status + tracking
-- `GET /orders/:id/milestones` — payment milestone list
-- `POST /orders/:orderId/milestones/:milestoneId/release` — release payment
-
-### Supplier Lifecycle Emails (Task #88)
-- **Email column added**: `suppliers.email` (nullable text) — Drizzle migration at `lib/db/drizzle/0002_lazy_ink.sql`
-- **Onboarding form updated**: Email address (optional) field added to Step 1 (`StepFarmIdentity.tsx`); shows helper text "We'll send you a confirmation"
-- **Post-onboard emails** (fire-and-forget after 201 response):
-  - Supplier confirmation email (Spanish) if email provided
-  - Admin alert email to info@fincava.com always (with supplier details + link to admin panel)
-- **Admin status change**: `PATCH /api/admin/suppliers/:id/status` fires status-change email to supplier when email is on file; covers ACTIVE/INACTIVE/PENDING statuses
-- **Templates**: `supplierApplicationConfirmationEmail`, `supplierApplicationAdminAlertEmail`, `supplierStatusChangeEmail` in `artifacts/api-server/src/lib/email.ts`
-
-### Object Storage (Product Images)
-- **GCS bucket**: `replit-objstore-824264b6-40a0-4a90-be0d-950a9c5061e4` (Replit-managed, sidecar auth)
-- **Secrets**: `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS`, `PRIVATE_OBJECT_DIR`
-- **Server lib**: `artifacts/api-server/src/lib/objectStorage.ts` + `objectAcl.ts`
-- **Storage routes**: `artifacts/api-server/src/routes/storage.ts` — `POST /api/storage/uploads/request-url` (returns presigned GCS URL + objectPath), `GET /api/storage/objects/*`
-- **Client lib**: `lib/object-storage-web/` (`@workspace/object-storage-web`) — `ObjectUploader` component (Uppy v5 modal) + `useUpload` hook
-- **Upload flow**: Browser calls `/api/storage/uploads/request-url` → receives `{ uploadURL, objectPath }` → PUT file directly to GCS → stores `objectPath` (e.g. `/objects/uploads/<uuid>`) in DB
-- **Serving**: Images stored as objectPath in `product.images[]`; displayed as `/api/storage${objectPath}` in frontend
-- **Supplier product forms**: `product-new.tsx` and `product-edit.tsx` use `ObjectUploader` — drag-and-drop file picker replaces URL input
-
-### Email Infrastructure
-- **Resend SDK** — installed in `@workspace/api-server`; lazy-initialized in `artifacts/api-server/src/lib/email.ts`
-- **RESEND_API_KEY** — stored as a Replit secret; email is silently skipped (logged as warn) if key is missing
-- **FROM_ADDRESS** — `Fincava <noreply@fincava.com>`; all templates use `baseTemplate()` in `email.ts`
-- **Password reset flow** — `password_reset_tokens` DB table (token, user_id, expires_at, used); `POST /api/auth/forgot-password` (always 200, generates 32-byte hex token, 1h expiry); `POST /api/auth/reset-password` (validates token, updates hash, marks used)
-- **Frontend pages** — `/forgot-password` and `/reset-password?token=...`; login page has "Forgot your password? Reset it here" link
-- **FRONTEND_URL** env var — used by API to build reset links; falls back to `REPLIT_DOMAINS` then `localhost:25876`
-
-### Seeded Suppliers
-- id=1 Café Huilas Premium (PREMIUM, trustScore=87)
-- id=2 Cooperativa Cacao del Pacífico (PRO, trustScore=79)
-- id=3 Exportaciones Andinas Colombia (PREMIUM, trustScore=91)
-- id=4 Santero Premium Superfoods (FREE)
+- **pnpm**: Monorepo package manager.
+- **Node.js**: Runtime environment.
+- **TypeScript**: Programming language.
+- **Express**: Web application framework.
+- **PostgreSQL**: Relational database.
+- **Drizzle ORM**: TypeScript ORM for PostgreSQL.
+- **Zod**: Schema declaration and validation library.
+- **Orval**: OpenAPI code generator.
+- **esbuild**: JavaScript bundler.
+- **Anthropic**: AI service for scoring and document analysis.
+- **Google Cloud Storage (GCS)**: Object storage for product images.
+- **Resend**: Email API service.
+- **Uppy**: File upload library (specifically Uppy v5 modal).
+- **bcrypt**: Password hashing library.
+- **pino**: Node.js logger.
+- **Helmet**: Express middleware for HTTP security headers.
+- **Recharts**: Charting library for React.

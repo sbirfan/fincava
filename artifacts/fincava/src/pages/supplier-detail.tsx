@@ -173,7 +173,7 @@ export default function SupplierDetail() {
             {profile.logoUrl ? (
               <img src={profile.logoUrl} alt={profile.name} className="w-full h-full object-cover" />
             ) : (
-              <span className="text-4xl md:text-5xl font-bold text-primary">{profile.name.charAt(0)}</span>
+              <span className="text-4xl md:text-5xl font-bold text-primary">{(profile.name ?? "?").charAt(0)}</span>
             )}
           </div>
         </div>
@@ -261,11 +261,11 @@ export default function SupplierDetail() {
                     <div className="font-medium text-sm">{profile.type}</div>
                   </div>
                 )}
-                {profile.productCategories.length > 0 && (
+                {(profile.productCategories?.length ?? 0) > 0 && (
                   <div>
                     <div className="text-xs text-muted-foreground mb-2">Main Categories</div>
                     <div className="flex flex-wrap gap-2">
-                      {profile.productCategories.map((cat, i) => (
+                      {(profile.productCategories ?? []).map((cat, i) => (
                         <Badge key={i} variant="secondary" className="font-normal">{cat}</Badge>
                       ))}
                     </div>

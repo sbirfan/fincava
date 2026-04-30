@@ -427,5 +427,47 @@ export async function markPublished(
   actor: "ADMIN" | "FOUNDER",
   justification: string,
 ): Promise<{ transition: TransitionRow }> {
-  return transitionTo(supplierId, "PUBLISHED", actor, { justification });
+  const result = await transitionTo(supplierId, "PUBLISHED", actor, { justification });
+
+  // G16: notify supplier by email when promoted to PUBLISHED (non-fatal, async).
+  setImmediate(async () => {
+    try {
+      const [supplier] = await db
+        .select({
+          email:            suppliersTable.email,
+          nombreCompleto:   suppliersTable.nombreCompleto,
+          municipio:        suppliersTable.municipio,
+          graduationPathway: suppliersTable.graduationPathway,
+        })
+        .from(suppliersTable)
+        .where(eq(suppliersTable.id, supplierId))
+        .limit(1);
+
+      if (!supplier?.email) return;
+
+      const appUrl = process.env.APP_URL ?? "https://fincava.com";
+      const tpl = supplierGraduationEmail({
+        name:     supplier.nombreCompleto ?? "Proveedor",
+        municipio: supplier.municipio ?? "",
+        pathway:  supplier.graduationPathway ?? null,
+        appUrl,
+        state:    "PUBLISHED",
+      });
+      const emailResult = await sendEmail({
+        to:      supplier.email,
+        subject: tpl.subject,
+        html:    tpl.html,
+        text:    tpl.text,
+      });
+      if (emailResult.ok) {
+        logger.info({ supplierId }, "graduation: PUBLISHED email sent");
+      } else {
+        logger.warn({ supplierId, reason: emailResult.reason }, "graduation: PUBLISHED email skipped");
+      }
+    } catch (err) {
+      logger.warn({ err, supplierId }, "graduation: PUBLISHED email failed (non-fatal)");
+    }
+  });
+
+  return result;
 }
