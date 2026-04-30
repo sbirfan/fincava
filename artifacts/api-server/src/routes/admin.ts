@@ -8,9 +8,10 @@ import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TY
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
-import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery } from "../schemas";
+import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody } from "../schemas";
 import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
 import { checkDuplicate, computeSupplierFingerprint } from "../services/duplicate-detector";
+import { discoverLeads } from "../services/discovery-engine";
 import { randomUUID } from "crypto";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
 import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail } from "../lib/email";
@@ -1114,6 +1115,26 @@ router.post("/admin/ingestion/batches/:id/submit", ...adminOnly, async (req: Req
   });
 
   res.json(batch);
+});
+
+// ── POST /api/admin/ingestion/discover — ephemeral lead discovery via Claude Haiku ──
+router.post("/admin/ingestion/discover", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const parsed = DiscoveryRequestBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { category, region, maxResults } = parsed.data;
+
+  try {
+    const leads = await discoverLeads({ category, region, maxResults });
+    res.json({ leads, count: leads.length });
+  } catch (err) {
+    req.log.warn({ err, category, region }, "admin/ingestion/discover: discovery failed");
+    const message = err instanceof Error ? err.message : "Discovery failed — please try again.";
+    res.status(502).json({ error: message });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

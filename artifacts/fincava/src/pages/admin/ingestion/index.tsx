@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Plus, DatabaseZap, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Plus, DatabaseZap, CheckCircle2, Clock, XCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -62,12 +62,23 @@ export default function AdminIngestion() {
             Manually seed and AI-enrich supplier profiles before they go live.
           </p>
         </div>
-        <Link href="/admin/ingestion/new">
-          <Button className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-            <Plus className="h-4 w-4" />
-            New Entry
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/admin/ingestion/discover">
+            <Button
+              variant="outline"
+              className="gap-2 border-white/10 text-white/60 hover:text-white hover:bg-white/5 bg-transparent"
+            >
+              <Search className="h-4 w-4" />
+              Discover Leads
+            </Button>
+          </Link>
+          <Link href="/admin/ingestion/new">
+            <Button className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
+              <Plus className="h-4 w-4" />
+              New Entry
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {loading && (

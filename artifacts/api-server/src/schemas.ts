@@ -128,3 +128,9 @@ export const DuplicateCheckQuery = z.object({
   nombre: z.string().min(1).max(200),
   country: z.string().max(100).optional().default("Colombia"),
 });
+
+export const DiscoveryRequestBody = z.object({
+  category: z.string().min(1).max(100),
+  region: z.string().min(1).max(100),
+  maxResults: z.number().int().min(1).max(20).optional().default(10),
+});
