@@ -83,31 +83,46 @@ export default function AdminIngestionNew() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [queueRemaining, setQueueRemaining] = useState(0);
 
-  // Pre-fill form from URL query params (supplied by the discovery engine handoff)
+  // Pre-fill form from URL query params (supplied by the discovery engine handoff).
+  // Always starts from EMPTY_FORM so stale data from a previous lead never carries over.
   useEffect(() => {
     if (!search) return;
     const params = new URLSearchParams(search);
-    const patch: Partial<FormState> = {};
     const name = params.get("nombreCompleto");
     const municipio = params.get("municipio");
     const categoryHint = params.get("categoryHint");
     const sourceUrl = params.get("sourceUrl");
-    if (name) patch.nombreCompleto = name;
-    if (municipio) patch.municipio = municipio;
-    if (categoryHint) patch.categoryHint = categoryHint;
-    if (sourceUrl) patch.sourceUrl = sourceUrl;
-    if (Object.keys(patch).length > 0) {
-      setForm((f) => ({ ...f, ...patch }));
-    }
+    const hasParams = name || municipio || categoryHint || sourceUrl;
+    if (!hasParams) return;
+
+    // Reset form to blank slate, then apply only the discovered fields
+    setForm({
+      ...EMPTY_FORM,
+      ...(name ? { nombreCompleto: name } : {}),
+      ...(municipio ? { municipio: municipio } : {}),
+      ...(categoryHint ? { categoryHint: categoryHint } : {}),
+      ...(sourceUrl ? { sourceUrl: sourceUrl } : {}),
+    });
+
+    // Clear all transient state so nothing from the previous lead bleeds through
+    setEnriched(null);
+    setDuplicate(null);
+    setOverrideJustification("");
+    setOverrideDuplicateId(null);
+    setEnrichError(null);
+    setSaveError(null);
+
     // Check if there are more leads queued in sessionStorage
     try {
       const raw = sessionStorage.getItem(DISCOVERY_QUEUE_KEY);
       if (raw) {
         const queue: unknown[] = JSON.parse(raw);
         setQueueRemaining(Array.isArray(queue) ? queue.length : 0);
+      } else {
+        setQueueRemaining(0);
       }
     } catch {
-      // ignore
+      setQueueRemaining(0);
     }
   }, [search]);
 
@@ -227,6 +242,12 @@ export default function AdminIngestionNew() {
           const queue: Array<{ name: string; location: string; website: string | null; categoryHint: string }> = JSON.parse(raw);
           if (Array.isArray(queue) && queue.length > 0) {
             const next = queue[0];
+            // Validate shape — skip malformed entries
+            if (!next || typeof next.name !== "string" || typeof next.location !== "string") {
+              sessionStorage.removeItem(DISCOVERY_QUEUE_KEY);
+              navigate("/admin/ingestion");
+              return;
+            }
             const remaining = queue.slice(1);
             if (remaining.length > 0) {
               sessionStorage.setItem(DISCOVERY_QUEUE_KEY, JSON.stringify(remaining));
