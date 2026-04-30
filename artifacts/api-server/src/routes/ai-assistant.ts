@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request } from "express";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { db, usersTable, profilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
@@ -34,7 +34,8 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
     const userId = (req as any).userId;
-    return userId ? `u:${userId}` : `ip:${req.ip}`;
+    if (userId) return `u:${userId}`;
+    return `ip:${ipKeyGenerator(req.ip ?? "")}`;
   },
   message: {
     error: "You've reached the AI assistant usage limit for now. Please try again later.",

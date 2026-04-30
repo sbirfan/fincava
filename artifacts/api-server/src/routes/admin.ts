@@ -2,13 +2,13 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
-import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable } from "@workspace/db";
+import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
 import { buyerProfilesTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
-import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody, BatchConfirmBody } from "../schemas";
+import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, AdminSupplierEditBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody, BatchConfirmBody } from "../schemas";
 import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
 import { checkDuplicate, computeSupplierFingerprint, logDuplicateOverride } from "../services/duplicate-detector";
 import { discoverLeads } from "../services/discovery-engine";
@@ -618,6 +618,115 @@ router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Prom
       }).catch((err) => logger.warn({ err, supplierId: id }, "Supplier status-change email failed"));
     }
   }
+});
+
+// ── PATCH /api/admin/suppliers/:id ───────────────────────────────────────────
+// Edit supplier profile fields (basic info + farm primary product).
+// Status is intentionally NOT editable here — use /admin/suppliers/:id/status.
+router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+
+  const parsed = AdminSupplierEditBody.safeParse(req.body);
+  if (!parsed.success) {
+    const flat = parsed.error.flatten();
+    res.status(400).json({
+      error: flat.fieldErrors,
+      formErrors: flat.formErrors,
+    });
+    return;
+  }
+  const data = parsed.data;
+
+  // Build the supplier update set — only include fields that were provided.
+  const supplierSet: Record<string, unknown> = {};
+  if (data.nombreCompleto !== undefined) supplierSet["nombreCompleto"] = data.nombreCompleto;
+  if (data.whatsappNumber !== undefined) supplierSet["whatsappNumber"] = data.whatsappNumber;
+  if (data.email !== undefined) supplierSet["email"] = data.email;
+  if (data.municipio !== undefined) supplierSet["municipio"] = data.municipio;
+  if (data.department !== undefined) supplierSet["department"] = data.department;
+  if (data.vereda !== undefined) supplierSet["vereda"] = data.vereda;
+  if (data.supplierType !== undefined) supplierSet["supplierType"] = data.supplierType;
+  if (data.registeredBy !== undefined) supplierSet["registeredBy"] = data.registeredBy;
+
+  const hasSupplierUpdate = Object.keys(supplierSet).length > 0;
+
+  // Wrap supplier + farm writes in a single transaction so a failure on either
+  // side never leaves the supplier and its farm row in inconsistent state.
+  let updated: typeof suppliersTable.$inferSelect | undefined;
+  try {
+    updated = await db.transaction(async (tx) => {
+      let row: typeof suppliersTable.$inferSelect | undefined;
+      if (hasSupplierUpdate) {
+        [row] = await tx
+          .update(suppliersTable)
+          .set({ ...supplierSet, updatedAt: new Date() } as any)
+          .where(eq(suppliersTable.id, id))
+          .returning();
+      } else {
+        [row] = await tx
+          .select()
+          .from(suppliersTable)
+          .where(eq(suppliersTable.id, id))
+          .limit(1);
+      }
+      if (!row) {
+        // Throw a sentinel so we can map to 404 outside the transaction.
+        throw new Error("__SUPPLIER_NOT_FOUND__");
+      }
+
+      // Primary product → farms.cultivoPrincipal (upsert).
+      if (data.primaryProduct !== undefined) {
+        const [existingFarm] = await tx
+          .select({ id: farmsTable.id })
+          .from(farmsTable)
+          .where(eq(farmsTable.supplierId, id))
+          .limit(1);
+        if (existingFarm) {
+          await tx
+            .update(farmsTable)
+            .set({ cultivoPrincipal: data.primaryProduct })
+            .where(eq(farmsTable.supplierId, id));
+        } else {
+          await tx.insert(farmsTable).values({
+            supplierId: id,
+            cultivoPrincipal: data.primaryProduct,
+          });
+        }
+      }
+      return row;
+    });
+  } catch (err: any) {
+    if (err?.message === "__SUPPLIER_NOT_FOUND__") {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+    // Partial-unique whatsapp index rejecting a duplicate.
+    if (err?.code === "23505") {
+      res.status(409).json({
+        error: { whatsappNumber: ["Another supplier already uses this WhatsApp number"] },
+      });
+      return;
+    }
+    throw err;
+  }
+
+  // Audit trail — record who changed what (fire-and-forget).
+  const actorId = (req as any).userId as number | undefined;
+  logInteraction({
+    eventType: "supplier_profile_updated",
+    actorId: actorId ?? null,
+    actorType: "admin",
+    referenceId: id,
+    referenceType: "supplier",
+    payload: { updatedFields: Object.keys(data) },
+  });
+
+  res.json({
+    success: true,
+    supplier: updated,
+    primaryProduct: data.primaryProduct,
+  });
 });
 
 // ── GET /api/admin/team ───────────────────────────────────────────────────────

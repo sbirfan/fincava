@@ -60,6 +60,58 @@ export const AdminLoanStatusBody = z.object({
   status: z.enum(["ACTIVE", "REPAID", "DEFAULTED", "CANCELLED"]),
 });
 
+// Admin edit supplier profile (basic info + farm primary product).
+// Every field is optional — only the keys included in the body are updated.
+export const AdminSupplierEditBody = z
+  .object({
+    nombreCompleto: z.string().trim().min(1).max(200).optional(),
+    whatsappNumber: z
+      .string()
+      .trim()
+      .max(30)
+      .optional()
+      .nullable()
+      .transform((v) => (v === "" ? null : v)),
+    email: z
+      .union([z.literal(""), z.string().email().max(200)])
+      .optional()
+      .nullable()
+      .transform((v) => (v === "" ? null : v)),
+    municipio: z.string().trim().min(1).max(100).optional(),
+    department: z
+      .string()
+      .trim()
+      .max(100)
+      .optional()
+      .nullable()
+      .transform((v) => (v === "" ? null : v)),
+    vereda: z
+      .string()
+      .trim()
+      .max(100)
+      .optional()
+      .nullable()
+      .transform((v) => (v === "" ? null : v)),
+    supplierType: z.enum(["FARMER", "COOPERATIVE", "EXPORTER"]).optional(),
+    registeredBy: z
+      .string()
+      .trim()
+      .max(150)
+      .optional()
+      .nullable()
+      .transform((v) => (v === "" ? null : v)),
+    primaryProduct: z
+      .string()
+      .trim()
+      .max(100)
+      .optional()
+      .nullable()
+      .transform((v) => (v === "" ? null : v)),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "At least one field must be provided",
+  });
+
 export const AdminSupplierStatusBody = z
   .object({
     status: z.enum(["PENDING", "ACTIVE", "INACTIVE"]),

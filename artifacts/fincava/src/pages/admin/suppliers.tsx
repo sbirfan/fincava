@@ -229,6 +229,39 @@ export default function AdminSuppliersPage() {
   const [filterProduct, setFilterProduct] = useState("");
   const [search, setSearch] = useState("");
 
+  // Edit profile state
+  type EditForm = {
+    nombreCompleto: string;
+    whatsappNumber: string;
+    email: string;
+    municipio: string;
+    department: string;
+    vereda: string;
+    supplierType: "FARMER" | "COOPERATIVE" | "EXPORTER";
+    registeredBy: string;
+    primaryProduct: string;
+  };
+  const EMPTY_EDIT_FORM: EditForm = {
+    nombreCompleto: "",
+    whatsappNumber: "",
+    email: "",
+    municipio: "",
+    department: "",
+    vereda: "",
+    supplierType: "FARMER",
+    registeredBy: "",
+    primaryProduct: "",
+  };
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<EditForm>(EMPTY_EDIT_FORM);
+  // Snapshot of the form values when the modal opened — used to compute the
+  // diff so we only PATCH fields the admin actually changed.
+  const [editInitial, setEditInitial] = useState<EditForm>(EMPTY_EDIT_FORM);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editFieldErrors, setEditFieldErrors] = useState<Record<string, string[]>>({});
+
   useEffect(() => {
     const controller = new AbortController();
     fetchSuppliers(controller.signal);
@@ -286,6 +319,144 @@ export default function AdminSuppliersPage() {
     } finally {
       setStatusUpdating(false);
       setPendingInactive(null);
+    }
+  }
+
+  async function openEditModal() {
+    if (!selected) return;
+    // Build a sensible initial form synchronously from the list row so the modal
+    // is never blank, then refine it with authoritative supplier-detail data so
+    // fields not present in the list (e.g. `vereda`) prefill correctly. Without
+    // this refresh the diff-based save would treat absent fields as "unchanged"
+    // — which is what we want — but the form would still display "" instead of
+    // the existing DB value.
+    const initial: EditForm = {
+      nombreCompleto: selected.nombreCompleto || "",
+      whatsappNumber: selected.phone || "",
+      email: selected.email || "",
+      municipio: selected.municipio || "",
+      department: selected.department || "",
+      vereda: "",
+      supplierType:
+        (selected.supplierType as EditForm["supplierType"]) || "FARMER",
+      registeredBy: selected.contactName || "",
+      primaryProduct: selected.primaryProduct || "",
+    };
+    setEditForm(initial);
+    setEditInitial(initial);
+    setEditError("");
+    setEditFieldErrors({});
+    setEditOpen(true);
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/suppliers/${selected.id}`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const s = json?.supplier;
+        if (s) {
+          const refined: EditForm = {
+            nombreCompleto: s.nombreCompleto ?? initial.nombreCompleto,
+            whatsappNumber: s.whatsappNumber ?? initial.whatsappNumber,
+            email: s.email ?? initial.email,
+            municipio: s.municipio ?? initial.municipio,
+            department: s.department ?? initial.department,
+            vereda: s.vereda ?? "",
+            supplierType:
+              (s.supplierType as EditForm["supplierType"]) ||
+              initial.supplierType,
+            registeredBy: s.registeredBy ?? initial.registeredBy,
+            primaryProduct: initial.primaryProduct, // detail endpoint doesn't return this
+          };
+          setEditForm(refined);
+          setEditInitial(refined);
+        }
+      }
+    } catch {
+      // Best-effort; the row-level prefill is still in place.
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function saveEdit() {
+    if (!selected) return;
+    setEditSaving(true);
+    setEditError("");
+    setEditFieldErrors({});
+    try {
+      // Diff against the initial values so we only PATCH fields the admin
+      // actually changed — this prevents accidentally clearing fields like
+      // `vereda` that were initially blank in the form but populated in the DB.
+      const diff: Partial<EditForm> = {};
+      (Object.keys(editForm) as (keyof EditForm)[]).forEach((k) => {
+        if (editForm[k] !== editInitial[k]) {
+          (diff as any)[k] = editForm[k];
+        }
+      });
+      if (Object.keys(diff).length === 0) {
+        setEditOpen(false);
+        return;
+      }
+      const res = await fetch(`/api/admin/suppliers/${selected.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(diff),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (json?.error && typeof json.error === "object") {
+          setEditFieldErrors(json.error as Record<string, string[]>);
+        }
+        const formErrs: string[] = Array.isArray(json?.formErrors)
+          ? json.formErrors
+          : [];
+        const msg =
+          typeof json?.error === "string"
+            ? json.error
+            : formErrs[0] || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      // Update local lists with the new values
+      setSuppliers((prev) =>
+        prev.map((s) =>
+          s.id === selected.id
+            ? {
+                ...s,
+                nombreCompleto: editForm.nombreCompleto,
+                phone: editForm.whatsappNumber || s.phone,
+                email: editForm.email || null,
+                municipio: editForm.municipio,
+                department: editForm.department || null,
+                supplierType: editForm.supplierType,
+                contactName: editForm.registeredBy || s.contactName,
+                primaryProduct: editForm.primaryProduct || s.primaryProduct,
+              }
+            : s,
+        ),
+      );
+      setSelected((prev) =>
+        prev
+          ? {
+              ...prev,
+              nombreCompleto: editForm.nombreCompleto,
+              phone: editForm.whatsappNumber || prev.phone,
+              email: editForm.email || null,
+              municipio: editForm.municipio,
+              department: editForm.department || null,
+              supplierType: editForm.supplierType,
+              contactName: editForm.registeredBy || prev.contactName,
+              primaryProduct: editForm.primaryProduct || prev.primaryProduct,
+            }
+          : prev,
+      );
+      setEditOpen(false);
+    } catch (e: any) {
+      setEditError(e.message || "Failed to save");
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -730,7 +901,7 @@ export default function AdminSuppliersPage() {
             className="bg-white w-full max-w-md h-full overflow-y-auto p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">
                 {selected.nombreCompleto}
               </h2>
@@ -741,6 +912,12 @@ export default function AdminSuppliersPage() {
                 ✕
               </button>
             </div>
+            <button
+              onClick={openEditModal}
+              className="mb-5 w-full py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-sm font-medium transition"
+            >
+              {lang === "es" ? "✎ Editar perfil" : "✎ Edit profile"}
+            </button>
 
             <div className="space-y-4 text-sm">
               <Row
@@ -1022,6 +1199,190 @@ export default function AdminSuppliersPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Profile Modal */}
+      {editOpen && selected && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => !editSaving && setEditOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+              <h2 className="text-base font-semibold text-gray-800">
+                {lang === "es" ? "Editar Perfil del Proveedor" : "Edit Supplier Profile"}
+              </h2>
+              <button
+                onClick={() => !editSaving && setEditOpen(false)}
+                disabled={editSaving}
+                className="text-gray-400 hover:text-gray-600 transition text-xl leading-none disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              {editError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                  {editError}
+                </div>
+              )}
+
+              <EditField
+                label={lang === "es" ? "Nombre completo" : "Full name"}
+                value={editForm.nombreCompleto}
+                onChange={(v) => setEditForm({ ...editForm, nombreCompleto: v })}
+                error={editFieldErrors.nombreCompleto?.[0]}
+                required
+              />
+              <EditField
+                label={lang === "es" ? "Nombre de contacto" : "Contact name"}
+                value={editForm.registeredBy}
+                onChange={(v) => setEditForm({ ...editForm, registeredBy: v })}
+                error={editFieldErrors.registeredBy?.[0]}
+              />
+              <EditField
+                label={lang === "es" ? "WhatsApp / Teléfono" : "WhatsApp / Phone"}
+                value={editForm.whatsappNumber}
+                onChange={(v) => setEditForm({ ...editForm, whatsappNumber: v })}
+                error={editFieldErrors.whatsappNumber?.[0]}
+                placeholder="+57..."
+              />
+              <EditField
+                label="Email"
+                value={editForm.email}
+                onChange={(v) => setEditForm({ ...editForm, email: v })}
+                error={editFieldErrors.email?.[0]}
+                type="email"
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <EditField
+                  label={lang === "es" ? "Municipio" : "Municipality"}
+                  value={editForm.municipio}
+                  onChange={(v) => setEditForm({ ...editForm, municipio: v })}
+                  error={editFieldErrors.municipio?.[0]}
+                  required
+                />
+                <EditField
+                  label={lang === "es" ? "Departamento" : "Department"}
+                  value={editForm.department}
+                  onChange={(v) => setEditForm({ ...editForm, department: v })}
+                  error={editFieldErrors.department?.[0]}
+                />
+              </div>
+              <EditField
+                label={lang === "es" ? "Vereda" : "Vereda"}
+                value={editForm.vereda}
+                onChange={(v) => setEditForm({ ...editForm, vereda: v })}
+                error={editFieldErrors.vereda?.[0]}
+              />
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  {lang === "es" ? "Tipo de proveedor" : "Supplier type"}
+                </label>
+                <select
+                  value={editForm.supplierType}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      supplierType: e.target.value as EditForm["supplierType"],
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                >
+                  <option value="FARMER">{lang === "es" ? "Productor" : "Farmer"}</option>
+                  <option value="COOPERATIVE">{lang === "es" ? "Cooperativa" : "Cooperative"}</option>
+                  <option value="EXPORTER">{lang === "es" ? "Exportador" : "Exporter"}</option>
+                </select>
+                {editFieldErrors.supplierType?.[0] && (
+                  <p className="mt-1 text-xs text-red-600">{editFieldErrors.supplierType[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  {lang === "es" ? "Producto principal" : "Primary product"}
+                </label>
+                <select
+                  value={editForm.primaryProduct}
+                  onChange={(e) => setEditForm({ ...editForm, primaryProduct: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                >
+                  <option value="">{lang === "es" ? "— Sin especificar —" : "— Unspecified —"}</option>
+                  <option value="cacao">Cacao</option>
+                  <option value="cafe">{lang === "es" ? "Café" : "Coffee"}</option>
+                  <option value="bocadillo">Bocadillo</option>
+                  <option value="panela">Panela</option>
+                  <option value="lulo">Lulo</option>
+                  <option value="pitahaya">Pitahaya</option>
+                  <option value="uchuva">Uchuva</option>
+                </select>
+                {editFieldErrors.primaryProduct?.[0] && (
+                  <p className="mt-1 text-xs text-red-600">{editFieldErrors.primaryProduct[0]}</p>
+                )}
+              </div>
+            </div>
+            <div className="border-t border-gray-100 px-6 py-4 shrink-0 flex gap-2">
+              <button
+                onClick={() => setEditOpen(false)}
+                disabled={editSaving}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition disabled:opacity-50"
+              >
+                {lang === "es" ? "Cancelar" : "Cancel"}
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={editSaving}
+                className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-60"
+              >
+                {editSaving
+                  ? (lang === "es" ? "Guardando…" : "Saving…")
+                  : (lang === "es" ? "Guardar cambios" : "Save changes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditField({
+  label,
+  value,
+  onChange,
+  error,
+  required,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  required?: boolean;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-1">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 ${
+          error ? "border-red-300 bg-red-50" : "border-gray-300"
+        }`}
+      />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }
