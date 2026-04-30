@@ -1,0 +1,50 @@
+Project context — Fincava (Colombian agricultural B2B marketplace)
+
+This is a pnpm monorepo: React 19 + Vite frontend (artifacts/fincava), Express 5 + Drizzle/PostgreSQL API (artifacts/api-server), shared schema in lib/db. Two product layers exist:
+
+Supplier Layer — already shipped through Phase 1 in earlier sessions. Architecture is in Supplier_Layer_Architecture.md. Out of scope for this session. Do not modify supplier-layer code unless I explicitly ask. (You will, however, need to read parts of the supplier architecture because the buyer layer integrates with supplier subsystems — see preflight step 4 below.)
+
+Buyer Layer — the active track for this session. Architecture is fully specified in Buyer_Layer_Architecture.md. Some Phase 1 work is already partially committed: DB schema for buyer_matches, buyer_gap_briefs, expanded buyer_profiles and rfqs is pushed; POST /api/buyers/register route exists; buyer-register.tsx page exists but is not yet routed in App.tsx. The exact "what's done vs not done" status must be verified by you in preflight, not assumed.
+
+PREFLIGHT — Required reading before any planning or code, in this order:
+
+AGENT_RULE.MD — mandatory execution contract. Re-read its preflight section before every task, every code change, every commit, for the entire session. No exceptions.
+replit.md — project overview, system architecture, user preferences, external dependencies. Read deliberately even though it auto-loads.
+Buyer_Layer_Architecture.md — full document, end to end. This is the build spec: schema, service catalogue, API contract, UI page map, event/notification flow, BG1–BG21 checklist, and the 5-phase build sequence.
+Supplier_Layer_Architecture.md — read selectively, focusing on sections that cover suppliersTable, supplier_ingestion_batches, DiscoveryEngine, IngestionBatchService, and the sellable_status field. The buyer layer has hard cross-layer dependencies on these:
+buyer_matches.supplier_id → suppliersTable (the farmer graduation system, not companies).
+buyer_gap_briefs.ingestion_batch_id → supplier_ingestion_batches.
+BuyerGapBridgeService calls DiscoveryEngine + IngestionBatchService.
+Match catalog filter: only sellable_status IN ('SELLABLE','PUBLISHED') are eligible.
+The pnpm-workspace skill — monorepo conventions you must follow: contract-first OpenAPI codegen, Zod validation on server, no console.log in server code (use req.log or the singleton logger), shared proxy routing via localhost:80, never run pnpm dev at workspace root.
+Current code state for the buyer layer — to produce an accurate BG status table, you must inspect actual files, not infer from architecture docs:
+git log --oneline -20 and git show on recent buyer-layer commits to see what's already implemented.
+lib/db/src/schema/: buyer-profiles.ts, buyer-matches.ts, buyer-gap-briefs.ts, rfqs.ts, companies.ts, index.ts.
+artifacts/api-server/src/routes/buyers.ts — confirm what registration logic already exists.
+artifacts/fincava/src/pages/buyer-register.tsx — confirm what fields and flow are implemented.
+artifacts/fincava/src/App.tsx — confirm whether /buyer-register is routed.
+Your deliverable after preflight (do this before writing any code):
+
+Produce a written plan of execution containing:
+
+BG status table — for each of BG1 through BG21, classify as Done / Partial / Not Started, citing the file(s) and lines that justify each classification.
+Cross-layer touchpoint summary — a short list of every supplier-side contract the buyer layer will read or call, so we can spot conflicts early.
+Proposed task ordering grouped by the 5 phases from the architecture doc, starting from the next unfinished item.
+Assumptions you're making.
+Risks you've identified (especially anything that could break supplier-side functionality, miss a cross-layer FK, or violate AGENT_RULE.MD).
+Open questions for me.
+Stop and present the plan to me for review. Do not start implementation until I approve it.
+
+Operational essentials:
+
+User-authored *_Architecture.md files in the repo root and AGENT_RULE.MD are authoritative. Anything in .local/ is agent scratch and outranked by these.
+Admin login for testing: irfan@fincava.com / Fincava@Reset1.
+DB push: pnpm --filter @workspace/db run push-force. Never hand-write SQL migrations. Never change primary-key column types.
+Use the configured workflows — never run pnpm dev at the workspace root.
+Buyer matching + gap services use claude-sonnet-4-6. Supplier scoring stays on claude-haiku-4-5. Use the shared client at lib/anthropic-client.ts; do not instantiate new Anthropic clients.
+All buyer API responses follow { success, data?, error? }. Authenticated endpoints use requireAuth; admin endpoints use requireAdmin.
+Hard rules:
+
+Re-read AGENT_RULE.MD's preflight section before every task and every code change. Do not rely on memory.
+On any "stop" or "wrong direction" message from me, immediately re-read Buyer_Layer_Architecture.md and AGENT_RULE.MD from disk before any further reasoning.
+The previous agent in this project experienced context drift and silently switched product tracks. Protect against

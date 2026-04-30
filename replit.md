@@ -66,6 +66,7 @@ Fincava is built as a pnpm workspace monorepo utilizing TypeScript.
 - **Product Analytics**: Tracks views and trending products.
 - **Checkout Flow**: Comprehensive buyer-only checkout process with quantity, incoterm, destination, shipping, notes, and real-time total.
 - **Live Messaging**: Real-time conversation selection, message threads with polling, and optimistic updates.
+- **AI Assistant ("Fina")**: In-dashboard chat assistant for buyers and suppliers at `/dashboard/ai-assistant` and `/supplier-dashboard/ai-assistant`. Backed by `POST /api/ai-assistant/chat` (Anthropic Claude, role-aware system prompt, EN/ES bilingual). Server enforces strict user/assistant alternation, 20-message / 16k-char ceiling, and a 60 req/hour per-user rate limit to prevent abuse and prompt-history forgery.
 - **Farmer Identity & Impact**: Displays farmer details, impact flags, origin stories, and supports impact-focused filtering.
 - **Email Notifications**: Automated emails for supplier onboarding confirmation, admin alerts, status changes, and password resets.
 

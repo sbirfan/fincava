@@ -47,6 +47,7 @@ const BuyerProfile = lazy(() => import("@/pages/dashboard/profile"));
 const BuyerRFQs = lazy(() => import("@/pages/dashboard/rfqs"));
 const BuyerMarketIntel = lazy(() => import("@/pages/dashboard/market-intel"));
 const BuyerAnalytics = lazy(() => import("@/pages/dashboard/analytics"));
+const AiAssistant = lazy(() => import("@/pages/dashboard/ai-assistant"));
 // Supplier Dashboard — lazy
 const SupplierDashboard = lazy(() => import("@/pages/supplier-dashboard/index"));
 const SupplierProducts = lazy(() => import("@/pages/supplier-dashboard/products"));
@@ -175,6 +176,7 @@ function Router() {
         <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
+        <Route path="/dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["BUYER"]} layout={DashboardLayout} />} />
 
         {/* Supplier Dashboard */}
         <Route path="/supplier-dashboard" component={() => <PrivateRoute component={SupplierDashboard} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
@@ -187,6 +189,7 @@ function Router() {
         <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/finance" component={() => <PrivateRoute component={SupplierFinance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/profile" component={() => <PrivateRoute component={SupplierProfile} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        <Route path="/supplier-dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
 
         {/* Admin */}
         <Route path="/admin" component={() => <PrivateRoute component={AdminDashboard} roles={["ADMIN"]} layout={AdminLayout} />} />
