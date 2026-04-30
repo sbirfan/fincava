@@ -13,7 +13,7 @@ import { z } from "zod";
 const CandidateLeadSchema = z.object({
   name: z.string().min(1).max(150),
   location: z.string().min(1).max(100),
-  website: z.string().url().nullable().optional(),
+  website: z.string().url().nullable(),
   categoryHint: z.string().min(1).max(80),
 });
 
