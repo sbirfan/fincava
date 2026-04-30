@@ -1,5 +1,6 @@
 // discovery-engine.ts
 // Accepts a product category + region, calls Claude Haiku, returns candidate leads.
+// T3: Optional 1-level link traversal enriches lead quality (categoryHint).
 // Results are EPHEMERAL — nothing is written to the database.
 // Caller is responsible for routing selected leads into the T1 ingestion form.
 
@@ -7,6 +8,22 @@ import { getAnthropicClient, DISCOVERY_MODEL } from "../lib/anthropic";
 import { DISCOVERY_PROMPT } from "../config/ingestion-prompts";
 import { logger } from "../lib/logger";
 import { z } from "zod";
+
+// ── Hard limits — NOT configurable via env or API params ──────────────────────
+// MAX_DEPTH is conceptual: we always fetch only the homepage (depth = 1).
+// MAX_LINKS_PER_RESULT caps how many URLs are attempted per single lead.
+// MAX_TOTAL_LINKS is the safety cap on total outbound HTTP requests per discovery call.
+const MAX_DEPTH = 1;             // One level only — no recursive traversal
+const MAX_LINKS_PER_RESULT = 3;  // Max URL candidates tried per lead
+const MAX_TOTAL_LINKS = 10;      // Safety cap across all leads in one call
+const LINK_TIMEOUT_MS = 5_000;   // Per-link fetch timeout (ms)
+
+// Domains that may require auth or are social media — never follow
+const BLOCKED_DOMAINS = [
+  "facebook.com", "instagram.com", "twitter.com", "x.com",
+  "linkedin.com", "youtube.com", "tiktok.com", "pinterest.com",
+  "whatsapp.com", "t.me", "wa.me",
+];
 
 // ── Output schema — exactly 4 allowed fields; extras discarded by .strip() ────
 
@@ -95,7 +112,72 @@ Generate up to ${maxResults} Colombian agricultural supplier leads for the categ
     "discovery-engine: DISCOVERED",
   );
 
-  return leads;
+  // ── T3: 1-level link expansion (transparent to caller) ────────────────────
+  const expandedLeads = await expandLeadsWithLinks(leads);
+
+  return expandedLeads;
+}
+
+// ── T3: Link expansion ────────────────────────────────────────────────────────
+// Flat loop, no recursion. Stops as soon as MAX_TOTAL_LINKS is reached.
+// Fetches each lead's homepage and uses text content to refine categoryHint.
+// Failures are silent — the original lead is returned unchanged on any error.
+
+async function expandLeadsWithLinks(leads: CandidateLead[]): Promise<CandidateLead[]> {
+  void MAX_DEPTH; // MAX_DEPTH = 1 is enforced by design: we only fetch the homepage
+
+  let linksFollowed = 0;
+  const enhanced: CandidateLead[] = [];
+
+  for (const lead of leads) {
+    // Safety cap — stop traversal immediately when global limit is reached
+    if (linksFollowed >= MAX_TOTAL_LINKS) {
+      enhanced.push(lead);
+      continue;
+    }
+
+    if (!lead.website) {
+      enhanced.push(lead);
+      continue;
+    }
+
+    // Build candidate URL list for this lead (homepage variants only)
+    const candidateUrls = buildCandidateUrls(lead.website).slice(0, MAX_LINKS_PER_RESULT);
+    let fetched = false;
+
+    for (const url of candidateUrls) {
+      if (linksFollowed >= MAX_TOTAL_LINKS) break;
+      if (isBlockedUrl(url)) {
+        logger.info({ url }, "discovery-engine: link expansion skipped — blocked domain");
+        continue;
+      }
+
+      const html = await fetchPageHtml(url);
+      linksFollowed++;
+
+      if (!html) continue;
+
+      const info = extractPageInfo(html);
+      const refinedHint = refineCategory(lead.categoryHint, info);
+
+      enhanced.push({ ...lead, categoryHint: refinedHint });
+      fetched = true;
+      break;
+    }
+
+    if (!fetched) {
+      enhanced.push(lead);
+    }
+  }
+
+  if (linksFollowed > 0) {
+    logger.info(
+      { linksFollowed },
+      "discovery-engine: DISCOVERY_EXPANSION_USED",
+    );
+  }
+
+  return enhanced;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -106,4 +188,124 @@ function extractJsonArray(text: string): string {
   const arr = text.match(/\[[\s\S]*\]/);
   if (arr) return arr[0];
   return text.trim();
+}
+
+function isBlockedUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return BLOCKED_DOMAINS.some((d) => hostname === d || hostname.endsWith(`.${d}`));
+  } catch {
+    return true;
+  }
+}
+
+// Returns homepage variant URLs to try (www and non-www).
+// Keeps to MAX_LINKS_PER_RESULT candidates.
+function buildCandidateUrls(website: string): string[] {
+  try {
+    const u = new URL(website);
+    const base = `${u.protocol}//${u.hostname}`;
+    const withWww = u.hostname.startsWith("www.")
+      ? null
+      : `${u.protocol}//www.${u.hostname}`;
+    return [base, ...(withWww ? [withWww] : [])].slice(0, MAX_LINKS_PER_RESULT);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchPageHtml(url: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LINK_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Fincava-Discovery-Bot/1.0 (agro-export research; +https://fincava.com)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("html")) return null;
+    // Read up to ~64 KB — enough for title/meta/headings
+    const text = await res.text();
+    return text.slice(0, 65_536);
+  } catch (err: unknown) {
+    const isAbort = err instanceof Error && err.name === "AbortError";
+    logger.warn({ url, isAbort }, "discovery-engine: link fetch failed");
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+interface PageInfo {
+  title: string | null;
+  description: string | null;
+  headings: string[];
+}
+
+function extractPageInfo(html: string): PageInfo {
+  const titleMatch = html.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+  const title = titleMatch ? titleMatch[1].trim() : null;
+
+  const descMatch = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,300})["']/i)
+    ?? html.match(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']description["']/i);
+  const description = descMatch ? descMatch[1].trim() : null;
+
+  const headingMatches = html.matchAll(/<h[12][^>]*>([^<]{1,150})<\/h[12]>/gi);
+  const headings = Array.from(headingMatches, (m) => m[1].trim()).slice(0, 5);
+
+  return { title, description, headings };
+}
+
+// Agricultural keyword taxonomy for category refinement
+const AGRO_KEYWORDS: Record<string, string> = {
+  café: "Specialty Coffee",
+  coffee: "Specialty Coffee",
+  cacao: "Cacao / Chocolate",
+  cocoa: "Cacao / Chocolate",
+  chocolate: "Cacao / Chocolate",
+  aguacate: "Avocado",
+  avocado: "Avocado",
+  banano: "Bananas / Plantains",
+  banana: "Bananas / Plantains",
+  plátano: "Bananas / Plantains",
+  plantain: "Bananas / Plantains",
+  panela: "Panela / Sugarcane",
+  caña: "Panela / Sugarcane",
+  "palm oil": "Palm Oil",
+  palma: "Palm Oil",
+  mora: "Fruits & Berries",
+  fresa: "Fruits & Berries",
+  berry: "Fruits & Berries",
+  flores: "Flowers",
+  flower: "Flowers",
+  rose: "Flowers",
+  carnation: "Flowers",
+  arroz: "Rice",
+  rice: "Rice",
+};
+
+function refineCategory(existing: string, info: PageInfo): string {
+  const corpus = [
+    info.title ?? "",
+    info.description ?? "",
+    ...info.headings,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  for (const [keyword, refined] of Object.entries(AGRO_KEYWORDS)) {
+    if (corpus.includes(keyword)) {
+      // Only replace if the refined value is more specific than existing
+      if (refined.toLowerCase() !== existing.toLowerCase()) {
+        return refined;
+      }
+    }
+  }
+
+  return existing;
 }
