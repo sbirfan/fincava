@@ -141,9 +141,21 @@ Generate up to ${maxResults} Colombian agricultural supplier leads for the categ
 // Flat loop, no recursion. Stops as soon as MAX_TOTAL_LINKS is reached.
 // Fetches each lead's homepage and uses text content to refine categoryHint.
 // Failures are silent — the original lead is returned unchanged on any error.
+//
+// Latency note: worst-case ~50 s (MAX_TOTAL_LINKS × LINK_TIMEOUT_MS).
+// All links are fetched sequentially in the request path; consider moving to
+// background processing if P99 latency becomes unacceptable in production.
 
-async function expandLeadsWithLinks(leads: CandidateLead[]): Promise<CandidateLead[]> {
-  void MAX_DEPTH; // MAX_DEPTH = 1 is enforced by design: we only fetch the homepage
+async function expandLeadsWithLinks(
+  leads: CandidateLead[],
+  depth: number = 0,
+): Promise<CandidateLead[]> {
+  // Enforce MAX_DEPTH: this function must never be called recursively.
+  // depth is always 0 on external calls; a defensive guard ensures correctness.
+  if (depth >= MAX_DEPTH) {
+    logger.warn({ depth }, "discovery-engine: MAX_DEPTH reached — returning leads unexpanded");
+    return leads;
+  }
 
   let linksFollowed = 0;
   const enhanced: CandidateLead[] = [];
