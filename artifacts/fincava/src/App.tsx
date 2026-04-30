@@ -46,7 +46,6 @@ const BuyerProfile = lazy(() => import("@/pages/dashboard/profile"));
 const BuyerRFQs = lazy(() => import("@/pages/dashboard/rfqs"));
 const BuyerMarketIntel = lazy(() => import("@/pages/dashboard/market-intel"));
 const BuyerAnalytics = lazy(() => import("@/pages/dashboard/analytics"));
-const BuyerFinance = lazy(() => import("@/pages/dashboard/finance"));
 // Supplier Dashboard — lazy
 const SupplierDashboard = lazy(() => import("@/pages/supplier-dashboard/index"));
 const SupplierProducts = lazy(() => import("@/pages/supplier-dashboard/products"));
@@ -57,6 +56,7 @@ const SupplierOrders = lazy(() => import("@/pages/supplier-dashboard/orders"));
 const SupplierProfile = lazy(() => import("@/pages/supplier-dashboard/profile"));
 const SupplierRFQs = lazy(() => import("@/pages/supplier-dashboard/rfqs"));
 const SupplierPerformance = lazy(() => import("@/pages/supplier-dashboard/performance"));
+const SupplierFinance = lazy(() => import("@/pages/supplier-dashboard/finance"));
 
 // Admin — lazy
 const AdminDashboard = lazy(() => import("@/pages/admin/index"));
@@ -134,7 +134,6 @@ function Router() {
         <Route path="/dashboard/orders" component={() => <PrivateRoute component={BuyerOrders} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/orders/:id" component={() => <PrivateRoute component={BuyerOrderDetail} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/finance" component={() => <PrivateRoute component={BuyerFinance} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
@@ -148,6 +147,7 @@ function Router() {
         <Route path="/supplier-dashboard/orders" component={() => <PrivateRoute component={SupplierOrders} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/rfqs" component={() => <PrivateRoute component={SupplierRFQs} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        <Route path="/supplier-dashboard/finance" component={() => <PrivateRoute component={SupplierFinance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/profile" component={() => <PrivateRoute component={SupplierProfile} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
 
         {/* Admin */}
