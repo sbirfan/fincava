@@ -26,66 +26,84 @@ export interface ConfidenceScorerInput {
 // Expected top-level field count from the AI enrichment schema prompt.
 const EXPECTED_AI_FIELD_COUNT = 7;
 
+// ── Lookup key normalisation ──────────────────────────────────────────────────
+// Applied to BOTH dictionary entries AND inputs so comparisons are consistent:
+//   • lowercase
+//   • diacritics stripped (NFD + remove combining marks)
+//   • underscores → spaces  (handles "exotic_fruit" == "exotic fruit")
+function normalizeLookupKey(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 // Representative Colombian municipios (major cities, departments, and key
 // coffee / cacao / avocado producing municipalities).
-// Normalised: lowercase ASCII (diacritics stripped) for comparison.
-const KNOWN_MUNICIPIOS = new Set([
-  "bogota", "medellin", "cali", "barranquilla", "cartagena", "cucuta",
-  "bucaramanga", "pereira", "manizales", "ibague", "santa marta",
-  "villavicencio", "pasto", "monteria", "sincelejo", "valledupar",
-  "armenia", "popayan", "neiva", "tunja", "florencia", "riohacha",
-  "quibdo", "mocoa", "san jose del guaviare", "mitu", "puerto carreno",
-  "leticia", "inirida", "yopal", "arauca",
+// Raw entries may include accented characters — all are normalised at build time.
+const RAW_MUNICIPIOS = [
+  "Bogotá", "Medellín", "Cali", "Barranquilla", "Cartagena", "Cúcuta",
+  "Bucaramanga", "Pereira", "Manizales", "Ibagué", "Santa Marta",
+  "Villavicencio", "Pasto", "Montería", "Sincelejo", "Valledupar",
+  "Armenia", "Popayán", "Neiva", "Tunja", "Florencia", "Riohacha",
+  "Quibdó", "Mocoa", "San José del Guaviare", "Mitú", "Puerto Carreño",
+  "Leticia", "Inírida", "Yopal", "Arauca",
   // Coffee axis
-  "bello", "envigado", "itagui", "rionegro", "santa barbara", "andes",
-  "jardin", "la ceja", "caldas", "fredonia", "jerico", "urrao",
-  "chinchina", "villamaria", "palestina", "neira", "la dorada",
-  "anserma", "riosucio", "manzanares", "pensilvania",
-  "circasia", "montenegro", "salento", "pijao", "calarca", "filandia",
-  "genova", "la tebaida", "quimbaya", "buenavista",
-  "la plata", "pitalito", "gigante", "campoalegre", "timana",
-  "garzon", "san agustin", "isnos", "saladoblanco",
+  "Bello", "Envigado", "Itagüí", "Rionegro", "Santa Bárbara", "Andes",
+  "Jardín", "La Ceja", "Caldas", "Fredonia", "Jericó", "Urrao",
+  "Chinchiná", "Villamaría", "Palestina", "Neira", "La Dorada",
+  "Anserma", "Riosucio", "Manzanares", "Pensilvania",
+  "Circasia", "Montenegro", "Salento", "Pijao", "Calarcá", "Filandia",
+  "Génova", "La Tebaida", "Quimbaya", "Buenavista",
+  "La Plata", "Pitalito", "Gigante", "Campoalegre", "Timaná",
+  "Garzón", "San Agustín", "Isnos", "Saladoblanco",
   // Cacao / tropical fruit regions
-  "tumaco", "barbacoas", "san andres de tumaco", "magangue",
-  "san pablo", "cantagallo", "tiquisio", "hatillo de loba",
-  "el carmen de bolivar", "ovejas", "colosso", "chalan",
-  "aracataca", "cienaga", "fundacion", "algarrobo",
-  "caucasia", "montelibano", "planeta rica", "tierralta",
-  "apartado", "turbo", "chigorodo", "carepa", "mutata",
+  "Tumaco", "Barbacoas", "San Andrés de Tumaco", "Magangué",
+  "San Pablo", "Cantagallo", "Tiquisio", "Hatillo de Loba",
+  "El Carmen de Bolívar", "Ovejas", "Colosó", "Chalán",
+  "Aracataca", "Ciénaga", "Fundación", "Algarrobo",
+  "Caucasia", "Montelíbano", "Planeta Rica", "Tierralta",
+  "Apartadó", "Turbo", "Chigorodó", "Carepa", "Mutatá",
   // Avocado regions
-  "granada", "san carlos", "guatape", "san rafael", "alejandria",
-  "marinilla", "el santuario", "el penol", "guarne",
-  "trujillo", "bugalagrande", "andalucia", "tuluá",
-  "zarzal", "la victoria", "obando", "cartago",
+  "Granada", "San Carlos", "Guatapé", "San Rafael", "Alejandría",
+  "Marinilla", "El Santuario", "El Peñol", "Guarne",
+  "Trujillo", "Bugalagrande", "Andalucía", "Tuluá",
+  "Zarzal", "La Victoria", "Obando", "Cartago",
   // Sugarcane / panela
-  "palmira", "pradera", "florida", "candelaria", "miranda", "corinto",
-  "santander de quilichao", "caldono", "el tambo", "rosas",
-  "la sierra", "piendamo", "toribio",
-  // Yuca / platano (Llanos / Caribe)
-  "restrepo", "cumaral", "puerto lopez", "puerto gaitan",
-  "acacias", "guamal", "castilla la nueva", "el castillo",
-]);
+  "Palmira", "Pradera", "Florida", "Candelaria", "Miranda", "Corinto",
+  "Santander de Quilichao", "Caldono", "El Tambo", "Rosas",
+  "La Sierra", "Piendamó", "Toribío",
+  // Yuca / plátano (Llanos / Caribe)
+  "Restrepo", "Cumaral", "Puerto López", "Puerto Gaitán",
+  "Acacías", "Guamal", "Castilla la Nueva", "El Castillo",
+];
+const KNOWN_MUNICIPIOS = new Set(RAW_MUNICIPIOS.map(normalizeLookupKey));
 
 // Agricultural product taxonomy — matches the platform's category vocabulary
 // plus common Colombian crop terms.
-const AGRICULTURAL_TAXONOMY = new Set([
+// Raw entries may use underscores (canonical forms) or accented characters —
+// all normalised at build time so "exotic_fruit" == "exotic fruit" in lookups.
+const RAW_TAXONOMY = [
   // Platform canonical categories
   "coffee", "cacao", "cocoa", "avocado", "exotic_fruit", "superfood",
   "processed", "textile", "other",
   // Spanish synonyms and common Colombian terms
-  "cafe", "cacao", "aguacate", "platano", "banana", "banano",
-  "yuca", "mandioca", "panela", "caña", "cana", "azucar",
-  "frijol", "maiz", "papa", "tomate", "arroz",
-  "maracuya", "gulupa", "uchuva", "mora", "lulo",
-  "pitahaya", "guanabana", "guayaba", "arandanos",
+  "café", "cacao", "aguacate", "plátano", "banana", "banano",
+  "yuca", "mandioca", "panela", "caña", "cana", "azúcar",
+  "frijol", "maíz", "papa", "tomate", "arroz",
+  "maracuyá", "gulupa", "uchuva", "mora", "lulo",
+  "pitahaya", "guanábana", "guayaba", "arándanos",
   "carne", "carne bovina", "leche", "queso", "miel", "beeswax",
-  "quinua", "quinoa", "chia", "amaranto",
+  "quinua", "quinoa", "chía", "amaranto",
   "aceite de palma", "palma de aceite", "palm oil",
   "cacao fino", "cacao de aroma", "specialty coffee",
   "chocolate", "mermelada", "frutas deshidratadas",
   "hortalizas", "verduras", "flores", "cut flowers",
   "algodón", "algodon", "cotton", "sisal", "fique",
-]);
+];
+const AGRICULTURAL_TAXONOMY = new Set(RAW_TAXONOMY.map(normalizeLookupKey));
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -110,15 +128,14 @@ export function computeConfidenceScore(input: ConfidenceScorerInput): number {
   }
 
   // Factor 3: Location matches a known Colombian municipio
-  const municipioNorm = stripDiacritics(input.municipio.trim().toLowerCase());
+  const municipioNorm = normalizeLookupKey(input.municipio);
   if (KNOWN_MUNICIPIOS.has(municipioNorm)) {
     earned++;
   }
 
   // Factor 4: Category matched agricultural taxonomy
-  const categoryNorm = stripDiacritics(
-    (input.categoryHint ?? "").trim().toLowerCase().replace(/_/g, " "),
-  );
+  // normalizeLookupKey handles underscore→space so "exotic_fruit" == "exotic fruit"
+  const categoryNorm = normalizeLookupKey(input.categoryHint ?? "");
   if (categoryNorm && AGRICULTURAL_TAXONOMY.has(categoryNorm)) {
     earned++;
   }
@@ -171,8 +188,7 @@ export function computePublicTrustScore(supplier: {
 
   // Signal 4: Located in a recognised Colombian municipio
   if (supplier.municipio) {
-    const norm = stripDiacritics(supplier.municipio.trim().toLowerCase());
-    if (KNOWN_MUNICIPIOS.has(norm)) earned++;
+    if (KNOWN_MUNICIPIOS.has(normalizeLookupKey(supplier.municipio))) earned++;
   }
 
   // Signal 5: Supplier identity claimed (highest-trust signal — owner verified)
@@ -181,10 +197,4 @@ export function computePublicTrustScore(supplier: {
   }
 
   return Math.round((earned / 5) * 100) / 100;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function stripDiacritics(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
