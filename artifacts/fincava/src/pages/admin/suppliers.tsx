@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import { useLanguage } from "../../contexts/LanguageContext";
 
 
@@ -121,10 +122,30 @@ function DocModal({
             ✕
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 px-6 py-5">
-          <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
+        <div className="overflow-y-auto flex-1 px-6 py-5 prose prose-sm prose-gray max-w-none">
+          <ReactMarkdown
+            components={{
+              h1: ({ children }) => <h1 className="text-lg font-bold text-gray-900 mt-4 mb-2">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-base font-bold text-gray-800 mt-4 mb-2 border-b border-gray-200 pb-1">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
+              p: ({ children }) => <p className="text-sm text-gray-700 leading-relaxed mb-3">{children}</p>,
+              strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+              hr: () => <hr className="border-gray-200 my-4" />,
+              ul: ({ children }) => <ul className="list-none space-y-1 mb-3">{children}</ul>,
+              li: ({ children }) => <li className="text-sm text-gray-700">{children}</li>,
+              table: ({ children }) => (
+                <div className="overflow-x-auto mb-4">
+                  <table className="w-full text-sm border-collapse">{children}</table>
+                </div>
+              ),
+              thead: ({ children }) => <thead className="bg-gray-50">{children}</thead>,
+              th: ({ children }) => <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200">{children}</th>,
+              td: ({ children }) => <td className="px-3 py-2 text-gray-700 border border-gray-200">{children}</td>,
+              a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-green-700 underline">{children}</a>,
+            }}
+          >
             {content}
-          </pre>
+          </ReactMarkdown>
         </div>
         <div className="border-t border-gray-100 px-6 py-4 shrink-0 space-y-3">
           <div className="flex gap-2">
@@ -185,6 +206,7 @@ export default function AdminSuppliersPage() {
   const [docContent, setDocContent] = useState<string | null>(null);
   const [docSupplierName, setDocSupplierName] = useState<string | null>(null);
   const [docSupplierId, setDocSupplierId] = useState<number | null>(null);
+  const [docLang, setDocLang] = useState<"en" | "es">("es");
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -259,7 +281,7 @@ export default function AdminSuppliersPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc_type: "supplier_profile", language: lang }),
+        body: JSON.stringify({ doc_type: "supplier_profile", language: docLang }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -819,6 +841,25 @@ export default function AdminSuppliersPage() {
             </div>
 
             <div className="mt-8 space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1.5">
+                  {lang === "es" ? "Idioma del documento" : "Document language"}
+                </p>
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
+                  <button
+                    onClick={() => setDocLang("es")}
+                    className={`flex-1 py-1.5 transition ${docLang === "es" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    Español
+                  </button>
+                  <button
+                    onClick={() => setDocLang("en")}
+                    className={`flex-1 py-1.5 transition ${docLang === "en" ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => generateDocument(selected.id, selected.nombreCompleto)}
                 disabled={generating === selected.id}

@@ -54,14 +54,14 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
-    "@vitest/coverage-v8": "^3.1.0",
-    "@workspace/api-client-react": "workspace:*",
-    "@workspace/object-storage-web": "workspace:*",
     "@uppy/aws-s3": "^5.0.0",
     "@uppy/core": "^5.0.0",
     "@uppy/dashboard": "^5.0.0",
     "@uppy/react": "^5.0.0",
+    "@vitejs/plugin-react": "catalog:",
+    "@vitest/coverage-v8": "^3.1.0",
+    "@workspace/api-client-react": "workspace:*",
+    "@workspace/object-storage-web": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
@@ -88,5 +88,8 @@
     "vitest": "^3.1.0",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "react-markdown": "^10.1.0"
   }
 }
