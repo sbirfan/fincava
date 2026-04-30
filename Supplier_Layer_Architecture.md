@@ -1,365 +1,678 @@
 # Fincava — Supplier Layer Architecture
 
 > Living document. Update this when routes, schemas, pipeline steps, or data contracts change.
-> Last updated: April 2026 (T0–T5 ingestion pipeline complete).
+> Last updated: April 2026 — full end-to-end audit, all four phases complete.
 
 ---
 
-## Overview
+## Critical Architectural Note — Two "Supplier" Systems
 
-The supplier layer has two distinct data collection mechanisms that write to the same
-`suppliers` table but serve different purposes and are initiated by different actors.
+**There are two completely separate supplier concepts in this codebase. They do not share tables.**
+
+| System | Table(s) | Purpose | Who uses it |
+|---|---|---|---|
+| **Farmer/Graduation system** | `suppliersTable`, `farmsTable`, `economicsTable`, `compliance_docs`, `ai_outputs`, `supplier_evaluations`, `supplier_state_transitions` | Onboard Colombian farmers, score their export readiness, graduate them to the marketplace | Admin, Field Officer, Farmer self-register |
+| **B2B Marketplace system** | `companiesTable`, `productsTable`, `ordersTable`, `inquiriesTable`, `rfqsTable` | Manage products, orders, inquiries, RFQs for registered B2B seller accounts | Logged-in SUPPLIER-role users |
+
+These are connected **only through the `my-profile` email-matching bridge** (Phase 4). A supplier-role user account (B2B) must have the same email as a farmer record (suppliersTable) for the ProfileCompletenessWidget to appear in their dashboard. No foreign key exists between the two systems.
+
+---
+
+## High-Level Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         SUPPLIER RECORD (suppliers table)                   │
-│                                                                             │
-│  Core identity    — nombreCompleto, municipio, department, phone, email     │
-│  Ingestion layer  — ingestionStatus, ingestionSource, confidenceScore,      │
-│                     normalizedName, description, supplierFingerprint        │
-│  Onboarding layer — consentGiven, consentDate, registeredBy                 │
-│  Evaluation layer — sellableStatus, lastEvaluatedAt, claimStatus            │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │                                          │
-         ▼                                          ▼
-  INGESTION PIPELINE                       ONBOARDING PIPELINE
-  (admin-driven, market intel)             (farmer/officer/admin, ground truth)
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         FARMER RECORD (suppliersTable)                          │
+│                                                                                 │
+│  Core identity    — nombreCompleto, municipio, department, phone, email         │
+│  Ingestion layer  — ingestionStatus, ingestionSource, confidenceScore,          │
+│                     normalizedName, description, supplierFingerprint            │
+│  Onboarding layer — consentGiven, consentDate, registeredBy                     │
+│  Evaluation layer — sellableStatus, eligibilityStatus, commercialScore,         │
+│                     lastEvaluatedAt, thresholdVersion                           │
+│  Claim layer      — claimStatus (UNCLAIMED/PENDING/CLAIMED), claimToken         │
+└─────────────────────────────────────────────────────────────────────────────────┘
+         │                              │                         │
+         ▼                              ▼                         ▼
+  INGESTION PIPELINE            ONBOARDING PIPELINE        MARKETPLACE OUTPUT
+  (admin-driven,                (farmer/officer/admin,     (SELLABLE/PUBLISHED
+  market intel)                  ground truth)              farmers on /suppliers)
 ```
 
 ---
 
-## 1. Onboarding Pipeline
+## 1. Role Flows
 
-### Entry point
-`POST /api/suppliers/onboard` — no authentication required.
+### 1a. Admin Role
 
-### Who submits it
-- Supplier self-registers at `/onboarding`
-- Field officer fills the form during a farm visit (uses `officer_name` + `officer_code` fields)
+**Entry:** Admin logs in (ADMIN role) at `/login`, lands on `/admin`.
 
-### Data collected (5 DB tables)
+**Admin sidebar navigation:**
+- `/admin` — dashboard summary
+- `/admin/users` — all platform users
+- `/admin/suppliers` — farmer supplier management (graduation pipeline)
+- `/admin/ingestion` — ingestion batches + lead discovery
+- `/officer/dashboard` — field visit management
+- `/admin/orders` — order management
+- `/admin/team` — team management
 
-| Table | Fields |
-|---|---|
-| `suppliers` | name, phone, email, location, consent |
-| `farms` | crop type, hectares, harvest months, drying method, years in farm |
-| `economics` | volume, price, buyer type, export history, debt, capital needs |
-| `compliance_docs` | ICA registration (seeded; never downgraded by later admin edits) |
-| `interactions` | `FORM_SUBMISSION` event with officer code + visit notes |
+**Supplier management actions (admin/suppliers.tsx):**
+- View paginated supplier list with search, filters (pathway, municipio, date range)
+- Click any row → right-side detail drawer showing:
+  - Contact, phone, location, product, type, status
+  - AI Score, Commercial Score, Sellable Status, Eligibility, Pathway
+  - **Profile Completeness panel** (5 dimensions: Farm data, Economics, Compliance, AI readiness score, Graduated)
+  - Amber "Collect farm data →" link when hasFarmData=false → `/onboarding?supplierId=&prefill=1`
+  - Status change dropdown (ACTIVE/PENDING/INACTIVE)
+  - Document generation (English/Spanish AI document via Claude)
+  - Manual WhatsApp resend button
+- Manual state transitions via `POST /api/admin/suppliers/:id/transition` (ADMIN/FOUNDER actor, requires justification)
+- Manual publish via `POST /api/admin/suppliers/:id/publish` (requires supplier to be SELLABLE first)
+- Compliance doc patch via `PATCH /api/admin/suppliers/:id/compliance`
 
-### Post-submission pipeline (async, after HTTP 201)
+**Ingestion actions (admin/ingestion/):**
+- `/admin/ingestion` — list batches, create new batch
+- `/admin/ingestion/discover` — AI lead discovery (ephemeral, no DB writes)
+- `/admin/ingestion/new` — create ingested supplier (DRAFT)
+- Enrich with AI, confirm batch (DRAFT/ENRICHED → READY)
+
+---
+
+### 1b. Field Officer Role
+
+**Current state:** Officers use ADMIN accounts. No dedicated FIELD_OFFICER user role exists.
+The `officer_applications` table stores applications but no promotion flow creates user accounts from them.
+
+**Entry:** Admin logs in, navigates to "Field Visits" in admin sidebar → `/officer/dashboard`.
+
+**Officer dashboard (officer/dashboard.tsx):**
+- Green header: officer name + code `FO-{userId}`
+- "+ Register new supplier" → `/onboarding` (fresh registration)
+- Search suppliers by name/location/product (server-side ILIKE, `?q=` on admin-list endpoint)
+- "Visit →" per result → `/onboarding?supplierId={id}&prefill=1&officerName={name}&officerCode={code}`
+- "How to use" instructions section
+
+**Onboarding pre-fill (triggered from officer dashboard):**
+- Reads `?officerName=` and `?officerCode=` from URL
+- Pre-fills Step 4 officer fields (locked)
+- Reads `?supplierId=&prefill=1` → pre-fills and locks identity fields with existing supplier data
+- Sends `supplierId` in submit payload → update mode (rather than create new)
+
+**⚠️ Gap:** Officer dashboard is ADMIN-only (`requireAdmin`). Real officers would need the ADMIN role (full access) or a new FIELD_OFFICER role. See gaps section.
+
+---
+
+### 1c. Farmer Self-Registration
+
+**Entry:** Farmer visits `/onboarding` directly or follows a link.
+
+**Onboarding form (5 steps):**
+1. Identity — name, WhatsApp, email, municipio, department
+2. Farm data — crop type, hectares, harvest months, drying method
+3. Economics — volume, price, buyer type, export history, debt
+4. Consent + officer — consent checkbox, officer name/code (optional)
+5. Review + submit
+
+**URL modes:**
+- Plain `/onboarding` → creates new supplier
+- `/onboarding?supplierId=&prefill=1` → update mode (locks identity fields, shows "Completing profile for: [name]" banner)
+- `/onboarding?officerName=&officerCode=` → pre-fills officer fields
+
+**Post-submit:** HTTP 201 (new) or 200 + `mode: "profile_completion"` (update), then async pipeline triggers.
+
+---
+
+### 1d. Supplier Self-Completion (B2B dashboard)
+
+**Entry:** Logged-in SUPPLIER-role user at `/supplier-dashboard`.
+
+**What they see:**
+- Stats cards: listed products, active inquiries, total orders, total revenue
+- **ProfileCompletenessWidget** (Phase 4) — visible only if logged-in email matches a farmer record in suppliersTable
+  - % progress bar (completedDimensions / 5)
+  - 5 rows: Farm data, Economics, Compliance, AI readiness score, Graduated — each with ✓/○ and "Complete →" link
+  - "Complete your farm profile" CTA → `/onboarding?supplierId=&prefill=1`
+- Recent inquiries / recent orders
+
+**Other supplier dashboard pages:**
+- `/supplier-dashboard/products` — list/create/edit/delete products
+- `/supplier-dashboard/inquiries` — view inquiries, mark RESPONDED/CLOSED
+- `/supplier-dashboard/orders` — view orders, update status
+- `/supplier-dashboard/rfqs` — view open RFQs, navigate to bid
+- `/supplier-dashboard/performance` — trust score + trade history
+- `/supplier-dashboard/finance` — ⚠️ placeholder ("coming soon")
+- `/supplier-dashboard/profile` — B2B company profile settings
+
+---
+
+### 1e. Buyer Flow (how buyers interact with suppliers)
+
+**Discovery:**
+- `/marketplace` — browse products (useListProducts) with filters: search, category, sort, impact flags
+- `/suppliers` — supplier directory (useListSuppliers) with search by name/region/product
+
+**Supplier profile:**
+- `/supplier/:id` — public profile showing identity, products, origin story, certifications
+- "Contact Supplier" button is present **but not wired** — no click handler implemented (⚠️ gap)
+
+**Inquiry creation:**
+- `POST /api/inquiries` endpoint exists with full implementation
+- Product-detail "Request Quote / Inquiry" button redirects to `/dashboard/inquiries` (read-only list) — **no create-inquiry form exists in buyer UI** (⚠️ gap)
+- Backend sends email notification to supplier on inquiry creation
+
+**Order flow:**
+- Buyer places order from product detail via "Place Order" dialog
+- Creates order via `POST /api/buyer/orders`
+- Supplier sees it in `/supplier-dashboard/orders` and can update status
+
+---
+
+## 2. Complete DB Schema
+
+### Core farmer/supplier tables
+
+**`suppliers`** — root of the farmer graduation system
+```
+id, nombreCompleto, whatsappNumber, email, municipio, department, vereda
+supplierType (FARMER default), registeredBy, status (ACTIVE/PENDING/INACTIVE)
+consentGiven, consentDate, createdAt, updatedAt
+
+-- State machine (set by evaluateSupplier)
+eligibilityStatus, commercialScore, sellableStatus
+graduationPathway, nextActions (jsonb), commercialScoreAtOnboarding
+lastEvaluatedAt, thresholdVersion
+
+-- Ingestion metadata (null for field-collected suppliers)
+normalizedName, description, sourceUrl, sourceType
+supplierFingerprint, claimStatus (UNCLAIMED/PENDING/CLAIMED), claimToken
+ingestionSource (FIELD_COLLECTED default), ingestionStatus (DRAFT/ENRICHED/READY/REJECTED)
+createdByAdminId (FK→users), batchId (FK→supplier_ingestion_batches)
+country, dataCompletenessScore, confidenceScore
+```
+
+Indexes: partial unique on `whatsappNumber` (non-null only); partial on `sellableStatus` (SELLABLE/PUBLISHED).
+
+**`farms`** — farm data from onboarding
+```
+id, supplierId (FK→suppliers), cultivoPrincipal, variedadCafe
+hectareasProduccion, edadPlantasAnos, cosechasPorAno, metodoSecado
+accesoAgua, anosEnFinca, tenenciaTierra, asistenciaTecnica
+```
+No unique constraint on supplierId (multiple rows possible).
+
+**`economics`** — economic data from onboarding
+```
+id, supplierId (FK→suppliers), tipoComprador, volumenKgUltimaCosecha
+precioVentaBanda, tiempoPagoDias, deudaActual, usoCapital (text[])
+comodidadPagos, personasDependientes, otrasFuentesIngreso
+situacionEconomica, interesCanalPremium, conocePrecioExportacion, haIntentadoExportar
+```
+
+**`compliance_docs`** — 1:1 per supplier (UNIQUE constraint)
+```
+id, supplierId (FK→suppliers, UNIQUE), rutDian, icaRegistro
+fitosanitarioCert, dianExportador, complianceScore, lastReviewedAt
+```
+
+**`ai_outputs`** — all AI calls (multiple per supplier)
+```
+id, supplierId (FK→suppliers), createdAt, aiModel, callType
+exportReadinessScore, pathway, capitalCapacityCop
+complianceGaps, gapAnalysis, documentContent, whatsappMessageSent
+```
+callType values: `ONBOARD_SCORE`, `DOCUMENT_GENERATION`.
+
+**`supplier_evaluations`** — append-only evaluation snapshots
+```
+id, supplierId (FK→suppliers, ON DELETE CASCADE)
+eligibilityStatus, commercialScore, sellableStatus, pathway
+scoreSnapshot (jsonb), thresholdVersion, evaluatedAt
+```
+
+**`supplier_state_transitions`** — append-only state change audit log
+```
+id, supplierId (FK→suppliers, ON DELETE CASCADE)
+fromState, toState, thresholdVersion, commercialScoreAtTransition
+actor (SYSTEM/ADMIN/FOUNDER), justification, evaluationId (FK→supplier_evaluations)
+createdAt
+```
+
+**`product_placeholders`** — inferred product categories from ingestion
+```
+id, supplierId (FK→suppliers), categoryHint, dataOrigin, verificationStatus, createdAt
+```
+
+**`supplier_ingestion_batches`** — admin ingestion batch metadata
+```
+id, batchUuid (UNIQUE), createdByAdminId (FK→users)
+status (DRAFT/SUBMITTED), batchSize, notes, createdAt, submittedAt
+```
+
+**`interactions`** — event log for supplier lifecycle events
+```
+id, supplierId (FK→suppliers), createdAt, interactionType, actor, notes, metadata (jsonb)
+```
+
+**`officer_applications`** — field officer applications (not linked to users)
+```
+id, fullName, email, phone, department, municipio, languages, experienceYears
+hasMotorcycle, availableDays, motivation, referralCode, status ('pending' default), createdAt
+```
+⚠️ No FK to usersTable. No promotion flow from application to user account.
+
+---
+
+## 3. Onboarding Pipeline (end-to-end)
+
+### API: `POST /api/suppliers/onboard` — no auth required
+
+**DB writes (5 tables):**
+
+| Table | Action | Notes |
+|---|---|---|
+| `suppliers` | INSERT or UPDATE | UPDATE if `supplierId` in body (update mode) |
+| `farms` | INSERT or UPSERT | Farm data; update mode upserts |
+| `economics` | INSERT or UPSERT | Economics data |
+| `compliance_docs` | INSERT (ON CONFLICT DO NOTHING) | ICA seeded; never downgraded |
+| `interactions` | INSERT | Type: `FORM_SUBMISSION`, carries officer code + notes |
+
+**Update mode:** Body contains `supplierId` → verified supplier exists → updates core fields, upserts child tables. Returns HTTP 200 + `{ mode: "profile_completion" }`. Create mode returns HTTP 201.
+
+**Emails (fire-and-forget, after 201):**
+- **Supplier** (if email present): `supplierApplicationConfirmationEmail` — subject: "Hemos recibido su solicitud — Fincava" (Spanish)
+- **Admin** (hardcoded to sbirfan@gmail.com): `supplierApplicationAdminAlertEmail` — name, location, product, admin panel link
+
+**Async pipeline** (via `pipelineEmitter.emit(SUPPLIER_ONBOARD_EVENT)` + setImmediate):
 
 ```
 HTTP 201 returned to browser
         │
-        ▼  setImmediate (non-blocking)
+        ▼  setImmediate → pipelineEmitter → SUPPLIER_ONBOARD_EVENT
+ ┌──────────────────┐
+ │  runOnboardPipeline  │  (onboard-pipeline.ts)
+ └────────┬─────────┘
+          │
+          ▼
  ┌──────────────┐
- │ scoreSupplier│  → builds AI input from DB → calls Claude (SCORING_MODEL)
- │              │  → receives: export_readiness_score + pathway (A/B/C/D)
- │              │  → writes: ai_outputs row
- │              │  → sends: WhatsApp confirmation to supplier
+ │ scoreSupplier│  → buildScoringInput (reads 5 tables + product_placeholders)
+ │              │  → calls Claude (SCORING_MODEL) with SCORING_PROMPT
+ │              │  → validates: export_readiness_score (finite) + pathway (A/B/C/D)
+ │              │  → writes: ai_outputs row (callType="ONBOARD_SCORE")
+ │              │  → sends: WhatsApp to supplier (non-fatal if fails)
+ │              │  → retries: up to 3× with exponential backoff
  └──────┬───────┘
-        │ (requires ai_outputs row)
+        │ (guard: ai_outputs row must exist before evaluation)
         ▼
  ┌─────────────────┐
- │ evaluateSupplier│  → reads: AI score + compliance docs
- │                 │  → runs: graduation state machine
- │                 │  → sets: sellableStatus (NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED)
- │                 │  → writes: supplier_evaluations, supplier_state_transitions
+ │ evaluateSupplier│  (supplier-graduation-service.ts)
+ │                 │  → reads: latest ONBOARD_SCORE + compliance_docs
+ │                 │  → computeEligibility: requires rutDian, icaRegistration,
+ │                 │    fitosanitario, consentGiven (from THRESHOLDS.eligibility)
+ │                 │  → computeSellableStatus: score<30→NOT_READY, 30-59→ELIGIBLE,
+ │                 │    ≥60→SELLABLE (from THRESHOLDS.commercial, version "v0_pre_buyer_calls")
+ │                 │  → writes: supplier_evaluations (append-only snapshot)
+ │                 │  → if changed: writes supplier_state_transitions (actor=SYSTEM)
+ │                 │  → updates: suppliers (eligibilityStatus, commercialScore,
+ │                 │    sellableStatus, graduationPathway, nextActions, lastEvaluatedAt)
+ │                 │  → if → SELLABLE: logs SUPPLIER_SELLABLE interaction
  └─────────────────┘
 ```
 
-### Emails sent
-- Supplier: Spanish-language confirmation (if email provided)
-- Admin: Alert email with supplier name, location, product, link to admin panel
-
-### sellableStatus state machine
-
-```
-NOT_READY → ELIGIBLE → SELLABLE → PUBLISHED
-```
-
-| State | Meaning |
-|---|---|
-| `NOT_READY` | Onboarded but did not pass eligibility thresholds |
-| `ELIGIBLE` | Passed eligibility gate; not yet commercially scored |
-| `SELLABLE` | Commercially scored; ready for buyer matching and marketplace listing |
-| `PUBLISHED` | Actively listed on the marketplace |
-
-Only `SELLABLE` and `PUBLISHED` suppliers appear on the public marketplace.
-
-### AI scoring input contract
-
-Claude receives a JSON object with four keys:
-
-```json
-{
-  "supplier": { "name", "municipio", "supplierType", "consent" },
-  "farm":     { "cultivoPrincipal", "hectareasProduccion", "volumenKgUltimaCosecha", ... },
-  "economics": { "tipoComprador", "precioVentaBanda", "deudaActual", "haIntentadoExportar", ... },
-  "compliance": { "icaRegistro", "rutDian", "fitosanitarioCert", ... }
-}
-```
-
-Output: `export_readiness_score` (numeric) + `pathway` (A/B/C/D).
+**⚠️ No email or notification when supplier reaches SELLABLE or PUBLISHED** — graduation is silent.
 
 ---
 
-## 2. Ingestion Pipeline (T0–T5)
-
-### Entry points
-- `POST /api/admin/ingestion/suppliers` — manual admin entry
-- `POST /api/admin/ingestion/discover` — AI-powered lead discovery
-- `POST /api/admin/ingestion/batch-confirm` — bulk promotion to READY
+## 4. Ingestion Pipeline (end-to-end)
 
 All routes: `requireAuth + requireAdmin`.
 
+### Step 1 — Batch creation
+`POST /api/admin/ingestion/batches` → writes `supplier_ingestion_batches` (status=DRAFT)
+
+### Step 2 — Lead discovery (ephemeral)
+`POST /api/admin/ingestion/discover` → calls `discoverLeads()` (Claude + DISCOVERY_PROMPT) → returns candidate suppliers. **Nothing written to DB.** Admin reviews candidates and selects which to save.
+
+### Step 3 — Create ingested supplier
+`POST /api/admin/ingestion/suppliers` → writes:
+- `suppliersTable` with `ingestionSource=ADMIN_ENTRY`, `ingestionStatus=DRAFT`, `claimStatus=UNCLAIMED`, `createdByAdminId`
+- `productPlaceholdersTable` (one row per `categoryHint`, if provided)
+
+Includes duplicate detection (two-pass: SHA-256 fingerprint exact + fuzzy word-overlap ≥0.6). Override requires non-empty `overrideJustification`.
+
+### Step 4 — AI enrichment (optional)
+`POST /api/admin/ingestion/enrich` → calls `enrichSupplierWithAI()` (Claude + ENRICHMENT_MODEL) → computes `confidenceScore`. **Service does NOT write to DB.** Route persists `suppliersTable.confidenceScore` and `updatedAt` if `supplierId` provided.
+
+### Step 5 — Status update
+`PATCH /api/admin/ingestion/suppliers/:id/ingestion-status` → updates `suppliersTable.ingestionStatus` to `DRAFT|ENRICHED|READY|REJECTED`. Logs `INGESTION_BATCH_SUBMITTED` interaction.
+
+### Step 6 — Batch submit
+`POST /api/admin/ingestion/batches/:id/submit` → updates batch row to `status=SUBMITTED`, `submittedAt=now`. **Does NOT change supplier statuses.**
+
+### Step 7 — Batch confirm (promote to READY)
+`POST /api/admin/ingestion/batch-confirm` → for each `leadId`: updates `suppliersTable.ingestionStatus` → READY (no-op if already READY; error if REJECTED).
+
+### ⚠️ Critical Gap: Ingestion → Scoring is NOT connected
+
+Ingested suppliers (status=READY) are **never automatically scored**. Scoring only runs after `POST /api/suppliers/onboard`. There is no "promote ingested READY supplier to scored supplier" endpoint or flow. A field officer must visit the farm and submit the onboarding form before scoring and graduation can happen.
+
 ### ingestionStatus lifecycle
-
 ```
-(created) → DRAFT → ENRICHED → READY → [sold / rejected]
-                                └──→ REJECTED
+(created) → DRAFT → ENRICHED → READY
+                              └──→ REJECTED
 ```
 
-| Status | Meaning |
-|---|---|
-| `DRAFT` | Created by admin; not yet enriched or confirmed |
-| `ENRICHED` | AI enrichment (Claude Sonnet) applied; normalizedName, description, categoryHints written |
-| `READY` | Admin confirmed; supplier is ready for commercial use |
-| `REJECTED` | Marked as not suitable |
+---
 
-### Data collected
+## 5. AI Scoring Contract
 
-| Column / Table | Source |
-|---|---|
-| `suppliers.normalizedName` | Claude AI enrichment |
-| `suppliers.description` | Claude AI enrichment |
-| `suppliers.confidenceScore` | confidence-scorer.ts (6-factor heuristic, 0.00–1.00) |
-| `suppliers.supplierFingerprint` | SHA-256 of normalised name + country |
-| `suppliers.sourceUrl` | Admin-provided |
-| `product_placeholders` | One row per category hint; verificationStatus=unverified, dataOrigin=inferred |
+### Input to Claude (current — 5 keys)
 
-### Confidence score (T5) — 6 factors
+```json
+{
+  "supplier":   { full suppliersTable row },
+  "farm":       { full farmsTable row | undefined },
+  "economics":  { full economicsTable row | undefined },
+  "compliance": { full complianceDocsTable row | undefined },
+  "ingestion":  {
+    "normalizedName":        "...",
+    "description":           "...",
+    "confidenceScore":       "0.85",
+    "dataCompletenessScore": "0.70",
+    "ingestionSource":       "ADMIN_ENTRY",
+    "ingestionStatus":       "READY",
+    "sourceType":            "website",
+    "categoryHints":         ["coffee", "cacao"]
+  }
+}
+```
 
+`undefined` values are omitted by JSON.stringify. `ingestion` block is present for all suppliers (ingestion-only fields are null for field-collected suppliers). `categoryHints` is empty array when no product_placeholders rows exist.
+
+### Output expected from Claude
+
+```json
+{
+  "export_readiness_score": 72,
+  "pathway": "B",
+  "pathway_label": "Export Ready with Support",
+  "capital_capacity_cop": 15000000,
+  "compliance_gaps": ["RUT-DIAN not registered", "Fitosanitario missing"],
+  "gap_analysis": "...",
+  "primary_recommendation": "..."
+}
+```
+
+Fields stored: `exportReadinessScore`, `pathway`, `capitalCapacityCop`, `complianceGaps`, `gapAnalysis`. Fields `pathway_label` and `primary_recommendation` are parsed but not persisted.
+
+### Graduation thresholds (v0_pre_buyer_calls)
+
+| Gate | Fields / Threshold | Outcome |
+|---|---|---|
+| Eligibility | rutDian + icaRegistration + fitosanitario + consentGiven all true | PASS or FAIL |
+| Commercial | score < 30 | NOT_READY |
+| Commercial | 30 ≤ score < 60 | ELIGIBLE |
+| Commercial | score ≥ 60 | SELLABLE |
+
+---
+
+## 6. Manual Admin Actions (post-onboarding)
+
+### State transitions
+`POST /api/admin/suppliers/:id/transition`
+- Actor: ADMIN or FOUNDER (not SYSTEM)
+- Required: non-empty `justification`
+- Allowed states: NOT_READY, ELIGIBLE, SELLABLE, PUBLISHED
+- Writes: `supplier_state_transitions` + updates `suppliers.sellableStatus`
+
+### Publish
+`POST /api/admin/suppliers/:id/publish`
+- Preflight: supplier.sellableStatus must be `"SELLABLE"` (not NOT_READY/ELIGIBLE)
+- Required: actor (ADMIN/FOUNDER) + non-empty justification
+- Calls `markPublished()` → `transitionTo(..., "PUBLISHED", actor, { justification })`
+
+### Compliance update
+`PATCH /api/admin/suppliers/:id/compliance`
+- Updates: rutDian, icaRegistro, fitosanitarioCert, dianExportador, consentGiven (partial)
+- Does NOT trigger re-evaluation or re-scoring
+- ⚠️ If a supplier was NOT_READY due to missing compliance, admin fixing it has no automatic effect — manual re-score/transition required
+
+### AI document generation
+`POST /api/suppliers/:id/generate-document` (Admin)
+- Calls Claude (DOCUMENT_MODEL) with supplier + farm + compliance + latestScore
+- Stores in `ai_outputs` (callType=DOCUMENT_GENERATION)
+- Supports EN/ES language flag
+
+### Manual WhatsApp resend
+`POST /api/suppliers/:id/send-whatsapp` (Admin)
+- Reads latest ONBOARD_SCORE for the supplier
+- Sends WhatsApp with score + pathway
+- Records returned SID in `ai_outputs.whatsappMessageSent`
+
+---
+
+## 7. Communications Summary
+
+| Trigger | Channel | Recipient | When |
+|---|---|---|---|
+| Onboarding submitted | Email (ES) | Supplier | After `POST /suppliers/onboard` — `supplierApplicationConfirmationEmail` |
+| Onboarding submitted | Email (EN) | Admin (sbirfan@gmail.com) | After `POST /suppliers/onboard` — `supplierApplicationAdminAlertEmail` |
+| Scoring complete | WhatsApp | Supplier | Inside `scoreSupplier()` — score + pathway (non-fatal) |
+| Status changed (ACTIVE/PENDING/INACTIVE) | Email | Supplier | Admin patches status via `PATCH /admin/suppliers/:id/status` |
+| Manual resend | WhatsApp | Supplier | Admin triggers `POST /suppliers/:id/send-whatsapp` |
+| RFQ awarded | Email | Winning supplier | `POST /rfqs/:id/award/:responseId` — fire-and-forget |
+| Inquiry created | Email | Supplier (company) | `POST /api/inquiries` — link to `/supplier-dashboard/inquiries` |
+| ⚠️ Graduation to SELLABLE | — | — | **Not sent. No notification.** |
+| ⚠️ Promotion to PUBLISHED | — | — | **Not sent. No notification.** |
+
+---
+
+## 8. Public-Facing Supplier Pages
+
+### `/suppliers` (public supplier directory)
+- Component: `suppliers.tsx`
+- Data: `useListSuppliers({ search })` → `GET /api/suppliers` (**requireAdmin**)
+- ⚠️ **Potential gap:** If `useListSuppliers` calls `/api/suppliers` (admin-only), public users cannot view the directory
+
+### `/supplier/:id` (public supplier profile)
+- Component: `supplier-detail.tsx`
+- Data: `useGetSupplier(id)` — source route unclear; may call admin-restricted `GET /api/suppliers/:id`
+- Shows: identity, trust score, categories, products, origin story, certifications
+- ⚠️ **"Contact Supplier" button has no click handler** — not wired to inquiry creation
+
+### `/supplier-marketplace` (internal validation page)
+- Labeled "TEMP: Internal Validation Page"
+- Calls `GET /api/suppliers/marketplace` (public, no auth)
+- Shows SELLABLE/PUBLISHED suppliers only
+
+### Public profile endpoint (correct for unauthenticated users)
+`GET /api/suppliers/:id/profile` — no auth — returns safe public fields + `public_trust_score`
+
+---
+
+## 9. Confidence Score vs Public Trust Score
+
+Both are computed at query time (not stored permanently in supplier row after ingestion).
+
+### Confidence Score (internal, ingestion quality signal)
+File: `confidence-scorer.ts`
+6 factors → stored in `suppliers.confidenceScore` (decimal 0.00–1.00):
 1. Website URL present and valid
 2. AI normalised name differs meaningfully from raw input
 3. Municipio matches known Colombian municipalities
 4. Category matches agricultural taxonomy
 5. Contact info present (WhatsApp or email)
-6. AI output contained ≤ 7 fields (clean schema, no discarded extras)
+6. AI output contained ≤ 7 fields
 
-Returns 0.00–1.00 stored in `suppliers.confidence_score`.
+### Public Trust Score (buyer-facing)
+Computed at query time from 5 public-safe signals:
+1. sourceUrl valid
+2. normalizedName present
+3. description > 20 chars
+4. municipio recognised
+5. claimStatus = CLAIMED
 
-### Public trust score (T5) — 5 signals (buyer-facing)
-
-Computed at query time from public-safe columns only:
-
-1. Source URL valid
-2. Normalised name present
-3. Description > 20 chars
-4. Municipio recognised
-5. Claim status = CLAIMED
-
-Exposed on:
-- `GET /api/suppliers/:id/profile` (public, no auth) → `public_trust_score`
-- `GET /api/suppliers/marketplace` (public) → `public_trust_score` per supplier
-- `GET /api/suppliers/:id` (admin) → `public_trust_score`
-
-### Interaction events logged (INTERACTION_TYPES)
-
-| Event | When |
-|---|---|
-| `SUPPLIER_DISCOVERED` | Lead found via discovery engine |
-| `SUPPLIER_STRUCTURED` | AI enrichment completed |
-| `INGESTION_SUBMITTED` | Admin submits to batch |
-| `BATCH_CONFIRM_EXECUTED` | Batch confirmed (DRAFT/ENRICHED → READY) |
-| `SUPPLIER_SELLABLE` | Supplier promoted to SELLABLE |
-| `DUPLICATE_OVERRIDE` | Admin overrides a detected duplicate (logs override_reason + admin_id) |
-
-### Duplicate detection (two-pass)
-
-1. **Exact** — SHA-256 fingerprint match on `suppliers.supplier_fingerprint`
-2. **Fuzzy** — word-overlap score ≥ 0.6 on name/normalizedName via ILIKE
-
-Override requires non-empty `overrideJustification` (whitespace-only rejected).
+Exposed on: `GET /api/suppliers/:id/profile`, `GET /api/suppliers/marketplace`, `GET /api/suppliers/:id` (admin).
 
 ---
 
-## 3. What Each Pipeline Knows (and Doesn't)
+## 10. Full API Route Reference
 
-| Data dimension | Onboarding | Ingestion |
-|---|---|---|
-| Farm size / hectares | ✅ | ❌ |
-| Harvest months / cycles | ✅ | ❌ |
-| Drying / processing method | ✅ | ❌ |
-| Compliance (ICA, RUT, VUCE) | ✅ | ❌ |
-| Economics (price, volume, debt) | ✅ | ❌ |
-| Consent captured | ✅ | ❌ |
-| Export readiness score (AI) | ✅ | ❌ |
-| Graduation state (sellableStatus) | ✅ | feeds into same |
-| Normalised business name (AI) | ❌ | ✅ |
-| Description / narrative (AI) | ❌ | ✅ |
-| Source URL / web presence | ❌ | ✅ |
-| Confidence score | ❌ | ✅ |
-| Product placeholders | ❌ | ✅ |
-| Batch / ingestion audit trail | ❌ | ✅ |
-| Duplicate check | ❌ | ✅ |
-
----
-
-## 4. Shared Infrastructure
-
-| Layer | Used by |
-|---|---|
-| `suppliers` table | Both pipelines write to it |
-| `interaction_logs` | Both pipelines log events |
-| `computePublicTrustScore()` | Ingestion layer; usable by onboarding too |
-| `logInteraction()` | Both pipelines |
-| `sendEmail()` | Onboarding (confirmation + admin alert) |
-| `sendWhatsAppMessage()` | Onboarding (post-scoring confirmation) |
-| Drizzle ORM + PostgreSQL | Both |
-
----
-
-## 5. Current Gaps / Planned Work
-
-| Gap | Priority | Notes |
-|---|---|---|
-| No field officer launch UI | High | Officers use the same `/onboarding` URL with no dedicated entry point |
-| Admin cannot see onboarding completeness per supplier | High | Admin view shows ingestion status but not farm/economics/compliance fill rate |
-| Ingestion suppliers have no farm/compliance data | Medium | Ingested suppliers bypass the scoring pipeline |
-| No combined AI input (ingestion + onboarding data) | Medium | Both datasets available in DB; scoring prompt only reads onboarding data |
-| Supplier dashboard questionnaire launcher | Medium | Supplier can self-register but no resume / "complete your profile" flow |
-| Colombian municipio list: ~100 representative only | Low | Full DIVIPOLA list (~1,100) would improve confidence scoring accuracy |
-
----
-
-## 6. API Route Reference
-
-### Onboarding
+### Farmer Onboarding
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/suppliers/onboard` | None | Submit onboarding form |
+| `POST` | `/api/suppliers/onboard` | None | Submit onboarding form (create or update mode) |
 
-### Ingestion (admin)
+### Farmer Profiles — Public
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/admin/ingestion/suppliers` | Admin | Create DRAFT supplier |
-| `POST` | `/api/admin/ingestion/enrich` | Admin | Run AI enrichment (+ persist confidenceScore) |
-| `GET` | `/api/admin/ingestion/duplicate-check` | Admin | Check for duplicate before save |
+| `GET` | `/api/suppliers/marketplace` | None | SELLABLE/PUBLISHED suppliers with public_trust_score and products |
+| `GET` | `/api/suppliers/:id/profile` | None | Public curated supplier profile + public_trust_score |
+
+### Farmer Profiles — Authenticated
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/suppliers/my-profile` | User | Matches logged-in email to suppliersTable; returns profileCompleteness |
+
+### Farmer Management — Admin
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/suppliers/admin-list` | Admin | Paginated supplier list with filters (?pathway, municipio, from, to, q) |
+| `GET` | `/api/suppliers` | Admin | All suppliers with graduation fields |
+| `GET` | `/api/suppliers/:id` | Admin | Full supplier + public_trust_score + profileCompleteness |
+| `GET` | `/api/suppliers/:id/evaluations` | Admin | Up to 20 evaluation snapshots |
+| `GET` | `/api/suppliers/:id/transitions` | Admin | Up to 20 state transition history rows |
+| `GET` | `/api/suppliers/:id/document` | Admin | Latest generated document content |
+| `POST` | `/api/suppliers/:id/generate-document` | Admin | Generate AI document (EN/ES) |
+| `POST` | `/api/suppliers/:id/send-whatsapp` | Admin | Manually resend WhatsApp with latest score |
+| `POST` | `/api/admin/suppliers/:id/transition` | Admin | Manual state transition (requires justification) |
+| `POST` | `/api/admin/suppliers/:id/publish` | Admin | Publish (requires SELLABLE status first) |
+| `PATCH` | `/api/admin/suppliers/:id/status` | Admin | Update supplier status (ACTIVE/PENDING/INACTIVE) + email |
+| `PATCH` | `/api/admin/suppliers/:id/compliance` | Admin | Patch compliance doc booleans (does NOT re-trigger evaluation) |
+
+### Ingestion — Admin
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/admin/ingestion/batches` | Admin | Create ingestion batch (DRAFT) |
+| `POST` | `/api/admin/ingestion/batches/:id/submit` | Admin | Submit batch (status → SUBMITTED) |
+| `POST` | `/api/admin/ingestion/discover` | Admin | AI lead discovery (ephemeral, no DB write) |
+| `POST` | `/api/admin/ingestion/suppliers` | Admin | Create ingested supplier (DRAFT) + optional product placeholder |
+| `POST` | `/api/admin/ingestion/enrich` | Admin | AI enrichment (caller persists confidenceScore if supplierId given) |
+| `POST` | `/api/admin/ingestion/batch-confirm` | Admin | Bulk promote leads to READY |
 | `PATCH` | `/api/admin/ingestion/suppliers/:id/ingestion-status` | Admin | Update ingestion status |
-| `POST` | `/api/admin/ingestion/batch-confirm` | Admin | Bulk confirm batch |
 | `GET` | `/api/admin/ingestion/batches` | Admin | List ingestion batches |
+| `GET` | `/api/admin/ingestion/suppliers/:id/product-placeholders` | Admin | Inferred product list with computed status |
 
-### Supplier profiles
+### B2B Supplier (company accounts)
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/suppliers/marketplace` | None | Public list (SELLABLE/PUBLISHED only) with `public_trust_score` |
-| `GET` | `/api/suppliers/:id/profile` | None | Public curated profile + `public_trust_score` (no `confidenceScore`) |
-| `GET` | `/api/suppliers/:id` | Admin | Full supplier record + `public_trust_score` |
-| `GET` | `/api/admin/ingestion/suppliers/:id/product-placeholders` | Admin | Inferred product list with computed `status` |
+| `GET` | `/api/supplier/stats` | User | Dashboard stats (products, inquiries, orders, revenue) |
+| `GET` | `/api/supplier/profile` | User | B2B company profile |
+| `PATCH` | `/api/supplier/profile` | User | Update B2B company profile |
+| `GET` | `/api/supplier/products` | User | List supplier's products |
+| `POST` | `/api/supplier/products` | User | Create product |
+| `PATCH` | `/api/supplier/products/:id` | User | Update product (ownership check) |
+| `DELETE` | `/api/supplier/products/:id` | User | Delete product (ownership check) |
+| `GET` | `/api/supplier/inquiries` | User | List inquiries for supplier's products |
+| `PATCH` | `/api/supplier/inquiries/:id` | User | Update inquiry status (ownership check) |
+| `GET` | `/api/supplier/orders` | User | List orders containing supplier's products |
+| `PATCH` | `/api/supplier/orders/:id/status` | User | Update order status (ownership check) |
+| `GET` | `/api/supplier/rfqs` | User | List open RFQs with hasResponded flag |
+| `POST` | `/api/rfqs/:id/respond` | User | Submit RFQ bid |
 
 ---
 
-## 7. Unified Supplier Layer — Design Strategy
+## 11. Gaps and Broken Connections
 
-> Added: April 2026. Captures the agreed design direction for combining the three entry points and two pipelines.
+### 🔴 Critical — Broken Functionality
 
-### Core Mental Model
+**G1: Buyer "Contact Supplier" button is unwired**
+- File: `artifacts/fincava/src/pages/supplier-detail.tsx`
+- `<Button>Contact Supplier</Button>` has no click handler, no routing, no modal
+- `POST /api/inquiries` exists but is not called from supplier-detail.tsx
+- Impact: buyers cannot contact suppliers from the supplier profile page
 
-The two pipelines collect complementary data, not competing data:
+**G2: Buyer inquiry creation has no form**
+- File: `artifacts/fincava/src/pages/product-detail.tsx`
+- "Request Quote / Inquiry" redirects to `/dashboard/inquiries` (read-only list)
+- No form to compose and submit a new inquiry is wired into the buyer UI
+- `POST /api/inquiries` backend is complete and functional but unused by the UI
 
-- **Ingestion** = *what we discover about the supplier from outside* (market intelligence, AI enrichment, web presence)
-- **Onboarding** = *what the supplier tells us about themselves* (ground truth: farm, compliance, economics)
+**G3: Public supplier directory may be admin-restricted**
+- File: `artifacts/fincava/src/pages/suppliers.tsx`
+- `useListSuppliers()` — if the underlying hook calls `GET /api/suppliers` (requireAdmin), public users get a 401
+- `GET /api/suppliers/marketplace` is the correct public endpoint but is not used here
 
-Goal: **one supplier record, two collection modes, one AI that sees both.**
+**G4: Supplier detail page may use admin-restricted profile endpoint**
+- File: `artifacts/fincava/src/pages/supplier-detail.tsx`
+- `useGetSupplier(id)` may hit `GET /api/suppliers/:id` (requireAdmin) rather than `GET /api/suppliers/:id/profile` (no auth)
+- If so, non-admin visitors cannot view supplier profiles
 
----
+### 🟠 Significant — Missing Flows
 
-### Three Entry Points — Agreed Design
+**G5: Ingestion → Scoring is not connected**
+- Ingested suppliers marked READY have no mechanism to enter the scoring/graduation pipeline
+- Scoring only triggers from `POST /api/suppliers/onboard`
+- A field officer visit is required to bridge ingestion-discovered suppliers into the graduation pipeline
+- There is no "score this ingested supplier" admin action
 
-#### 1. Supplier Self-Service (exists, needs small gaps closed)
-- 5-step onboarding form at `/onboarding` works for digitally capable suppliers
-- **Gap:** No "resume" prompt from the supplier dashboard if they created an account but never completed the questionnaire
-- **Gap:** No mechanism for an ingestion-discovered supplier to claim their profile and then fill in farm data
+**G6: No re-evaluation after compliance update**
+- `PATCH /api/admin/suppliers/:id/compliance` updates compliance docs but does NOT re-run `evaluateSupplier()`
+- If a supplier was NOT_READY due to missing ICA/RUT, admin fixing those docs has no automatic effect
+- Admin must manually transition state via the transition endpoint
 
-#### 2. Field Officer (backend ready, no UI)
-- `officer_name` + `officer_code` fields already exist in the onboarding schema
-- **Gap:** No dedicated officer launch page or mobile-optimised entry point
-- Officers have an account (`FIELD_OFFICER` role) but no dashboard or onboarding launcher
-- Needed: a simple officer dashboard with supplier search + "Start farm visit" button
+**G7: No graduation notifications**
+- No email or WhatsApp is sent when a supplier reaches SELLABLE (eligible for marketplace)
+- No notification when a supplier is PUBLISHED (listed on marketplace)
+- Supplier has no way to know they've been approved without checking back
 
-#### 3. Admin Console (biggest current gap)
-- Admin can see ingestion batches but has no unified view of total profile completeness per supplier
-- **Gap:** No side-by-side view showing "Ingestion data: complete / Farm data: missing / AI score: missing"
-- **Gap:** No "Initiate onboarding for this supplier" action that pre-fills from the existing ingestion record
+**G8: No FIELD_OFFICER user role**
+- `officer_applications` table stores field officer applications
+- No flow exists to promote an application to a user account with a dedicated role
+- Officers currently need full ADMIN role access (exposes user management, commercial data, etc.)
+- The `/officer/dashboard` route guards with `requireAdmin`, not a dedicated role
 
----
+**G9: Claim flow is not implemented**
+- `claimStatus` (UNCLAIMED/PENDING/CLAIMED) and `claimToken` columns exist in suppliersTable
+- No endpoint generates a claim token or sets claimStatus to CLAIMED
+- `GET /api/suppliers/my-profile` bridges via email-match only — no token-based claim UX
+- The public trust score awards 1 point for claimStatus=CLAIMED but this can never be achieved
 
-### What to Keep Separate vs. Combine
+**G10: Officer applications have no promotion flow**
+- `officer_applications` table stores pending applications
+- No admin UI to view, approve, or reject officer applications
+- No flow to convert an application into a FIELD_OFFICER user account
 
-**Keep separate:**
-- The three UI entry points — each serves a different actor with different context and device
-- The ingestion workflow (DRAFT → ENRICHED → READY) — internal admin quality gate
-- The onboarding consent + compliance capture — carries legal weight, must remain explicit
+### 🟡 Notable — Incomplete Features
 
-**Combine — AI scoring input:**
+**G11: finance.tsx is a placeholder**
+- `artifacts/fincava/src/pages/supplier-dashboard/finance.tsx` shows "coming soon"
+- `GET /api/financing/...` endpoints referenced in the generated client may not be implemented
 
-When a supplier has BOTH ingestion data AND onboarding data, the Claude scoring prompt should receive:
+**G12: productPlaceholders not shown in admin supplier detail**
+- Product category hints from ingestion feed into Claude scoring
+- They are not visible in the admin supplier detail drawer
+- Admin cannot see or edit what category hints are influencing the AI score
 
-```json
-{
-  "supplier":   { "...core fields..." },
-  "farm":       { "...onboarding farm data..." },
-  "economics":  { "...onboarding economics..." },
-  "compliance": { "...onboarding compliance..." },
-  "ingestion":  {
-    "normalizedName":             "...",
-    "description":                "...",
-    "categoryHints":              ["..."],
-    "exportReadinessNarrative":   "...",
-    "sourceUrl":                  "...",
-    "confidenceScore":            0.85
-  }
-}
-```
+**G13: Compliance update does not log interaction**
+- `PATCH /api/admin/suppliers/:id/compliance` updates the DB but does not write to `interactions` table
+- No audit trail for who changed which compliance fields and when
 
-**Combine — Marketplace profile:**
-The supplier's public page should show: AI-written description (from ingestion) + product mix + farm location + certifications + organic status — a far richer buyer-facing profile than either dataset alone.
+**G14: farms and economics tables have no uniqueness constraint**
+- Multiple rows per supplier are possible (no `UNIQUE(supplier_id)`)
+- The onboarding route uses UPSERT logic but the DB does not enforce 1:1
+- Query code reads `[farmRow]` (first row), so second rows are silently ignored
 
----
-
-### Completeness Status Model
-
-Each supplier record should expose a `profileCompleteness` summary:
-
-| Dimension | Source | Check |
-|---|---|---|
-| Ingestion data | `ingestionStatus` | `READY` |
-| Farm data | `farms` table | Row exists for `supplierId` |
-| Economics data | `economics` table | Row exists for `supplierId` |
-| Compliance data | `compliance_docs` table | Row exists for `supplierId` |
-| AI score | `ai_outputs` table | Row exists for `supplierId` |
-| Graduated | `supplier_evaluations` | `sellableStatus` ≠ `NOT_READY` |
-
----
-
-### The One Key Architectural Decision
-
-The current `POST /api/suppliers/onboard` always creates a new supplier. To support admin-initiated onboarding for an already-ingested supplier, the route will accept an optional `supplierId` body field:
-
-- **If absent:** current behavior — creates new supplier record
-- **If present:** updates the existing record; upserts farms/economics/compliance tables; runs the post-onboard pipeline against the existing ID
-
-This keeps one endpoint, one form, three entry points.
+**G15: Manual transitions bypass re-evaluation**
+- Admin can use `POST /api/admin/suppliers/:id/transition` to set any state
+- This does not run `evaluateSupplier()` so the evaluation snapshot may be out of sync with actual state
 
 ---
 
-### Build Roadmap — Four Phases
+## 12. Build Roadmap — Four Completed Phases
 
 #### Phase 1 — Close the Admin Loop ✅ COMPLETE
 1. `GET /api/suppliers/:id` returns `profileCompleteness` object (hasFarmData, hasEconomicsData, hasComplianceData, hasAiScore, isGraduated)
-2. `POST /api/suppliers/onboard` accepts optional `supplierId` → update mode (returns HTTP 200 + `mode: "profile_completion"`)
+2. `POST /api/suppliers/onboard` accepts optional `supplierId` → update mode (HTTP 200 + `mode: "profile_completion"`)
 3. Admin supplier detail panel shows completeness panel with 5 dimensions (Farm data, Economics, Compliance, AI readiness score, Graduated) each with ✓/○
 4. Amber "Collect farm data →" Link when hasFarmData=false → `/onboarding?supplierId=&prefill=1`
 5. Onboarding page: reads `?supplierId=&prefill=1` → fetches supplier, locks identity fields, shows banner
@@ -383,3 +696,33 @@ This keeps one endpoint, one form, three entry points.
 3. Widget shows % progress bar + 5 dimensions with ✓/○ + "Complete →" links per incomplete section
 4. "Complete your farm profile" CTA button links to `/onboarding?supplierId=&prefill=1`
 5. Widget silently hides for users with no linked supplier record (no error state shown)
+
+---
+
+## 13. Key File Reference
+
+| File | Purpose |
+|---|---|
+| `artifacts/api-server/src/routes/suppliers.ts` | All farmer supplier routes (onboard, admin-list, my-profile, scoring, documents, state transitions) |
+| `artifacts/api-server/src/routes/admin.ts` | Admin ingestion routes, compliance update, status change, trust recompute |
+| `artifacts/api-server/src/services/scoring-service.ts` | `scoreSupplier()` — Claude scoring pipeline with retries |
+| `artifacts/api-server/src/services/scoring-input.ts` | `buildScoringInput()` — reads 5 tables, builds ingestion block |
+| `artifacts/api-server/src/services/supplier-graduation-service.ts` | `evaluateSupplier()`, `transitionTo()`, `markPublished()` |
+| `artifacts/api-server/src/services/onboard-pipeline.ts` | Runs scoreSupplier → evaluateSupplier after onboard event |
+| `artifacts/api-server/src/services/discovery-engine.ts` | Ephemeral AI lead discovery (no DB writes) |
+| `artifacts/api-server/src/services/ingestion-structuring-service.ts` | AI enrichment (no DB writes; caller persists) |
+| `artifacts/api-server/src/services/confidence-scorer.ts` | `computePublicTrustScore()` and `computeConfidenceScore()` |
+| `artifacts/api-server/src/config/scoring-prompts.ts` | `SCORING_PROMPT` sent to Claude for scoring |
+| `artifacts/api-server/src/lib/email.ts` | All email templates and `sendEmail()` |
+| `artifacts/api-server/src/lib/whatsapp.ts` | `sendWhatsAppMessage()` |
+| `lib/config/thresholds.ts` | Graduation threshold values (version, eligibility fields, commercial cutoffs) |
+| `lib/db/src/schema/suppliers.ts` | suppliersTable, farmsTable, economicsTable, complianceDocsTable, aiOutputsTable, interactionsTable, productPlaceholdersTable, supplierIngestionBatchesTable |
+| `lib/db/src/schema/supplier-evaluations.ts` | supplierEvaluationsTable |
+| `lib/db/src/schema/supplier-state-transitions.ts` | supplierStateTransitionsTable |
+| `lib/db/src/schema/officer-applications.ts` | officerApplicationsTable |
+| `artifacts/fincava/src/pages/onboarding.tsx` | Multi-step farmer onboarding form (create + update + prefill modes) |
+| `artifacts/fincava/src/pages/officer/dashboard.tsx` | Field officer supplier search + farm visit launcher |
+| `artifacts/fincava/src/pages/admin/suppliers.tsx` | Admin supplier management + completeness panel |
+| `artifacts/fincava/src/pages/supplier-dashboard/index.tsx` | B2B supplier dashboard + ProfileCompletenessWidget |
+| `artifacts/fincava/src/pages/supplier-detail.tsx` | Public supplier profile (⚠️ auth gap, ⚠️ Contact button unwired) |
+| `artifacts/fincava/src/pages/suppliers.tsx` | Public supplier directory (⚠️ may call admin-restricted endpoint) |
