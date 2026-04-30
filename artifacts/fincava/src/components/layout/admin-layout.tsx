@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   ShieldAlert,
+  Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -66,8 +67,15 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </nav>
       </div>
 
-      <div className="border-t border-white/10 p-4">
-        <div className="flex items-center gap-3 mb-4 px-2">
+      <div className="border-t border-white/10 p-4 space-y-2">
+        <Link
+          href="/"
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/60 hover:bg-white/5 hover:text-white transition-all"
+        >
+          <Home className="h-4 w-4" />
+          View Site
+        </Link>
+        <div className="flex items-center gap-3 px-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300 text-sm font-bold">
             {user?.firstName?.charAt(0) ?? "A"}
           </div>

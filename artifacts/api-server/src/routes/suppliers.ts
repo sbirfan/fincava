@@ -418,11 +418,14 @@ router.post(
         .orderBy(desc(aiOutputsTable.createdAt))
         .limit(1);
 
+      const requestedLang = (req.body as any)?.language === "es" ? "Spanish" : "English";
+      const languageInstruction = `\n\nIMPORTANT: Write the ENTIRE document in ${requestedLang}. Do not use any other language.`;
+
       const client = getAnthropicClient();
       const message = await client.messages.create({
         model: DOCUMENT_MODEL,
         max_tokens: 1500,
-        system: DOCUMENT_PROMPT,
+        system: DOCUMENT_PROMPT + languageInstruction,
         messages: [
           {
             role: "user",
@@ -446,7 +449,7 @@ router.post(
 
       res.json({ success: true, documentContent });
     } catch (err) {
-      console.error("Document generation error:", err);
+      req.log.error({ err }, "Document generation error");
       res.status(500).json({ error: "Document generation failed" });
     }
   },

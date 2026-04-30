@@ -59,11 +59,15 @@ const ELIGIBILITY_COLORS: Record<string, string> = {
 function DocModal({
   supplierName,
   content,
+  lang,
   onClose,
+  onRegenerate,
 }: {
   supplierName: string;
   content: string;
+  lang: string;
   onClose: () => void;
+  onRegenerate?: () => void;
 }) {
   function download() {
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -86,7 +90,7 @@ function DocModal({
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-base font-semibold text-gray-800">
-            Generated Document — {supplierName}
+            {lang === "es" ? "Documento Generado" : "Generated Document"} — {supplierName}
           </h2>
           <button
             onClick={onClose}
@@ -105,13 +109,21 @@ function DocModal({
             onClick={download}
             className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition"
           >
-            Download as TXT
+            {lang === "es" ? "Descargar TXT" : "Download as TXT"}
           </button>
+          {onRegenerate && (
+            <button
+              onClick={onRegenerate}
+              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
+            >
+              {lang === "es" ? "Regenerar" : "Regenerate"}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition"
           >
-            Close
+            {lang === "es" ? "Cerrar" : "Close"}
           </button>
         </div>
       </div>
@@ -134,6 +146,7 @@ export default function AdminSuppliersPage() {
   const [docModalOpen, setDocModalOpen] = useState(false);
   const [docContent, setDocContent] = useState<string | null>(null);
   const [docSupplierName, setDocSupplierName] = useState<string | null>(null);
+  const [docSupplierId, setDocSupplierId] = useState<number | null>(null);
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -201,18 +214,20 @@ export default function AdminSuppliersPage() {
   }
 
   async function generateDocument(supplierId: number, supplierName: string) {
+    setDocModalOpen(false);
     setGenerating(supplierId);
     try {
       const res = await fetch(`/api/suppliers/${supplierId}/generate-document`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc_type: "supplier_profile" }),
+        body: JSON.stringify({ doc_type: "supplier_profile", language: lang }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setDocContent(data.documentContent);
       setDocSupplierName(supplierName);
+      setDocSupplierId(supplierId);
       setDocModalOpen(true);
     } catch (e: any) {
       alert(`Error: ${e.message}`);
@@ -238,6 +253,7 @@ export default function AdminSuppliersPage() {
       const data = await res.json();
       setDocContent(data.documentContent);
       setDocSupplierName(supplierName);
+      setDocSupplierId(supplierId);
       setDocModalOpen(true);
     } catch (e: any) {
       alert(`Error: ${e.message}`);
@@ -320,7 +336,13 @@ export default function AdminSuppliersPage() {
         <DocModal
           supplierName={docSupplierName}
           content={docContent}
+          lang={lang}
           onClose={() => setDocModalOpen(false)}
+          onRegenerate={
+            docSupplierId != null
+              ? () => generateDocument(docSupplierId, docSupplierName)
+              : undefined
+          }
         />
       )}
       {/* Top bar */}

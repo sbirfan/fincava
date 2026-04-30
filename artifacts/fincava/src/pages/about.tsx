@@ -28,8 +28,8 @@ export default function About() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-24">
           <div className="rounded-xl overflow-hidden shadow-lg h-64 md:h-96">
             <img
-              src="/images/cacao.png"
-              alt="Colombian cacao"
+              src="/images/farmer.png"
+              alt="Colombian farmer"
               className="w-full h-full object-cover"
             />
           </div>
