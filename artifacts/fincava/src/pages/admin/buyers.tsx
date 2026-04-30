@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   X,
@@ -1298,6 +1298,16 @@ function PriorityBadge({ priority }: { priority: string }) {
 
 // ── Marketing send modal ────────────────────────────────────────────────────
 
+type CampaignStatus = {
+  id: number;
+  status: string;
+  totalRecipients: number;
+  sent: number;
+  failed: number;
+  completedAt: string | null;
+  failures: { email: string; error: string | null }[];
+};
+
 function MarketingSendModal({ onClose }: { onClose: () => void }) {
   const [subject, setSubject] = useState("");
   const [html, setHtml] = useState("");
@@ -1308,18 +1318,52 @@ function MarketingSendModal({ onClose }: { onClose: () => void }) {
     recipients: number;
     sample: { email: string; companyName: string | null }[];
   } | null>(null);
-  const [sendResult, setSendResult] = useState<{
-    attempted: number;
-    sent: number;
-    failed: number;
-    failures: { email: string; error: string }[];
-  } | null>(null);
+  const [campaignId, setCampaignId] = useState<number | null>(null);
+  const [campaignStatus, setCampaignStatus] = useState<CampaignStatus | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (campaignId == null) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/buyers/marketing-campaigns/${campaignId}`, {
+          credentials: "include",
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setCampaignStatus(json.data);
+          if (json.data.status === "done" || json.data.status === "failed") {
+            stopPolling();
+          }
+        }
+      } catch {
+        // keep polling
+      }
+    };
+    poll();
+    pollRef.current = setInterval(poll, 2000);
+    return stopPolling;
+  }, [campaignId]);
 
   const submit = async (dryRun: boolean) => {
     setSubmitError(null);
-    if (dryRun) setDryResult(null);
-    else setSendResult(null);
+    if (dryRun) {
+      setDryResult(null);
+    } else {
+      setCampaignId(null);
+      setCampaignStatus(null);
+      setSending(true);
+    }
     try {
       const res = await fetch("/api/admin/buyers/marketing-send", {
         method: "POST",
@@ -1342,12 +1386,24 @@ function MarketingSendModal({ onClose }: { onClose: () => void }) {
             : `Failed (${res.status})`,
         );
       }
-      if (dryRun) setDryResult(json.data);
-      else setSendResult(json.data);
+      if (dryRun) {
+        setDryResult(json.data);
+      } else {
+        setCampaignId(json.data.campaignId);
+      }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Send failed");
+    } finally {
+      if (!dryRun) setSending(false);
     }
   };
+
+  const isSending = sending || (campaignStatus !== null && campaignStatus.status !== "done" && campaignStatus.status !== "failed");
+  const isDone = campaignStatus?.status === "done";
+  const total = campaignStatus?.totalRecipients ?? 0;
+  const sent = campaignStatus?.sent ?? 0;
+  const failed = campaignStatus?.failed ?? 0;
+  const progressPct = total > 0 ? Math.round(((sent + failed) / total) * 100) : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" data-testid="modal-marketing-send">
@@ -1452,25 +1508,41 @@ function MarketingSendModal({ onClose }: { onClose: () => void }) {
             </div>
           ) : null}
 
-          {sendResult ? (
+          {campaignStatus ? (
             <div
               className={`rounded-lg p-3 text-sm border ${
-                sendResult.failed === 0
+                isDone && failed === 0
                   ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
-                  : "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                  : isDone && failed > 0
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                    : "bg-white/5 border-white/10 text-white/70"
               }`}
               data-testid="text-send-result"
             >
-              <p>
-                <CheckCircle2 className="inline h-3.5 w-3.5 mr-1.5" />
-                Sent <span className="font-bold">{sendResult.sent}</span> of{" "}
-                <span className="font-bold">{sendResult.attempted}</span>
-                {sendResult.failed > 0 ? ` — ${sendResult.failed} failed` : ""}.
-              </p>
-              {sendResult.failures.length > 0 ? (
+              {isDone ? (
+                <p>
+                  <CheckCircle2 className="inline h-3.5 w-3.5 mr-1.5" />
+                  Sent <span className="font-bold">{sent}</span> of{" "}
+                  <span className="font-bold">{total}</span>
+                  {failed > 0 ? ` — ${failed} failed` : ""}.
+                </p>
+              ) : (
+                <p>
+                  Sending… {sent + failed} of {total > 0 ? total : "?"} processed
+                </p>
+              )}
+              {total > 0 ? (
+                <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${isDone && failed === 0 ? "bg-emerald-500" : isDone ? "bg-amber-500" : "bg-blue-500"}`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              ) : null}
+              {isDone && campaignStatus.failures.length > 0 ? (
                 <div className="mt-2 text-xs space-y-0.5">
-                  {sendResult.failures.map((f) => (
-                    <p key={f.email}>• {f.email} — {f.error}</p>
+                  {campaignStatus.failures.map((f) => (
+                    <p key={f.email}>• {f.email}{f.error ? ` — ${f.error}` : ""}</p>
                   ))}
                 </div>
               ) : null}
@@ -1493,7 +1565,7 @@ function MarketingSendModal({ onClose }: { onClose: () => void }) {
             </button>
             <button
               onClick={() => submit(true)}
-              disabled={!subject || !html}
+              disabled={!subject || !html || isSending}
               className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg"
               data-testid="button-preview-send"
             >
@@ -1501,12 +1573,12 @@ function MarketingSendModal({ onClose }: { onClose: () => void }) {
             </button>
             <button
               onClick={() => submit(false)}
-              disabled={!subject || !html}
+              disabled={!subject || !html || isSending}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-medium"
               data-testid="button-confirm-send"
             >
               <Send className="h-4 w-4" />
-              Send now
+              {isSending ? "Sending…" : "Send now"}
             </button>
           </div>
         </div>

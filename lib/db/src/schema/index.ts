@@ -21,3 +21,4 @@ export * from "./buyer-gap-briefs";
 export * from "./buyer-admin-actions";
 export * from "./interaction-logs";
 export * from "./officer-applications";
+export * from "./marketing-campaigns";

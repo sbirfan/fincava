@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
-import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable } from "@workspace/db";
+import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
 import { hashPassword } from "../lib/auth";
@@ -21,6 +21,7 @@ import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { FEE_STATUSES } from "../constants/fee-status";
 import { runBackup } from "../services/backup-service";
+import { processCampaign } from "../services/marketing-campaign-service";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
 
 // ── Local typed helpers (avoid `any` in route bodies) ─────────────────────────
@@ -728,7 +729,9 @@ router.get("/admin/buyer-gaps", ...adminOnly, async (req, res): Promise<void> =>
 
 // ── POST /api/admin/buyers/marketing-send ────────────────────────────────────
 // Targets only buyers with marketing_opt_in = true and (optionally) a topic
-// in marketing_topics. Sends in-process via the existing sendEmail helper.
+// in marketing_topics. Dry-run returns a recipient preview immediately.
+// Live send creates a campaign record and processes it in the background so the
+// request returns immediately; the admin polls GET /marketing-campaigns/:id for progress.
 const MarketingSendBody = z.object({
   subject: z.string().min(3).max(200),
   html: z.string().min(10).max(50_000),
@@ -776,67 +779,73 @@ router.post("/admin/buyers/marketing-send", ...adminOnly, async (req, res): Prom
     return;
   }
 
-  let sent = 0;
-  let failed = 0;
-  const failures: { email: string; error: string }[] = [];
-
-  for (const r of recipients) {
-    try {
-      const result = await sendEmail({
-        to: r.email,
-        subject,
-        html,
-        text: text ?? html.replace(/<[^>]+>/g, ""),
-      });
-      if (result.ok) {
-        sent += 1;
-      } else {
-        failed += 1;
-        const errMsg =
-          "detail" in result && result.detail
-            ? `${result.reason}: ${result.detail}`
-            : result.reason;
-        failures.push({ email: r.email, error: errMsg });
-        logger.warn(
-          { reason: result.reason, email: r.email, profileId: r.profileId },
-          "Marketing send: per-recipient failure",
-        );
-      }
-    } catch (err: unknown) {
-      failed += 1;
-      failures.push({ email: r.email, error: errorMessage(err) });
-      logger.warn(
-        { err, email: r.email, profileId: r.profileId },
-        "Marketing send: per-recipient exception",
-      );
-    }
-  }
-
-  logInteraction({
-    eventType: "buyer_marketing_send",
-    actorType: "admin",
-    referenceId: adminId,
-    referenceType: "user",
-    payload: {
+  const [campaign] = await db
+    .insert(marketingCampaignsTable)
+    .values({
       adminId,
       subject,
+      html,
+      textBody: text ?? null,
       topic: topic ?? null,
       country: country ?? null,
-      state: state ?? null,
-      attempted: recipients.length,
-      sent,
-      failed,
-    },
+      stateFilter: state ?? null,
+      status: "pending",
+    })
+    .returning();
+
+  setImmediate(() => {
+    processCampaign(campaign.id).catch((err: unknown) => {
+      logger.error({ err, campaignId: campaign.id }, "Background campaign processing failed");
+    });
   });
 
-  logger.info(
-    { adminId, subject, attempted: recipients.length, sent, failed },
-    "Buyer marketing send complete",
-  );
+  logger.info({ adminId, subject, campaignId: campaign.id }, "Marketing campaign enqueued");
 
   res.json({
     success: true,
-    data: { attempted: recipients.length, sent, failed, failures: failures.slice(0, 20) },
+    data: { campaignId: campaign.id },
+  });
+});
+
+// ── GET /api/admin/buyers/marketing-campaigns/:id ────────────────────────────
+router.get("/admin/buyers/marketing-campaigns/:id", ...adminOnly, async (req, res): Promise<void> => {
+  const campaignId = parseInt(req.params.id as string, 10);
+  if (isNaN(campaignId)) {
+    res.status(400).json({ success: false, error: "Invalid campaign id" });
+    return;
+  }
+
+  const [campaign] = await db
+    .select()
+    .from(marketingCampaignsTable)
+    .where(eq(marketingCampaignsTable.id, campaignId));
+
+  if (!campaign) {
+    res.status(404).json({ success: false, error: "Campaign not found" });
+    return;
+  }
+
+  const failures = campaign.status === "done"
+    ? await db
+        .select({ email: campaignLogsTable.email, error: campaignLogsTable.error })
+        .from(campaignLogsTable)
+        .where(and(eq(campaignLogsTable.campaignId, campaignId), eq(campaignLogsTable.status, "failed")))
+        .limit(20)
+    : [];
+
+  res.json({
+    success: true,
+    data: {
+      id: campaign.id,
+      status: campaign.status,
+      totalRecipients: campaign.totalRecipients,
+      sent: campaign.sent,
+      failed: campaign.failed,
+      startedAt: campaign.startedAt,
+      completedAt: campaign.completedAt,
+      createdAt: campaign.createdAt,
+      failures,
+    },
   });
 });
 

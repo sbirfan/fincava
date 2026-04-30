@@ -1,0 +1,1 @@
+-- Baseline marker — no schema changes; all objects were created in prior migrations.
