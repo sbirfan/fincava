@@ -1,0 +1,168 @@
+STOP — HOUSEKEEPING TASK CLASSIFICATION (NO EXECUTION YET)
+
+Follow AGENT_RULE.MD strictly
+DO NOT implement anything yet
+
+---
+
+# OBJECTIVE
+
+Review the following items and classify them into:
+
+1. SIMPLE FIX (can be implemented safely now)
+2. FEATURE (must be added to task board — do NOT implement)
+3. QUESTION (requires clarification — do NOT implement)
+
+---
+
+# INPUT ITEMS
+
+## Admin Console
+
+* Add link to homepage inside admin console (avoid logout/back navigation)
+
+* Create Buyer management section (similar to suppliers)
+
+* Add ability for admin to deactivate buyers and suppliers
+
+* Future: buyer scoring system for matching + readiness
+
+---
+
+## Contact Us Page
+
+* Add Phone field (optional)
+
+* Add dropdown:
+
+  * Buyer
+  * Supplier
+  * Other (optional)
+
+---
+
+## About Page
+
+* Replace image in "The problem we solve" with relevant Colombian farmer image
+
+---
+
+## Supplier Dashboard
+
+* Add language choice in Gen Doc / View Last popup
+
+* Add additional downloadable formats (if simple)
+
+---
+
+## Buyer Dashboard
+
+* Tiles under "Manage your sourcing operations" are not clickable
+  → Make clickable IF simple
+  → Otherwise classify as FEATURE
+
+---
+
+## Market Intelligence
+
+* Is data live?
+* Is it auto-refreshed?
+* What is refresh frequency?
+
+---
+
+## Analytics Page
+
+* Explain what tiles represent
+* Are they FINCAVA internal metrics?
+
+---
+
+# PART 1 — CLASSIFICATION (MANDATORY)
+
+Return a table:
+
+| Item | Category | Reason | Risk Level |
+
+Rules:
+
+* SIMPLE FIX → low risk, no schema changes
+* FEATURE → requires new logic, data model, or unclear scope
+* QUESTION → requires clarification or investigation
+
+---
+
+# PART 2 — VALIDATION (CRITICAL)
+
+Before proceeding:
+
+* Identify ANY misclassification risks
+* Flag items that could be incorrectly categorized
+
+Example:
+"Buyer dashboard tiles may look simple but depend on missing routes"
+
+---
+
+# PART 3 — EXECUTION PLAN (ONLY FOR SIMPLE FIXES)
+
+For SIMPLE FIX items ONLY:
+
+Provide:
+
+* Files to modify
+* Exact change description
+* Preflight checks
+* Rollback plan
+
+DO NOT WRITE CODE YET
+
+---
+
+# PART 4 — QUESTIONS ANSWERS
+
+For QUESTION items:
+
+* Investigate codebase
+* Provide factual answers only
+* If unknown → explicitly say UNKNOWN
+
+DO NOT GUESS
+
+---
+
+# PART 5 — FEATURE TASKS
+
+For FEATURE items:
+
+Create task board entries:
+
+* Title
+* Objective
+* Scope
+* Dependencies
+* Risk level
+
+---
+
+# PART 6 — FINAL GATE
+
+STOP and ask:
+
+"Do you approve execution of SIMPLE FIX items?"
+
+DO NOT proceed until explicit approval
+
+---
+
+# CRITICAL RULES
+
+* Do NOT implement anything
+* Do NOT assume system behavior
+* Do NOT merge categories
+* Do NOT expand scope
+* Follow AGENT_RULE.MD preflight discipline
+
+---
+
+END
