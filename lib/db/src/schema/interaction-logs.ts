@@ -9,25 +9,47 @@
 import { pgTable, serial, text, integer, jsonb, timestamp } from "drizzle-orm/pg-core";
 
 // ── Canonical eventType constants ─────────────────────────────────────────────
-// Store one of these string constants in the `eventType` column.
+// Import and use these constants to write `eventType` values — never use raw strings.
 // Extending actors: add a new constant here + document the expected payload shape.
 //
 // Field-collected (existing):
-//   "SUPPLIER_ONBOARDED"    — supplier created via WhatsApp field collection
-//   "SUPPLIER_EVALUATED"    — scoring pipeline ran and updated state
-//   "WHATSAPP_SENT"         — outbound WhatsApp message dispatched
+//   INTERACTION_TYPES.SUPPLIER_ONBOARDED  — supplier created via WhatsApp field collection
+//   INTERACTION_TYPES.SUPPLIER_EVALUATED  — scoring pipeline ran and updated state
+//   INTERACTION_TYPES.WHATSAPP_SENT       — outbound WhatsApp message dispatched
 //
 // Ingestion pipeline (T0 → T5):
-//   "INGESTION_BATCH_CREATED"   — admin opened a new ingestion batch (payload: { batchId, batchUuid })
-//   "INGESTION_BATCH_SUBMITTED" — batch submitted for processing (payload: { batchId, supplierCount })
-//   "INGESTION_BATCH_ROLLED_BACK" — batch rolled back (payload: { batchId, reason })
-//   "SUPPLIER_INGESTED"         — supplier record created via ingestion pipeline
-//                                 (payload: { batchId, source, fingerprint })
-//   "SUPPLIER_ENRICHED"         — enrichment pass completed on ingested supplier
-//                                 (payload: { batchId, supplierId, fieldsAdded })
-//   "SUPPLIER_CLAIM_INITIATED"  — supplier clicked claim link (payload: { supplierId, token })
-//   "SUPPLIER_CLAIMED"          — supplier completed claim flow (payload: { supplierId, userId })
+//   INTERACTION_TYPES.INGESTION_BATCH_CREATED    — admin opened a new batch
+//                                                  payload: { batchId, batchUuid }
+//   INTERACTION_TYPES.INGESTION_BATCH_SUBMITTED  — batch submitted for processing
+//                                                  payload: { batchId, supplierCount }
+//   INTERACTION_TYPES.INGESTION_BATCH_ROLLED_BACK — batch rolled back
+//                                                   payload: { batchId, reason }
+//   INTERACTION_TYPES.SUPPLIER_INGESTED          — supplier record created via pipeline
+//                                                  payload: { batchId, source, fingerprint }
+//   INTERACTION_TYPES.SUPPLIER_ENRICHED          — enrichment pass completed
+//                                                  payload: { batchId, supplierId, fieldsAdded }
+//   INTERACTION_TYPES.SUPPLIER_CLAIM_INITIATED   — supplier clicked claim link
+//                                                  payload: { supplierId, token }
+//   INTERACTION_TYPES.SUPPLIER_CLAIMED           — supplier completed claim flow
+//                                                  payload: { supplierId, userId }
 // ─────────────────────────────────────────────────────────────────────────────
+
+export const INTERACTION_TYPES = {
+  // Field-collected
+  SUPPLIER_ONBOARDED: "SUPPLIER_ONBOARDED",
+  SUPPLIER_EVALUATED: "SUPPLIER_EVALUATED",
+  WHATSAPP_SENT: "WHATSAPP_SENT",
+  // Ingestion pipeline
+  INGESTION_BATCH_CREATED: "INGESTION_BATCH_CREATED",
+  INGESTION_BATCH_SUBMITTED: "INGESTION_BATCH_SUBMITTED",
+  INGESTION_BATCH_ROLLED_BACK: "INGESTION_BATCH_ROLLED_BACK",
+  SUPPLIER_INGESTED: "SUPPLIER_INGESTED",
+  SUPPLIER_ENRICHED: "SUPPLIER_ENRICHED",
+  SUPPLIER_CLAIM_INITIATED: "SUPPLIER_CLAIM_INITIATED",
+  SUPPLIER_CLAIMED: "SUPPLIER_CLAIMED",
+} as const;
+
+export type InteractionType = (typeof INTERACTION_TYPES)[keyof typeof INTERACTION_TYPES];
 
 export const interactionLogsTable = pgTable("interaction_logs", {
   id:            serial("id").primaryKey(),
