@@ -1199,6 +1199,17 @@ async function confirmSingleIngestion(supplierId: number, adminId: number): Prom
     throw new Error(`Failed to confirm supplier ${supplierId}`);
   }
 
+  // Funnel event: per-lead submission confirmed (distinct from the generic
+  // INGESTION_BATCH_SUBMITTED emitted by setIngestionStatus on every status write).
+  logInteraction({
+    eventType: INTERACTION_TYPES.INGESTION_SUBMITTED,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: updated.id,
+    referenceType: "supplier",
+    payload: { supplierId: updated.id, source: "BATCH_CONFIRM", fromStatus: existing.ingestionStatus },
+  });
+
   return updated.id;
 }
 
