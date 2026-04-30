@@ -272,8 +272,10 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       "graduation: evaluate",
     );
 
-    // 15. Funnel event — fire when sellableStatus first reaches SELLABLE.
-    if (sellableStatus === "SELLABLE") {
+    // 15. Funnel event — fire ONLY when transitioning INTO SELLABLE for the first time.
+    // Guard: fromState !== "SELLABLE" prevents duplicate events on re-evaluation of
+    // an already-sellable supplier. transition existence confirms a real state change.
+    if (sellableStatus === "SELLABLE" && transition && fromState !== "SELLABLE") {
       logInteraction({
         eventType: "SUPPLIER_SELLABLE",
         referenceId: supplierId,
@@ -283,6 +285,7 @@ export async function evaluateSupplier(supplierId: number): Promise<{
           commercialScore,
           thresholdVersion: THRESHOLDS.version,
           evaluationId: evaluation.id,
+          transitionId: transition.id,
         },
       });
     }

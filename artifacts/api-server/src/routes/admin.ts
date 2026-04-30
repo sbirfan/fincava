@@ -1145,9 +1145,10 @@ router.post("/admin/ingestion/discover", ...adminOnly, async (req: Request, res:
 });
 
 // ── Helper: confirmSingleIngestion ────────────────────────────────────────────
-// Extracted T1 confirm logic — transitions a DRAFT/ENRICHED supplier to READY.
-// Idempotent: if already READY or SUBMITTED, returns the supplierId without error.
-// Throws on not-found or unexpected DB errors — callers handle partial failures.
+// Extracted T1 confirm logic — transitions DRAFT or ENRICHED suppliers to READY.
+// Idempotent: if already READY, returns the supplierId without error.
+// Throws for NOT_FOUND or REJECTED (rejected suppliers require manual admin action).
+// All throws are caught by the batch-confirm loop; failures never abort siblings.
 
 async function confirmSingleIngestion(supplierId: number, adminId: number): Promise<number> {
   const [existing] = await db
@@ -1159,11 +1160,17 @@ async function confirmSingleIngestion(supplierId: number, adminId: number): Prom
     throw new Error(`Supplier ${supplierId} not found`);
   }
 
-  // Idempotent: already confirmed — skip silently and return the ID
-  if (existing.ingestionStatus === "READY" || existing.ingestionStatus === "ENRICHED") {
+  // Idempotent: already at terminal confirmed state — skip silently
+  if (existing.ingestionStatus === "READY") {
     return existing.id;
   }
 
+  // REJECTED suppliers are not auto-promoted — admin must manually update status
+  if (existing.ingestionStatus === "REJECTED") {
+    throw new Error(`Supplier ${supplierId} is REJECTED and cannot be batch-confirmed`);
+  }
+
+  // DRAFT and ENRICHED are both promotable → READY (matches T1 ingestion-status route logic)
   const [updated] = await db
     .update(suppliersTable)
     .set({ ingestionStatus: "READY", updatedAt: new Date() })
