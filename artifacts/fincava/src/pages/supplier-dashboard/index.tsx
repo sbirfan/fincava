@@ -2,8 +2,144 @@ import { useGetSupplierStats } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, MessageSquare, ShoppingCart, DollarSign } from "lucide-react";
+import { Package, MessageSquare, ShoppingCart, DollarSign, CheckCircle2, Circle, ChevronRight, Leaf } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+
+// ── Profile completeness types ─────────────────────────────────────────────────
+
+type ProfileCompleteness = {
+  hasFarmData: boolean;
+  hasEconomicsData: boolean;
+  hasComplianceData: boolean;
+  hasAiScore: boolean;
+  isGraduated: boolean;
+};
+
+type MyProfileResponse =
+  | { found: false }
+  | {
+      found: true;
+      supplierId: number;
+      supplier: { nombreCompleto: string | null; municipio: string | null };
+      profileCompleteness: ProfileCompleteness;
+    };
+
+// ── Self-completion widget ─────────────────────────────────────────────────────
+
+function ProfileCompletenessWidget() {
+  const [data, setData] = useState<MyProfileResponse | null>(null);
+
+  useEffect(() => {
+    fetch("/api/suppliers/my-profile", { credentials: "include" })
+      .then((r) => r.json())
+      .then((json: MyProfileResponse) => setData(json))
+      .catch(() => setData({ found: false }));
+  }, []);
+
+  if (data === null) return null;
+  if (!data.found) return null;
+
+  const { supplierId, supplier, profileCompleteness: pc } = data;
+  const onboardingBase = `/onboarding?supplierId=${supplierId}&prefill=1`;
+
+  const dimensions = [
+    {
+      label: "Farm data",
+      done: pc.hasFarmData,
+      link: onboardingBase,
+    },
+    {
+      label: "Economics",
+      done: pc.hasEconomicsData,
+      link: onboardingBase,
+    },
+    {
+      label: "Compliance docs",
+      done: pc.hasComplianceData,
+      link: onboardingBase,
+    },
+    {
+      label: "AI readiness score",
+      done: pc.hasAiScore,
+      link: null,
+    },
+    {
+      label: "Graduated",
+      done: pc.isGraduated,
+      link: null,
+    },
+  ];
+
+  const completedCount = dimensions.filter((d) => d.done).length;
+  const pct = Math.round((completedCount / dimensions.length) * 100);
+
+  return (
+    <Card className="border-l-4 border-l-[#1B5E20]">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Leaf className="w-4 h-4 text-[#1B5E20]" />
+          <CardTitle className="text-base font-serif">Profile Completeness</CardTitle>
+          <Badge
+            variant="outline"
+            className="ml-auto text-xs font-semibold text-[#1B5E20] border-[#1B5E20]"
+          >
+            {pct}%
+          </Badge>
+        </div>
+        {supplier.nombreCompleto && (
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {supplier.nombreCompleto}
+            {supplier.municipio ? ` · ${supplier.municipio}` : ""}
+          </p>
+        )}
+        {/* Progress bar */}
+        <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#1B5E20] transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ul className="space-y-2">
+          {dimensions.map((dim) => (
+            <li key={dim.label} className="flex items-center gap-2 text-sm">
+              {dim.done ? (
+                <CheckCircle2 className="w-4 h-4 text-[#1B5E20] shrink-0" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-300 shrink-0" />
+              )}
+              <span className={dim.done ? "text-gray-700" : "text-gray-500"}>
+                {dim.label}
+              </span>
+              {!dim.done && dim.link && (
+                <Link
+                  href={dim.link}
+                  className="ml-auto flex items-center gap-0.5 text-xs text-[#1B5E20] hover:underline shrink-0"
+                >
+                  Complete <ChevronRight className="w-3 h-3" />
+                </Link>
+              )}
+            </li>
+          ))}
+        </ul>
+        {pct < 100 && (
+          <div className="mt-4">
+            <Link
+              href={onboardingBase}
+              className="block w-full text-center text-sm font-medium bg-[#1B5E20] text-white py-2 px-4 rounded-md hover:bg-[#154a18] transition-colors"
+            >
+              Complete your farm profile
+            </Link>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Main dashboard ─────────────────────────────────────────────────────────────
 
 export default function SupplierDashboard() {
   const { data: stats, isLoading } = useGetSupplierStats();
@@ -66,6 +202,10 @@ export default function SupplierDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Profile completeness widget — visible only when the logged-in supplier
+          has a matching supplier record (email match). Renders nothing otherwise. */}
+      <ProfileCompletenessWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>

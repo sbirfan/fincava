@@ -33,6 +33,31 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ### Product Summary
 Full-stack B2B trade platform connecting Colombian agricultural producers with international buyers (Middle East, Asia, Africa). Specialty coffee, cacao, avocado, exotic fruits, superfoods.
 
+### Unified Supplier Layer (All 4 Phases Complete)
+
+Four-phase system connecting ingestion, field collection, AI scoring, and self-completion into one unified flow. Architecture doc: `Supplier_Layer_Architecture.md`.
+
+**Phase 1 — Admin Loop:**
+- `GET /api/suppliers/:id` → returns `profileCompleteness: { hasFarmData, hasEconomicsData, hasComplianceData, hasAiScore, isGraduated }`
+- `POST /api/suppliers/onboard` accepts optional `supplierId` → update mode (HTTP 200 + `mode: "profile_completion"`)
+- Admin supplier detail drawer: 5-dimension completeness panel with ✓/○; amber "Collect farm data →" link to pre-filled onboarding
+- Onboarding page: `?supplierId=&prefill=1` pre-fills and locks identity fields
+
+**Phase 2 — Field Officer Dashboard:**
+- `/officer/dashboard` — mobile-first, green officer header with name + FO-{id} code
+- Server-side ILIKE text search on admin-list endpoint (`?q=` param) across name/municipio/department/product
+- Admin sidebar: "Field Visits" link (MapPin icon) between Ingestion and Orders
+- Onboarding reads `?officerName=&officerCode=` to pre-fill Step 4 officer fields
+
+**Phase 3 — Combined AI Input:**
+- `buildScoringInput` fetches `productPlaceholdersTable` → builds `ingestion` block with normalizedName, description, confidenceScore, dataCompletenessScore, categoryHints[]
+- `scoreSupplier` sends `{ supplier, farm, economics, compliance, ingestion }` to Claude — ingestion-enriched suppliers get market context in AI scoring
+
+**Phase 4 — Supplier Self-Completion:**
+- `GET /api/suppliers/my-profile` — matches logged-in user email to `suppliersTable.email`, returns profileCompleteness
+- `ProfileCompletenessWidget` in supplier dashboard: % progress bar, 5 dimension rows with "Complete →" per-row links, full-width CTA
+- Widget silently hides when no linked supplier record found
+
 ### Phase 2 Hardening (Active)
 - **Observability** — Structured pino logs: CONFIG_LOADED/CONFIG_MISSING at startup, SUPPLIER_ONBOARDED, PRODUCT_CREATED, ORDER_CREATED; milestone EVENT_VOLUME_COUNTERS_RESET every 10 events (aggregate-only, no entity IDs)
 - **Fail-fast company resolution** — `POST /api/admin/suppliers/:id/create-product` resolves company via `FINCAVA_COMPANY_ID` env var (=17) first; falls back to name lookup requiring exactly 1 match; logs COMPANY_RESOLUTION_FAILED on error

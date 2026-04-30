@@ -67,6 +67,7 @@ const AdminTeam = lazy(() => import("@/pages/admin/team"));
 const AdminIngestion = lazy(() => import("@/pages/admin/ingestion/index"));
 const AdminIngestionNew = lazy(() => import("@/pages/admin/ingestion/new"));
 const AdminIngestionDiscover = lazy(() => import("@/pages/admin/ingestion/discover"));
+const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -162,6 +163,9 @@ function Router() {
         <Route path="/admin/ingestion" component={() => <PrivateRoute component={AdminIngestion} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion/new" component={() => <PrivateRoute component={AdminIngestionNew} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion/discover" component={() => <PrivateRoute component={AdminIngestionDiscover} roles={["ADMIN"]} layout={AdminLayout} />} />
+
+        {/* Field officer tool — accessible to ADMINs; extend to FIELD_OFFICER role when officer accounts are added */}
+        <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN"]} />} />
 
         <Route component={() => <AppLayout><NotFound /></AppLayout>} />
       </Switch>

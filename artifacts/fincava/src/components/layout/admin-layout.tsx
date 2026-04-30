@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Home,
   DatabaseZap,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -21,6 +22,7 @@ const navigation = [
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Suppliers", href: "/admin/suppliers", icon: Sprout },
   { name: "Ingestion", href: "/admin/ingestion", icon: DatabaseZap },
+  { name: "Field Visits", href: "/officer/dashboard", icon: MapPin },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Team", href: "/admin/team", icon: UsersRound },
 ];

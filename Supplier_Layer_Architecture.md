@@ -357,23 +357,29 @@ This keeps one endpoint, one form, three entry points.
 
 ### Build Roadmap — Four Phases
 
-#### Phase 1 — Close the Admin Loop *(HIGH priority — unblocks all other phases)*
-1. `GET /api/suppliers/:id` returns `profileCompleteness` object (hasFarmData, hasEconomicsData, hasComplianceData, hasAiScore)
-2. `POST /api/suppliers/onboard` accepts optional `supplierId` → update mode
-3. Admin supplier detail panel shows completeness status for each dimension
-4. "Collect Farm Data" button on any ingested supplier → pre-filled onboarding form linked to existing supplierId
+#### Phase 1 — Close the Admin Loop ✅ COMPLETE
+1. `GET /api/suppliers/:id` returns `profileCompleteness` object (hasFarmData, hasEconomicsData, hasComplianceData, hasAiScore, isGraduated)
+2. `POST /api/suppliers/onboard` accepts optional `supplierId` → update mode (returns HTTP 200 + `mode: "profile_completion"`)
+3. Admin supplier detail panel shows completeness panel with 5 dimensions (Farm data, Economics, Compliance, AI readiness score, Graduated) each with ✓/○
+4. Amber "Collect farm data →" Link when hasFarmData=false → `/onboarding?supplierId=&prefill=1`
+5. Onboarding page: reads `?supplierId=&prefill=1` → fetches supplier, locks identity fields, shows banner
 
-#### Phase 2 — Field Officer Launch Point *(MEDIUM priority — quick win, backend already ready)*
-1. Officer dashboard page with supplier search + "Start farm visit" action
-2. Mobile-optimised entry (most field visits happen on a phone)
-3. Onboarding form pre-populates `officer_name`, `officer_code` from logged-in officer
+#### Phase 2 — Field Officer Launch Point ✅ COMPLETE
+1. `/officer/dashboard` — mobile-first page with green officer header (name + FO-{userId} code)
+2. Supplier search uses server-side ILIKE on name/municipio/department/product (GET /api/suppliers/admin-list?q=)
+3. Each result card has a "Visit →" link to `/onboarding?supplierId=&prefill=1&officerName=&officerCode=`
+4. "+ Register new supplier" CTA for new registrations
+5. "Field Visits" link added to admin sidebar between Ingestion and Orders
 
-#### Phase 3 — Combined AI Input *(MEDIUM priority — highest long-term value)*
-1. When scoring a supplier that also has ingestion enrichment, include ingestion AI output in the Claude prompt
-2. Store richer combined profile output in `ai_outputs`
-3. Feed combined output to the marketplace profile page
+#### Phase 3 — Combined AI Input ✅ COMPLETE
+1. `buildScoringInput` now fetches `productPlaceholdersTable` in addition to the four core tables
+2. Returns `ingestion` block: normalizedName, description, confidenceScore, dataCompletenessScore, ingestionSource, ingestionStatus, sourceType, categoryHints[]
+3. `scoreSupplier` passes `{ supplier, farm, economics, compliance, ingestion }` to Claude prompt
+4. Ingestion-enriched suppliers get richer market context in the AI scoring call
 
-#### Phase 4 — Supplier Self-Completion *(LOWER priority — user-facing polish)*
-1. Supplier dashboard shows profile completeness percentage
-2. Incomplete sections link back to the questionnaire with progress saved
-3. Ingestion-discovered suppliers can claim their profile via a link/code
+#### Phase 4 — Supplier Self-Completion ✅ COMPLETE
+1. `GET /api/suppliers/my-profile` — resolves logged-in user's supplier record by email match, returns profileCompleteness
+2. Supplier dashboard (`/supplier-dashboard`) shows `ProfileCompletenessWidget` when a linked record exists
+3. Widget shows % progress bar + 5 dimensions with ✓/○ + "Complete →" links per incomplete section
+4. "Complete your farm profile" CTA button links to `/onboarding?supplierId=&prefill=1`
+5. Widget silently hides for users with no linked supplier record (no error state shown)

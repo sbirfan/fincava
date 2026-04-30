@@ -11,6 +11,7 @@ import {
   supplierEvaluationsTable,
   supplierStateTransitionsTable,
   productsTable,
+  usersTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import {
@@ -23,7 +24,7 @@ import { computePublicTrustScore } from "../services/confidence-scorer";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
-import { desc, eq, and, gte, lte, sql, count, inArray } from "drizzle-orm";
+import { desc, eq, and, gte, lte, sql, count, inArray, ilike, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   evaluateSupplier,
@@ -466,7 +467,7 @@ router.get(
   requireAuth,
   requireAdmin,
   async (req, res): Promise<void> => {
-    const { pathway, municipio, from, to } = req.query as Record<string, string>;
+    const { pathway, municipio, from, to, q } = req.query as Record<string, string>;
     const { page, limit, offset } = parsePagination(req.query);
 
     const latestScores = db
@@ -490,6 +491,17 @@ router.get(
     if (municipio) conditions.push(eq(suppliersTable.municipio, municipio));
     if (from) conditions.push(gte(suppliersTable.createdAt, new Date(from)));
     if (to) conditions.push(lte(suppliersTable.createdAt, new Date(to)));
+    if (q) {
+      const pattern = `%${q}%`;
+      conditions.push(
+        or(
+          ilike(suppliersTable.nombreCompleto, pattern),
+          ilike(suppliersTable.municipio, pattern),
+          ilike(suppliersTable.department, pattern),
+          ilike(farmsTable.cultivoPrincipal, pattern),
+        ),
+      );
+    }
 
     let query = db
       .select({
@@ -931,6 +943,62 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
   });
 
   res.json({ supplier, public_trust_score });
+});
+
+// ── GET /api/suppliers/my-profile ─────────────────────────────────────────────
+// Resolves the logged-in user's supplier record by matching their account email
+// against suppliersTable.email (the only field shared between both systems).
+// Returns profileCompleteness so the supplier dashboard can render the self-
+// completion widget without the user knowing their supplierId.
+router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId as number;
+
+  const [user] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
+  if (!user?.email) {
+    res.json({ found: false });
+    return;
+  }
+
+  const [supplier] = await db
+    .select({
+      id:             suppliersTable.id,
+      nombreCompleto: suppliersTable.nombreCompleto,
+      municipio:      suppliersTable.municipio,
+      department:     suppliersTable.department,
+      sellableStatus: suppliersTable.sellableStatus,
+      claimStatus:    suppliersTable.claimStatus,
+    })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.email, user.email))
+    .limit(1);
+
+  if (!supplier) {
+    res.json({ found: false });
+    return;
+  }
+
+  const supplierId = supplier.id;
+  const [farmRows, econRows, complianceRows, aiRows] = await Promise.all([
+    db.select({ id: farmsTable.id }).from(farmsTable).where(eq(farmsTable.supplierId, supplierId)).limit(1),
+    db.select({ id: economicsTable.id }).from(economicsTable).where(eq(economicsTable.supplierId, supplierId)).limit(1),
+    db.select({ id: complianceDocsTable.id }).from(complianceDocsTable).where(eq(complianceDocsTable.supplierId, supplierId)).limit(1),
+    db.select({ id: aiOutputsTable.id }).from(aiOutputsTable).where(eq(aiOutputsTable.supplierId, supplierId)).limit(1),
+  ]);
+
+  const profileCompleteness = {
+    hasFarmData:       farmRows.length > 0,
+    hasEconomicsData:  econRows.length > 0,
+    hasComplianceData: complianceRows.length > 0,
+    hasAiScore:        aiRows.length > 0,
+    isGraduated:       supplier.sellableStatus != null && supplier.sellableStatus !== "NOT_READY",
+  };
+
+  res.json({ found: true, supplierId, supplier, profileCompleteness });
 });
 
 // ── GET /api/suppliers/:id ────────────────────────────────────────────────────

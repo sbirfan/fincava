@@ -20,7 +20,7 @@ const VALID_AI_PATHWAYS = ["A", "B", "C", "D"] as const;
 export async function scoreSupplier(supplierId: number): Promise<void> {
   const attemptScore = async (attempt = 1): Promise<void> => {
     try {
-      const { supplier, farm, economics, compliance } = await buildScoringInput(supplierId);
+      const { supplier, farm, economics, compliance, ingestion } = await buildScoringInput(supplierId);
 
       if (!supplier) {
         throw new Error(`scoreSupplier: supplier ${supplierId} not found in DB`);
@@ -28,7 +28,7 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
 
       if (process.env.NODE_ENV !== "production") {
         logger.debug(
-          { supplierId, aiInput: JSON.stringify({ supplier, farm, economics, compliance }) },
+          { supplierId, aiInput: JSON.stringify({ supplier, farm, economics, compliance, ingestion }) },
           "scoreSupplier AI input",
         );
       }
@@ -42,7 +42,7 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
         messages: [
           {
             role: "user",
-            content: JSON.stringify({ supplier, farm, economics, compliance }),
+            content: JSON.stringify({ supplier, farm, economics, compliance, ingestion }),
           },
         ],
       });

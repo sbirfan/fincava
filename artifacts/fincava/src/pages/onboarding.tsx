@@ -69,6 +69,18 @@ export default function OnboardingPage() {
     const params = new URLSearchParams(searchString);
     const sid = params.get("supplierId");
     const prefill = params.get("prefill");
+
+    // Officer params — pre-fill Step 4 fields when launched from officer dashboard.
+    const officerName = params.get("officerName");
+    const officerCode = params.get("officerCode");
+    if (officerName || officerCode) {
+      setForm((prev) => ({
+        ...prev,
+        officer_name: officerName || prev.officer_name,
+        officer_code: officerCode || prev.officer_code,
+      }));
+    }
+
     if (!sid || prefill !== "1") return;
     const id = Number(sid);
     if (isNaN(id)) return;

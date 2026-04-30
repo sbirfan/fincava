@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import ReactMarkdown from "react-markdown";
 import { useLanguage } from "../../contexts/LanguageContext";
 
@@ -879,7 +879,7 @@ export default function AdminSuppliersPage() {
                     { key: "hasFarmData",       labelEn: "Farm data",       labelEs: "Datos de finca" },
                     { key: "hasEconomicsData",  labelEn: "Economics",       labelEs: "Economía" },
                     { key: "hasComplianceData", labelEn: "Compliance",      labelEs: "Cumplimiento" },
-                    { key: "hasAiScore",        labelEn: "AI score",        labelEs: "Score IA" },
+                    { key: "hasAiScore",        labelEn: "AI readiness score", labelEs: "Score IA" },
                     { key: "isGraduated",       labelEn: "Graduated",       labelEs: "Graduado" },
                   ] as const).map(({ key, labelEn, labelEs }) => {
                     const done = completeness[key];
@@ -901,20 +901,14 @@ export default function AdminSuppliersPage() {
                 )
               )}
 
-              {/* Collect Farm Data button — shown when farm data is missing */}
+              {/* Collect Farm Data CTA — shown when farm data is missing */}
               {completeness && !completeness.hasFarmData && (
-                <button
-                  onClick={() => {
-                    const params = new URLSearchParams({
-                      supplierId: String(selected.id),
-                      prefill: "1",
-                    });
-                    setLocation(`/onboarding?${params}`);
-                  }}
-                  className="mt-4 w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition"
+                <Link
+                  href={`/onboarding?supplierId=${selected.id}&prefill=1`}
+                  className="mt-4 block w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition text-center"
                 >
                   {lang === "es" ? "Recopilar datos de finca →" : "Collect farm data →"}
-                </button>
+                </Link>
               )}
               {completeness && completeness.hasFarmData && !completeness.hasAiScore && (
                 <p className="mt-3 text-xs text-amber-600 text-center">
