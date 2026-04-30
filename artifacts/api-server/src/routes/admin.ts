@@ -997,8 +997,8 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
     });
     return;
   }
-  if (dupResult.hasDuplicate && overrideDuplicateId && !overrideJustification) {
-    res.status(422).json({ error: "overrideJustification is required when overriding a duplicate" });
+  if (dupResult.hasDuplicate && overrideDuplicateId && !overrideJustification?.trim()) {
+    res.status(422).json({ error: "overrideJustification is required when overriding a duplicate and must not be empty" });
     return;
   }
 

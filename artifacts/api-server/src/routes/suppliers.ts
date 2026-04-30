@@ -577,6 +577,11 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
       nombreCompleto: suppliersTable.nombreCompleto,
       municipio: suppliersTable.municipio,
       department: suppliersTable.department,
+      // T5: Fields needed to compute public_trust_score (internal confidence_score NOT included)
+      sourceUrl: suppliersTable.sourceUrl,
+      normalizedName: suppliersTable.normalizedName,
+      description: suppliersTable.description,
+      claimStatus: suppliersTable.claimStatus,
     })
     .from(suppliersTable)
     .where(
@@ -622,6 +627,15 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
     location: r.department
       ? `${r.municipio}, ${r.department}`
       : r.municipio,
+    // T5: Public-facing quality signal — derived from safe signals only.
+    // Internal confidence_score (admin/AI metadata) is NOT exposed here.
+    public_trust_score: computePublicTrustScore({
+      sourceUrl: r.sourceUrl,
+      normalizedName: r.normalizedName,
+      description: r.description,
+      municipio: r.municipio,
+      claimStatus: r.claimStatus,
+    }),
     // FIX 3: sellableStatus removed — internal state, not buyer-facing.
     products: (productsBySupplier.get(r.id) ?? []).map((p) => ({
       id: p.id,
