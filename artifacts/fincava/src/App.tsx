@@ -65,6 +65,9 @@ const SupplierFinance = lazy(() => import("@/pages/supplier-dashboard/finance"))
 // Admin — lazy
 const AdminDashboard = lazy(() => import("@/pages/admin/index"));
 const AdminUsers = lazy(() => import("@/pages/admin/users"));
+const AdminBuyers = lazy(() => import("@/pages/admin/buyers"));
+const AdminBuyerMatches = lazy(() => import("@/pages/admin/buyer-matches"));
+const AdminBuyerGaps = lazy(() => import("@/pages/admin/buyer-gaps"));
 const AdminOrders = lazy(() => import("@/pages/admin/orders"));
 const AdminSuppliers = lazy(() => import("@/pages/admin/suppliers"));
 const AdminTeam = lazy(() => import("@/pages/admin/team"));
@@ -198,6 +201,9 @@ function Router() {
         {/* Admin */}
         <Route path="/admin" component={() => <PrivateRoute component={AdminDashboard} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/users" component={() => <PrivateRoute component={AdminUsers} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/buyers" component={() => <PrivateRoute component={AdminBuyers} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/buyer-matches" component={() => <PrivateRoute component={AdminBuyerMatches} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/buyer-gaps" component={() => <PrivateRoute component={AdminBuyerGaps} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/orders" component={() => <PrivateRoute component={AdminOrders} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/suppliers" component={() => <PrivateRoute component={AdminSuppliers} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/team" component={() => <PrivateRoute component={AdminTeam} roles={["ADMIN"]} layout={AdminLayout} />} />

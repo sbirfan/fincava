@@ -13,6 +13,9 @@ import {
   Home,
   DatabaseZap,
   MapPin,
+  UserSquare2,
+  Link2,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -20,6 +23,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Users", href: "/admin/users", icon: Users },
+  { name: "Buyers", href: "/admin/buyers", icon: UserSquare2 },
+  { name: "Buyer Matches", href: "/admin/buyer-matches", icon: Link2 },
+  { name: "Buyer Gaps", href: "/admin/buyer-gaps", icon: AlertTriangle },
   { name: "Suppliers", href: "/admin/suppliers", icon: Sprout },
   { name: "Ingestion", href: "/admin/ingestion", icon: DatabaseZap },
   { name: "Field Visits", href: "/officer/dashboard", icon: MapPin },

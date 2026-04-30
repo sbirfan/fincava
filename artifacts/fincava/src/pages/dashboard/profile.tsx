@@ -77,6 +77,8 @@ interface BuyerProfileShape {
   socialImpactReqs: string[];
   earlyStageSupplierOpen: boolean;
   // Section F
+  marketingOptIn: boolean;
+  marketingTopics: string[];
   platformIntent: string[];
   sampleReady: boolean;
   languagePreference: string[];
@@ -423,6 +425,15 @@ export default function BuyerProfile() {
               </Accordion>
             </CardContent>
           </Card>
+        ) : null}
+
+        {/* ── Marketing preferences ───────────────────────────────────── */}
+        {profile && profileId ? (
+          <MarketingPreferencesCard
+            profileId={profileId}
+            initialOptIn={profile.marketingOptIn ?? false}
+            initialTopics={profile.marketingTopics ?? []}
+          />
         ) : null}
 
         {/* ── Existing personal info card ─────────────────────────────── */}
@@ -1046,5 +1057,157 @@ function CheckboxGroupField({
         })}
       </div>
     </div>
+  );
+}
+
+const MARKETING_TOPIC_OPTIONS: { value: string; label: string }[] = [
+  { value: "coffee", label: "Coffee" },
+  { value: "cocoa", label: "Cocoa" },
+  { value: "tropical_fruit", label: "Tropical Fruit" },
+  { value: "spices", label: "Spices" },
+  { value: "market_intel", label: "Market Intelligence" },
+  { value: "supplier_spotlights", label: "Supplier Spotlights" },
+  { value: "harvest_calendar", label: "Harvest Calendar" },
+  { value: "platform_updates", label: "Platform Updates" },
+];
+
+function MarketingPreferencesCard({
+  profileId,
+  initialOptIn,
+  initialTopics,
+}: {
+  profileId: number;
+  initialOptIn: boolean;
+  initialTopics: string[];
+}) {
+  const [optIn, setOptIn] = useState<boolean>(initialOptIn);
+  const [topics, setTopics] = useState<string[]>(initialTopics);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    setOptIn(initialOptIn);
+    setTopics(initialTopics);
+  }, [initialOptIn, initialTopics, profileId]);
+
+  const toggleTopic = (val: string) => {
+    setTopics((prev) =>
+      prev.includes(val) ? prev.filter((t) => t !== val) : [...prev, val],
+    );
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/buyers/${profileId}/marketing-preferences`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            marketing_opt_in: optIn,
+            marketing_topics: optIn ? topics : [],
+          }),
+        },
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) {
+        const msg =
+          typeof json?.error === "string" ? json.error : `Save failed (${res.status})`;
+        throw new Error(msg);
+      }
+      setSavedAt(Date.now());
+      toast({ title: "Marketing preferences saved" });
+      queryClient.invalidateQueries({ queryKey: ["buyer-profile"] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Save failed";
+      setError(msg);
+      toast({ title: "Could not save", description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card data-testid="card-marketing-preferences">
+      <CardHeader>
+        <CardTitle>Marketing Preferences</CardTitle>
+        <CardDescription>
+          Opt in to receive curated supplier spotlights, harvest calendars and
+          platform announcements. Choose which topics interest you.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">Receive marketing emails</p>
+            <p className="text-xs text-muted-foreground">
+              Off by default. We never share your email. Unsubscribe anytime.
+            </p>
+          </div>
+          <Switch
+            checked={optIn}
+            onCheckedChange={setOptIn}
+            data-testid="switch-marketing-opt-in"
+          />
+        </div>
+
+        {optIn ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Topics of interest</p>
+            <div className="flex flex-wrap gap-2">
+              {MARKETING_TOPIC_OPTIONS.map((o) => {
+                const checked = topics.includes(o.value);
+                return (
+                  <label
+                    key={o.value}
+                    className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer transition-colors ${
+                      checked
+                        ? "border-emerald-600 bg-emerald-50"
+                        : "border-input hover:bg-muted"
+                    }`}
+                    data-testid={`checkbox-marketing-topic-${o.value}`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleTopic(o.value)}
+                    />
+                    {o.label}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {error ? (
+          <p className="text-sm text-red-600" data-testid="text-marketing-error">{error}</p>
+        ) : null}
+
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {savedAt ? "Preferences saved." : "\u00a0"}
+          </p>
+          <Button
+            onClick={save}
+            disabled={saving}
+            data-testid="button-save-marketing"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…
+              </>
+            ) : (
+              "Save preferences"
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

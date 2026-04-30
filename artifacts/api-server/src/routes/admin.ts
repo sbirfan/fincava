@@ -3,8 +3,9 @@ import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
-import { buyerProfilesTable } from "@workspace/db";
+import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
+import { escalateGap } from "../services/buyer-gap-service";
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
@@ -13,13 +14,25 @@ import { enrichSupplierWithAI } from "../services/ingestion-structuring-service"
 import { checkDuplicate, computeSupplierFingerprint, logDuplicateOverride } from "../services/duplicate-detector";
 import { discoverLeads } from "../services/discovery-engine";
 import { randomUUID } from "crypto";
-import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
+import { and, desc, eq, inArray, count, sum, sql, ilike, or, isNull, type SQL } from "drizzle-orm";
+import { companyTypeEnum } from "@workspace/db";
 import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { FEE_STATUSES } from "../constants/fee-status";
 import { runBackup } from "../services/backup-service";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
+
+// ── Local typed helpers (avoid `any` in route bodies) ─────────────────────────
+type AuthedRequest = Request & { userId: number };
+const requesterIdOf = (req: Request): number => (req as AuthedRequest).userId;
+const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : typeof err === "string" ? err : "Unexpected error";
+
+type CompanyType = (typeof companyTypeEnum.enumValues)[number];
+const COMPANY_TYPE_VALUES = companyTypeEnum.enumValues as readonly CompanyType[];
+const isCompanyType = (v: string): v is CompanyType =>
+  (COMPANY_TYPE_VALUES as readonly string[]).includes(v);
 
 const router: IRouter = Router();
 
@@ -174,14 +187,75 @@ router.get("/admin/orders", ...adminOnly, async (req, res): Promise<void> => {
 });
 
 // ── GET /api/admin/buyers ─────────────────────────────────────────────────────
+// Phase 5 — supports filters: state, min_completion, country, marketing_opt_in, q
+// Returns each row enriched with match_count and gap_count derived sub-queries.
 router.get("/admin/buyers", ...adminOnly, async (req, res): Promise<void> => {
   const { page, limit, offset } = parsePagination(req.query);
 
-  const [{ total }] = await db.select({ total: count() }).from(buyerProfilesTable);
+  const stateFilter = typeof req.query.state === "string" ? req.query.state : undefined;
+  const countryFilter = typeof req.query.country === "string" ? req.query.country : undefined;
+  const companyTypeFilter = typeof req.query.company_type === "string" ? req.query.company_type : undefined;
+  const minCompletionRaw = typeof req.query.min_completion === "string" ? parseInt(req.query.min_completion, 10) : NaN;
+  const minCompletion = !isNaN(minCompletionRaw) ? minCompletionRaw : undefined;
+  const marketingOptInFilter =
+    req.query.marketing_opt_in === "true"
+      ? true
+      : req.query.marketing_opt_in === "false"
+        ? false
+        : undefined;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
+
+  const conditions: SQL[] = [];
+  if (stateFilter) conditions.push(eq(buyerProfilesTable.state, stateFilter));
+  if (countryFilter) conditions.push(eq(buyerProfilesTable.country, countryFilter));
+  if (companyTypeFilter && isCompanyType(companyTypeFilter)) {
+    conditions.push(eq(companiesTable.type, companyTypeFilter));
+  }
+  if (minCompletion !== undefined) conditions.push(sql`${buyerProfilesTable.p2CompletionPct} >= ${minCompletion}`);
+  if (marketingOptInFilter !== undefined) conditions.push(eq(buyerProfilesTable.marketingOptIn, marketingOptInFilter));
+  if (q && q.length > 0) {
+    const pattern = `%${q}%`;
+    const search = or(
+      ilike(buyerProfilesTable.companyName, pattern),
+      ilike(companiesTable.name, pattern),
+      ilike(usersTable.email, pattern),
+      ilike(profilesTable.firstName, pattern),
+      ilike(profilesTable.lastName, pattern),
+    );
+    if (search) conditions.push(search);
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(buyerProfilesTable)
+    .innerJoin(usersTable, eq(usersTable.id, buyerProfilesTable.userId))
+    .leftJoin(profilesTable, eq(profilesTable.userId, buyerProfilesTable.userId))
+    .leftJoin(companiesTable, eq(companiesTable.userId, buyerProfilesTable.userId))
+    .where(whereClause);
+
+  const matchCountSq = db
+    .select({
+      buyerProfileId: buyerMatchesTable.buyerProfileId,
+      matchCnt: count().as("match_cnt"),
+    })
+    .from(buyerMatchesTable)
+    .where(eq(buyerMatchesTable.isCurrent, true))
+    .groupBy(buyerMatchesTable.buyerProfileId)
+    .as("mc");
+
+  const gapCountSq = db
+    .select({
+      buyerProfileId: buyerGapBriefsTable.buyerProfileId,
+      gapCnt: count().as("gap_cnt"),
+    })
+    .from(buyerGapBriefsTable)
+    .where(and(eq(buyerGapBriefsTable.isRealGap, true), isNull(buyerGapBriefsTable.resolvedAt)))
+    .groupBy(buyerGapBriefsTable.buyerProfileId)
+    .as("gc");
 
   const data = await db
     .select({
-      // buyer_profiles fields
       profileId:         buyerProfilesTable.id,
       userId:            buyerProfilesTable.userId,
       companyName:       buyerProfilesTable.companyName,
@@ -191,34 +265,540 @@ router.get("/admin/buyers", ...adminOnly, async (req, res): Promise<void> => {
       preferredIncoterm: buyerProfilesTable.preferredIncoterm,
       intendedVolumeMt:  buyerProfilesTable.intendedVolumeMt,
       importFrequency:   buyerProfilesTable.importFrequency,
+      state:             buyerProfilesTable.state,
+      p2CompletionPct:   buyerProfilesTable.p2CompletionPct,
+      marketingOptIn:    buyerProfilesTable.marketingOptIn,
+      marketingTopics:   buyerProfilesTable.marketingTopics,
       onboardedAt:       buyerProfilesTable.onboardedAt,
       updatedAt:         buyerProfilesTable.updatedAt,
-      // users fields
       email:             usersTable.email,
       role:              usersTable.role,
-      createdAt:         usersTable.createdAt,
-      // profiles fields
+      registeredAt:      usersTable.createdAt,
       firstName:         profilesTable.firstName,
       lastName:          profilesTable.lastName,
       phone:             profilesTable.phone,
-      // companies fields
       registeredCompany: companiesTable.name,
+      companyType:       companiesTable.type,
       companyVerified:   companiesTable.verified,
+      matchCount:        matchCountSq.matchCnt,
+      gapCount:          gapCountSq.gapCnt,
     })
     .from(buyerProfilesTable)
     .innerJoin(usersTable, eq(usersTable.id, buyerProfilesTable.userId))
     .leftJoin(profilesTable, eq(profilesTable.userId, buyerProfilesTable.userId))
     .leftJoin(companiesTable, eq(companiesTable.userId, buyerProfilesTable.userId))
+    .leftJoin(matchCountSq, eq(matchCountSq.buyerProfileId, buyerProfilesTable.id))
+    .leftJoin(gapCountSq, eq(gapCountSq.buyerProfileId, buyerProfilesTable.id))
+    .where(whereClause)
     .orderBy(desc(buyerProfilesTable.onboardedAt))
     .limit(limit)
     .offset(offset);
 
   res.json({
-    data,
-    total: Number(total),
-    page,
-    limit,
-    totalPages: Math.max(1, Math.ceil(Number(total) / limit)),
+    success: true,
+    data: {
+      rows: data.map((r) => ({
+        ...r,
+        matchCount: Number(r.matchCount ?? 0),
+        gapCount: Number(r.gapCount ?? 0),
+      })),
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(Number(total) / limit)),
+    },
+  });
+});
+
+// ── GET /api/admin/buyers/:id ────────────────────────────────────────────────
+router.get("/admin/buyers/:id", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const [row] = await db
+    .select({
+      profile: buyerProfilesTable,
+      email: usersTable.email,
+      role: usersTable.role,
+      registeredAt: usersTable.createdAt,
+      firstName: profilesTable.firstName,
+      lastName: profilesTable.lastName,
+      phone: profilesTable.phone,
+      registeredCompany: companiesTable.name,
+      companyType: companiesTable.type,
+      companyVerified: companiesTable.verified,
+    })
+    .from(buyerProfilesTable)
+    .innerJoin(usersTable, eq(usersTable.id, buyerProfilesTable.userId))
+    .leftJoin(profilesTable, eq(profilesTable.userId, buyerProfilesTable.userId))
+    .leftJoin(companiesTable, eq(companiesTable.userId, buyerProfilesTable.userId))
+    .where(eq(buyerProfilesTable.id, profileId));
+
+  if (!row) {
+    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    return;
+  }
+
+  const [{ matchCount }] = await db
+    .select({ matchCount: count() })
+    .from(buyerMatchesTable)
+    .where(and(eq(buyerMatchesTable.buyerProfileId, profileId), eq(buyerMatchesTable.isCurrent, true)));
+
+  const [{ gapCount }] = await db
+    .select({ gapCount: count() })
+    .from(buyerGapBriefsTable)
+    .where(
+      and(
+        eq(buyerGapBriefsTable.buyerProfileId, profileId),
+        eq(buyerGapBriefsTable.isRealGap, true),
+        isNull(buyerGapBriefsTable.resolvedAt),
+      ),
+    );
+
+  res.json({
+    success: true,
+    data: {
+      ...row.profile,
+      email: row.email,
+      role: row.role,
+      registeredAt: row.registeredAt,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      phone: row.phone,
+      registeredCompany: row.registeredCompany,
+      companyType: row.companyType,
+      companyVerified: row.companyVerified,
+      matchCount: Number(matchCount ?? 0),
+      gapCount: Number(gapCount ?? 0),
+    },
+  });
+});
+
+// ── GET /api/admin/buyers/:id/matches ────────────────────────────────────────
+router.get("/admin/buyers/:id/matches", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const includeAll = req.query.include === "all";
+
+  const matchConditions: SQL[] = [eq(buyerMatchesTable.buyerProfileId, profileId)];
+  if (!includeAll) matchConditions.push(eq(buyerMatchesTable.isCurrent, true));
+
+  const rows = await db
+    .select({
+      id: buyerMatchesTable.id,
+      buyerProfileId: buyerMatchesTable.buyerProfileId,
+      supplierId: buyerMatchesTable.supplierId,
+      matchScore: buyerMatchesTable.matchScore,
+      scoreBreakdown: buyerMatchesTable.scoreBreakdown,
+      disqualifiers: buyerMatchesTable.disqualifiers,
+      matchNotes: buyerMatchesTable.matchNotes,
+      sectionsAtRun: buyerMatchesTable.sectionsAtRun,
+      isCurrent: buyerMatchesTable.isCurrent,
+      createdAt: buyerMatchesTable.createdAt,
+      supplierName: suppliersTable.nombreCompleto,
+      supplierMunicipio: suppliersTable.municipio,
+      supplierStatus: suppliersTable.status,
+    })
+    .from(buyerMatchesTable)
+    .leftJoin(suppliersTable, eq(suppliersTable.id, buyerMatchesTable.supplierId))
+    .where(and(...matchConditions))
+    .orderBy(desc(buyerMatchesTable.matchScore), desc(buyerMatchesTable.createdAt));
+
+  res.json({ success: true, data: rows });
+});
+
+// ── GET /api/admin/buyers/:id/gaps ───────────────────────────────────────────
+router.get("/admin/buyers/:id/gaps", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const rows = await db
+    .select()
+    .from(buyerGapBriefsTable)
+    .where(eq(buyerGapBriefsTable.buyerProfileId, profileId))
+    .orderBy(desc(buyerGapBriefsTable.createdAt));
+
+  res.json({ success: true, data: rows });
+});
+
+// ── POST /api/admin/buyers/:id/suppress-match ────────────────────────────────
+const SuppressMatchBody = z.object({
+  matchId: z.number().int().positive(),
+  reason: z.string().min(1).max(500),
+});
+
+router.post("/admin/buyers/:id/suppress-match", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const parsed = SuppressMatchBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const adminId = requesterIdOf(req);
+
+  const [match] = await db
+    .select()
+    .from(buyerMatchesTable)
+    .where(and(eq(buyerMatchesTable.id, parsed.data.matchId), eq(buyerMatchesTable.buyerProfileId, profileId)));
+
+  if (!match) {
+    res.status(404).json({ success: false, error: "Match not found for this buyer" });
+    return;
+  }
+
+  const stamp = new Date().toISOString();
+  const tag = `[admin:${adminId}@${stamp}] ${parsed.data.reason}`;
+  const newDisq = [...(match.disqualifiers ?? []), tag];
+
+  const [updated] = await db
+    .update(buyerMatchesTable)
+    .set({ disqualifiers: newDisq, isCurrent: false })
+    .where(eq(buyerMatchesTable.id, match.id))
+    .returning();
+
+  logInteraction({
+    eventType: "buyer_match_suppressed",
+    actorType: "admin",
+    referenceId: match.id,
+    referenceType: "buyer_match",
+    payload: {
+      adminId,
+      buyerProfileId: profileId,
+      supplierId: match.supplierId,
+      reason: parsed.data.reason,
+    },
+  });
+
+  res.json({ success: true, data: updated });
+});
+
+// ── POST /api/admin/gaps/:id/escalate ────────────────────────────────────────
+router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<void> => {
+  const gapId = parseInt(req.params.id as string, 10);
+  if (isNaN(gapId)) {
+    res.status(400).json({ success: false, error: "Invalid gap id" });
+    return;
+  }
+
+  const [brief] = await db
+    .select()
+    .from(buyerGapBriefsTable)
+    .where(eq(buyerGapBriefsTable.id, gapId));
+
+  if (!brief) {
+    res.status(404).json({ success: false, error: "Gap brief not found" });
+    return;
+  }
+
+  if (brief.ingestionBatchId != null) {
+    res.status(409).json({ success: false, error: "Gap already escalated", data: { ingestionBatchId: brief.ingestionBatchId } });
+    return;
+  }
+
+  if (!brief.isRealGap) {
+    res.status(400).json({ success: false, error: "Cannot escalate a non-real gap" });
+    return;
+  }
+
+  if (brief.priority !== "MEDIUM") {
+    res.status(400).json({ success: false, error: `Manual escalation only allowed for MEDIUM gaps (this gap is ${brief.priority})` });
+    return;
+  }
+
+  const [profile] = await db
+    .select({ targetProducts: buyerProfilesTable.targetProducts })
+    .from(buyerProfilesTable)
+    .where(eq(buyerProfilesTable.id, brief.buyerProfileId));
+
+  if (!profile) {
+    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    return;
+  }
+
+  const adminId = requesterIdOf(req);
+
+  try {
+    const batchId = await escalateGap(
+      gapId,
+      { targetProducts: (profile.targetProducts ?? []) as string[] },
+      { manual: true, actorAdminId: adminId },
+    );
+
+    if (batchId == null) {
+      res.status(500).json({ success: false, error: "Escalation failed — no batch created" });
+      return;
+    }
+
+    logInteraction({
+      eventType: "buyer_gap_manually_escalated",
+      actorType: "admin",
+      referenceId: gapId,
+      referenceType: "buyer_gap_brief",
+      payload: { adminId, buyerProfileId: brief.buyerProfileId, batchId },
+    });
+
+    res.json({ success: true, data: { gapId, ingestionBatchId: batchId } });
+  } catch (err: unknown) {
+    logger.error({ err, gapId, adminId }, "Manual gap escalation failed");
+    res.status(500).json({ success: false, error: errorMessage(err) });
+  }
+});
+
+// ── GET /api/admin/buyer-matches ─────────────────────────────────────────────
+// Cross-buyer flat list of matches for the admin matches page.
+router.get("/admin/buyer-matches", ...adminOnly, async (req, res): Promise<void> => {
+  const { page, limit, offset } = parsePagination(req.query);
+
+  const minScoreRaw = typeof req.query.min_score === "string" ? parseFloat(req.query.min_score) : NaN;
+  const minScore = !isNaN(minScoreRaw) ? minScoreRaw : undefined;
+  const supplierIdFilter = typeof req.query.supplier_id === "string" ? parseInt(req.query.supplier_id, 10) : NaN;
+  const buyerProfileIdFilter = typeof req.query.buyer_profile_id === "string" ? parseInt(req.query.buyer_profile_id, 10) : NaN;
+  const includeAll = req.query.include === "all";
+
+  const conditions: SQL[] = [];
+  if (!includeAll) conditions.push(eq(buyerMatchesTable.isCurrent, true));
+  if (minScore !== undefined) conditions.push(sql`${buyerMatchesTable.matchScore} >= ${minScore}`);
+  if (!isNaN(supplierIdFilter)) conditions.push(eq(buyerMatchesTable.supplierId, supplierIdFilter));
+  if (!isNaN(buyerProfileIdFilter)) conditions.push(eq(buyerMatchesTable.buyerProfileId, buyerProfileIdFilter));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(buyerMatchesTable)
+    .where(whereClause);
+
+  const rows = await db
+    .select({
+      id: buyerMatchesTable.id,
+      buyerProfileId: buyerMatchesTable.buyerProfileId,
+      supplierId: buyerMatchesTable.supplierId,
+      matchScore: buyerMatchesTable.matchScore,
+      disqualifiers: buyerMatchesTable.disqualifiers,
+      matchNotes: buyerMatchesTable.matchNotes,
+      isCurrent: buyerMatchesTable.isCurrent,
+      createdAt: buyerMatchesTable.createdAt,
+      buyerCompany: buyerProfilesTable.companyName,
+      buyerCountry: buyerProfilesTable.country,
+      buyerEmail: usersTable.email,
+      supplierName: suppliersTable.nombreCompleto,
+      supplierMunicipio: suppliersTable.municipio,
+      supplierStatus: suppliersTable.status,
+    })
+    .from(buyerMatchesTable)
+    .leftJoin(buyerProfilesTable, eq(buyerProfilesTable.id, buyerMatchesTable.buyerProfileId))
+    .leftJoin(usersTable, eq(usersTable.id, buyerProfilesTable.userId))
+    .leftJoin(suppliersTable, eq(suppliersTable.id, buyerMatchesTable.supplierId))
+    .where(whereClause)
+    .orderBy(desc(buyerMatchesTable.matchScore), desc(buyerMatchesTable.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  res.json({
+    success: true,
+    data: {
+      rows,
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(Number(total) / limit)),
+    },
+  });
+});
+
+// ── GET /api/admin/buyer-gaps ────────────────────────────────────────────────
+// Cross-buyer flat list of gap briefs for the admin gaps page.
+router.get("/admin/buyer-gaps", ...adminOnly, async (req, res): Promise<void> => {
+  const { page, limit, offset } = parsePagination(req.query);
+
+  const priorityFilter = typeof req.query.priority === "string" ? req.query.priority : undefined;
+  const pipelineActionFilter = typeof req.query.pipeline_action === "string" ? req.query.pipeline_action : undefined;
+  const onlyUnresolved = req.query.only_unresolved !== "false";
+  const onlyReal = req.query.only_real !== "false";
+
+  const conditions: SQL[] = [];
+  if (priorityFilter) conditions.push(eq(buyerGapBriefsTable.priority, priorityFilter));
+  if (pipelineActionFilter) conditions.push(eq(buyerGapBriefsTable.pipelineAction, pipelineActionFilter));
+  if (onlyUnresolved) conditions.push(isNull(buyerGapBriefsTable.resolvedAt));
+  if (onlyReal) conditions.push(eq(buyerGapBriefsTable.isRealGap, true));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(buyerGapBriefsTable)
+    .where(whereClause);
+
+  const rows = await db
+    .select({
+      id: buyerGapBriefsTable.id,
+      buyerProfileId: buyerGapBriefsTable.buyerProfileId,
+      gapType: buyerGapBriefsTable.gapType,
+      priority: buyerGapBriefsTable.priority,
+      pipelineAction: buyerGapBriefsTable.pipelineAction,
+      isRealGap: buyerGapBriefsTable.isRealGap,
+      searchCategory: buyerGapBriefsTable.searchCategory,
+      searchRegion: buyerGapBriefsTable.searchRegion,
+      requiredAttributes: buyerGapBriefsTable.requiredAttributes,
+      volumeTargetMt: buyerGapBriefsTable.volumeTargetMt,
+      buyerUrgencyNote: buyerGapBriefsTable.buyerUrgencyNote,
+      ingestionBatchId: buyerGapBriefsTable.ingestionBatchId,
+      resolvedAt: buyerGapBriefsTable.resolvedAt,
+      createdAt: buyerGapBriefsTable.createdAt,
+      buyerCompany: buyerProfilesTable.companyName,
+      buyerCountry: buyerProfilesTable.country,
+      buyerEmail: usersTable.email,
+    })
+    .from(buyerGapBriefsTable)
+    .leftJoin(buyerProfilesTable, eq(buyerProfilesTable.id, buyerGapBriefsTable.buyerProfileId))
+    .leftJoin(usersTable, eq(usersTable.id, buyerProfilesTable.userId))
+    .where(whereClause)
+    .orderBy(
+      sql`CASE ${buyerGapBriefsTable.priority} WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 3 END`,
+      desc(buyerGapBriefsTable.createdAt),
+    )
+    .limit(limit)
+    .offset(offset);
+
+  res.json({
+    success: true,
+    data: {
+      rows,
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(Number(total) / limit)),
+    },
+  });
+});
+
+// ── POST /api/admin/buyers/marketing-send ────────────────────────────────────
+// Targets only buyers with marketing_opt_in = true and (optionally) a topic
+// in marketing_topics. Sends in-process via the existing sendEmail helper.
+const MarketingSendBody = z.object({
+  subject: z.string().min(3).max(200),
+  html: z.string().min(10).max(50_000),
+  text: z.string().min(3).max(50_000).optional(),
+  topic: z.string().min(1).max(80).optional(),
+  country: z.string().min(2).max(80).optional(),
+  state: z.string().min(2).max(40).optional(),
+  dryRun: z.boolean().optional(),
+});
+
+router.post("/admin/buyers/marketing-send", ...adminOnly, async (req, res): Promise<void> => {
+  const parsed = MarketingSendBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { subject, html, text, topic, country, state, dryRun } = parsed.data;
+  const adminId = requesterIdOf(req);
+
+  const conditions: SQL[] = [eq(buyerProfilesTable.marketingOptIn, true)];
+  if (country) conditions.push(eq(buyerProfilesTable.country, country));
+  if (state) conditions.push(eq(buyerProfilesTable.state, state));
+  if (topic) conditions.push(sql`${topic} = ANY(${buyerProfilesTable.marketingTopics})`);
+
+  const recipients = await db
+    .select({
+      profileId: buyerProfilesTable.id,
+      email: usersTable.email,
+      companyName: buyerProfilesTable.companyName,
+    })
+    .from(buyerProfilesTable)
+    .innerJoin(usersTable, eq(usersTable.id, buyerProfilesTable.userId))
+    .where(and(...conditions));
+
+  if (dryRun) {
+    res.json({
+      success: true,
+      data: {
+        dryRun: true,
+        recipients: recipients.length,
+        sample: recipients.slice(0, 10).map((r) => ({ email: r.email, companyName: r.companyName })),
+      },
+    });
+    return;
+  }
+
+  let sent = 0;
+  let failed = 0;
+  const failures: { email: string; error: string }[] = [];
+
+  for (const r of recipients) {
+    try {
+      const result = await sendEmail({
+        to: r.email,
+        subject,
+        html,
+        text: text ?? html.replace(/<[^>]+>/g, ""),
+      });
+      if (result.ok) {
+        sent += 1;
+      } else {
+        failed += 1;
+        const errMsg =
+          "detail" in result && result.detail
+            ? `${result.reason}: ${result.detail}`
+            : result.reason;
+        failures.push({ email: r.email, error: errMsg });
+        logger.warn(
+          { reason: result.reason, email: r.email, profileId: r.profileId },
+          "Marketing send: per-recipient failure",
+        );
+      }
+    } catch (err: unknown) {
+      failed += 1;
+      failures.push({ email: r.email, error: errorMessage(err) });
+      logger.warn(
+        { err, email: r.email, profileId: r.profileId },
+        "Marketing send: per-recipient exception",
+      );
+    }
+  }
+
+  logInteraction({
+    eventType: "buyer_marketing_send",
+    actorType: "admin",
+    referenceId: adminId,
+    referenceType: "user",
+    payload: {
+      adminId,
+      subject,
+      topic: topic ?? null,
+      country: country ?? null,
+      state: state ?? null,
+      attempted: recipients.length,
+      sent,
+      failed,
+    },
+  });
+
+  logger.info(
+    { adminId, subject, attempted: recipients.length, sent, failed },
+    "Buyer marketing send complete",
+  );
+
+  res.json({
+    success: true,
+    data: { attempted: recipients.length, sent, failed, failures: failures.slice(0, 20) },
   });
 });
 

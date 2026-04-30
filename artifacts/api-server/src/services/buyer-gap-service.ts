@@ -190,22 +190,26 @@ function deriveDiscoveryTargets(
   return { category, region };
 }
 
-// ── escalateIfHigh ───────────────────────────────────────────────────────────
-// Private helper. For HIGH-priority gaps, insert a DRAFT ingestion batch,
-// kick off a discovery run, and link the batch back to the gap brief row.
-async function escalateIfHigh(
+// ── escalateGap ───────────────────────────────────────────────────────────
+// Shared helper used by both auto-escalation (HIGH gaps from analyseGaps)
+// and the admin manual MEDIUM escalation path. Insert a DRAFT ingestion
+// batch, kick off a discovery run, and link the batch back to the gap brief.
+// Returns the new ingestion batch id, or null if the gap is missing / not
+// a real gap / already escalated.
+export async function escalateGap(
   gapBriefId: number,
   profile: { targetProducts: string[] },
-): Promise<void> {
+  opts: { manual?: boolean; actorAdminId?: number } = {},
+): Promise<number | null> {
   const [brief] = await db
     .select()
     .from(buyerGapBriefsTable)
     .where(eq(buyerGapBriefsTable.id, gapBriefId));
-  if (!brief) return;
-  if (brief.priority !== "HIGH" || !brief.isRealGap) return;
-  if (brief.ingestionBatchId != null) return; // already escalated
+  if (!brief) return null;
+  if (!brief.isRealGap) return null;
+  if (brief.ingestionBatchId != null) return brief.ingestionBatchId; // already escalated
 
-  const adminId = await resolveSystemAdminId();
+  const adminId = opts.actorAdminId ?? (await resolveSystemAdminId());
   const batchUuid = randomUUID();
   const [batch] = await db
     .insert(supplierIngestionBatchesTable)
@@ -246,7 +250,9 @@ async function escalateIfHigh(
         derived:
           !brief.searchCategory?.trim() || !brief.searchRegion?.trim(),
       },
-      "buyer-gap-service: discovery run completed for HIGH gap",
+      opts.manual
+        ? "buyer-gap-service: discovery run completed for manual escalation"
+        : "buyer-gap-service: discovery run completed for HIGH gap",
     );
   } catch (err) {
     logger.warn(
@@ -254,6 +260,22 @@ async function escalateIfHigh(
       "buyer-gap-service: discovery call failed (non-fatal — batch retained)",
     );
   }
+
+  return batch.id;
+}
+
+// Backwards-compatible alias used by the auto-escalation path inside
+// analyseGaps. Skips non-HIGH gaps so the batch order matches the priority.
+async function escalateIfHigh(
+  gapBriefId: number,
+  profile: { targetProducts: string[] },
+): Promise<void> {
+  const [brief] = await db
+    .select({ priority: buyerGapBriefsTable.priority })
+    .from(buyerGapBriefsTable)
+    .where(eq(buyerGapBriefsTable.id, gapBriefId));
+  if (!brief || brief.priority !== "HIGH") return;
+  await escalateGap(gapBriefId, profile);
 }
 
 // ── analyseGaps ──────────────────────────────────────────────────────────────

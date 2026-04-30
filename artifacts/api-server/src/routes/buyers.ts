@@ -867,4 +867,97 @@ router.get(
   },
 );
 
+// ── PATCH /api/buyers/:id/marketing-preferences ──────────────────────────────
+// Buyer-side endpoint to manage marketing opt-in + topic interests. Caller
+// must own the profile.
+//
+// Canonical body uses snake_case per the public API contract:
+//   { marketing_opt_in: boolean, marketing_topics?: string[] }
+// We also accept legacy camelCase (`marketingOptIn`/`marketingTopics`) for
+// backward compatibility with earlier clients. The response always uses the
+// canonical snake_case keys.
+const MarketingPreferencesBody = z
+  .object({
+    marketing_opt_in: z.boolean().optional(),
+    marketing_topics: z.array(z.string().min(1).max(80)).max(20).optional(),
+    marketingOptIn: z.boolean().optional(),
+    marketingTopics: z.array(z.string().min(1).max(80)).max(20).optional(),
+  })
+  .transform((v, ctx) => {
+    const optIn = v.marketing_opt_in ?? v.marketingOptIn;
+    if (typeof optIn !== "boolean") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["marketing_opt_in"],
+        message: "marketing_opt_in (boolean) is required",
+      });
+      return z.NEVER;
+    }
+    return {
+      marketingOptIn: optIn,
+      marketingTopics: v.marketing_topics ?? v.marketingTopics,
+    };
+  });
+
+router.patch(
+  "/buyers/:id/marketing-preferences",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId: number = (req as any).userId;
+    const idParam = req.params.id;
+    const id = typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+      return;
+    }
+
+    const parsed = MarketingPreferencesBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: buyerProfilesTable.id, userId: buyerProfilesTable.userId })
+      .from(buyerProfilesTable)
+      .where(eq(buyerProfilesTable.id, id));
+
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Buyer profile not found" });
+      return;
+    }
+    if (existing.userId !== userId) {
+      res.status(403).json({ success: false, error: "Not your profile" });
+      return;
+    }
+
+    const newTopics = parsed.data.marketingOptIn
+      ? (parsed.data.marketingTopics ?? [])
+      : [];
+
+    const [updated] = await db
+      .update(buyerProfilesTable)
+      .set({
+        marketingOptIn: parsed.data.marketingOptIn,
+        marketingTopics: newTopics,
+        updatedAt: new Date(),
+      })
+      .where(eq(buyerProfilesTable.id, id))
+      .returning({
+        id: buyerProfilesTable.id,
+        marketingOptIn: buyerProfilesTable.marketingOptIn,
+        marketingTopics: buyerProfilesTable.marketingTopics,
+      });
+
+    res.json({
+      success: true,
+      data: {
+        id: updated.id,
+        marketing_opt_in: updated.marketingOptIn,
+        marketing_topics: updated.marketingTopics,
+      },
+    });
+  },
+);
+
 export default router;
