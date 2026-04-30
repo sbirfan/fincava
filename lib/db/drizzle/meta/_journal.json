@@ -50,6 +50,13 @@
       "when": 1777335195530,
       "tag": "0006_clean_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1746057600000,
+      "tag": "0007_buyer_admin_actions",
+      "breakpoints": true
     }
   ]
 }

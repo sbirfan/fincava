@@ -445,6 +445,15 @@ interface GapRow {
   resolvedAt: string | null;
   createdAt: string;
 }
+interface ActivityRow {
+  id: number;
+  actorAdminId: number;
+  buyerProfileId: number;
+  actionType: string;
+  payload: Record<string, unknown> | null;
+  note: string | null;
+  createdAt: string;
+}
 
 function BuyerDrawer({
   profileId,
@@ -454,7 +463,7 @@ function BuyerDrawer({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"overview" | "matches" | "gaps">("overview");
+  const [tab, setTab] = useState<"overview" | "matches" | "gaps" | "activity">("overview");
 
   const { data: detailResp, isLoading: detailLoading } = useQuery<{
     success: boolean;
@@ -501,6 +510,21 @@ function BuyerDrawer({
     },
   });
 
+  const { data: activityResp, isLoading: activityLoading } = useQuery<{
+    success: boolean;
+    data: ActivityRow[];
+  }>({
+    queryKey: ["admin-buyer-activity", profileId],
+    enabled: tab === "activity",
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/buyers/${profileId}/activity`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      return res.json();
+    },
+  });
+
   const suppressMutation = useMutation({
     mutationFn: async (vars: { matchId: number; reason: string }) => {
       const res = await fetch(`/api/admin/buyers/${profileId}/suppress-match`, {
@@ -519,6 +543,7 @@ function BuyerDrawer({
       qc.invalidateQueries({ queryKey: ["admin-buyer-matches", profileId] });
       qc.invalidateQueries({ queryKey: ["admin-buyer-detail", profileId] });
       qc.invalidateQueries({ queryKey: ["admin-buyers"] });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-activity", profileId] });
     },
   });
 
@@ -538,6 +563,7 @@ function BuyerDrawer({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-buyer-gaps", profileId] });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-activity", profileId] });
     },
   });
 
@@ -558,7 +584,7 @@ function BuyerDrawer({
         </div>
 
         <div className="px-6 pt-4 border-b border-white/10 flex gap-1">
-          {(["overview", "matches", "gaps"] as const).map((t) => (
+          {(["overview", "matches", "gaps", "activity"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -569,7 +595,13 @@ function BuyerDrawer({
               }`}
               data-testid={`tab-${t}`}
             >
-              {t === "overview" ? "Overview" : t === "matches" ? `Matches${buyer?.matchCount != null ? ` (${buyer.matchCount})` : ""}` : `Gaps${buyer?.gapCount != null ? ` (${buyer.gapCount})` : ""}`}
+              {t === "overview"
+                ? "Overview"
+                : t === "matches"
+                ? `Matches${buyer?.matchCount != null ? ` (${buyer.matchCount})` : ""}`
+                : t === "gaps"
+                ? `Gaps${buyer?.gapCount != null ? ` (${buyer.gapCount})` : ""}`
+                : "Activity"}
             </button>
           ))}
         </div>
@@ -596,6 +628,11 @@ function BuyerDrawer({
               onEscalate={(id) => escalateMutation.mutateAsync(id)}
               escalating={escalateMutation.isPending}
               error={escalateMutation.error as Error | null}
+            />
+          ) : tab === "activity" ? (
+            <ActivityPane
+              loading={activityLoading}
+              rows={activityResp?.data ?? []}
             />
           ) : null}
         </div>
@@ -1191,6 +1228,56 @@ function GapsPane({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  suppress_match: "Suppressed match",
+  escalate_gap: "Escalated gap",
+};
+
+function ActivityPane({ loading, rows }: { loading: boolean; rows: ActivityRow[] }) {
+  if (loading) return <Loader2 className="h-5 w-5 animate-spin text-white/40" />;
+  if (rows.length === 0)
+    return <p className="text-sm text-white/40" data-testid="activity-empty">No admin actions recorded.</p>;
+
+  return (
+    <div className="space-y-2" data-testid="pane-activity">
+      {rows.map((row) => (
+        <div
+          key={row.id}
+          className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm"
+          data-testid={`activity-${row.id}`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium text-white">
+              {ACTION_LABELS[row.actionType] ?? row.actionType}
+            </span>
+            <span className="text-xs text-white/40">
+              {new Date(row.createdAt).toLocaleString()}
+            </span>
+          </div>
+          <p className="text-xs text-white/50 mt-0.5">
+            Admin #{row.actorAdminId}
+          </p>
+          {row.note ? (
+            <p className="text-xs text-white/70 mt-1 italic">{row.note}</p>
+          ) : null}
+          {row.payload && Object.keys(row.payload).length > 0 ? (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {Object.entries(row.payload).map(([k, v]) => (
+                <span
+                  key={k}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/50"
+                >
+                  {k}: {String(v)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 }

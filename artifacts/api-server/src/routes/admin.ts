@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
-import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable } from "@workspace/db";
+import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
 import { hashPassword } from "../lib/auth";
@@ -485,6 +485,16 @@ router.post("/admin/buyers/:id/suppress-match", ...adminOnly, async (req, res): 
     },
   });
 
+  db.insert(buyerAdminActionsTable).values({
+    actorAdminId: adminId,
+    buyerProfileId: profileId,
+    actionType: "suppress_match",
+    payload: { matchId: match.id, supplierId: match.supplierId },
+    note: parsed.data.reason,
+  }).catch((err: unknown) => {
+    logger.warn({ err, matchId: match.id, adminId }, "suppress_match audit insert failed");
+  });
+
   res.json({ success: true, data: updated });
 });
 
@@ -553,11 +563,39 @@ router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<
       payload: { adminId, buyerProfileId: brief.buyerProfileId, batchId },
     });
 
+    db.insert(buyerAdminActionsTable).values({
+      actorAdminId: adminId,
+      buyerProfileId: brief.buyerProfileId,
+      actionType: "escalate_gap",
+      payload: { gapId, ingestionBatchId: batchId },
+      note: null,
+    }).catch((err: unknown) => {
+      logger.warn({ err, gapId, adminId }, "escalate_gap audit insert failed");
+    });
+
     res.json({ success: true, data: { gapId, ingestionBatchId: batchId } });
   } catch (err: unknown) {
     logger.error({ err, gapId, adminId }, "Manual gap escalation failed");
     res.status(500).json({ success: false, error: errorMessage(err) });
   }
+});
+
+// ── GET /api/admin/buyers/:id/activity ───────────────────────────────────────
+router.get("/admin/buyers/:id/activity", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const rows = await db
+    .select()
+    .from(buyerAdminActionsTable)
+    .where(eq(buyerAdminActionsTable.buyerProfileId, profileId))
+    .orderBy(desc(buyerAdminActionsTable.createdAt))
+    .limit(100);
+
+  res.json({ success: true, data: rows });
 });
 
 // ── GET /api/admin/buyer-matches ─────────────────────────────────────────────
