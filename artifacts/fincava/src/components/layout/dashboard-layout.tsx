@@ -64,7 +64,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'RFQ Inbox', href: `${basePath}/rfqs`, icon: FileQuestion },
     { name: 'Trade Finance', href: `${basePath}/finance`, icon: Landmark },
     { name: 'Performance', href: `${basePath}/performance`, icon: BarChart2 },
-    { name: 'AI Assistant', href: `${basePath}/ai-assistant`, icon: Sparkles },
+    // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Company Profile', href: `${basePath}/profile`, icon: User },
   ] : [
     { name: 'Overview', href: basePath, icon: LayoutDashboard },
@@ -74,7 +74,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'Messages', href: `${basePath}/messages`, icon: MessageSquare },
     { name: 'Market Intelligence', href: `${basePath}/market-intel`, icon: Globe },
     { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
-    { name: 'AI Assistant', href: `${basePath}/ai-assistant`, icon: Sparkles },
+    // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Profile Settings', href: `${basePath}/profile`, icon: User },
   ];
 
