@@ -427,4 +427,206 @@ router.get("/buyers/profile", requireAuth, async (req, res): Promise<void> => {
   res.json({ profile });
 });
 
+// ── Phase 2 Profiling: per-field PATCH with auto-save ────────────────────────
+// PATCH /api/buyers/:id/profile
+// Body: { section: 'A'|'B'|'C'|'D'|'E'|'F', field: string, value: unknown }
+// Field names are allow-listed per section; values are validated per-field.
+// Recomputes p2_completion_pct + p2_sections_done inline.
+// Returns: { section, completion_pct, sections_done, matching_triggered }.
+//
+// matching_triggered is true when this save first pushes sections_done to
+// include both 'A' and 'B', OR when matchingRunCount > 0 and a *new* section
+// was added since the previous matching run. The actual matching service call
+// is wired in Phase 3 — for now we only set the response flag and log it.
+const SECTION_KEYS = ["A", "B", "C", "D", "E", "F"] as const;
+type SectionKey = (typeof SECTION_KEYS)[number];
+
+const FIELD_SCHEMAS: Record<SectionKey, Record<string, z.ZodTypeAny>> = {
+  A: {
+    traceabilityLevel: z.enum(["NONE", "LOT", "FARM", "COOP"]).nullable(),
+    existingColombiaRel: z.boolean().nullable(),
+  },
+  B: {
+    preferredIncoterm: z.enum(["FOB", "CIF", "DAP", "EXW", "CFR"]).nullable(),
+    intendedVolumeMt: z.number().positive().max(100_000).nullable(),
+    importFrequency: z
+      .enum(["MONTHLY", "QUARTERLY", "BIANNUAL", "ANNUAL", "SPOT"])
+      .nullable(),
+    tradeFinanceOpen: z.boolean(),
+  },
+  C: {
+    auditStandard: z.string().min(1).max(50).nullable(),
+  },
+  D: {
+    destinationPort: z.string().min(1).max(100).nullable(),
+    logisticsPartner: z.string().min(1).max(200).nullable(),
+  },
+  E: {
+    prevSourcingChannel: z.string().min(1).max(100).nullable(),
+    discoveryBudgetBand: z.enum(["<1k", "1-5k", "5-25k", "25k+"]).nullable(),
+    supplierDevOpen: z.boolean(),
+    supplierTypePref: z.array(z.string().min(1).max(40)).max(20),
+    socialImpactReqs: z.array(z.string().min(1).max(80)).max(20),
+    earlyStageSupplierOpen: z.boolean(),
+  },
+  F: {
+    platformIntent: z.array(z.string().min(1).max(60)).max(20),
+    sampleReady: z.boolean(),
+    languagePreference: z.array(z.string().min(1).max(20)).max(10),
+  },
+};
+
+// Required-field map per section. A section is "done" iff every field in its
+// list is non-null (scalars) or non-empty (arrays). We deliberately omit
+// boolean columns that default to false, since they are non-null from the
+// moment the row exists and would mark the section complete before the user
+// has actually engaged with it.
+const SECTION_REQUIRED: Record<SectionKey, string[]> = {
+  A: ["traceabilityLevel", "existingColombiaRel"],
+  B: ["preferredIncoterm", "intendedVolumeMt", "importFrequency"],
+  C: ["auditStandard"],
+  D: ["destinationPort", "logisticsPartner"],
+  E: ["prevSourcingChannel", "discoveryBudgetBand"],
+  F: ["platformIntent", "languagePreference"],
+};
+
+const ARRAY_FIELDS = new Set([
+  "supplierTypePref",
+  "socialImpactReqs",
+  "platformIntent",
+  "languagePreference",
+]);
+
+function isFieldComplete(profile: Record<string, unknown>, field: string): boolean {
+  const v = profile[field];
+  if (ARRAY_FIELDS.has(field)) return Array.isArray(v) && v.length > 0;
+  return v !== null && v !== undefined;
+}
+
+function computeProgress(profile: Record<string, unknown>): {
+  done: SectionKey[];
+  pct: number;
+} {
+  const done: SectionKey[] = [];
+  for (const sec of SECTION_KEYS) {
+    if (SECTION_REQUIRED[sec].every((f) => isFieldComplete(profile, f))) {
+      done.push(sec);
+    }
+  }
+  const pct = Math.round((done.length / SECTION_KEYS.length) * 100);
+  return { done, pct };
+}
+
+const PatchProfileBody = z.object({
+  section: z.enum(SECTION_KEYS),
+  field: z.string().min(1).max(80),
+  value: z.unknown(),
+});
+
+router.patch(
+  "/buyers/:id/profile",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId: number = (req as any).userId;
+
+    const idParam = req.params.id;
+    const id =
+      typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid buyer profile id" });
+      return;
+    }
+
+    const parsed = PatchProfileBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+    const { section, field, value } = parsed.data;
+
+    const sectionFields = FIELD_SCHEMAS[section];
+    const fieldSchema = sectionFields[field];
+    if (!fieldSchema) {
+      res
+        .status(400)
+        .json({ error: `Field "${field}" is not editable in section ${section}` });
+      return;
+    }
+
+    const valueParsed = fieldSchema.safeParse(value);
+    if (!valueParsed.success) {
+      res.status(400).json({ error: valueParsed.error.flatten() });
+      return;
+    }
+    const safeValue = valueParsed.data;
+
+    // Ownership check: caller must be the buyer of that profile.
+    const [existing] = await db
+      .select()
+      .from(buyerProfilesTable)
+      .where(eq(buyerProfilesTable.id, id));
+
+    if (!existing) {
+      res.status(404).json({ error: "Buyer profile not found" });
+      return;
+    }
+    if (existing.userId !== userId) {
+      res.status(403).json({ error: "Not your profile" });
+      return;
+    }
+
+    const prevSectionsDone = (existing.p2SectionsDone ?? []) as SectionKey[];
+    const prevMatchingRunCount = existing.matchingRunCount ?? 0;
+
+    // Recompute against the projected post-update profile.
+    const projected: Record<string, unknown> = {
+      ...(existing as unknown as Record<string, unknown>),
+      [field]: safeValue,
+    };
+    const { done: newSectionsDone, pct: newPct } = computeProgress(projected);
+
+    const wasAB =
+      prevSectionsDone.includes("A") && prevSectionsDone.includes("B");
+    const nowAB =
+      newSectionsDone.includes("A") && newSectionsDone.includes("B");
+    const addedSection = newSectionsDone.some(
+      (s) => !prevSectionsDone.includes(s),
+    );
+    const matchingTriggered =
+      (!wasAB && nowAB) || (prevMatchingRunCount > 0 && addedSection);
+
+    const [updated] = await db
+      .update(buyerProfilesTable)
+      .set({
+        [field]: safeValue,
+        p2CompletionPct: newPct,
+        p2SectionsDone: newSectionsDone,
+        updatedAt: new Date(),
+      } as Partial<typeof buyerProfilesTable.$inferInsert>)
+      .where(eq(buyerProfilesTable.id, id))
+      .returning();
+
+    if (matchingTriggered) {
+      req.log.info(
+        {
+          userId,
+          buyerProfileId: id,
+          section,
+          sectionsDone: newSectionsDone,
+          completionPct: newPct,
+          prevMatchingRunCount,
+        },
+        "buyer profile matching trigger condition met (Phase 2 placeholder)",
+      );
+    }
+
+    res.json({
+      section,
+      completion_pct: updated.p2CompletionPct,
+      sections_done: updated.p2SectionsDone,
+      matching_triggered: matchingTriggered,
+    });
+  },
+);
+
 export default router;
