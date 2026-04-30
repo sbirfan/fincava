@@ -82,6 +82,10 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
         .returning();
 
       try {
+        if (!supplier.whatsappNumber) {
+          logger.warn({ supplierId }, "scoreSupplier: skipping WhatsApp send — no phone number");
+          return;
+        }
         const waBody =
           `Hola ${supplier.nombreCompleto}, tu registro en Fincava fue exitoso ✅\n` +
           `Puntaje de exportación: ${parsed.export_readiness_score}/100\n` +

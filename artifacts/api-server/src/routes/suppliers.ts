@@ -502,6 +502,10 @@ router.post(
       .from(suppliersTable)
       .where(eq(suppliersTable.id, supplierId));
     if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+    if (!supplier.whatsappNumber) {
+      res.status(422).json({ error: "Supplier has no WhatsApp number on record" });
+      return;
+    }
 
     const [scoreRow] = await db
       .select()

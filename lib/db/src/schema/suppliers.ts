@@ -38,11 +38,14 @@ import {
   jsonb,
   pgEnum,
   index,
+  uniqueIndex,
+  check,
   varchar,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const supplierTypeEnum = pgEnum("supplier_type", [
   "FARMER",
@@ -82,6 +85,54 @@ export const graduationPathwayEnum = pgEnum("graduation_pathway", [
   "D",
 ]);
 
+// ── Ingestion enums ───────────────────────────────────────────────────────────
+
+export const claimStatusEnum = pgEnum("claim_status", [
+  "UNCLAIMED",
+  "PENDING_CLAIM",
+  "CLAIMED",
+]);
+
+export const ingestionSourceEnum = pgEnum("ingestion_source", [
+  "FIELD_COLLECTED",
+  "ADMIN_ENTRY",
+  "WEB_SCRAPE",
+  "PARTNER_IMPORT",
+]);
+
+export const ingestionStatusEnum = pgEnum("ingestion_status", [
+  "DRAFT",
+  "ENRICHED",
+  "READY",
+  "REJECTED",
+]);
+
+export const batchStatusEnum = pgEnum("batch_status", [
+  "DRAFT",
+  "SUBMITTED",
+  "ROLLED_BACK",
+]);
+
+// ── supplier_ingestion_batches (must be defined before suppliersTable for FK) ─
+
+export const supplierIngestionBatchesTable = pgTable(
+  "supplier_ingestion_batches",
+  {
+    id: serial("id").primaryKey(),
+    batchUuid: varchar("batch_uuid", { length: 36 }).notNull().unique(),
+    createdByAdminId: integer("created_by_admin_id")
+      .notNull()
+      .references(() => usersTable.id),
+    status: batchStatusEnum("status").notNull().default("DRAFT"),
+    batchSize: integer("batch_size"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ARCHITECTURE NOTE: suppliers is a standalone entity graph (no FK to companies or users).
@@ -94,7 +145,9 @@ export const suppliersTable = pgTable(
   {
     id: serial("id").primaryKey(),
     nombreCompleto: text("nombre_completo").notNull(),
-    whatsappNumber: text("whatsapp_number").notNull().unique(),
+    // Nullable: ingested suppliers may not have a WhatsApp number yet.
+    // Partial UNIQUE index (non-null rows only) enforced in the table callback below.
+    whatsappNumber: text("whatsapp_number"),
     email: text("email"),
     municipio: text("municipio").notNull(),
     department: text("department"),
@@ -120,9 +173,29 @@ export const suppliersTable = pgTable(
     commercialScoreAtOnboarding: integer("commercial_score_at_onboarding"),
     lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
     thresholdVersion: varchar("threshold_version", { length: 64 }),
+
+    // ── Ingestion columns (all nullable — invisible to existing field-collected suppliers) ──
+    normalizedName: text("normalized_name"),
+    description: text("description"),
+    sourceUrl: text("source_url"),
+    sourceType: text("source_type"),
+    supplierFingerprint: text("supplier_fingerprint"),
+    claimStatus: claimStatusEnum("claim_status").default("UNCLAIMED"),
+    claimToken: text("claim_token"),
+    ingestionSource: ingestionSourceEnum("ingestion_source").default("FIELD_COLLECTED"),
+    ingestionStatus: ingestionStatusEnum("ingestion_status"),
+    createdByAdminId: integer("created_by_admin_id").references(() => usersTable.id),
+    batchId: integer("batch_id").references(() => supplierIngestionBatchesTable.id),
+    country: text("country").default("Colombia"),
+    dataCompletenessScore: decimal("data_completeness_score", { precision: 5, scale: 2 }),
+    confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }),
   },
   (t) => [
-    index("suppliers_whatsapp_idx").on(t.whatsappNumber),
+    // Partial unique index: enforces uniqueness only for non-null WhatsApp numbers.
+    // Ingested suppliers without a number can coexist without violating the constraint.
+    uniqueIndex("suppliers_whatsapp_unique_idx")
+      .on(t.whatsappNumber)
+      .where(sql`whatsapp_number IS NOT NULL`),
     // NOTE:
     // Partial index on sellable_status scoped to SELLABLE/PUBLISHED.
     // Optimized for marketplace and admin queries.
@@ -131,6 +204,14 @@ export const suppliersTable = pgTable(
     index("suppliers_sellable_status_idx")
       .on(t.sellableStatus)
       .where(sql`sellable_status IN ('SELLABLE', 'PUBLISHED')`),
+    check(
+      "data_completeness_score_range",
+      sql`data_completeness_score IS NULL OR (data_completeness_score >= 0 AND data_completeness_score <= 100)`,
+    ),
+    check(
+      "confidence_score_range",
+      sql`confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 100)`,
+    ),
   ],
 );
 
@@ -234,6 +315,50 @@ export const interactionsTable = pgTable(
   (t) => [index("interactions_supplier_idx").on(t.supplierId)],
 );
 
+// ── supplier_contacts ─────────────────────────────────────────────────────────
+// Stores individual contact details (phone, email, social) per supplier.
+// UNIQUE on (supplier_id, contact_type) — one canonical value per channel.
+
+export const supplierContactsTable = pgTable(
+  "supplier_contacts",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplier_id")
+      .notNull()
+      .references(() => suppliersTable.id),
+    contactType: text("contact_type"),         // e.g. "whatsapp" | "email" | "phone"
+    contactValue: text("contact_value"),
+    source: text("source"),                    // where this contact was found
+    consentStatus: text("consent_status").default("UNKNOWN"),
+    approvedForOutreach: boolean("approved_for_outreach").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("supplier_contacts_type_unique_idx").on(t.supplierId, t.contactType),
+  ],
+);
+
+// ── product_placeholders ──────────────────────────────────────────────────────
+// Lightweight product hints inferred from ingestion data.
+// No price, MOQ, or quantity — those require supplier confirmation in T2.
+
+export const productPlaceholdersTable = pgTable("product_placeholders", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id")
+    .notNull()
+    .references(() => suppliersTable.id),
+  categoryHint: text("category_hint"),         // e.g. "coffee" | "cacao"
+  dataOrigin: text("data_origin").notNull().default("inferred"),
+  verificationStatus: text("verification_status").notNull().default("unverified"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ── Zod + TypeScript exports ──────────────────────────────────────────────────
+
 export const insertSupplierSchema = createInsertSchema(suppliersTable).omit({
   id: true,
   createdAt: true,
@@ -243,3 +368,6 @@ export const insertSupplierSchema = createInsertSchema(suppliersTable).omit({
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type Supplier = typeof suppliersTable.$inferSelect;
 export type AiOutput = typeof aiOutputsTable.$inferSelect;
+export type SupplierIngestionBatch = typeof supplierIngestionBatchesTable.$inferSelect;
+export type SupplierContact = typeof supplierContactsTable.$inferSelect;
+export type ProductPlaceholder = typeof productPlaceholdersTable.$inferSelect;
