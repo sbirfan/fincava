@@ -188,6 +188,22 @@ export default function AdminIngestionDiscover() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leadIds: createdIds }),
       });
+
+      // Guard: treat non-OK responses (e.g. 422 invalid body, 500 server error)
+      // as a request-level failure before attempting to consume the payload.
+      if (!batchRes.ok) {
+        const errData = await batchRes.json().catch(() => ({}));
+        const message = errData.error ?? `Batch confirm failed (HTTP ${batchRes.status})`;
+        setBatchResult({
+          success: [],
+          failed: [
+            ...createdIds.map((id) => ({ leadId: id, name: `Supplier #${id}`, error: message })),
+            ...createFailed.map((f) => ({ leadId: -1, name: f.name, error: f.error })),
+          ],
+        });
+        return;
+      }
+
       const batchData = await batchRes.json();
 
       setBatchResult({
