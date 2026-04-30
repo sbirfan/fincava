@@ -1173,6 +1173,47 @@ router.post(
   },
 );
 
+// ── POST /api/admin/suppliers/:id/score ──────────────────────────────────────
+// G5: Trigger the full onboard pipeline for an existing supplier on-demand.
+// Used by the admin "Score Now" button in the detail drawer.
+router.post(
+  "/admin/suppliers/:id/score",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: suppliersTable.id, nombreCompleto: suppliersTable.nombreCompleto })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, supplierId))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+
+    // Fire the pipeline asynchronously so the HTTP response returns immediately.
+    const correlationId = crypto.randomUUID();
+    setImmediate(() => {
+      const listenerCount = pipelineEmitter.listenerCount(SUPPLIER_ONBOARD_EVENT);
+      if (listenerCount > 0) {
+        pipelineEmitter.emit(SUPPLIER_ONBOARD_EVENT, { supplierId, correlationId });
+      } else {
+        void runOnboardPipeline({ supplierId, correlationId });
+      }
+    });
+
+    logger.info({ admin: (req as any).userId, supplierId, correlationId }, "admin: manual score triggered");
+    res.json({ success: true, supplierId, correlationId, message: `Scoring pipeline started for ${existing.nombreCompleto}` });
+  },
+);
+
 // ── PATCH /api/admin/suppliers/:id/compliance ────────────────────────────────
 // Admin-only partial update of compliance_docs fields.
 // Unblocks the eligibility gate without triggering evaluation.
@@ -1282,10 +1323,40 @@ router.patch(
       "admin compliance update",
     );
 
+    // G6: Re-evaluate graduation state after compliance update — but ONLY when
+    // an AI score already exists for this supplier. Guards against calling
+    // evaluateSupplier on a supplier that has never been scored (no ONBOARD_SCORE row).
+    const [existingScore] = await db
+      .select({ id: aiOutputsTable.id })
+      .from(aiOutputsTable)
+      .where(
+        and(
+          eq(aiOutputsTable.supplierId, supplierId),
+          eq(aiOutputsTable.callType, "ONBOARD_SCORE"),
+        ),
+      )
+      .orderBy(desc(aiOutputsTable.createdAt))
+      .limit(1);
+
+    let evaluationResult: { sellableStatus?: string | null; commercialScore?: number | null } | null = null;
+    if (existingScore) {
+      try {
+        const evalResult = await evaluateSupplier(supplierId);
+        evaluationResult = {
+          sellableStatus: evalResult.supplier.sellableStatus,
+          commercialScore: evalResult.supplier.commercialScore,
+        };
+        logger.info({ supplierId, sellableStatus: evalResult.supplier.sellableStatus }, "compliance update: re-evaluated");
+      } catch (evalErr) {
+        logger.warn({ evalErr, supplierId }, "compliance update: re-evaluation failed (non-fatal)");
+      }
+    }
+
     res.json({
       complianceDocs: updatedDocs,
       consentGiven: consentGivenPatch ?? supplier.consentGiven,
       fieldsUpdated,
+      ...(evaluationResult ? { evaluation: evaluationResult } : {}),
     });
   },
 );

@@ -121,12 +121,51 @@ export default function ProductDetail() {
     p.climateResilient && { label: "Climate-Resilient", icon: Droplets, color: "bg-sky-50 text-sky-700 border-sky-200" },
   ].filter(Boolean) as { label: string; icon: any; color: string }[];
 
+  const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [inquiryMessage, setInquiryMessage] = useState("");
+  const [inquiryQty, setInquiryQty] = useState("");
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
+
   function handleInquiry() {
     if (!isAuthenticated) {
       toast({ title: "Login required", description: "Please log in to send an inquiry.", variant: "destructive" });
+      setLocation("/login");
       return;
     }
-    window.location.href = `/dashboard/inquiries`;
+    setInquiryOpen(true);
+  }
+
+  async function submitInquiry() {
+    if (!inquiryMessage.trim()) {
+      toast({ title: "Message required", description: "Please write a message to the supplier.", variant: "destructive" });
+      return;
+    }
+    setInquirySubmitting(true);
+    try {
+      const res = await fetch("/api/inquiries", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: id,
+          buyerEmail: user?.email ?? "",
+          buyerName: user?.name ?? user?.email ?? "",
+          company: (user as any)?.companyName ?? "Independent Buyer",
+          country: (user as any)?.country ?? "Unknown",
+          message: inquiryMessage.trim(),
+          quantityKg: inquiryQty ? parseFloat(inquiryQty) : null,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: "Inquiry sent!", description: "The supplier has been notified and will respond via your dashboard." });
+      setInquiryOpen(false);
+      setInquiryMessage("");
+      setInquiryQty("");
+    } catch (e: any) {
+      toast({ title: "Failed to send", description: e.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setInquirySubmitting(false);
+    }
   }
 
   return (
@@ -549,6 +588,53 @@ export default function ProductDetail() {
             </Button>
             <p className="text-xs text-center text-muted-foreground">
               Your order will be reviewed by the supplier before confirmation.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Request Quote / Inquiry Dialog ── */}
+      <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Request Quote / Inquiry</DialogTitle>
+            <DialogDescription>
+              {product && `${product.name} · $${product.pricePerKgUSD.toFixed(2)} / kg`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label htmlFor="inquiry-qty">Quantity (kg) — optional</Label>
+              <Input
+                id="inquiry-qty"
+                type="number"
+                min={1}
+                placeholder={`e.g. ${product?.minOrderKg ?? 100} kg`}
+                value={inquiryQty}
+                onChange={(e) => setInquiryQty(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="inquiry-msg">
+                Message <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="inquiry-msg"
+                placeholder="Describe your requirements, timeline, certifications needed, etc."
+                value={inquiryMessage}
+                onChange={(e) => setInquiryMessage(e.target.value)}
+                className="mt-1 min-h-[100px]"
+              />
+            </div>
+
+            <Button className="w-full h-11" onClick={submitInquiry} disabled={inquirySubmitting || !inquiryMessage.trim()}>
+              {inquirySubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending…</> : "Send Inquiry"}
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              The supplier will be notified and can respond in your dashboard.
             </p>
           </div>
         </DialogContent>

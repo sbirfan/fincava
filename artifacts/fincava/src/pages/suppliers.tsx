@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useListSuppliers } from "@workspace/api-client-react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,24 +8,71 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, MapPin, ShieldCheck, Star } from "lucide-react";
 import { TrustBadge } from "@/components/trust-badge";
 
+interface MarketplaceSupplier {
+  id: number;
+  name: string;
+  region?: string | null;
+  country: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  verified: boolean;
+  avgRating?: number | null;
+  trustScore?: number | null;
+  productCategories: string[];
+  productCount: number;
+}
+
 export default function Suppliers() {
   const [search, setSearch] = useState("");
+  const [suppliers, setSuppliers] = useState<MarketplaceSupplier[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data, isLoading } = useListSuppliers({
-    search: search || undefined,
-  });
+  useEffect(() => {
+    setIsLoading(true);
+    fetch("/api/suppliers/marketplace")
+      .then((r) => r.json())
+      .then((data) => {
+        const list: MarketplaceSupplier[] = (data.suppliers ?? []).map((s: any) => ({
+          id: s.id,
+          name: s.name ?? s.nombreCompleto ?? "",
+          region: s.region ?? s.municipio ?? null,
+          country: s.country ?? "Colombia",
+          description: s.description ?? null,
+          logoUrl: s.logoUrl ?? null,
+          verified: !!(s.claimStatus === "CLAIMED" || s.verified),
+          avgRating: s.avgRating ?? null,
+          trustScore: s.public_trust_score ?? s.trustScore ?? null,
+          productCategories: s.productCategories ?? (s.products ?? []).map((p: any) => p.category).filter(Boolean),
+          productCount: s.productCount ?? (s.products ?? []).length,
+        }));
+        setSuppliers(list);
+      })
+      .catch(() => setSuppliers([]))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const filtered = search.trim()
+    ? suppliers.filter((s) => {
+        const q = search.toLowerCase();
+        return (
+          s.name.toLowerCase().includes(q) ||
+          (s.region ?? "").toLowerCase().includes(q) ||
+          s.productCategories.some((c) => c.toLowerCase().includes(q))
+        );
+      })
+    : suppliers;
 
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-3xl mx-auto text-center mb-12">
         <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Verified Suppliers</h1>
         <p className="text-lg text-muted-foreground">Partner with top-tier Colombian agricultural producers. Every supplier is vetted for quality, capacity, and fair trade practices.</p>
-        
+
         <div className="mt-8 max-w-md mx-auto relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-          <Input 
+          <Input
             className="pl-10 h-12 text-base rounded-full bg-background border-border"
-            placeholder="Search by company name, region, or product..." 
+            placeholder="Search by company name, region, or product..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -47,8 +93,8 @@ export default function Suppliers() {
               </CardContent>
             </Card>
           ))
-        ) : data && data.length > 0 ? (
-          data.map((supplier) => (
+        ) : filtered.length > 0 ? (
+          filtered.map((supplier) => (
             <Link key={supplier.id} href={`/supplier/${supplier.id}`}>
               <Card className="h-full overflow-hidden hover-elevate transition-all duration-300 cursor-pointer border-border group flex flex-col">
                 <div className="h-24 bg-primary/5 relative">
@@ -66,7 +112,7 @@ export default function Suppliers() {
                     </div>
                   )}
                 </div>
-                
+
                 <CardContent className="pt-12 pb-6 px-6 flex-1 flex flex-col">
                   <div className="flex justify-between items-start mb-1">
                     <h3 className="font-serif font-bold text-xl group-hover:text-primary transition-colors line-clamp-1">{supplier.name}</h3>
@@ -77,19 +123,19 @@ export default function Suppliers() {
                           {supplier.avgRating.toFixed(1)}
                         </div>
                       )}
-                      {(supplier as any).trustScore && <TrustBadge score={Math.round((supplier as any).trustScore)} size="sm" />}
+                      {supplier.trustScore != null && <TrustBadge score={Math.round(supplier.trustScore)} size="sm" />}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center text-sm text-muted-foreground mb-4">
                     <MapPin className="w-3.5 h-3.5 mr-1" />
                     {supplier.region ? `${supplier.region}, ` : ''}{supplier.country}
                   </div>
-                  
+
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
                     {supplier.description}
                   </p>
-                  
+
                   <div className="space-y-4 border-t pt-4 mt-auto">
                     <div>
                       <span className="text-xs text-muted-foreground block mb-2">Categories</span>
@@ -102,7 +148,7 @@ export default function Suppliers() {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="flex justify-between items-center text-sm">
                       <span className="font-medium">{supplier.productCount} Products</span>
                       <span className="text-primary group-hover:underline">View Profile &rarr;</span>
@@ -116,7 +162,7 @@ export default function Suppliers() {
           <div className="col-span-full text-center py-20 bg-card border rounded-lg border-dashed">
             <p className="text-lg font-medium mb-2">No suppliers found</p>
             <p className="text-muted-foreground mb-4">Try adjusting your search to see more results.</p>
-            <Button 
+            <Button
               variant="outline"
               onClick={() => setSearch("")}
             >

@@ -1,22 +1,141 @@
-import { useParams, Link } from "wouter";
-import { useGetSupplier, getGetSupplierQueryKey } from "@workspace/api-client-react";
+import { useState, useEffect } from "react";
+import { useParams, Link, useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldCheck, MapPin, Globe, Calendar, Star } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ShieldCheck, MapPin, Globe, Calendar, Star, Loader2, MessageSquare } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { TrustBadge, TrustScoreBar } from "@/components/trust-badge";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+
+interface PublicProduct {
+  id: number;
+  name: string;
+  category: string;
+  pricePerKgUSD: number;
+  images?: string[];
+  [key: string]: any;
+}
+
+interface PublicSupplierProfile {
+  id: number;
+  name: string;
+  region?: string | null;
+  country: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  verified: boolean;
+  memberSince: string;
+  website?: string | null;
+  avgRating?: number | null;
+  reviews?: any[];
+  public_trust_score?: number | null;
+  responseTimeHours?: number | null;
+  type?: string;
+  productCategories: string[];
+  products?: PublicProduct[];
+  originStory?: string | null;
+  farmerName?: string | null;
+  certificationDetails?: { id: number; type: string; issuer: string; verified: boolean }[];
+}
 
 export default function SupplierDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
+  const { isAuthenticated, user } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
-  const { data: supplier, isLoading } = useGetSupplier(id, {
-    query: { enabled: !!id, queryKey: getGetSupplierQueryKey(id) }
-  });
+  const [profile, setProfile] = useState<PublicSupplierProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  if (isLoading) {
+  const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [message, setMessage] = useState("");
+  const [quantityKg, setQuantityKg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    setProfileLoading(true);
+    fetch(`/api/suppliers/${id}/profile`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setProfile(data ?? null))
+      .catch(() => setProfile(null))
+      .finally(() => setProfileLoading(false));
+  }, [id]);
+
+  function openInquiry() {
+    if (!isAuthenticated) {
+      toast({
+        title: "Login required",
+        description: "Please log in to contact this supplier.",
+        variant: "destructive",
+      });
+      setLocation("/login");
+      return;
+    }
+    setInquiryOpen(true);
+  }
+
+  async function submitInquiry() {
+    if (!selectedProductId && (profile?.products ?? []).length > 0) {
+      toast({ title: "Select a product", description: "Please choose which product you are inquiring about.", variant: "destructive" });
+      return;
+    }
+    if (!message.trim()) {
+      toast({ title: "Message required", description: "Please write a message to the supplier.", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/inquiries", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: parseInt(selectedProductId, 10),
+          buyerEmail: user?.email ?? "",
+          buyerName: user?.name ?? user?.email ?? "",
+          company: (user as any)?.companyName ?? "Independent Buyer",
+          country: (user as any)?.country ?? "Unknown",
+          message: message.trim(),
+          quantityKg: quantityKg ? parseFloat(quantityKg) : null,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: "Inquiry sent!", description: "The supplier has been notified and will respond via your dashboard." });
+      setInquiryOpen(false);
+      setMessage("");
+      setQuantityKg("");
+      setSelectedProductId("");
+    } catch (e: any) {
+      toast({ title: "Failed to send", description: e.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (profileLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <Skeleton className="h-[200px] w-full rounded-xl mb-8" />
@@ -31,7 +150,7 @@ export default function SupplierDetail() {
     );
   }
 
-  if (!supplier) {
+  if (!profile) {
     return (
       <div className="container mx-auto px-4 py-24 text-center">
         <h2 className="text-2xl font-bold mb-4">Supplier not found</h2>
@@ -42,16 +161,19 @@ export default function SupplierDetail() {
     );
   }
 
+  const products = profile.products ?? [];
+  const trustScore = profile.public_trust_score;
+
   return (
     <div className="pb-12">
       {/* Header Banner */}
       <div className="bg-primary/5 h-48 md:h-64 border-b relative">
         <div className="container mx-auto px-4 h-full relative">
           <div className="absolute -bottom-16 left-4 md:left-8 w-32 h-32 md:w-40 md:h-40 rounded-xl border-4 border-background bg-card overflow-hidden shadow-md flex items-center justify-center">
-            {supplier.logoUrl ? (
-              <img src={supplier.logoUrl} alt={supplier.name} className="w-full h-full object-cover" />
+            {profile.logoUrl ? (
+              <img src={profile.logoUrl} alt={profile.name} className="w-full h-full object-cover" />
             ) : (
-              <span className="text-4xl md:text-5xl font-bold text-primary">{supplier.name.charAt(0)}</span>
+              <span className="text-4xl md:text-5xl font-bold text-primary">{profile.name.charAt(0)}</span>
             )}
           </div>
         </div>
@@ -61,79 +183,94 @@ export default function SupplierDetail() {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div>
             <div className="flex items-center flex-wrap gap-3 mb-2">
-              <h1 className="text-3xl md:text-4xl font-serif font-bold">{supplier.name}</h1>
-              {supplier.verified && (
+              <h1 className="text-3xl md:text-4xl font-serif font-bold">{profile.name}</h1>
+              {profile.verified && (
                 <Badge className="bg-primary text-primary-foreground border-transparent h-6 text-xs px-2 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
                   Verified
                 </Badge>
               )}
-              {(supplier as any).trustScore && (
-                <TrustBadge score={Math.round((supplier as any).trustScore)} size="md" showLabel />
+              {trustScore != null && (
+                <TrustBadge score={Math.round(trustScore)} size="md" showLabel />
               )}
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-3">
               <div className="flex items-center">
                 <MapPin className="w-4 h-4 mr-1.5 text-primary" />
-                {supplier.region ? `${supplier.region}, ` : ''}{supplier.country}
+                {profile.region ? `${profile.region}, ` : ''}{profile.country}
               </div>
               <div className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1.5 text-primary" />
-                Member since {new Date(supplier.memberSince).getFullYear()}
+                Member since {new Date(profile.memberSince).getFullYear()}
               </div>
-              {supplier.avgRating && (
+              {profile.avgRating && (
                 <div className="flex items-center">
                   <Star className="w-4 h-4 mr-1.5 text-yellow-500 fill-current" />
-                  {supplier.avgRating.toFixed(1)} ({supplier.reviews?.length || 0} reviews)
+                  {profile.avgRating.toFixed(1)} ({profile.reviews?.length || 0} reviews)
                 </div>
               )}
-              {supplier.website && (
+              {profile.website && (
                 <div className="flex items-center">
                   <Globe className="w-4 h-4 mr-1.5 text-primary" />
-                  <a href={supplier.website.startsWith('http') ? supplier.website : `https://${supplier.website}`} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-primary">
+                  <a
+                    href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline hover:text-primary"
+                  >
                     Website
                   </a>
                 </div>
               )}
             </div>
           </div>
-          
-          <Button size="lg" className="md:w-auto w-full">Contact Supplier</Button>
+
+          {isAuthenticated && (
+            <Button size="lg" className="md:w-auto w-full" onClick={openInquiry}>
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Contact Supplier
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-3 space-y-6">
-            {(supplier as any).trustScore && (
+            {trustScore != null && (
               <div className="bg-card border rounded-lg p-5">
-                <TrustScoreBar score={Math.round((supplier as any).trustScore)} />
-                {(supplier as any).responseTimeHours && (
+                <TrustScoreBar score={Math.round(trustScore)} />
+                {profile.responseTimeHours && (
                   <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
-                    Avg. response time: <strong>{(supplier as any).responseTimeHours}h</strong>
+                    Avg. response time: <strong>{profile.responseTimeHours}h</strong>
                   </p>
                 )}
               </div>
             )}
+
             <div className="bg-card border rounded-lg p-6">
               <h3 className="font-bold text-lg mb-4 font-serif">About</h3>
               <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                {supplier.description}
+                {profile.description}
               </p>
-              
+
               <div className="mt-6 pt-6 border-t space-y-4">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-2">Company Type</div>
-                  <div className="font-medium text-sm">{supplier.type}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-2">Main Categories</div>
-                  <div className="flex flex-wrap gap-2">
-                    {supplier.productCategories.map((cat, i) => (
-                      <Badge key={i} variant="secondary" className="font-normal">{cat}</Badge>
-                    ))}
+                {profile.type && (
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-2">Company Type</div>
+                    <div className="font-medium text-sm">{profile.type}</div>
                   </div>
-                </div>
+                )}
+                {profile.productCategories.length > 0 && (
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-2">Main Categories</div>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.productCategories.map((cat, i) => (
+                        <Badge key={i} variant="secondary" className="font-normal">{cat}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -143,7 +280,7 @@ export default function SupplierDetail() {
             <Tabs defaultValue="products" className="w-full">
               <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent mb-6">
                 <TabsTrigger value="products" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-                  Products ({supplier.products?.length || 0})
+                  Products ({products.length})
                 </TabsTrigger>
                 <TabsTrigger value="origin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
                   Origin Story
@@ -152,11 +289,11 @@ export default function SupplierDetail() {
                   Certifications
                 </TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="products">
-                {supplier.products && supplier.products.length > 0 ? (
+                {products.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {supplier.products.map(product => (
+                    {products.map((product) => (
                       <ProductCard key={product.id} product={product} />
                     ))}
                   </div>
@@ -166,17 +303,17 @@ export default function SupplierDetail() {
                   </div>
                 )}
               </TabsContent>
-              
+
               <TabsContent value="origin">
-                {supplier.originStory ? (
+                {profile.originStory ? (
                   <div className="bg-card border rounded-lg p-8">
                     <div className="max-w-3xl">
-                      <h3 className="text-2xl font-serif font-bold mb-6 text-primary">The Story of {supplier.name}</h3>
-                      {supplier.farmerName && (
-                        <p className="font-medium text-lg mb-4">Led by {supplier.farmerName}</p>
+                      <h3 className="text-2xl font-serif font-bold mb-6 text-primary">The Story of {profile.name}</h3>
+                      {profile.farmerName && (
+                        <p className="font-medium text-lg mb-4">Led by {profile.farmerName}</p>
                       )}
                       <div className="prose prose-sm sm:prose-base text-muted-foreground">
-                        {supplier.originStory.split('\n\n').map((paragraph, i) => (
+                        {profile.originStory.split('\n\n').map((paragraph, i) => (
                           <p key={i} className="mb-4">{paragraph}</p>
                         ))}
                       </div>
@@ -190,9 +327,9 @@ export default function SupplierDetail() {
               </TabsContent>
 
               <TabsContent value="certifications">
-                {supplier.certificationDetails && supplier.certificationDetails.length > 0 ? (
+                {profile.certificationDetails && profile.certificationDetails.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {supplier.certificationDetails.map(cert => (
+                    {profile.certificationDetails.map((cert) => (
                       <div key={cert.id} className="border rounded-lg p-6 flex items-start">
                         <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mr-4 flex-shrink-0">
                           <ShieldCheck className="w-6 h-6 text-primary" />
@@ -200,7 +337,11 @@ export default function SupplierDetail() {
                         <div>
                           <h4 className="font-bold text-lg mb-1">{cert.type}</h4>
                           <p className="text-sm text-muted-foreground mb-2">Issued by: {cert.issuer}</p>
-                          {cert.verified && <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-transparent">Verified by Fincava</Badge>}
+                          {cert.verified && (
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-transparent">
+                              Verified by Fincava
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -215,6 +356,90 @@ export default function SupplierDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Contact Supplier Dialog ── */}
+      <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Contact Supplier</DialogTitle>
+            <DialogDescription>
+              Send an inquiry to <strong>{profile.name}</strong>. They will respond via your Fincava dashboard.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            {products.length > 0 ? (
+              <div>
+                <Label htmlFor="product-select">
+                  Product <span className="text-destructive">*</span>
+                </Label>
+                <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                  <SelectTrigger id="product-select" className="mt-1">
+                    <SelectValue placeholder="Select a product…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground border rounded p-3 bg-muted/40">
+                This supplier has no products listed yet. You can still send a general message.
+              </p>
+            )}
+
+            <div>
+              <Label htmlFor="quantity">Quantity (kg) — optional</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min={1}
+                placeholder="e.g. 500"
+                value={quantityKg}
+                onChange={(e) => setQuantityKg(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="inquiry-message">
+                Message <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="inquiry-message"
+                placeholder="Describe what you're looking for, your requirements, timeline, etc."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="mt-1 min-h-[100px]"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setInquiryOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={submitInquiry}
+                disabled={submitting || (products.length > 0 && !selectedProductId) || !message.trim()}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending…
+                  </>
+                ) : (
+                  "Send Inquiry"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

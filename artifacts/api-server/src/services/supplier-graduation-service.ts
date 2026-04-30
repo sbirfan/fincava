@@ -16,6 +16,7 @@ import { THRESHOLDS } from "../../../../lib/config/thresholds";
 import { eq, desc, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
+import { sendEmail, supplierGraduationEmail } from "../lib/email";
 
 // ── Sentry breadcrumb shim ────────────────────────────────────────────────────
 // Optional integration — MUST NOT throw if @sentry/node is not installed.
@@ -289,6 +290,22 @@ export async function evaluateSupplier(supplierId: number): Promise<{
           transitionId: transition.id,
         },
       });
+
+      // G7: Notify supplier by email when they first reach SELLABLE state.
+      const email = updatedSupplier.email ?? supplier.email ?? null;
+      if (email) {
+        const appUrl = process.env.APP_URL ?? "https://fincava.com";
+        const tpl = supplierGraduationEmail({
+          name: updatedSupplier.nombreCompleto,
+          municipio: updatedSupplier.municipio,
+          pathway: updatedSupplier.graduationPathway ?? null,
+          appUrl,
+          state: "SELLABLE",
+        });
+        sendEmail({ to: email, subject: tpl.subject, html: tpl.html, text: tpl.text }).catch(
+          (err) => logger.warn({ err, supplierId }, "graduation: SELLABLE email failed (non-fatal)"),
+        );
+      }
     }
 
     if (transition) {

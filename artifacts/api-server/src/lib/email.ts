@@ -198,6 +198,43 @@ export function supplierStatusChangeEmail(opts: {
   return { html, text, subject: copy.subject };
 }
 
+// ── Graduation notification templates ────────────────────────────────────────
+
+export function supplierGraduationEmail(opts: {
+  name: string;
+  municipio: string;
+  pathway?: string | null;
+  appUrl: string;
+  state: "SELLABLE" | "PUBLISHED";
+}): { html: string; text: string; subject: string } {
+  if (opts.state === "PUBLISHED") {
+    const subject = "Your Fincava supplier profile is now live";
+    const html = baseTemplate(`
+      <p>Estimado/a ${esc(opts.name)},</p>
+      <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">¡Su perfil ya está publicado en Fincava! 🎉</h2>
+      <p>Su perfil de proveedor ha sido <strong>publicado</strong> en el marketplace de Fincava. Compradores internacionales ya pueden encontrar sus productos y ponerse en contacto con usted.</p>
+      <p><strong>Municipio:</strong> ${esc(opts.municipio)}${opts.pathway ? `<br /><strong>Perfil de exportación:</strong> Camino ${esc(opts.pathway)}` : ""}</p>
+      <p><a href="${opts.appUrl}/supplier-dashboard" class="btn">Ver mi perfil</a></p>
+      <p class="note">Si tiene alguna pregunta, contáctenos en <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+    `);
+    const text = `Estimado/a ${opts.name},\n\nSu perfil de proveedor ha sido publicado en Fincava. Compradores internacionales ya pueden encontrar sus productos.\n\nVer mi perfil: ${opts.appUrl}/supplier-dashboard\n\n— Equipo Fincava`;
+    return { html, text, subject };
+  }
+
+  const subject = "¡Felicidades! Su perfil de Fincava está listo para compradores";
+  const html = baseTemplate(`
+    <p>Estimado/a ${esc(opts.name)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">¡Su perfil ha sido aprobado para el marketplace! ✓</h2>
+    <p>Hemos evaluado su información y su perfil ha alcanzado el nivel <strong>SELLABLE</strong> — ya está listo para ser conectado con compradores internacionales a través de Fincava.</p>
+    <p><strong>Municipio:</strong> ${esc(opts.municipio)}${opts.pathway ? `<br /><strong>Camino de exportación:</strong> ${esc(opts.pathway)}` : ""}</p>
+    <p>En los próximos días nuestro equipo revisará su perfil para publicarlo oficialmente en el marketplace. Le notificaremos en cuanto esté en línea.</p>
+    <p><a href="${opts.appUrl}/supplier-dashboard" class="btn">Ver mi perfil</a></p>
+    <p class="note">Si tiene alguna pregunta, contáctenos en <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Estimado/a ${opts.name},\n\nSu perfil ha sido aprobado para el marketplace de Fincava (SELLABLE). Nuestro equipo lo publicará pronto.\n\nVer mi perfil: ${opts.appUrl}/supplier-dashboard\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 // ── Order & loan status templates ────────────────────────────────────────────
 
 type OrderStatusKey =

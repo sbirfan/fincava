@@ -220,6 +220,8 @@ export default function AdminSuppliersPage() {
   const [docSupplierName, setDocSupplierName] = useState<string | null>(null);
   const [docSupplierId, setDocSupplierId] = useState<number | null>(null);
   const [docLang, setDocLang] = useState<"en" | "es">("es");
+  const [scoring, setScoring] = useState<number | null>(null);
+  const [scoreStatus, setScoreStatus] = useState<Record<number, "started" | "failed">>({});
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -340,6 +342,28 @@ export default function AdminSuppliersPage() {
       setDocModalOpen(true);
     } catch (e: any) {
       alert(`Error: ${e.message}`);
+    }
+  }
+
+  async function scoreNow(supplierId: number) {
+    setScoring(supplierId);
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}/score`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setScoreStatus((prev) => ({ ...prev, [supplierId]: "started" }));
+      setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
+    } catch (e: any) {
+      setScoreStatus((prev) => ({ ...prev, [supplierId]: "failed" }));
+      setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
+    } finally {
+      setScoring(null);
     }
   }
 
@@ -919,7 +943,33 @@ export default function AdminSuppliersPage() {
               )}
             </div>
 
-            <div className="mt-6 space-y-3">
+            {/* G5: Score Now button */}
+            <div className="mt-6">
+              <button
+                onClick={() => scoreNow(selected.id)}
+                disabled={scoring === selected.id}
+                className={`w-full py-2.5 rounded-lg text-sm font-medium transition border ${
+                  scoreStatus[selected.id] === "started"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                    : scoreStatus[selected.id] === "failed"
+                      ? "bg-red-50 text-red-600 border-red-200"
+                      : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                } disabled:opacity-60`}
+              >
+                {scoring === selected.id
+                  ? (lang === "es" ? "Iniciando score…" : "Starting score…")
+                  : scoreStatus[selected.id] === "started"
+                    ? (lang === "es" ? "✓ Pipeline iniciado" : "✓ Pipeline started")
+                    : scoreStatus[selected.id] === "failed"
+                      ? (lang === "es" ? "✗ Error al iniciar" : "✗ Failed to start")
+                      : (lang === "es" ? "⚡ Score Now" : "⚡ Score Now")}
+              </button>
+              <p className="text-[10px] text-gray-400 text-center mt-1">
+                {lang === "es" ? "Re-ejecuta el pipeline de evaluación IA" : "Re-runs the AI evaluation pipeline"}
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-3">
               <div>
                 <p className="text-xs text-gray-500 mb-1.5">
                   {lang === "es" ? "Idioma del documento" : "Document language"}
