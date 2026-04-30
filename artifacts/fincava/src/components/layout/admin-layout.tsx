@@ -11,6 +11,7 @@ import {
   Menu,
   ShieldAlert,
   Home,
+  DatabaseZap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -19,6 +20,7 @@ const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Suppliers", href: "/admin/suppliers", icon: Sprout },
+  { name: "Ingestion", href: "/admin/ingestion", icon: DatabaseZap },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Team", href: "/admin/team", icon: UsersRound },
 ];

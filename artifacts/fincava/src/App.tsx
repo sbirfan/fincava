@@ -64,6 +64,8 @@ const AdminUsers = lazy(() => import("@/pages/admin/users"));
 const AdminOrders = lazy(() => import("@/pages/admin/orders"));
 const AdminSuppliers = lazy(() => import("@/pages/admin/suppliers"));
 const AdminTeam = lazy(() => import("@/pages/admin/team"));
+const AdminIngestion = lazy(() => import("@/pages/admin/ingestion/index"));
+const AdminIngestionNew = lazy(() => import("@/pages/admin/ingestion/new"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -156,6 +158,8 @@ function Router() {
         <Route path="/admin/orders" component={() => <PrivateRoute component={AdminOrders} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/suppliers" component={() => <PrivateRoute component={AdminSuppliers} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/team" component={() => <PrivateRoute component={AdminTeam} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/ingestion" component={() => <PrivateRoute component={AdminIngestion} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/ingestion/new" component={() => <PrivateRoute component={AdminIngestionNew} roles={["ADMIN"]} layout={AdminLayout} />} />
 
         <Route component={() => <AppLayout><NotFound /></AppLayout>} />
       </Switch>

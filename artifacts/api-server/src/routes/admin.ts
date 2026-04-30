@@ -4,10 +4,14 @@ import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable } from "@workspace/db";
 import { buyerProfilesTable } from "@workspace/db";
+import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
-import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES } from "../schemas";
+import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery } from "../schemas";
+import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
+import { checkDuplicate, computeSupplierFingerprint } from "../services/duplicate-detector";
+import { randomUUID } from "crypto";
 import { and, desc, eq, inArray, count, sum } from "drizzle-orm";
 import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -877,6 +881,243 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
 // Two valid auth paths:
 //   1. X-Backup-Token: <BACKUP_SECRET_V2>  — external cron caller (cron-job.org)
 //   2. Standard admin JWT                  — manual trigger by admin user
+// ── INGESTION ROUTES ─────────────────────────────────────────────────────────
+
+// POST /api/admin/ingestion/batches — create a new ingestion batch
+router.post("/admin/ingestion/batches", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const body = BatchCreateBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(422).json({ error: "Invalid batch data", issues: body.error.issues });
+    return;
+  }
+  const adminId = (req as any).userId as number;
+  const batchUuid = randomUUID();
+
+  const [batch] = await db
+    .insert(supplierIngestionBatchesTable)
+    .values({
+      batchUuid,
+      createdByAdminId: adminId,
+      status: "DRAFT",
+      batchSize: body.data.batchSize ?? null,
+      notes: body.data.notes ?? null,
+    })
+    .returning();
+
+  logInteraction({
+    eventType: INTERACTION_TYPES.INGESTION_BATCH_CREATED,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: batch.id,
+    referenceType: "ingestion_batch",
+    payload: { batchId: batch.id, batchUuid },
+  });
+
+  res.status(201).json(batch);
+});
+
+// GET /api/admin/ingestion/batches — list ingestion batches
+router.get("/admin/ingestion/batches", ...adminOnly, async (_req: Request, res: Response): Promise<void> => {
+  const batches = await db
+    .select()
+    .from(supplierIngestionBatchesTable)
+    .orderBy(desc(supplierIngestionBatchesTable.createdAt))
+    .limit(100);
+  res.json(batches);
+});
+
+// GET /api/admin/ingestion/duplicate-check — check for duplicate supplier
+router.get("/admin/ingestion/duplicate-check", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const query = DuplicateCheckQuery.safeParse(req.query);
+  if (!query.success) {
+    res.status(422).json({ error: "Missing nombre query param", issues: query.error.issues });
+    return;
+  }
+  const result = await checkDuplicate(query.data.nombre, query.data.country);
+  res.json(result);
+});
+
+// POST /api/admin/ingestion/enrich — call Claude Sonnet enrichment (does NOT save to DB)
+router.post("/admin/ingestion/enrich", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const body = EnrichmentRequestBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(422).json({ error: "Invalid enrichment request", issues: body.error.issues });
+    return;
+  }
+  const adminId = (req as any).userId as number;
+
+  let enriched;
+  try {
+    enriched = await enrichSupplierWithAI(body.data.input);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "AI enrichment failed";
+    res.status(502).json({ error: msg });
+    return;
+  }
+
+  logInteraction({
+    eventType: INTERACTION_TYPES.SUPPLIER_ENRICHED,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: body.data.supplierId ?? null,
+    referenceType: "supplier",
+    payload: { supplierId: body.data.supplierId, fieldsAdded: Object.keys(enriched) },
+  });
+
+  res.json(enriched);
+});
+
+// POST /api/admin/ingestion/suppliers — create an ingested supplier
+router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const body = IngestionSupplierBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(422).json({ error: "Invalid supplier data", issues: body.error.issues });
+    return;
+  }
+  const adminId = (req as any).userId as number;
+  const { nombreCompleto, municipio, department, vereda, whatsappNumber, email, supplierType,
+          description, normalizedName, sourceUrl, country, categoryHint, batchId,
+          overrideDuplicateId, overrideJustification } = body.data;
+
+  // Duplicate check — block save unless admin explicitly overrides
+  const dupResult = await checkDuplicate(nombreCompleto, country);
+  if (dupResult.hasDuplicate && !overrideDuplicateId) {
+    res.status(409).json({
+      error: "Potential duplicate supplier detected",
+      duplicate: dupResult,
+    });
+    return;
+  }
+  if (dupResult.hasDuplicate && overrideDuplicateId && !overrideJustification) {
+    res.status(422).json({ error: "overrideJustification is required when overriding a duplicate" });
+    return;
+  }
+
+  const fingerprint = computeSupplierFingerprint(nombreCompleto, country);
+
+  const [supplier] = await db
+    .insert(suppliersTable)
+    .values({
+      nombreCompleto,
+      whatsappNumber: whatsappNumber ?? null,
+      email: email ?? null,
+      municipio,
+      department: department ?? null,
+      vereda: vereda ?? null,
+      supplierType: supplierType ?? "FARMER",
+      status: "ACTIVE",
+      consentGiven: false,
+      normalizedName: normalizedName ?? null,
+      description: description ?? null,
+      sourceUrl: sourceUrl ?? null,
+      country: country ?? "Colombia",
+      supplierFingerprint: fingerprint,
+      ingestionSource: "ADMIN_ENTRY",
+      ingestionStatus: "DRAFT",
+      claimStatus: "UNCLAIMED",
+      createdByAdminId: adminId,
+      batchId: batchId ?? null,
+    })
+    .returning();
+
+  // Create product placeholder if a category hint was supplied
+  if (categoryHint) {
+    await db.insert(productPlaceholdersTable).values({
+      supplierId: supplier.id,
+      categoryHint,
+      dataOrigin: "inferred",
+      verificationStatus: "unverified",
+    });
+  }
+
+  logInteraction({
+    eventType: INTERACTION_TYPES.SUPPLIER_INGESTED,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: supplier.id,
+    referenceType: "supplier",
+    payload: {
+      batchId: batchId ?? null,
+      source: "ADMIN_ENTRY",
+      fingerprint,
+      overriddenDuplicateId: overrideDuplicateId ?? null,
+    },
+  });
+
+  res.status(201).json(supplier);
+});
+
+// PATCH /api/admin/ingestion/suppliers/:id/ingestion-status — update ingestion status
+router.patch("/admin/ingestion/suppliers/:id/ingestion-status", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const supplierId = Number(req.params.id);
+  if (!Number.isInteger(supplierId) || supplierId <= 0) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+  const body = IngestionStatusUpdateBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(422).json({ error: "Invalid status", issues: body.error.issues });
+    return;
+  }
+  const adminId = (req as any).userId as number;
+
+  const [updated] = await db
+    .update(suppliersTable)
+    .set({ ingestionStatus: body.data.ingestionStatus, updatedAt: new Date() })
+    .where(eq(suppliersTable.id, supplierId))
+    .returning({ id: suppliersTable.id, ingestionStatus: suppliersTable.ingestionStatus });
+
+  if (!updated) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  logInteraction({
+    eventType: INTERACTION_TYPES.INGESTION_BATCH_SUBMITTED,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: supplierId,
+    referenceType: "supplier",
+    payload: { newStatus: body.data.ingestionStatus },
+  });
+
+  res.json(updated);
+});
+
+// POST /api/admin/ingestion/batches/:id/submit — submit an ingestion batch
+router.post("/admin/ingestion/batches/:id/submit", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const batchId = Number(req.params.id);
+  if (!Number.isInteger(batchId) || batchId <= 0) {
+    res.status(400).json({ error: "Invalid batch id" });
+    return;
+  }
+  const adminId = (req as any).userId as number;
+
+  const [batch] = await db
+    .update(supplierIngestionBatchesTable)
+    .set({ status: "SUBMITTED", submittedAt: new Date() })
+    .where(eq(supplierIngestionBatchesTable.id, batchId))
+    .returning();
+
+  if (!batch) {
+    res.status(404).json({ error: "Batch not found" });
+    return;
+  }
+
+  logInteraction({
+    eventType: INTERACTION_TYPES.INGESTION_BATCH_SUBMITTED,
+    actorId: adminId,
+    actorType: "admin",
+    referenceId: batchId,
+    referenceType: "ingestion_batch",
+    payload: { batchId, batchUuid: batch.batchUuid },
+  });
+
+  res.json(batch);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.post("/admin/backup/run", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const backupSecret = process.env.BACKUP_SECRET_V2;
   const tokenHeader  = req.headers["x-backup-token"];
