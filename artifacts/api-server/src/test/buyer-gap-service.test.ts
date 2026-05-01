@@ -250,10 +250,12 @@ describe("buyer-gap-service.analyseGaps", () => {
       // 2. Inside the transaction, after insert, the service counts unresolved
       //    real gaps. Script that as 2 — matches our scripted Claude response.
       selectQueue.push([{ unresolvedCount: 2 }]);
-      // 3. Inside escalateIfHigh, the service re-reads the brief by id, then
-      //    looks up the system admin id. We script those rows too.
+      // 3. Inside escalateIfHigh, the service first does a priority-only select
+      //    to decide whether to escalate. Then escalateGap does a full re-read
+      //    of the brief, followed by the admin id lookup.
+      selectQueue.push([{ priority: "HIGH" }]); // escalateIfHigh priority check
       selectQueue.push([
-        // brief #1 re-read
+        // escalateGap full brief re-read
         {
           id: 1010,
           buyerProfileId: 42,
@@ -372,8 +374,9 @@ describe("buyer-gap-service.analyseGaps", () => {
     selectQueue.push([buyerProfileFixture]); // profile
     selectQueue.push([]); // empty catalog
     selectQueue.push([{ unresolvedCount: 1 }]); // post-insert unresolved count
+    selectQueue.push([{ priority: "HIGH" }]); // escalateIfHigh priority check
     selectQueue.push([
-      // re-read brief — both search_* are null, simulating model omission
+      // escalateGap full brief re-read — both search_* are null, simulating model omission
       {
         id: 1010,
         buyerProfileId: 42,
