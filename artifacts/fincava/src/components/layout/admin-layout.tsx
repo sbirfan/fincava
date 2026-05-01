@@ -1,6 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { LanguageContext } from "@/contexts/LanguageContext";
+import { translations } from "@/i18n/translations";
 import {
   LayoutDashboard,
   Users,
@@ -36,6 +38,14 @@ const navigation = [
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
+
+  // Admin console is always English — override the shared LanguageContext so
+  // that bilingual strings in admin pages always resolve to the English branch,
+  // regardless of the user's browser locale or the marketplace language toggle.
+  const adminLangValue = useMemo(
+    () => ({ lang: "en" as const, setLang: () => {}, t: translations["en"] }),
+    [],
+  );
 
   const handleLogout = () => {
     logout();
@@ -142,7 +152,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </span>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 lg:p-8 text-white">{children}</main>
+        <main className="flex-1 overflow-auto p-4 lg:p-8 text-white">
+          <LanguageContext.Provider value={adminLangValue}>
+            {children}
+          </LanguageContext.Provider>
+        </main>
       </div>
     </div>
   );
