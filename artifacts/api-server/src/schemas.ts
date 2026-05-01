@@ -92,7 +92,8 @@ export const AdminSupplierEditBody = z
       .optional()
       .nullable()
       .transform((v) => (v === "" ? null : v)),
-    supplierType: z.enum(["FARMER", "COOPERATIVE", "EXPORTER"]).optional(),
+    supplierType: z.enum(["FARMER", "COOPERATIVE", "EXPORTER", "PROCESSOR", "DISTRIBUTOR", "OTHER"]).optional(),
+    customSupplierType: z.string().max(120).optional(),
     registeredBy: z
       .string()
       .trim()
@@ -149,7 +150,8 @@ export const IngestionSupplierBody = z.object({
   vereda: z.string().max(100).optional().nullable(),
   whatsappNumber: z.string().max(30).optional().nullable(),
   email: z.string().email().optional().nullable(),
-  supplierType: z.enum(["FARMER", "COOPERATIVE"]).optional().default("FARMER"),
+  supplierType: z.enum(["FARMER", "COOPERATIVE", "EXPORTER", "PROCESSOR", "DISTRIBUTOR", "OTHER"]).optional().default("FARMER"),
+  customSupplierType: z.string().max(120).optional(),
   description: z.string().max(2000).optional().nullable(),
   normalizedName: z.string().max(200).optional().nullable(),
   sourceUrl: z.string().url().optional().nullable(),

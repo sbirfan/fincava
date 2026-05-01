@@ -1812,7 +1812,7 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
   }
   const adminId = (req as any).userId as number;
   const { nombreCompleto, municipio, department, vereda, whatsappNumber, email, supplierType,
-          description, normalizedName, sourceUrl, country, categoryHint, batchId,
+          customSupplierType, description, normalizedName, sourceUrl, country, categoryHint, batchId,
           overrideDuplicateId, overrideJustification } = body.data;
 
   // Duplicate check — block save unless admin explicitly overrides
@@ -1841,6 +1841,8 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
       department: department ?? null,
       vereda: vereda ?? null,
       supplierType: supplierType ?? "FARMER",
+      // Only persist the free-text label when type is OTHER; clear it otherwise.
+      customSupplierType: supplierType === "OTHER" ? (customSupplierType ?? null) : null,
       status: "ACTIVE",
       consentGiven: false,
       normalizedName: normalizedName ?? null,

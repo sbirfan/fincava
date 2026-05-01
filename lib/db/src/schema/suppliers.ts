@@ -51,6 +51,9 @@ export const supplierTypeEnum = pgEnum("supplier_type", [
   "FARMER",
   "COOPERATIVE",
   "EXPORTER",
+  "PROCESSOR",
+  "DISTRIBUTOR",
+  "OTHER",
 ]);
 
 export const supplierStatusEnum = pgEnum("supplier_status", [
@@ -189,6 +192,9 @@ export const suppliersTable = pgTable(
     country: text("country").default("Colombia"),
     dataCompletenessScore: decimal("data_completeness_score", { precision: 5, scale: 2 }),
     confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }),
+    // Free-text label populated when supplierType = 'OTHER'.
+    // Used to track what admins are entering so new enum values can be added over time.
+    customSupplierType: varchar("custom_supplier_type", { length: 120 }),
   },
   (t) => [
     // Partial unique index: enforces uniqueness only for non-null WhatsApp numbers.

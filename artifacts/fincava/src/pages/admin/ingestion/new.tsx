@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type SupplierType = "FARMER" | "COOPERATIVE" | "EXPORTER" | "PROCESSOR" | "DISTRIBUTOR" | "OTHER";
+
 interface FormState {
   nombreCompleto: string;
   municipio: string;
@@ -28,7 +30,8 @@ interface FormState {
   vereda: string;
   whatsappNumber: string;
   email: string;
-  supplierType: "FARMER" | "COOPERATIVE";
+  supplierType: SupplierType;
+  customSupplierType: string;
   description: string;
   sourceUrl: string;
   country: string;
@@ -53,6 +56,15 @@ interface EnrichedProfile {
   dataCompletenessScore: number | null;
 }
 
+const SUPPLIER_TYPE_OPTIONS: { value: SupplierType; label: string }[] = [
+  { value: "FARMER",      label: "Farm / Farmer" },
+  { value: "COOPERATIVE", label: "Cooperative" },
+  { value: "EXPORTER",    label: "Exporter / Trader" },
+  { value: "PROCESSOR",   label: "Processor" },
+  { value: "DISTRIBUTOR", label: "Distributor" },
+  { value: "OTHER",       label: "Other…" },
+];
+
 const EMPTY_FORM: FormState = {
   nombreCompleto: "",
   municipio: "",
@@ -61,6 +73,7 @@ const EMPTY_FORM: FormState = {
   whatsappNumber: "",
   email: "",
   supplierType: "FARMER",
+  customSupplierType: "",
   description: "",
   sourceUrl: "",
   country: "Colombia",
@@ -187,6 +200,7 @@ export default function AdminIngestionNew() {
     whatsappNumber: form.whatsappNumber.trim() || null,
     email: form.email.trim() || null,
     supplierType: form.supplierType,
+    customSupplierType: form.supplierType === "OTHER" ? (form.customSupplierType.trim() || null) : null,
     description: form.description.trim() || null,
     sourceUrl: form.sourceUrl.trim() || null,
     country: form.country.trim() || "Colombia",
@@ -335,19 +349,38 @@ export default function AdminIngestionNew() {
               <Select
                 value={form.supplierType}
                 onValueChange={(v) =>
-                  setForm((f) => ({ ...f, supplierType: v as FormState["supplierType"] }))
+                  setForm((f) => ({ ...f, supplierType: v as SupplierType, customSupplierType: "" }))
                 }
               >
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="FARMER">Farmer</SelectItem>
-                  <SelectItem value="COOPERATIVE">Cooperative</SelectItem>
+                  {SUPPLIER_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          {/* "Other" free-text — only shown when Other… is selected */}
+          {form.supplierType === "OTHER" && (
+            <div className="space-y-1.5">
+              <Label className="text-white/70">
+                Describe the supplier type
+                <span className="ml-2 text-white/30 font-normal text-xs">(optional — helps us add new categories)</span>
+              </Label>
+              <Input
+                value={form.customSupplierType}
+                onChange={(e) => setForm((f) => ({ ...f, customSupplierType: e.target.value }))}
+                maxLength={120}
+                placeholder="e.g. Agroindustrial processor, intermediary broker, artisanal collective…"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+              />
+              <p className="text-white/25 text-xs">{form.customSupplierType.length}/120</p>
+            </div>
+          )}
         </section>
 
         {/* Location */}
@@ -448,7 +481,7 @@ export default function AdminIngestionNew() {
               onChange={set("description")}
               placeholder="Any notes about this supplier…"
               rows={3}
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 resize-none"
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 resize-y min-h-[80px]"
             />
           </div>
         </section>
