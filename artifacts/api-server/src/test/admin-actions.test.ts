@@ -52,7 +52,7 @@ vi.mock("@workspace/db", () => ({
   db: {
     select: mockSelect,
     update: mockUpdate,
-    insert: vi.fn(() => ({ values: vi.fn(async () => ({ returning: vi.fn(async () => []) })) })),
+    insert: vi.fn(() => ({ values: vi.fn(async () => ({ returning: vi.fn(async () => []), catch: vi.fn() })) })),
   },
   usersTable: { $name: "users", id: "id", role: "role" },
   profilesTable: { $name: "profiles" },
@@ -92,9 +92,11 @@ vi.mock("@workspace/db", () => ({
     volumeTargetMt: "volume_target_mt",
     buyerUrgencyNote: "buyer_urgency_note",
   },
-  buyerAdminActionsTable: { $name: "buyer_admin_actions", id: "id", buyerProfileId: "buyer_profile_id", actorAdminId: "actor_admin_id" },
   supplierIngestionBatchesTable: { $name: "supplier_ingestion_batches", createdAt: "created_at" },
   productPlaceholdersTable: { $name: "product_placeholders" },
+  buyerAdminActionsTable: { $name: "buyer_admin_actions", id: "id", actorAdminId: "actor_admin_id", buyerProfileId: "buyer_profile_id", actionType: "action_type", payload: "payload", note: "note", createdAt: "created_at" },
+  marketingCampaignsTable: { $name: "marketing_campaigns", id: "id", status: "status" },
+  campaignLogsTable: { $name: "campaign_logs", campaignId: "campaign_id", status: "status", email: "email", error: "error" },
   INTERACTION_TYPES: {},
   companyTypeEnum: { enumValues: ["BUYER", "SUPPLIER", "STAFF"] },
 }));
