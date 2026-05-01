@@ -219,9 +219,11 @@ export default function AdminSuppliersPage() {
   const [docContent, setDocContent] = useState<string | null>(null);
   const [docSupplierName, setDocSupplierName] = useState<string | null>(null);
   const [docSupplierId, setDocSupplierId] = useState<number | null>(null);
-  const [docLang, setDocLang] = useState<"en" | "es">("es");
+  const [docLang, setDocLang] = useState<"en" | "es">(lang === "es" ? "es" : "en");
   const [scoring, setScoring] = useState<number | null>(null);
   const [scoreStatus, setScoreStatus] = useState<Record<number, "started" | "failed">>({});
+  const [publishing, setPublishing] = useState<number | null>(null);
+  const [publishError, setPublishError] = useState("");
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -237,7 +239,7 @@ export default function AdminSuppliersPage() {
     municipio: string;
     department: string;
     vereda: string;
-    supplierType: "FARMER" | "COOPERATIVE" | "EXPORTER";
+    supplierType: "FARMER" | "COOPERATIVE" | "EXPORTER" | "PROCESSOR" | "DISTRIBUTOR" | "OTHER";
     registeredBy: string;
     primaryProduct: string;
   };
@@ -267,6 +269,10 @@ export default function AdminSuppliersPage() {
     fetchSuppliers(controller.signal);
     return () => controller.abort();
   }, [filterPathway, filterStatus]);
+
+  useEffect(() => {
+    setPublishError("");
+  }, [selected?.id]);
 
   useEffect(() => {
     if (!selected) { setCompleteness(null); return; }
@@ -535,6 +541,28 @@ export default function AdminSuppliersPage() {
       setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
     } finally {
       setScoring(null);
+    }
+  }
+
+  async function publishSupplier(supplierId: number) {
+    setPublishing(supplierId);
+    setPublishError("");
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}/publish`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setSuppliers((prev) =>
+        prev.map((s) => s.id === supplierId ? { ...s, sellableStatus: "PUBLISHED" } : s)
+      );
+      setSelected((prev) => prev && prev.id === supplierId ? { ...prev, sellableStatus: "PUBLISHED" } : prev);
+    } catch (e: any) {
+      setPublishError(e.message || (lang === "es" ? "Error al publicar" : "Failed to publish"));
+    } finally {
+      setPublishing(null);
     }
   }
 
@@ -1146,6 +1174,35 @@ export default function AdminSuppliersPage() {
               </p>
             </div>
 
+            {/* Publish button — only shown when supplier is SELLABLE */}
+            {selected.sellableStatus === "SELLABLE" && (
+              <div className="mt-4">
+                {publishError && (
+                  <p className="mb-2 text-xs text-red-600 text-center">{publishError}</p>
+                )}
+                <button
+                  onClick={() => {
+                    if (window.confirm(
+                      lang === "es"
+                        ? `¿Publicar a ${selected.nombreCompleto} en el marketplace? Esta acción hará el perfil visible para los compradores.`
+                        : `Publish ${selected.nombreCompleto} to the marketplace? This will make their profile visible to buyers.`
+                    )) publishSupplier(selected.id);
+                  }}
+                  disabled={publishing === selected.id}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold transition border bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 disabled:opacity-60"
+                >
+                  {publishing === selected.id
+                    ? (lang === "es" ? "Publicando…" : "Publishing…")
+                    : (lang === "es" ? "🚀 Publicar en Marketplace" : "🚀 Publish to Marketplace")}
+                </button>
+                <p className="text-[10px] text-gray-400 text-center mt-1">
+                  {lang === "es"
+                    ? "El perfil será visible para los compradores"
+                    : "Profile will become visible to buyers"}
+                </p>
+              </div>
+            )}
+
             <div className="mt-4 space-y-3">
               <div>
                 <p className="text-xs text-gray-500 mb-1.5">
@@ -1296,6 +1353,9 @@ export default function AdminSuppliersPage() {
                   <option value="FARMER">{lang === "es" ? "Productor" : "Farmer"}</option>
                   <option value="COOPERATIVE">{lang === "es" ? "Cooperativa" : "Cooperative"}</option>
                   <option value="EXPORTER">{lang === "es" ? "Exportador" : "Exporter"}</option>
+                  <option value="PROCESSOR">{lang === "es" ? "Procesador" : "Processor"}</option>
+                  <option value="DISTRIBUTOR">{lang === "es" ? "Distribuidor" : "Distributor"}</option>
+                  <option value="OTHER">{lang === "es" ? "Otro" : "Other"}</option>
                 </select>
                 {editFieldErrors.supplierType?.[0] && (
                   <p className="mt-1 text-xs text-red-600">{editFieldErrors.supplierType[0]}</p>
