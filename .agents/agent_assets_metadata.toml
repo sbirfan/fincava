@@ -35,3 +35,9 @@ id = "Fferql2Tjva-Vp1Q1kpf3"
 uri = "file://.local/exports/fincava_dev_review_2026-04-29.txt"
 type = "text"
 title = "Fincava Dev DB — 2026-04-29"
+
+[[outputs]]
+id = "4ZLSZWjWs-bHngQJqXyzu"
+uri = "file://fincava_schema_ddl.txt"
+type = "text"
+title = "Fincava Database Schema (DDL)"
