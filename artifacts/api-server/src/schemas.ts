@@ -181,10 +181,22 @@ export const DuplicateCheckQuery = z.object({
   country: z.string().max(100).optional().default("Colombia"),
 });
 
+// Known entity types an admin can explicitly hard-exclude from discovery results.
+export const EXCLUDE_TYPE_VALUES = [
+  "cooperative",
+  "exporter",
+  "processor",
+  "distributor",
+] as const;
+export type ExcludeType = (typeof EXCLUDE_TYPE_VALUES)[number];
+
 export const DiscoveryRequestBody = z.object({
   category: z.string().min(1).max(100),
   region: z.string().min(1).max(100),
   maxResults: z.number().int().min(1).max(20).optional().default(10),
+  // Optional hard exclusions — each value maps to a HARD RULE appended to the
+  // AI prompt so the model never surfaces that entity type in results.
+  excludeTypes: z.array(z.enum(EXCLUDE_TYPE_VALUES)).max(4).optional().default([]),
 });
 
 // ── Batch confirm (T4) ────────────────────────────────────────────────────────

@@ -57,28 +57,55 @@ export type CandidateLead = z.infer<typeof CandidateLeadSchema>;
 
 const CandidateLeadArraySchema = z.array(CandidateLeadSchema);
 
+// ── Entity-type → human-readable exclusion rule ───────────────────────────────
+
+const EXCLUDE_TYPE_RULES: Record<string, string> = {
+  cooperative:
+    "HARD EXCLUDE — Cooperatives (cooperativas, asociaciones de productores): do not return any entity whose name or description indicates it is a cooperative or producer association.",
+  exporter:
+    "HARD EXCLUDE — Exporters and traders (exportadoras, comercializadoras, brokers): do not return any entity that acts as a middleman, trader, or export house without owning its own farm.",
+  processor:
+    "HARD EXCLUDE — Processors and manufacturers (procesadoras, beneficiaderos, transformadoras): do not return entities that only process or transform product without owning the farm where it is grown.",
+  distributor:
+    "HARD EXCLUDE — Distributors and wholesalers (distribuidoras, mayoristas): do not return entities that only distribute product sourced from third-party farms.",
+};
+
 // ── Input ─────────────────────────────────────────────────────────────────────
 
 export interface DiscoveryInput {
   category: string;
   region: string;
   maxResults: number;
+  /** Entity types to hard-exclude from results. Each maps to an explicit rule
+   *  injected into the AI prompt so the model never surfaces that type. */
+  excludeTypes?: string[];
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function discoverLeads(input: DiscoveryInput): Promise<CandidateLead[]> {
-  const { category, region, maxResults } = input;
+  const { category, region, maxResults, excludeTypes = [] } = input;
   const client = getAnthropicClient();
+
+  // Build the exclusion clause — one numbered rule per excluded type.
+  // Injected into the {exclude_clause} placeholder in the prompt template.
+  const exclusionLines = excludeTypes
+    .filter((t) => EXCLUDE_TYPE_RULES[t])
+    .map((t, i) => `${6 + i}. ${EXCLUDE_TYPE_RULES[t]}`);
+  const excludeClause = exclusionLines.length > 0
+    ? exclusionLines.join("\n") + "\n"
+    : "";
 
   const userMessage = `Product category: ${category}
 Region: ${region}
 Max results: ${maxResults}
+${excludeTypes.length > 0 ? `Excluded entity types: ${excludeTypes.join(", ")}` : ""}
 
 Generate up to ${maxResults} Colombian agricultural supplier leads for the category "${category}" in the "${region}" region of Colombia.`;
 
   const systemPrompt = DISCOVERY_PROMPT
-    .replace(/\{max_results\}/g, String(maxResults));
+    .replace(/\{max_results\}/g, String(maxResults))
+    .replace(/\{exclude_clause\}/g, excludeClause);
 
   let rawText: string;
   try {

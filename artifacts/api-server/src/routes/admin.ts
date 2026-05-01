@@ -1984,15 +1984,15 @@ router.post("/admin/ingestion/discover", ...adminOnly, async (req: Request, res:
   }
 
   const adminId = (req as any).userId as number;
-  const { category, region, maxResults } = parsed.data;
+  const { category, region, maxResults, excludeTypes } = parsed.data;
 
   try {
-    const leads = await discoverLeads({ category, region, maxResults });
+    const leads = await discoverLeads({ category, region, maxResults, excludeTypes });
     logInteraction({
       eventType: INTERACTION_TYPES.SUPPLIER_DISCOVERED,
       actorId: adminId,
       actorType: "admin",
-      payload: { category, region, maxResults, count: leads.length },
+      payload: { category, region, maxResults, excludeTypes, count: leads.length },
     });
     res.json({ leads, count: leads.length });
   } catch (err) {

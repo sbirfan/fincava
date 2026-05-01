@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, DatabaseZap, Globe, MapPin, Leaf, ArrowRight, Loader2, AlertCircle, CheckCircle2, XCircle, Zap } from "lucide-react";
+import { Search, DatabaseZap, Globe, MapPin, Leaf, ArrowRight, Loader2, AlertCircle, CheckCircle2, XCircle, Zap, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,17 @@ interface CandidateLead {
   website: string | null;
   categoryHint: string;
 }
+
+// Entity types the admin can hard-exclude from AI discovery results.
+// Cooperatives and exporters are checked by default — Fincava sources
+// only from direct farms, not intermediaries.
+const EXCLUDE_OPTIONS: { value: string; label: string; description: string }[] = [
+  { value: "cooperative", label: "Cooperatives", description: "Cooperativas, asociaciones de productores" },
+  { value: "exporter",    label: "Exporters / Traders", description: "Exportadoras, comercializadoras, brokers" },
+  { value: "processor",   label: "Processors", description: "Procesadoras, beneficiaderos, transformadoras" },
+  { value: "distributor", label: "Distributors", description: "Distribuidoras, mayoristas" },
+];
+const DEFAULT_EXCLUDED = new Set(["cooperative", "exporter"]);
 
 const CATEGORY_OPTIONS = [
   "Coffee",
@@ -50,6 +61,7 @@ export default function AdminIngestionDiscover() {
   const [category, setCategory] = useState("");
   const [region, setRegion] = useState("");
   const [maxResults, setMaxResults] = useState(10);
+  const [excludeTypes, setExcludeTypes] = useState<Set<string>>(new Set(DEFAULT_EXCLUDED));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leads, setLeads] = useState<CandidateLead[]>([]);
@@ -76,7 +88,7 @@ export default function AdminIngestionDiscover() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, region, maxResults }),
+        body: JSON.stringify({ category, region, maxResults, excludeTypes: Array.from(excludeTypes) }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -288,6 +300,43 @@ export default function AdminIngestionDiscover() {
               onChange={(e) => setMaxResults(Math.min(20, Math.max(1, parseInt(e.target.value) || 10)))}
               className="bg-white/5 border-white/10 text-white focus:border-emerald-500"
             />
+          </div>
+        </div>
+
+        {/* Exclude filters */}
+        <div className="border-t border-white/10 pt-4">
+          <p className="flex items-center gap-1.5 text-white/50 text-xs font-medium mb-3">
+            <Filter className="h-3.5 w-3.5" />
+            Exclude entity types — checked types are hard-excluded from AI results
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {EXCLUDE_OPTIONS.map((opt) => {
+              const checked = excludeTypes.has(opt.value);
+              return (
+                <label
+                  key={opt.value}
+                  className="flex items-start gap-2 cursor-pointer group"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      setExcludeTypes((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(opt.value)) next.delete(opt.value);
+                        else next.add(opt.value);
+                        return next;
+                      });
+                    }}
+                    className="mt-0.5 h-4 w-4 accent-emerald-500 shrink-0"
+                  />
+                  <span>
+                    <span className="text-white/80 text-sm group-hover:text-white transition-colors">{opt.label}</span>
+                    <span className="block text-white/30 text-xs">{opt.description}</span>
+                  </span>
+                </label>
+              );
+            })}
           </div>
         </div>
 
