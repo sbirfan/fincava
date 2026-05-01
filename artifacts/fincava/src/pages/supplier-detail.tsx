@@ -345,15 +345,6 @@ export default function SupplierDetail() {
               <TabsContent value="origin">
                 {profile.originStory ? (
                   <div className="bg-card border rounded-lg overflow-hidden">
-                    {profile.originStoryImageUrl && (
-                      <div className="w-full h-56 md:h-72 overflow-hidden">
-                        <img
-                          src={profile.originStoryImageUrl}
-                          alt={profile.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
                     <div className="p-8">
                       <div className="prose prose-sm sm:prose-base text-muted-foreground max-w-none">
                         {profile.originStory.split('\n\n').map((paragraph, i) => (
