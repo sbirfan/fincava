@@ -14,6 +14,8 @@ import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOr
 import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
 import { checkDuplicate, computeSupplierFingerprint, logDuplicateOverride } from "../services/duplicate-detector";
 import { discoverLeads } from "../services/discovery-engine";
+import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
+import { runOnboardPipeline } from "../services/onboard-pipeline";
 import { randomUUID } from "crypto";
 import { and, desc, eq, inArray, count, sum, sql, ilike, or, isNull, type SQL } from "drizzle-orm";
 import { companyTypeEnum } from "@workspace/db";
@@ -2047,6 +2049,20 @@ async function confirmSingleIngestion(supplierId: number, adminId: number): Prom
     referenceType: "supplier",
     payload: { supplierId: updated.id, source: "BATCH_CONFIRM", fromStatus: existing.ingestionStatus },
   });
+
+  // Fire the same post-onboard pipeline that self-registered suppliers go through:
+  // scoreSupplier → evaluateSupplier. This ensures admin-ingested suppliers get
+  // their AI scoring and trust score populated so the public profile page is
+  // fully populated, not just the basic fields.
+  const correlationId = randomUUID();
+  const listenerCount = pipelineEmitter.listenerCount(SUPPLIER_ONBOARD_EVENT);
+  if (listenerCount > 0) {
+    logger.info({ supplierId: updated.id, correlationId, listenerCount }, "batch-confirm: emitting post-onboard pipeline");
+    pipelineEmitter.emit(SUPPLIER_ONBOARD_EVENT, { supplierId: updated.id, correlationId });
+  } else {
+    logger.info({ supplierId: updated.id, correlationId }, "batch-confirm: running post-onboard pipeline directly (no listener)");
+    void runOnboardPipeline({ supplierId: updated.id, correlationId });
+  }
 
   return updated.id;
 }
