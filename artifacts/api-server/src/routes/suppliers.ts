@@ -900,6 +900,7 @@ router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, 
 // No authentication required. Returns a curated public profile with
 // `public_trust_score` computed from safe signals. Internal fields such as
 // `confidenceScore`, ingestion metadata, and admin notes are intentionally excluded.
+// Response is a flat PublicSupplierProfile object the frontend can read directly.
 router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
@@ -919,9 +920,11 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
       sourceUrl: suppliersTable.sourceUrl,
       country: suppliersTable.country,
       supplierType: suppliersTable.supplierType,
+      status: suppliersTable.status,
       sellableStatus: suppliersTable.sellableStatus,
       claimStatus: suppliersTable.claimStatus,
       createdAt: suppliersTable.createdAt,
+      registeredBy: suppliersTable.registeredBy,
     })
     .from(suppliersTable)
     .where(eq(suppliersTable.id, supplierId))
@@ -932,7 +935,29 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     return;
   }
 
-  // Compute public trust score from safe public signals — confidence_score (internal) excluded.
+  // Fetch products linked to this supplier.
+  const supplierProducts = await db
+    .select({
+      id: productsTable.id,
+      name: productsTable.name,
+      category: productsTable.category,
+      pricePerKgUSD: productsTable.pricePerKgUSD,
+      description: productsTable.description,
+      origin: productsTable.origin,
+      certifications: productsTable.certifications,
+      organic: productsTable.organic,
+      directTrade: productsTable.directTrade,
+      minOrderKg: productsTable.minOrderKg,
+      images: productsTable.images,
+    })
+    .from(productsTable)
+    .where(eq(productsTable.supplierId, supplierId));
+
+  // Derive phase flags.
+  const isCertified = supplier.claimStatus === "CLAIMED";
+  const isVerified = isCertified;
+
+  // Compute public trust score from safe public signals.
   const public_trust_score = computePublicTrustScore({
     sourceUrl: supplier.sourceUrl,
     normalizedName: supplier.normalizedName,
@@ -941,7 +966,32 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     claimStatus: supplier.claimStatus,
   });
 
-  res.json({ supplier, public_trust_score });
+  // Derive product categories from linked products.
+  const productCategories = [...new Set(supplierProducts.map((p) => p.category).filter(Boolean))];
+
+  res.json({
+    id: supplier.id,
+    name: supplier.nombreCompleto,
+    region: supplier.department ?? supplier.municipio,
+    country: supplier.country ?? "Colombia",
+    description: supplier.description ?? null,
+    type: supplier.supplierType ?? null,
+    status: supplier.status,
+    sellableStatus: supplier.sellableStatus,
+    isCertified,
+    verified: isVerified,
+    memberSince: supplier.createdAt,
+    public_trust_score,
+    farmerName: supplier.registeredBy ?? null,
+    originStory: supplier.description ?? null,
+    products: supplierProducts,
+    certificationDetails: [],
+    productCategories,
+    logoUrl: null,
+    website: null,
+    avgRating: null,
+    responseTimeHours: null,
+  });
 });
 
 // ── GET /api/suppliers/my-profile ─────────────────────────────────────────────
@@ -1227,6 +1277,69 @@ router.post(
       }
       logger.error({ err, supplierId }, "admin publish failed");
       res.status(500).json({ error: "Publish failed" });
+    }
+  },
+);
+
+// ── POST /api/admin/suppliers/:id/unpublish ──────────────────────────────────
+// Reverses a publish action: PUBLISHED → SELLABLE. Supplier remains evaluated
+// and scored but is no longer publicly visible on the marketplace.
+router.post(
+  "/admin/suppliers/:id/unpublish",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    const { actor, justification } = req.body as Record<string, string>;
+
+    if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
+      res.status(400).json({ error: "actor must be ADMIN or FOUNDER" });
+      return;
+    }
+    if (!justification || justification.trim() === "") {
+      res.status(400).json({ error: "justification is required" });
+      return;
+    }
+
+    const [supplier] = await db
+      .select({ id: suppliersTable.id, sellableStatus: suppliersTable.sellableStatus })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, supplierId))
+      .limit(1);
+
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+    if (supplier.sellableStatus !== "PUBLISHED") {
+      res.status(409).json({ error: "Supplier must be PUBLISHED before unpublishing" });
+      return;
+    }
+
+    try {
+      const result = await transitionTo(
+        supplierId,
+        "SELLABLE",
+        actor as "ADMIN" | "FOUNDER",
+        { justification },
+      );
+      res.json({ transition: result });
+    } catch (err: any) {
+      if (err instanceof NotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof TypeError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      logger.error({ err, supplierId }, "admin unpublish failed");
+      res.status(500).json({ error: "Unpublish failed" });
     }
   },
 );

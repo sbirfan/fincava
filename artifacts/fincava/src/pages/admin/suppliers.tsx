@@ -552,6 +552,7 @@ export default function AdminSuppliersPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actor: "ADMIN", justification: "Published via admin console" }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
@@ -561,6 +562,29 @@ export default function AdminSuppliersPage() {
       setSelected((prev) => prev && prev.id === supplierId ? { ...prev, sellableStatus: "PUBLISHED" } : prev);
     } catch (e: any) {
       setPublishError(e.message || (lang === "es" ? "Error al publicar" : "Failed to publish"));
+    } finally {
+      setPublishing(null);
+    }
+  }
+
+  async function unpublishSupplier(supplierId: number) {
+    setPublishing(supplierId);
+    setPublishError("");
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}/unpublish`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actor: "ADMIN", justification: "Unpublished via admin console" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setSuppliers((prev) =>
+        prev.map((s) => s.id === supplierId ? { ...s, sellableStatus: "SELLABLE" } : s)
+      );
+      setSelected((prev) => prev && prev.id === supplierId ? { ...prev, sellableStatus: "SELLABLE" } : prev);
+    } catch (e: any) {
+      setPublishError(e.message || (lang === "es" ? "Error al despublicar" : "Failed to unpublish"));
     } finally {
       setPublishing(null);
     }
@@ -1174,32 +1198,63 @@ export default function AdminSuppliersPage() {
               </p>
             </div>
 
-            {/* Publish button — only shown when supplier is SELLABLE */}
-            {selected.sellableStatus === "SELLABLE" && (
+            {/* Publish / Unpublish — mutually exclusive based on sellableStatus */}
+            {(selected.sellableStatus === "SELLABLE" || selected.sellableStatus === "PUBLISHED") && (
               <div className="mt-4">
                 {publishError && (
                   <p className="mb-2 text-xs text-red-600 text-center">{publishError}</p>
                 )}
-                <button
-                  onClick={() => {
-                    if (window.confirm(
-                      lang === "es"
-                        ? `¿Publicar a ${selected.nombreCompleto} en el marketplace? Esta acción hará el perfil visible para los compradores.`
-                        : `Publish ${selected.nombreCompleto} to the marketplace? This will make their profile visible to buyers.`
-                    )) publishSupplier(selected.id);
-                  }}
-                  disabled={publishing === selected.id}
-                  className="w-full py-2.5 rounded-lg text-sm font-semibold transition border bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 disabled:opacity-60"
-                >
-                  {publishing === selected.id
-                    ? (lang === "es" ? "Publicando…" : "Publishing…")
-                    : (lang === "es" ? "🚀 Publicar en Marketplace" : "🚀 Publish to Marketplace")}
-                </button>
-                <p className="text-[10px] text-gray-400 text-center mt-1">
-                  {lang === "es"
-                    ? "El perfil será visible para los compradores"
-                    : "Profile will become visible to buyers"}
-                </p>
+                {selected.sellableStatus === "SELLABLE" ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(
+                          lang === "es"
+                            ? `¿Publicar a ${selected.nombreCompleto} en el marketplace? Esta acción hará el perfil visible para los compradores.`
+                            : `Publish ${selected.nombreCompleto} to the marketplace? This will make their profile visible to buyers.`
+                        )) publishSupplier(selected.id);
+                      }}
+                      disabled={publishing === selected.id}
+                      className="w-full py-2.5 rounded-lg text-sm font-semibold transition border bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 disabled:opacity-60"
+                    >
+                      {publishing === selected.id
+                        ? (lang === "es" ? "Publicando…" : "Publishing…")
+                        : (lang === "es" ? "🚀 Publicar en Marketplace" : "🚀 Publish to Marketplace")}
+                    </button>
+                    <p className="text-[10px] text-gray-400 text-center mt-1">
+                      {lang === "es"
+                        ? "El perfil será visible para los compradores"
+                        : "Profile will become visible to buyers"}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-2 flex items-center justify-center gap-1.5 text-xs text-emerald-700 font-medium">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                      {lang === "es" ? "Publicado en el marketplace" : "Live on marketplace"}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(
+                          lang === "es"
+                            ? `¿Retirar a ${selected.nombreCompleto} del marketplace? El perfil dejará de ser visible para los compradores.`
+                            : `Unpublish ${selected.nombreCompleto} from the marketplace? Their profile will no longer be visible to buyers.`
+                        )) unpublishSupplier(selected.id);
+                      }}
+                      disabled={publishing === selected.id}
+                      className="w-full py-2.5 rounded-lg text-sm font-medium transition border bg-white hover:bg-red-50 text-red-600 border-red-200 hover:border-red-300 disabled:opacity-60"
+                    >
+                      {publishing === selected.id
+                        ? (lang === "es" ? "Retirando…" : "Unpublishing…")
+                        : (lang === "es" ? "Retirar del Marketplace" : "Unpublish from Marketplace")}
+                    </button>
+                    <p className="text-[10px] text-gray-400 text-center mt-1">
+                      {lang === "es"
+                        ? "El proveedor vuelve a estado SELLABLE"
+                        : "Supplier returns to SELLABLE state"}
+                    </p>
+                  </>
+                )}
               </div>
             )}
 
