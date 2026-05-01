@@ -752,7 +752,7 @@ export default function AdminSuppliersPage() {
       {/* ── Origin Stories publish modal ─────────────────────────────── */}
       {originModalOpen && selected && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setOriginModalOpen(false); }}
         >
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
