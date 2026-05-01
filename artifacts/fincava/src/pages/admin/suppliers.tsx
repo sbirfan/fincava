@@ -348,8 +348,8 @@ export default function AdminSuppliersPage() {
       registeredBy: selected.contactName || "",
       primaryProduct: selected.primaryProduct || "",
     };
-    setEditForm(initial);
-    setEditInitial(initial);
+    setEditForm({ ...EMPTY_EDIT_FORM, ...initial });
+    setEditInitial({ ...EMPTY_EDIT_FORM, ...initial });
     setEditError("");
     setEditFieldErrors({});
     setEditOpen(true);
@@ -373,10 +373,10 @@ export default function AdminSuppliersPage() {
               (s.supplierType as EditForm["supplierType"]) ||
               initial.supplierType,
             registeredBy: s.registeredBy ?? initial.registeredBy,
-            primaryProduct: initial.primaryProduct, // detail endpoint doesn't return this
+            primaryProduct: s.primaryProduct ?? initial.primaryProduct,
           };
-          setEditForm(refined);
-          setEditInitial(refined);
+          setEditForm({ ...EMPTY_EDIT_FORM, ...refined });
+          setEditInitial({ ...EMPTY_EDIT_FORM, ...refined });
         }
       }
     } catch {
@@ -1322,7 +1322,7 @@ export default function AdminSuppliersPage() {
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
               <h2 className="text-base font-semibold text-gray-800">
-                {lang === "es" ? "Editar Perfil del Proveedor" : "Edit Supplier Profile"}
+              {lang === "es" ? "Editar perfil del proveedor" : "Edit Supplier Profile"}
               </h2>
               <button
                 onClick={() => !editSaving && setEditOpen(false)}
@@ -1360,7 +1360,7 @@ export default function AdminSuppliersPage() {
                 placeholder="+57..."
               />
               <EditField
-                label="Email"
+                label={lang === "es" ? "Correo electrónico" : "Email"}
                 value={editForm.email}
                 onChange={(v) => setEditForm({ ...editForm, email: v })}
                 error={editFieldErrors.email?.[0]}
