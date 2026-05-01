@@ -466,8 +466,10 @@ router.get(
   requireAuth,
   requireAdmin,
   async (req, res): Promise<void> => {
-    const { pathway, municipio, from, to, q } = req.query as Record<string, string>;
+    const { pathway, municipio, from, to, q, status } = req.query as Record<string, string>;
     const { page, limit, offset } = parsePagination(req.query);
+
+    const VALID_STATUSES = ["PENDING", "ACTIVE", "INACTIVE"] as const;
 
     const latestScores = db
       .selectDistinctOn([aiOutputsTable.supplierId], {
@@ -485,11 +487,24 @@ router.get(
       .orderBy(aiOutputsTable.supplierId, desc(aiOutputsTable.createdAt))
       .as("latest_scores");
 
+    // Subquery: at most one farm row per supplier (avoids duplicate result rows)
+    const latestFarm = db
+      .selectDistinctOn([farmsTable.supplierId], {
+        supplierId: farmsTable.supplierId,
+        cultivoPrincipal: farmsTable.cultivoPrincipal,
+      })
+      .from(farmsTable)
+      .orderBy(farmsTable.supplierId, desc(farmsTable.id))
+      .as("latest_farm");
+
     const conditions = [];
     if (pathway) conditions.push(eq(latestScores.pathway, pathway));
     if (municipio) conditions.push(eq(suppliersTable.municipio, municipio));
     if (from) conditions.push(gte(suppliersTable.createdAt, new Date(from)));
     if (to) conditions.push(lte(suppliersTable.createdAt, new Date(to)));
+    if (status && (VALID_STATUSES as readonly string[]).includes(status)) {
+      conditions.push(eq(suppliersTable.status, status as typeof VALID_STATUSES[number]));
+    }
     if (q) {
       const pattern = `%${q}%`;
       conditions.push(
@@ -497,7 +512,7 @@ router.get(
           ilike(suppliersTable.nombreCompleto, pattern),
           ilike(suppliersTable.municipio, pattern),
           ilike(suppliersTable.department, pattern),
-          ilike(farmsTable.cultivoPrincipal, pattern),
+          ilike(latestFarm.cultivoPrincipal, pattern),
         ),
       );
     }
@@ -514,7 +529,7 @@ router.get(
         supplierType: suppliersTable.supplierType,
         status: suppliersTable.status,
         createdAt: suppliersTable.createdAt,
-        primaryProduct: farmsTable.cultivoPrincipal,
+        primaryProduct: latestFarm.cultivoPrincipal,
         // Graduation fields — written by evaluateSupplier, nullable until first evaluation
         sellableStatus: suppliersTable.sellableStatus,
         eligibilityStatus: suppliersTable.eligibilityStatus,
@@ -528,7 +543,7 @@ router.get(
         whatsappMessageSent: latestScores.whatsappMessageSent,
       })
       .from(suppliersTable)
-      .leftJoin(farmsTable, eq(farmsTable.supplierId, suppliersTable.id))
+      .leftJoin(latestFarm, eq(latestFarm.supplierId, suppliersTable.id))
       .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id))
       .orderBy(desc(suppliersTable.createdAt))
       .$dynamic();

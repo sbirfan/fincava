@@ -730,15 +730,14 @@ export default function AdminSuppliersPage() {
           <option value="">
             {lang === "es" ? "Todos los estados" : "All statuses"}
           </option>
-          <option value="pending">
+          <option value="PENDING">
             {lang === "es" ? "Pendiente" : "Pending"}
           </option>
-          <option value="qualified">
-            {lang === "es" ? "Calificado" : "Qualified"}
+          <option value="ACTIVE">
+            {lang === "es" ? "Activo" : "Active"}
           </option>
-          <option value="active">{lang === "es" ? "Activo" : "Active"}</option>
-          <option value="rejected">
-            {lang === "es" ? "Rechazado" : "Rejected"}
+          <option value="INACTIVE">
+            {lang === "es" ? "Inactivo" : "Inactive"}
           </option>
         </select>
         <select

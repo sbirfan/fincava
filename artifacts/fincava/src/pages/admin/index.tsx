@@ -63,6 +63,7 @@ export default function AdminDashboard() {
     queryKey: ["admin", "stats"],
     queryFn: async () => {
       const res = await fetch("/api/admin/stats", { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
   });
@@ -78,7 +79,7 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-white">
-          Good morning, {user?.firstName ?? "Admin"}
+          {(() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })()}, {user?.firstName ?? "Admin"}
         </h1>
         <p className="text-white/50 mt-1 text-sm">Platform overview — all numbers are live.</p>
       </div>
@@ -143,14 +144,14 @@ export default function AdminDashboard() {
             { label: "Manage Users", href: "/admin/users", icon: Users },
             { label: "Review Orders", href: "/admin/orders", icon: ShoppingCart },
           ].map((link) => (
-            <a
+            <Link
               key={link.href}
               href={link.href}
               className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors"
             >
               <link.icon className="h-4 w-4 text-emerald-400" />
               {link.label}
-            </a>
+            </Link>
           ))}
         </div>
       </div>

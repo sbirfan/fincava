@@ -65,6 +65,7 @@ export default function AdminOrders() {
     queryKey: ["admin", "orders"],
     queryFn: async () => {
       const res = await fetch("/api/admin/orders", { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
   });
