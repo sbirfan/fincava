@@ -506,7 +506,8 @@ router.get(
       .select({
         id: suppliersTable.id,
         nombreCompleto: suppliersTable.nombreCompleto,
-        contactName: suppliersTable.nombreCompleto,
+        contactName: suppliersTable.registeredBy,
+        email: suppliersTable.email,
         phone: suppliersTable.whatsappNumber,
         department: suppliersTable.department,
         municipio: suppliersTable.municipio,
@@ -1242,7 +1243,7 @@ router.post(
       return;
     }
 
-    // Preflight gate (1.10): supplier must be SELLABLE before publishing.
+    // Check supplier exists; admins can publish from any non-PUBLISHED state.
     const [supplier] = await db
       .select({ id: suppliersTable.id, sellableStatus: suppliersTable.sellableStatus })
       .from(suppliersTable)
@@ -1254,8 +1255,8 @@ router.post(
       return;
     }
 
-    if (supplier.sellableStatus !== "SELLABLE") {
-      res.status(409).json({ error: "Supplier must be SELLABLE before publishing" });
+    if (supplier.sellableStatus === "PUBLISHED") {
+      res.status(409).json({ error: "Supplier is already published" });
       return;
     }
 
