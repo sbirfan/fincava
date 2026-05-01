@@ -1705,6 +1705,91 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
   });
 });
 
+// ── POST /api/admin/suppliers/:id/publish-origin-story ───────────────────────
+// Publishes an ingestion-sourced supplier profile to the public Origin Stories
+// page.  Requires a non-empty description — returns 422 otherwise.
+const PublishOriginStoryBody = z.object({
+  imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+});
+
+router.post(
+  "/admin/suppliers/:id/publish-origin-story",
+  ...adminOnly,
+  async (req: Request, res: Response): Promise<void> => {
+    const supplierId = parseInt(req.params.id as string, 10);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    const parsed = PublishOriginStoryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const [supplier] = await db
+      .select({
+        id: suppliersTable.id,
+        description: suppliersTable.description,
+        ingestionSource: suppliersTable.ingestionSource,
+      })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, supplierId))
+      .limit(1);
+
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+
+    if (!supplier.description?.trim()) {
+      res.status(422).json({
+        error: "A description is required before publishing to Origin Stories.",
+      });
+      return;
+    }
+
+    const imageUrl = parsed.data.imageUrl?.trim() || null;
+
+    await db
+      .update(suppliersTable)
+      .set({
+        publishedToOriginStories: true,
+        originStoryImageUrl: imageUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(suppliersTable.id, supplierId));
+
+    req.log.info(
+      { supplierId, imageUrl },
+      "admin: supplier published to Origin Stories",
+    );
+    res.json({ success: true });
+  },
+);
+
+// ── POST /api/admin/suppliers/:id/unpublish-origin-story ─────────────────────
+router.post(
+  "/admin/suppliers/:id/unpublish-origin-story",
+  ...adminOnly,
+  async (req: Request, res: Response): Promise<void> => {
+    const supplierId = parseInt(req.params.id as string, 10);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ error: "Invalid supplier id" });
+      return;
+    }
+
+    await db
+      .update(suppliersTable)
+      .set({ publishedToOriginStories: false, updatedAt: new Date() })
+      .where(eq(suppliersTable.id, supplierId));
+
+    req.log.info({ supplierId }, "admin: supplier unpublished from Origin Stories");
+    res.json({ success: true });
+  },
+);
+
 // ── POST /api/admin/backup/run ────────────────────────────────────────────────
 // Two valid auth paths:
 //   1. X-Backup-Token: <BACKUP_SECRET_V2>  — external cron caller (cron-job.org)

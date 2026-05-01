@@ -541,6 +541,11 @@ router.get(
         complianceGaps: latestScores.complianceGaps,
         gapAnalysis: latestScores.gapAnalysis,
         whatsappMessageSent: latestScores.whatsappMessageSent,
+        // Ingestion / Origin Stories fields
+        ingestionSource: suppliersTable.ingestionSource,
+        description: suppliersTable.description,
+        publishedToOriginStories: suppliersTable.publishedToOriginStories,
+        originStoryImageUrl: suppliersTable.originStoryImageUrl,
       })
       .from(suppliersTable)
       .leftJoin(latestFarm, eq(latestFarm.supplierId, suppliersTable.id))

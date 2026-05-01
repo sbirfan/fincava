@@ -195,6 +195,12 @@ export const suppliersTable = pgTable(
     // Free-text label populated when supplierType = 'OTHER'.
     // Used to track what admins are entering so new enum values can be added over time.
     customSupplierType: varchar("custom_supplier_type", { length: 120 }),
+
+    // ── Origin Stories publishing ─────────────────────────────────────────────
+    // Set to true when an admin explicitly publishes this ingestion-sourced
+    // supplier to the public /origin-stories page.
+    publishedToOriginStories: boolean("published_to_origin_stories").notNull().default(false),
+    originStoryImageUrl: text("origin_story_image_url"),
   },
   (t) => [
     // Partial unique index: enforces uniqueness only for non-null WhatsApp numbers.

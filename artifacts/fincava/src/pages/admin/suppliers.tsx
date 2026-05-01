@@ -31,6 +31,11 @@ interface Supplier {
   sellableStatus?: string | null;
   eligibilityStatus?: string | null;
   commercialScore?: number | null;
+  // Ingestion / Origin Stories fields
+  ingestionSource?: string | null;
+  description?: string | null;
+  publishedToOriginStories?: boolean;
+  originStoryImageUrl?: string | null;
 }
 
 const SUPPLIER_STATUSES = ["PENDING", "ACTIVE", "INACTIVE"] as const;
@@ -224,6 +229,12 @@ export default function AdminSuppliersPage() {
   const [scoreStatus, setScoreStatus] = useState<Record<number, "started" | "failed">>({});
   const [publishing, setPublishing] = useState<number | null>(null);
   const [publishError, setPublishError] = useState("");
+  // Origin Stories modal state
+  const [originModalOpen, setOriginModalOpen] = useState(false);
+  const [originImageUrl, setOriginImageUrl] = useState("");
+  const [originPublishing, setOriginPublishing] = useState(false);
+  const [originError, setOriginError] = useState("");
+  const [originUnpublishing, setOriginUnpublishing] = useState(false);
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -590,6 +601,67 @@ export default function AdminSuppliersPage() {
     }
   }
 
+  async function publishToOriginStories(supplierId: number, imageUrl: string) {
+    setOriginPublishing(true);
+    setOriginError("");
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}/publish-origin-story`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: imageUrl.trim() || undefined }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      const newImageUrl = imageUrl.trim() || null;
+      setSuppliers((prev) =>
+        prev.map((s) =>
+          s.id === supplierId
+            ? { ...s, publishedToOriginStories: true, originStoryImageUrl: newImageUrl }
+            : s,
+        ),
+      );
+      setSelected((prev) =>
+        prev && prev.id === supplierId
+          ? { ...prev, publishedToOriginStories: true, originStoryImageUrl: newImageUrl }
+          : prev,
+      );
+      setOriginModalOpen(false);
+      setOriginImageUrl("");
+    } catch (e: any) {
+      setOriginError(e.message || "Failed to publish to Origin Stories");
+    } finally {
+      setOriginPublishing(false);
+    }
+  }
+
+  async function unpublishFromOriginStories(supplierId: number) {
+    setOriginUnpublishing(true);
+    setOriginError("");
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}/unpublish-origin-story`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setSuppliers((prev) =>
+        prev.map((s) =>
+          s.id === supplierId ? { ...s, publishedToOriginStories: false } : s,
+        ),
+      );
+      setSelected((prev) =>
+        prev && prev.id === supplierId
+          ? { ...prev, publishedToOriginStories: false }
+          : prev,
+      );
+    } catch (e: any) {
+      setOriginError(e.message || "Failed to unpublish from Origin Stories");
+    } finally {
+      setOriginUnpublishing(false);
+    }
+  }
+
   async function sendWhatsapp(supplierId: number) {
     setSendingWa(supplierId);
     try {
@@ -676,6 +748,68 @@ export default function AdminSuppliersPage() {
           }
         />
       )}
+
+      {/* ── Origin Stories publish modal ─────────────────────────────── */}
+      {originModalOpen && selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setOriginModalOpen(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-800">
+              Publish to Origin Stories
+            </h2>
+            <p className="text-sm text-gray-500">
+              This will make <strong>{selected.nombreCompleto}</strong>'s profile publicly visible on the Origin Stories page.
+            </p>
+
+            {/* Description guard */}
+            {!selected.description?.trim() && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                <strong>A description is required</strong> before this profile can be published. Please edit the supplier profile and add a description first.
+              </div>
+            )}
+
+            {/* Image URL input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-600">
+                Profile image URL <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="url"
+                value={originImageUrl}
+                onChange={(e) => setOriginImageUrl(e.target.value)}
+                placeholder="https://example.com/farmer-photo.jpg"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <p className="text-[11px] text-gray-400">
+                The image will appear as the story's cover photo on the public page.
+              </p>
+            </div>
+
+            {originError && (
+              <p className="text-sm text-red-600">{originError}</p>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => publishToOriginStories(selected.id, originImageUrl)}
+                disabled={originPublishing || !selected.description?.trim()}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {originPublishing ? "Publishing…" : "Publish"}
+              </button>
+              <button
+                onClick={() => { setOriginModalOpen(false); setOriginError(""); }}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div>
@@ -1254,6 +1388,45 @@ export default function AdminSuppliersPage() {
                 </>
               )}
             </div>
+
+            {/* ── Origin Stories publish / unpublish ────────────────────── */}
+            {selected.ingestionSource === "ADMIN_ENTRY" && (
+              <div className="mt-3">
+                {originError && (
+                  <p className="mb-2 text-xs text-red-600 text-center">{originError}</p>
+                )}
+                {selected.publishedToOriginStories ? (
+                  <>
+                    <div className="mb-2 flex items-center justify-center gap-1.5 text-xs text-amber-700 font-medium">
+                      <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+                      Live on Origin Stories
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Remove ${selected.nombreCompleto} from Origin Stories?`)) {
+                          unpublishFromOriginStories(selected.id);
+                        }
+                      }}
+                      disabled={originUnpublishing}
+                      className="w-full py-2 rounded-lg text-sm font-medium transition border bg-white hover:bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-300 disabled:opacity-60"
+                    >
+                      {originUnpublishing ? "Removing…" : "Unpublish from Origin Stories"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setOriginError("");
+                      setOriginImageUrl(selected.originStoryImageUrl ?? "");
+                      setOriginModalOpen(true);
+                    }}
+                    className="w-full py-2 rounded-lg text-sm font-semibold transition border bg-amber-600 hover:bg-amber-700 text-white border-amber-700"
+                  >
+                    📖 Publish to Origin Stories
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="mt-4 space-y-3">
               <div>

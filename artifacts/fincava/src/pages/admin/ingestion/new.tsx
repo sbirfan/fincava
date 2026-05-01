@@ -95,6 +95,14 @@ export default function AdminIngestionNew() {
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [queueRemaining, setQueueRemaining] = useState(0);
+  // Success / post-save state
+  const [savedSupplier, setSavedSupplier] = useState<{ id: number; nombreCompleto: string; description: string | null } | null>(null);
+  const [nextLeadParams, setNextLeadParams] = useState<URLSearchParams | null>(null);
+  // Origin Stories publish (within success panel)
+  const [originImageUrl, setOriginImageUrl] = useState("");
+  const [originPublishing, setOriginPublishing] = useState(false);
+  const [originPublished, setOriginPublished] = useState(false);
+  const [originError, setOriginError] = useState<string | null>(null);
 
   // Pre-fill form from URL query params (supplied by the discovery engine handoff).
   // Always starts from EMPTY_FORM so stale data from a previous lead never carries over.
@@ -249,39 +257,43 @@ export default function AdminIngestionNew() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Save failed — please try again.");
       }
-      // Pop next lead from sessionStorage queue, if any
+      const savedData = await res.json().catch(() => ({}));
+      // Show success panel — let admin optionally publish to Origin Stories
+      // before continuing. Capture next-lead params now so they're ready.
+      let resolvedNextParams: URLSearchParams | null = null;
       try {
         const raw = sessionStorage.getItem(DISCOVERY_QUEUE_KEY);
         if (raw) {
           const queue: Array<{ name: string; location: string; website: string | null; categoryHint: string }> = JSON.parse(raw);
           if (Array.isArray(queue) && queue.length > 0) {
             const next = queue[0];
-            // Validate shape — skip malformed entries
-            if (!next || typeof next.name !== "string" || typeof next.location !== "string") {
-              sessionStorage.removeItem(DISCOVERY_QUEUE_KEY);
-              navigate("/admin/ingestion");
-              return;
-            }
-            const remaining = queue.slice(1);
-            if (remaining.length > 0) {
-              sessionStorage.setItem(DISCOVERY_QUEUE_KEY, JSON.stringify(remaining));
+            if (next && typeof next.name === "string" && typeof next.location === "string") {
+              const remaining = queue.slice(1);
+              if (remaining.length > 0) {
+                sessionStorage.setItem(DISCOVERY_QUEUE_KEY, JSON.stringify(remaining));
+              } else {
+                sessionStorage.removeItem(DISCOVERY_QUEUE_KEY);
+              }
+              resolvedNextParams = new URLSearchParams({
+                nombreCompleto: next.name,
+                municipio: next.location,
+                categoryHint: next.categoryHint,
+                ...(next.website ? { sourceUrl: next.website } : {}),
+              });
             } else {
               sessionStorage.removeItem(DISCOVERY_QUEUE_KEY);
             }
-            const params = new URLSearchParams({
-              nombreCompleto: next.name,
-              municipio: next.location,
-              categoryHint: next.categoryHint,
-              ...(next.website ? { sourceUrl: next.website } : {}),
-            });
-            navigate(`/admin/ingestion/new?${params.toString()}`);
-            return;
           }
         }
       } catch {
         // ignore queue errors
       }
-      navigate("/admin/ingestion");
+      setNextLeadParams(resolvedNextParams);
+      setSavedSupplier({
+        id: savedData.id,
+        nombreCompleto: savedData.nombreCompleto ?? form.nombreCompleto,
+        description: savedData.description ?? form.description ?? null,
+      });
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed.");
     } finally {
@@ -293,6 +305,133 @@ export default function AdminIngestionNew() {
     if (!duplicate?.matchedSupplierId) return;
     setOverrideDuplicateId(duplicate.matchedSupplierId);
   };
+
+  // ── Success panel ────────────────────────────────────────────────────────
+  if (savedSupplier) {
+    const hasDescription = Boolean(savedSupplier.description?.trim());
+    return (
+      <div className="max-w-3xl space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white/50 hover:text-white"
+            onClick={() => navigate("/admin/ingestion")}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Supplier Saved</h1>
+            <p className="text-white/50 text-sm">What would you like to do next?</p>
+          </div>
+        </div>
+
+        {/* Confirmation card */}
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5 space-y-1">
+          <div className="flex items-center gap-2 text-emerald-300 font-semibold">
+            <CheckCircle2 className="h-5 w-5" />
+            <span>{savedSupplier.nombreCompleto} saved as Draft</span>
+          </div>
+          <p className="text-xs text-emerald-300/60">Supplier ID #{savedSupplier.id}</p>
+        </div>
+
+        {/* Origin Stories section */}
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-white">Publish to Origin Stories</h2>
+            <p className="text-xs text-white/50 mt-0.5">
+              Feature this supplier on the public Origin Stories page. Requires a description.
+            </p>
+          </div>
+
+          {!hasDescription && (
+            <div className="flex items-start gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2.5 text-xs text-orange-300">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                This profile has no description. Add one via{" "}
+                <strong>Admin › Suppliers › Edit</strong> before publishing.
+              </span>
+            </div>
+          )}
+
+          {originPublished ? (
+            <div className="flex items-center gap-2 text-emerald-300 text-sm font-medium">
+              <CheckCircle2 className="h-4 w-4" />
+              Published to Origin Stories
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs text-white/50">
+                  Profile image URL <span className="text-white/30">(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  value={originImageUrl}
+                  onChange={(e) => setOriginImageUrl(e.target.value)}
+                  placeholder="https://example.com/farmer-photo.jpg"
+                  disabled={!hasDescription}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-40"
+                />
+              </div>
+              {originError && (
+                <p className="text-xs text-red-400">{originError}</p>
+              )}
+              <Button
+                onClick={async () => {
+                  setOriginPublishing(true);
+                  setOriginError(null);
+                  try {
+                    const r = await fetch(`/api/admin/suppliers/${savedSupplier.id}/publish-origin-story`, {
+                      method: "POST",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ imageUrl: originImageUrl.trim() || undefined }),
+                    });
+                    const j = await r.json().catch(() => ({}));
+                    if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+                    setOriginPublished(true);
+                  } catch (e: any) {
+                    setOriginError(e.message || "Failed to publish to Origin Stories");
+                  } finally {
+                    setOriginPublishing(false);
+                  }
+                }}
+                disabled={originPublishing || !hasDescription}
+                className="gap-2 bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50"
+              >
+                {originPublishing ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Publishing…</>
+                ) : (
+                  "📖 Publish to Origin Stories"
+                )}
+              </Button>
+            </>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <div className="flex gap-3">
+          {nextLeadParams ? (
+            <Button
+              onClick={() => navigate(`/admin/ingestion/new?${nextLeadParams.toString()}`)}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              Next Lead →
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/admin/ingestion")}
+            className="text-white/50 hover:text-white"
+          >
+            {nextLeadParams ? "Skip & go to Ingestion" : "Go to Ingestion"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl space-y-6">
