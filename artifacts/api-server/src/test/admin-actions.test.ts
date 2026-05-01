@@ -52,7 +52,7 @@ vi.mock("@workspace/db", () => ({
   db: {
     select: mockSelect,
     update: mockUpdate,
-    insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn(async () => []) })) })),
+    insert: vi.fn(() => ({ values: vi.fn(async () => ({ returning: vi.fn(async () => []) })) })),
   },
   usersTable: { $name: "users", id: "id", role: "role" },
   profilesTable: { $name: "profiles" },
@@ -92,6 +92,7 @@ vi.mock("@workspace/db", () => ({
     volumeTargetMt: "volume_target_mt",
     buyerUrgencyNote: "buyer_urgency_note",
   },
+  buyerAdminActionsTable: { $name: "buyer_admin_actions", id: "id", buyerProfileId: "buyer_profile_id", actorAdminId: "actor_admin_id" },
   supplierIngestionBatchesTable: { $name: "supplier_ingestion_batches", createdAt: "created_at" },
   productPlaceholdersTable: { $name: "product_placeholders" },
   INTERACTION_TYPES: {},
@@ -137,6 +138,13 @@ const mockEscalateGap = vi.hoisted(() => vi.fn());
 vi.mock("../services/buyer-gap-service", () => ({
   escalateGap: mockEscalateGap,
   analyseGaps: vi.fn(),
+  NotFoundError: class NotFoundError extends Error {},
+}));
+
+// ─── buyer-matching-service ───────────────────────────────────────────────────
+const mockRunBuyerMatching = vi.hoisted(() => vi.fn());
+vi.mock("../services/buyer-matching-service", () => ({
+  runMatching: mockRunBuyerMatching,
   NotFoundError: class NotFoundError extends Error {},
 }));
 
@@ -209,6 +217,7 @@ function resetAll() {
   rejectAuth.value = false;
   mockReturning.mockReset();
   mockEscalateGap.mockReset();
+  mockRunBuyerMatching.mockReset();
   // Restore the select mock to queue-draining behaviour after any per-test overrides.
   mockSelect.mockReset().mockImplementation((_shape?: any) => {
     const rows = selectQueue.shift() ?? [];
@@ -494,5 +503,183 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     expect(res.status).toBe(500);
     expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/DB connection lost/i);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// POST /api/admin/buyers/:id/reset-score
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("POST /api/admin/buyers/:id/reset-score", () => {
+  const app = makeApp();
+
+  beforeEach(resetAll);
+
+  const existingProfile = { id: 7 };
+  const resetProfile = {
+    id: 7,
+    p2CompletionPct: 0,
+    p2SectionsDone: [],
+    gapFlagCount: 0,
+    subscriptionRecommendation: null,
+  };
+
+  // ── Happy path ──────────────────────────────────────────────────────────
+  it("resets the buyer score fields and returns the updated profile", async () => {
+    selectQueue.push([existingProfile]); // profile existence check
+    mockReturning.mockResolvedValueOnce([resetProfile]);
+
+    const res = await request(app).post("/api/admin/buyers/7/reset-score");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      id: 7,
+      p2CompletionPct: 0,
+      p2SectionsDone: [],
+      gapFlagCount: 0,
+    });
+
+    // The update payload must zero-out the scoring fields.
+    expect(updatedSets).toHaveLength(1);
+    expect(updatedSets[0]).toMatchObject({
+      p2CompletionPct: 0,
+      p2SectionsDone: [],
+      gapFlagCount: 0,
+      subscriptionRecommendation: null,
+    });
+  });
+
+  // ── Auth gating ─────────────────────────────────────────────────────────
+  it("returns 403 for non-admin requests", async () => {
+    rejectAuth.value = true;
+
+    const res = await request(app).post("/api/admin/buyers/7/reset-score");
+
+    expect(res.status).toBe(403);
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(updatedSets).toHaveLength(0);
+  });
+
+  // ── Invalid id ──────────────────────────────────────────────────────────
+  it("returns 400 for a non-numeric buyer profile id", async () => {
+    const res = await request(app).post("/api/admin/buyers/abc/reset-score");
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/invalid buyer profile id/i);
+    expect(updatedSets).toHaveLength(0);
+  });
+
+  // ── Profile not found ────────────────────────────────────────────────────
+  it("returns 404 when the buyer profile does not exist", async () => {
+    selectQueue.push([]); // empty → profile not found
+
+    const res = await request(app).post("/api/admin/buyers/999/reset-score");
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/buyer profile not found/i);
+    expect(updatedSets).toHaveLength(0);
+  });
+
+  // ── DB failure ───────────────────────────────────────────────────────────
+  it("returns 500 when the update throws unexpectedly", async () => {
+    selectQueue.push([existingProfile]);
+    mockUpdate.mockImplementationOnce(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(() => Promise.reject(new Error("DB write failed"))),
+        })),
+      })),
+    }));
+
+    const res = await request(app).post("/api/admin/buyers/7/reset-score");
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/DB write failed/i);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// POST /api/admin/buyers/:id/run-match
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("POST /api/admin/buyers/:id/run-match", () => {
+  const app = makeApp();
+
+  beforeEach(resetAll);
+
+  const matchResult = { matchesInserted: 3, candidatesEvaluated: 12 };
+
+  // ── Happy path ──────────────────────────────────────────────────────────
+  it("triggers the matching pipeline and returns the result", async () => {
+    mockRunBuyerMatching.mockResolvedValueOnce(matchResult);
+
+    const res = await request(app).post("/api/admin/buyers/4/run-match");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({ matchesInserted: 3, candidatesEvaluated: 12 });
+
+    expect(mockRunBuyerMatching).toHaveBeenCalledTimes(1);
+    expect(mockRunBuyerMatching).toHaveBeenCalledWith(4);
+  });
+
+  // ── Auth gating ─────────────────────────────────────────────────────────
+  it("returns 403 for non-admin requests", async () => {
+    rejectAuth.value = true;
+
+    const res = await request(app).post("/api/admin/buyers/4/run-match");
+
+    expect(res.status).toBe(403);
+    expect(mockRunBuyerMatching).not.toHaveBeenCalled();
+  });
+
+  // ── Invalid id ──────────────────────────────────────────────────────────
+  it("returns 400 for a non-numeric buyer profile id", async () => {
+    const res = await request(app).post("/api/admin/buyers/xyz/run-match");
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/invalid buyer profile id/i);
+    expect(mockRunBuyerMatching).not.toHaveBeenCalled();
+  });
+
+  // ── Profile not found (service throws NotFoundError) ─────────────────────
+  it("returns 404 when the buyer profile does not exist in the matching service", async () => {
+    const { NotFoundError } = await import("../services/buyer-matching-service");
+    mockRunBuyerMatching.mockRejectedValueOnce(
+      new NotFoundError("Buyer profile 999 not found"),
+    );
+
+    const res = await request(app).post("/api/admin/buyers/999/run-match");
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/buyer profile 999 not found/i);
+  });
+
+  // ── Service failure ──────────────────────────────────────────────────────
+  it("returns 500 when the matching service throws an unexpected error", async () => {
+    mockRunBuyerMatching.mockRejectedValueOnce(new Error("Claude API timeout"));
+
+    const res = await request(app).post("/api/admin/buyers/4/run-match");
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/Claude API timeout/i);
+  });
+
+  // ── Zero matches ─────────────────────────────────────────────────────────
+  it("returns 200 with zero matches when no candidates are found", async () => {
+    mockRunBuyerMatching.mockResolvedValueOnce({ matchesInserted: 0, candidatesEvaluated: 0 });
+
+    const res = await request(app).post("/api/admin/buyers/4/run-match");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({ matchesInserted: 0, candidatesEvaluated: 0 });
   });
 });

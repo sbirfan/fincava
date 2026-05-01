@@ -6,6 +6,7 @@ import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliers
 import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
+import { runMatching as runBuyerMatching, NotFoundError as MatchingNotFoundError } from "../services/buyer-matching-service";
 import { hashPassword } from "../lib/auth";
 import { computeTrustScore } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
@@ -597,6 +598,94 @@ router.get("/admin/buyers/:id/activity", ...adminOnly, async (req, res): Promise
     .limit(100);
 
   res.json({ success: true, data: rows });
+});
+
+// ── POST /api/admin/buyers/:id/reset-score ────────────────────────────────────
+// Resets a buyer's Phase 2 progress (completion percentage, sections done,
+// gap flag count, and subscription recommendation) so onboarding can restart.
+router.post("/admin/buyers/:id/reset-score", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const adminId = requesterIdOf(req);
+
+  try {
+    const [existing] = await db
+      .select({ id: buyerProfilesTable.id })
+      .from(buyerProfilesTable)
+      .where(eq(buyerProfilesTable.id, profileId));
+
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Buyer profile not found" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(buyerProfilesTable)
+      .set({
+        p2CompletionPct: 0,
+        p2SectionsDone: [],
+        gapFlagCount: 0,
+        subscriptionRecommendation: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(buyerProfilesTable.id, profileId))
+      .returning();
+
+    db.insert(buyerAdminActionsTable).values({
+      actorAdminId: adminId,
+      buyerProfileId: profileId,
+      actionType: "reset_score",
+      payload: null,
+      note: null,
+    }).catch((err: unknown) => {
+      logger.warn({ err, profileId, adminId }, "reset_score audit insert failed");
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (err: unknown) {
+    logger.error({ err, profileId, adminId }, "Buyer score reset failed");
+    res.status(500).json({ success: false, error: errorMessage(err) });
+  }
+});
+
+// ── POST /api/admin/buyers/:id/run-match ──────────────────────────────────────
+// Triggers a fresh matching run for the given buyer profile via the matching
+// pipeline. Returns matches inserted and candidates evaluated.
+router.post("/admin/buyers/:id/run-match", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const adminId = requesterIdOf(req);
+
+  try {
+    const result = await runBuyerMatching(profileId);
+
+    db.insert(buyerAdminActionsTable).values({
+      actorAdminId: adminId,
+      buyerProfileId: profileId,
+      actionType: "run_match",
+      payload: result as Record<string, unknown>,
+      note: null,
+    }).catch((err: unknown) => {
+      logger.warn({ err, profileId, adminId }, "run_match audit insert failed");
+    });
+
+    res.json({ success: true, data: result });
+  } catch (err: unknown) {
+    if (err instanceof MatchingNotFoundError) {
+      res.status(404).json({ success: false, error: err.message });
+      return;
+    }
+    logger.error({ err, profileId, adminId }, "Admin match-run failed");
+    res.status(500).json({ success: false, error: errorMessage(err) });
+  }
 });
 
 // ── GET /api/admin/buyer-matches ─────────────────────────────────────────────
