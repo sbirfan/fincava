@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Sparkles,
@@ -100,9 +100,13 @@ export default function AdminIngestionNew() {
   const [nextLeadParams, setNextLeadParams] = useState<URLSearchParams | null>(null);
   // Origin Stories publish (within success panel)
   const [originImageUrl, setOriginImageUrl] = useState("");
+  const [originImagePreview, setOriginImagePreview] = useState<string | null>(null);
+  const [originUploading, setOriginUploading] = useState(false);
+  const [originUploadError, setOriginUploadError] = useState<string | null>(null);
   const [originPublishing, setOriginPublishing] = useState(false);
   const [originPublished, setOriginPublished] = useState(false);
   const [originError, setOriginError] = useState<string | null>(null);
+  const originFileInputRef = useRef<HTMLInputElement>(null);
 
   // Pre-fill form from URL query params (supplied by the discovery engine handoff).
   // Always starts from EMPTY_FORM so stale data from a previous lead never carries over.
@@ -306,6 +310,32 @@ export default function AdminIngestionNew() {
     setOverrideDuplicateId(duplicate.matchedSupplierId);
   };
 
+  async function uploadOriginImage(file: File) {
+    setOriginUploading(true);
+    setOriginUploadError(null);
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json() as { uploadURL: string; objectPath: string };
+      const putRes = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!putRes.ok) throw new Error("Upload failed");
+      const servingUrl = `/api/storage/objects/${objectPath.replace(/^\/objects\//, "")}`;
+      setOriginImageUrl(servingUrl);
+      const reader = new FileReader();
+      reader.onload = (e) => setOriginImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    } catch (e: any) {
+      setOriginUploadError(e.message || "Upload failed");
+    } finally {
+      setOriginUploading(false);
+    }
+  }
+
   // ── Success panel ────────────────────────────────────────────────────────
   if (savedSupplier) {
     const hasDescription = Boolean(savedSupplier.description?.trim());
@@ -362,19 +392,77 @@ export default function AdminIngestionNew() {
             </div>
           ) : (
             <>
-              <div className="space-y-1.5">
+              {/* Image upload */}
+              <div className="space-y-2">
                 <label className="text-xs text-white/50">
-                  Profile image URL <span className="text-white/30">(optional)</span>
+                  Cover image <span className="text-white/30">(optional)</span>
                 </label>
-                <input
-                  type="url"
-                  value={originImageUrl}
-                  onChange={(e) => setOriginImageUrl(e.target.value)}
-                  placeholder="https://example.com/farmer-photo.jpg"
-                  disabled={!hasDescription}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-40"
-                />
+
+                {/* Preview */}
+                {(originImagePreview || originImageUrl) && (
+                  <div className="relative w-full h-32 rounded-lg overflow-hidden border border-white/10">
+                    <img
+                      src={originImagePreview ?? originImageUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      onClick={() => { setOriginImagePreview(null); setOriginImageUrl(""); }}
+                      className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                    >✕</button>
+                  </div>
+                )}
+
+                {/* Upload zone */}
+                {!originImageUrl && (
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition ${hasDescription ? "border-white/20 hover:border-amber-400/60 hover:bg-amber-500/5" : "border-white/10 opacity-40 cursor-not-allowed"}`}
+                    onClick={() => hasDescription && originFileInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (!hasDescription) return;
+                      const file = e.dataTransfer.files[0];
+                      if (file && file.type.startsWith("image/")) uploadOriginImage(file);
+                    }}
+                  >
+                    <input
+                      ref={originFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadOriginImage(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    {originUploading ? (
+                      <p className="text-sm text-amber-400 font-medium">Uploading…</p>
+                    ) : (
+                      <p className="text-xs text-white/40">Click or drag to upload an image</p>
+                    )}
+                  </div>
+                )}
+
+                {originUploadError && (
+                  <p className="text-xs text-red-400">{originUploadError}</p>
+                )}
+
+                {/* Manual URL fallback */}
+                <div className="space-y-1">
+                  <p className="text-[11px] text-white/30">Or paste an image URL:</p>
+                  <input
+                    type="url"
+                    value={originImageUrl}
+                    onChange={(e) => { setOriginImageUrl(e.target.value); setOriginImagePreview(null); }}
+                    placeholder="https://example.com/farmer-photo.jpg"
+                    disabled={!hasDescription}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-40"
+                  />
+                </div>
               </div>
+
               {originError && (
                 <p className="text-xs text-red-400">{originError}</p>
               )}
@@ -398,7 +486,7 @@ export default function AdminIngestionNew() {
                     setOriginPublishing(false);
                   }
                 }}
-                disabled={originPublishing || !hasDescription}
+                disabled={originPublishing || originUploading || !hasDescription}
                 className="gap-2 bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50"
               >
                 {originPublishing ? (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import ReactMarkdown from "react-markdown";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -232,9 +232,13 @@ export default function AdminSuppliersPage() {
   // Origin Stories modal state
   const [originModalOpen, setOriginModalOpen] = useState(false);
   const [originImageUrl, setOriginImageUrl] = useState("");
+  const [originImagePreview, setOriginImagePreview] = useState<string | null>(null);
+  const [originUploading, setOriginUploading] = useState(false);
+  const [originUploadError, setOriginUploadError] = useState("");
   const [originPublishing, setOriginPublishing] = useState(false);
   const [originError, setOriginError] = useState("");
   const [originUnpublishing, setOriginUnpublishing] = useState(false);
+  const originFileInputRef = useRef<HTMLInputElement>(null);
 
   // Filters
   const [filterPathway, setFilterPathway] = useState("");
@@ -601,6 +605,38 @@ export default function AdminSuppliersPage() {
     }
   }
 
+  async function uploadOriginImage(file: File) {
+    setOriginUploading(true);
+    setOriginUploadError("");
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json() as { uploadURL: string; objectPath: string };
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("Upload failed");
+      // Build a serving URL that the browser and origin-stories page can load
+      const servingUrl = `/api/storage/objects/${objectPath.replace(/^\/objects\//, "")}`;
+      setOriginImageUrl(servingUrl);
+      // Generate a local preview
+      const reader = new FileReader();
+      reader.onload = (e) => setOriginImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    } catch (e: any) {
+      setOriginUploadError(e.message || "Upload failed");
+    } finally {
+      setOriginUploading(false);
+    }
+  }
+
   async function publishToOriginStories(supplierId: number, imageUrl: string) {
     setOriginPublishing(true);
     setOriginError("");
@@ -753,14 +789,14 @@ export default function AdminSuppliersPage() {
       {originModalOpen && selected && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setOriginModalOpen(false); }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setOriginModalOpen(false); setOriginError(""); } }}
         >
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-gray-800">
               Publish to Origin Stories
             </h2>
             <p className="text-sm text-gray-500">
-              This will make <strong>{selected.nombreCompleto}</strong>'s profile publicly visible on the Origin Stories page.
+              This will make <strong className="text-gray-700">{selected.nombreCompleto}</strong>'s profile publicly visible on the Origin Stories page.
             </p>
 
             {/* Description guard */}
@@ -770,21 +806,79 @@ export default function AdminSuppliersPage() {
               </div>
             )}
 
-            {/* Image URL input */}
-            <div className="space-y-1.5">
+            {/* Image upload */}
+            <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600">
-                Profile image URL <span className="text-gray-400">(optional)</span>
+                Cover image <span className="text-gray-400">(optional)</span>
               </label>
-              <input
-                type="url"
-                value={originImageUrl}
-                onChange={(e) => setOriginImageUrl(e.target.value)}
-                placeholder="https://example.com/farmer-photo.jpg"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-              <p className="text-[11px] text-gray-400">
-                The image will appear as the story's cover photo on the public page.
-              </p>
+
+              {/* Preview */}
+              {(originImagePreview || originImageUrl) && (
+                <div className="relative w-full h-36 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                  <img
+                    src={originImagePreview ?? originImageUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => { setOriginImagePreview(null); setOriginImageUrl(""); }}
+                    className="absolute top-1.5 right-1.5 bg-black/50 hover:bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs transition"
+                    title="Remove image"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Upload button + drag zone */}
+              {!originImageUrl && (
+                <div
+                  className="relative border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50/30 transition"
+                  onClick={() => originFileInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith("image/")) uploadOriginImage(file);
+                  }}
+                >
+                  <input
+                    ref={originFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadOriginImage(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  {originUploading ? (
+                    <p className="text-sm text-amber-600 font-medium">Uploading…</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-500">Click or drag an image here to upload</p>
+                      <p className="text-xs text-gray-400 mt-0.5">PNG, JPG, WEBP up to 10 MB</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {originUploadError && (
+                <p className="text-xs text-red-600">{originUploadError}</p>
+              )}
+
+              {/* Manual URL fallback */}
+              <div className="space-y-1">
+                <p className="text-[11px] text-gray-400">Or paste an image URL directly:</p>
+                <input
+                  type="url"
+                  value={originImageUrl}
+                  onChange={(e) => { setOriginImageUrl(e.target.value); setOriginImagePreview(null); }}
+                  placeholder="https://example.com/farmer-photo.jpg"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
             </div>
 
             {originError && (
@@ -794,13 +888,13 @@ export default function AdminSuppliersPage() {
             <div className="flex gap-3 pt-1">
               <button
                 onClick={() => publishToOriginStories(selected.id, originImageUrl)}
-                disabled={originPublishing || !selected.description?.trim()}
+                disabled={originPublishing || originUploading || !selected.description?.trim()}
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {originPublishing ? "Publishing…" : "Publish"}
               </button>
               <button
-                onClick={() => { setOriginModalOpen(false); setOriginError(""); }}
+                onClick={() => { setOriginModalOpen(false); setOriginError(""); setOriginUploadError(""); }}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition"
               >
                 Cancel
@@ -1417,7 +1511,9 @@ export default function AdminSuppliersPage() {
                   <button
                     onClick={() => {
                       setOriginError("");
+                      setOriginUploadError("");
                       setOriginImageUrl(selected.originStoryImageUrl ?? "");
+                      setOriginImagePreview(null);
                       setOriginModalOpen(true);
                     }}
                     className="w-full py-2 rounded-lg text-sm font-semibold transition border bg-amber-600 hover:bg-amber-700 text-white border-amber-700"
