@@ -10,6 +10,8 @@ import {
   Loader2,
   CheckCircle2,
   Filter,
+  RotateCcw,
+  Play,
 } from "lucide-react";
 
 interface BuyerRow {
@@ -464,6 +466,7 @@ function BuyerDrawer({
 }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"overview" | "matches" | "gaps" | "activity">("overview");
+  const [actionResult, setActionResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const { data: detailResp, isLoading: detailLoading } = useQuery<{
     success: boolean;
@@ -567,21 +570,136 @@ function BuyerDrawer({
     },
   });
 
+  const resetScoreMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/admin/buyers/${profileId}/reset-score`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) {
+        throw new Error(json?.error ?? `Failed (${res.status})`);
+      }
+      return json.data;
+    },
+    onSuccess: () => {
+      setActionResult({ ok: true, message: "Score reset successfully." });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-detail", profileId] });
+      qc.invalidateQueries({ queryKey: ["admin-buyers"] });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-activity", profileId] });
+    },
+    onError: (err: Error) => {
+      setActionResult({ ok: false, message: err.message });
+    },
+  });
+
+  const runMatchMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/admin/buyers/${profileId}/run-match`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) {
+        throw new Error(json?.error ?? `Failed (${res.status})`);
+      }
+      return json.data as { matchesInserted: number; candidatesEvaluated: number };
+    },
+    onSuccess: (data) => {
+      const n = data?.matchesInserted ?? 0;
+      setActionResult({
+        ok: true,
+        message: `Matching complete — ${n} match${n === 1 ? "" : "es"} inserted (${data?.candidatesEvaluated ?? 0} candidates evaluated).`,
+      });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-matches", profileId] });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-detail", profileId] });
+      qc.invalidateQueries({ queryKey: ["admin-buyers"] });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-activity", profileId] });
+    },
+    onError: (err: Error) => {
+      setActionResult({ ok: false, message: err.message });
+    },
+  });
+
+  function handleResetScore() {
+    if (!window.confirm("Reset this buyer's score? This will clear completion % and gap flags.")) return;
+    setActionResult(null);
+    resetScoreMutation.mutate();
+  }
+
+  function handleRunMatch() {
+    if (!window.confirm("Run fresh matching for this buyer? Existing matches will be re-evaluated.")) return;
+    setActionResult(null);
+    runMatchMutation.mutate();
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end" data-testid="drawer-buyer">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative w-full max-w-2xl h-full bg-[#0a140e] border-l border-white/10 overflow-y-auto">
-        <div className="sticky top-0 z-10 bg-[#0a140e] border-b border-white/10 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-white">
+        <div className="sticky top-0 z-10 bg-[#0a140e] border-b border-white/10 px-6 py-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-white truncate">
               {buyer?.companyName ?? buyer?.registeredCompany ?? "Buyer"}
             </h2>
             <p className="text-xs text-white/40">#{profileId} • {buyer?.email}</p>
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white" data-testid="button-close-drawer">
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleResetScore}
+              disabled={resetScoreMutation.isPending || runMatchMutation.isPending}
+              data-testid="button-reset-score"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              {resetScoreMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              Reset Score
+            </button>
+            <button
+              onClick={handleRunMatch}
+              disabled={resetScoreMutation.isPending || runMatchMutation.isPending}
+              data-testid="button-run-match"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              {runMatchMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+              Run Matching
+            </button>
+            <button onClick={onClose} className="text-white/40 hover:text-white ml-1" data-testid="button-close-drawer">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
+
+        {actionResult && (
+          <div
+            className={`mx-6 mt-3 flex items-start gap-2 rounded-md px-3 py-2 text-xs ${
+              actionResult.ok
+                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-200"
+                : "bg-red-500/10 border border-red-500/30 text-red-300"
+            }`}
+            data-testid="action-result-banner"
+          >
+            <span className="flex-1">{actionResult.message}</span>
+            <button
+              onClick={() => setActionResult(null)}
+              className="text-white/30 hover:text-white/70 shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         <div className="px-6 pt-4 border-b border-white/10 flex gap-1">
           {(["overview", "matches", "gaps", "activity"] as const).map((t) => (
