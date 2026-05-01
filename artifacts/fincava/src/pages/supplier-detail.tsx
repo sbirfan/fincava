@@ -57,6 +57,7 @@ interface PublicSupplierProfile {
   productCategories: string[];
   products?: PublicProduct[];
   originStory?: string | null;
+  originStoryImageUrl?: string | null;
   farmerName?: string | null;
   certificationDetails?: { id: number; type: string; issuer: string; verified: boolean }[];
 }
@@ -172,32 +173,33 @@ export default function SupplierDetail() {
 
   return (
     <div className="pb-12">
-      {/* Header Banner */}
-      <div className="bg-primary/5 h-48 md:h-64 border-b relative">
-        <div className="container mx-auto px-4 h-full relative">
-          <div className="absolute -bottom-16 left-4 md:left-8 w-32 h-32 md:w-40 md:h-40 rounded-xl border-4 border-background bg-card overflow-hidden shadow-md flex items-center justify-center">
-            {profile.logoUrl ? (
-              <img src={profile.logoUrl} alt={profile.name} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-4xl md:text-5xl font-bold text-primary">{(profile.name ?? "?").charAt(0)}</span>
-            )}
-          </div>
-        </div>
+      {/* Hero Banner */}
+      <div
+        className="h-56 md:h-80 border-b relative overflow-hidden bg-primary/10"
+        style={
+          profile.originStoryImageUrl
+            ? { backgroundImage: `url(${profile.originStoryImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+            : undefined
+        }
+      >
+        {profile.originStoryImageUrl && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        )}
       </div>
 
-      <div className="container mx-auto px-4 pt-20">
+      <div className="container mx-auto px-4 pt-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div>
             <div className="flex items-center flex-wrap gap-3 mb-2">
               <h1 className="text-3xl md:text-4xl font-serif font-bold">{profile.name}</h1>
-              {/* Operational status badge */}
-              {profile.status === "ACTIVE" && (
+              {/* Operational status badge — only shown once supplier has completed certification */}
+              {isPhase2 && profile.status === "ACTIVE" && (
                 <Badge className="bg-green-50 text-green-700 border border-green-200 h-6 text-xs px-2 flex items-center gap-1">
                   <Leaf className="w-3 h-3" />
                   Ready to Supply
                 </Badge>
               )}
-              {profile.status === "INACTIVE" && (
+              {isPhase2 && profile.status === "INACTIVE" && (
                 <Badge className="bg-amber-50 text-amber-700 border border-amber-200 h-6 text-xs px-2 flex items-center gap-1">
                   <PauseCircle className="w-3 h-3" />
                   Off Season
@@ -286,27 +288,33 @@ export default function SupplierDetail() {
               </div>
             )}
 
-            <div className="bg-card border rounded-lg p-6">
-              <h3 className="font-bold text-lg mb-4 font-serif">About</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                {profile.description ?? "More information coming soon."}
-              </p>
-
-              <div className="mt-6 pt-6 border-t space-y-4">
+            <div className="bg-card border rounded-lg p-6 space-y-4">
+              <h3 className="font-bold text-lg font-serif">Farm Details</h3>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Location</div>
+                  <div className="font-medium">{profile.region ? `${profile.region}, ` : ""}{profile.country}</div>
+                </div>
                 {profile.type && (
                   <div>
-                    <div className="text-xs text-muted-foreground mb-2">Supplier Type</div>
-                    <div className="font-medium text-sm capitalize">{profile.type.toLowerCase().replace(/_/g, " ")}</div>
+                    <div className="text-xs text-muted-foreground mb-1">Type</div>
+                    <div className="font-medium capitalize">{profile.type.toLowerCase().replace(/_/g, " ")}</div>
                   </div>
                 )}
                 {(profile.productCategories?.length ?? 0) > 0 && (
                   <div>
-                    <div className="text-xs text-muted-foreground mb-2">Main Categories</div>
+                    <div className="text-xs text-muted-foreground mb-2">Categories</div>
                     <div className="flex flex-wrap gap-2">
                       {(profile.productCategories ?? []).map((cat, i) => (
                         <Badge key={i} variant="secondary" className="font-normal">{cat}</Badge>
                       ))}
                     </div>
+                  </div>
+                )}
+                {profile.farmerName && (
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">Producer</div>
+                    <div className="font-medium">{profile.farmerName}</div>
                   </div>
                 )}
               </div>
@@ -336,13 +344,18 @@ export default function SupplierDetail() {
 
               <TabsContent value="origin">
                 {profile.originStory ? (
-                  <div className="bg-card border rounded-lg p-8">
-                    <div className="max-w-3xl">
-                      <h3 className="text-2xl font-serif font-bold mb-6 text-primary">The Story of {profile.name}</h3>
-                      {profile.farmerName && (
-                        <p className="font-medium text-lg mb-4">Led by {profile.farmerName}</p>
-                      )}
-                      <div className="prose prose-sm sm:prose-base text-muted-foreground">
+                  <div className="bg-card border rounded-lg overflow-hidden">
+                    {profile.originStoryImageUrl && (
+                      <div className="w-full h-56 md:h-72 overflow-hidden">
+                        <img
+                          src={profile.originStoryImageUrl}
+                          alt={profile.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <div className="p-8">
+                      <div className="prose prose-sm sm:prose-base text-muted-foreground max-w-none">
                         {profile.originStory.split('\n\n').map((paragraph, i) => (
                           <p key={i} className="mb-4">{paragraph}</p>
                         ))}

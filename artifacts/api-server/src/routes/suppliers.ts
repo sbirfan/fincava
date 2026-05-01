@@ -946,6 +946,7 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
       claimStatus: suppliersTable.claimStatus,
       createdAt: suppliersTable.createdAt,
       registeredBy: suppliersTable.registeredBy,
+      originStoryImageUrl: suppliersTable.originStoryImageUrl,
     })
     .from(suppliersTable)
     .where(eq(suppliersTable.id, supplierId))
@@ -1005,6 +1006,7 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     public_trust_score,
     farmerName: supplier.registeredBy ?? null,
     originStory: supplier.description ?? null,
+    originStoryImageUrl: supplier.originStoryImageUrl ?? null,
     products: supplierProducts,
     certificationDetails: [],
     productCategories,
