@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gt, isNull } from "drizzle-orm";
-import { randomBytes } from "crypto";
+import { eq, and, gt, isNull, or } from "drizzle-orm";
+import { randomBytes, createHash } from "crypto";
 import rateLimit from "express-rate-limit";
 import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable, emailVerificationTokensTable, buyerProfilesTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
@@ -8,6 +8,11 @@ import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithPr
 import { logger } from "../lib/logger";
 import { sendEmail, passwordResetEmail, welcomeEmail, verificationEmail } from "../lib/email";
 import { runMatching as runBuyerMatching } from "../services/buyer-matching-service";
+
+/** sha256 hex digest of a raw token — used for secure storage and lookup. */
+function hashToken(raw: string): string {
+  return createHash("sha256").update(raw).digest("hex");
+}
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -62,7 +67,7 @@ function getAppBaseUrl(): string {
 async function sendVerificationEmail(userId: number, email: string, firstName: string): Promise<void> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-  await db.insert(emailVerificationTokensTable).values({ userId, token, expiresAt });
+  await db.insert(emailVerificationTokensTable).values({ userId, token, tokenHash: hashToken(token), expiresAt });
   const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${token}`;
   const { html, text, subject } = verificationEmail({ firstName: firstName || "there", verifyUrl });
   const result = await sendEmail({ to: email, subject, html, text });
@@ -246,7 +251,7 @@ router.post("/auth/forgot-password", passwordResetLimiter, async (req, res): Pro
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-  await db.insert(passwordResetTokensTable).values({ userId: user.id, token, expiresAt });
+  await db.insert(passwordResetTokensTable).values({ userId: user.id, token, tokenHash: hashToken(token), expiresAt });
 
   const resetUrl = `${getAppBaseUrl()}/reset-password?token=${token}`;
 
@@ -273,13 +278,17 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
   }
 
   // Cheap pre-flight check: reject obviously invalid/expired tokens before hashing
+  const tokenHash = hashToken(token);
   const now = new Date();
   const [preCheck] = await db
     .select({ id: passwordResetTokensTable.id })
     .from(passwordResetTokensTable)
     .where(
       and(
-        eq(passwordResetTokensTable.token, token),
+        or(
+          eq(passwordResetTokensTable.tokenHash, tokenHash),
+          eq(passwordResetTokensTable.token, token),
+        ),
         eq(passwordResetTokensTable.used, false),
         gt(passwordResetTokensTable.expiresAt, now),
       ),
@@ -301,7 +310,10 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
       .set({ used: true })
       .where(
         and(
-          eq(passwordResetTokensTable.token, token),
+          or(
+            eq(passwordResetTokensTable.tokenHash, tokenHash),
+            eq(passwordResetTokensTable.token, token),
+          ),
           eq(passwordResetTokensTable.used, false),
           gt(passwordResetTokensTable.expiresAt, now),
         ),
@@ -347,6 +359,7 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
     return;
   }
 
+  const tokenHash = hashToken(token);
   const now = new Date();
   const record = await db.transaction(async (tx) => {
     const [claimed] = await tx
@@ -354,7 +367,10 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
       .set({ used: true })
       .where(
         and(
-          eq(emailVerificationTokensTable.token, token),
+          or(
+            eq(emailVerificationTokensTable.tokenHash, tokenHash),
+            eq(emailVerificationTokensTable.token, token),
+          ),
           eq(emailVerificationTokensTable.used, false),
           gt(emailVerificationTokensTable.expiresAt, now),
         ),
