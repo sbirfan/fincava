@@ -11,6 +11,7 @@ import {
   supplierEvaluationsTable,
   supplierStateTransitionsTable,
   productsTable,
+  originStoriesTable,
   usersTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
@@ -24,7 +25,7 @@ import { computePublicTrustScore } from "../services/confidence-scorer";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
-import { desc, asc, eq, and, gte, lte, sql, count, inArray, ilike, or } from "drizzle-orm";
+import { desc, asc, eq, and, gte, lte, sql, count, inArray, ilike, or, isNull, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   evaluateSupplier,
@@ -843,9 +844,87 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
     })),
   }));
 
+  // ── ?include_onboarding=true — Section B: Building Export Readiness ──────────
+  // Phase I: existence of an origin_stories row = admin approval to appear here.
+  //   The admin's act of creating a story in the admin console is the publishing gate.
+  //   Phase II: add a `published` boolean column to originStoriesTable and filter on it here.
+  let onboarding_suppliers: Array<{
+    id: number;
+    name: string | null;
+    region: string | null;
+    department: string | null;
+    storyExcerpt: string;
+    imageUrl: string | null;
+    productCategories: string[];
+  }> = [];
+
+  if (req.query.include_onboarding === "true") {
+    const onboardingRaw = await db
+      .select({
+        id:            suppliersTable.id,
+        nombreCompleto: suppliersTable.nombreCompleto,
+        municipio:     suppliersTable.municipio,
+        department:    suppliersTable.department,
+        story:         originStoriesTable.story,
+        images:        originStoriesTable.images,
+      })
+      .from(suppliersTable)
+      .innerJoin(productsTable, eq(productsTable.supplierId, suppliersTable.id))
+      .innerJoin(originStoriesTable, eq(originStoriesTable.productId, productsTable.id))
+      .where(
+        or(
+          isNull(suppliersTable.sellableStatus),
+          notInArray(suppliersTable.sellableStatus, ["SELLABLE", "PUBLISHED"]),
+        ),
+      )
+      .orderBy(suppliersTable.id, originStoriesTable.id)
+      .limit(40);
+
+    // Deduplicate by supplier ID — keep first origin story row per supplier.
+    const seenIds = new Set<number>();
+    const onboardingDeduped = onboardingRaw
+      .filter((r) => {
+        if (seenIds.has(r.id)) return false;
+        seenIds.add(r.id);
+        return true;
+      })
+      .slice(0, 20);
+
+    // Secondary query: product categories for onboarding suppliers.
+    const onboardingIds = onboardingDeduped.map((r) => r.id);
+    const onboardingProducts = onboardingIds.length > 0
+      ? await db
+          .select({ supplierId: productsTable.supplierId, category: productsTable.category })
+          .from(productsTable)
+          .where(inArray(productsTable.supplierId, onboardingIds))
+      : [];
+
+    const categoriesBySupplier = new Map<number, string[]>();
+    for (const p of onboardingProducts) {
+      if (p.supplierId == null) continue;
+      const list = categoriesBySupplier.get(p.supplierId) ?? [];
+      if (p.category && !list.includes(p.category)) list.push(p.category);
+      categoriesBySupplier.set(p.supplierId, list);
+    }
+
+    onboarding_suppliers = onboardingDeduped.map((r) => ({
+      id:               r.id,
+      name:             r.nombreCompleto,
+      region:           r.municipio,
+      department:       r.department,
+      storyExcerpt:     r.story.length > 120 ? r.story.slice(0, 120).trimEnd() + "\u2026" : r.story,
+      imageUrl:         r.images[0] ?? null,
+      productCategories: categoriesBySupplier.get(r.id) ?? [],
+    }));
+  }
+
   // platformFeePercent is a static platform rate; surfaced here so buyers
   // can see the cost of trade before submitting an order.
-  res.json({ suppliers, platformFeePercent: 4 });
+  res.json({
+    suppliers,
+    ...(req.query.include_onboarding === "true" ? { onboarding_suppliers } : {}),
+    platformFeePercent: 4,
+  });
 });
 
 // ── GET /api/suppliers/:id/evaluations ───────────────────────────────────────

@@ -4,7 +4,7 @@ const en = {
   nav: {
     products: "Products",
     platform: "Platform",
-    suppliers: "Suppliers",
+    suppliers: "Supplier Network",
     markets: "Markets",
     impact: "Impact",
     investors: "Investors",
@@ -351,7 +351,7 @@ const es: typeof en = {
   nav: {
     products: "Productos",
     platform: "Plataforma",
-    suppliers: "Proveedores",
+    suppliers: "Red de Proveedores",
     markets: "Mercados",
     impact: "Impacto",
     investors: "Inversores",
