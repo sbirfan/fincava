@@ -183,7 +183,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const result = user ? await verifyPassword(password, user.passwordHash) : { valid: false as const };
   if (!user || !result.valid) {
-    logger.warn({ email: maskEmail(email), ip: hashIp(req.ip) }, "Login failed: invalid credentials");
+    if (user && "errorCode" in result && result.errorCode === "LEGACY_SALT_MISSING") {
+      logger.error({ userId: user.id, email: maskEmail(email) }, "Login blocked: LEGACY_HASH_SALT env var not set — legacy password verification unavailable");
+    } else {
+      logger.warn({ email: maskEmail(email), ip: hashIp(req.ip) }, "Login failed: invalid credentials");
+    }
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
@@ -232,6 +236,9 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
 
   const result = await verifyPassword(currentPassword, user.passwordHash);
   if (!result.valid) {
+    if (result.errorCode === "LEGACY_SALT_MISSING") {
+      logger.error({ userId, email: maskEmail(user.email) }, "Change-password blocked: LEGACY_HASH_SALT env var not set — legacy password verification unavailable");
+    }
     res.status(401).json({ error: "Current password is incorrect" });
     return;
   }

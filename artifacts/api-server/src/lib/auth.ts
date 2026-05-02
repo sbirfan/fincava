@@ -45,13 +45,23 @@ export async function hashPassword(password: string): Promise<string> {
  * Supports both bcrypt hashes and legacy SHA-256 hashes (transparent migration).
  * Returns the new bcrypt hash when the legacy hash matches, so the caller can
  * upgrade the stored hash in the database.
+ *
+ * errorCode "LEGACY_SALT_MISSING" is returned (not thrown) when a legacy hash
+ * is detected but LEGACY_HASH_SALT is absent — callers must log this as an ops
+ * error and return a safe 401/rejection to the client without exposing details.
  */
 export async function verifyPassword(
   password: string,
   storedHash: string,
-): Promise<{ valid: boolean; newHash?: string }> {
+): Promise<{ valid: boolean; newHash?: string; errorCode?: "LEGACY_SALT_MISSING" }> {
   if (isLegacyHash(storedHash)) {
-    const valid = legacyHash(password) === storedHash;
+    let hash: string;
+    try {
+      hash = legacyHash(password);
+    } catch {
+      return { valid: false, errorCode: "LEGACY_SALT_MISSING" };
+    }
+    const valid = hash === storedHash;
     return valid
       ? { valid: true, newHash: await hashPassword(password) }
       : { valid: false };
