@@ -379,7 +379,7 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
 
     if (!claimed) return null;
 
-    await tx
+    const verifiedRows = await tx
       .update(usersTable)
       .set({ emailVerifiedAt: now })
       .where(
@@ -387,7 +387,14 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
           eq(usersTable.id, claimed.userId),
           isNull(usersTable.emailVerifiedAt),
         ),
-      );
+      )
+      .returning({ id: usersTable.id });
+
+    // emailJustVerified is the durable idempotency gate for post-response
+    // side effects. True only on the first successful claim; repeated token
+    // claims (e.g. multiple valid tokens from resend) find emailVerifiedAt
+    // already set, so verifiedRows is empty and side effects are skipped.
+    const emailJustVerified = verifiedRows.length > 0;
 
     // For BUYERs, transition Phase 1 buyer_profiles.state REGISTERED → ACTIVE.
     // Idempotent: only updates rows currently in REGISTERED state.
@@ -411,7 +418,7 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
       buyerActivated = transitioned.length > 0;
     }
 
-    return { claimed, role: user?.role ?? null, buyerActivated };
+    return { claimed, role: user?.role ?? null, buyerActivated, emailJustVerified };
   });
 
   if (!record) {
@@ -419,11 +426,13 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
     return;
   }
 
-  logger.info({ userId: record.claimed.userId, role: record.role }, "Email verified successfully");
+  logger.info({ userId: record.claimed.userId, role: record.role, emailJustVerified: record.emailJustVerified }, "Email verified successfully");
   res.json({ message: "Email verified successfully. You can now close this page." });
 
   // Fire-and-forget: send welcome email to verified buyers.
-  if (record.role === "BUYER") {
+  // emailJustVerified gates both blocks — side effects run exactly once even
+  // when the user holds multiple valid tokens from prior resend requests.
+  if (record.role === "BUYER" && record.emailJustVerified) {
     Promise.resolve().then(async () => {
       try {
         const [profile] = await db
