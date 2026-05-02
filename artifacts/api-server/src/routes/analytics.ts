@@ -4,8 +4,16 @@ import {
   db, productAnalyticsTable, productsTable, companiesTable, tradeHistoryTable,
   complianceRequirementsTable, trustScoresTable, rfqsTable
 } from "@workspace/db";
+import { requireAuth } from "../lib/auth";
+import { requireAdmin } from "../middleware/admin";
+import { ENABLE_INTELLIGENCE_PUBLIC } from "../lib/flags";
 
 const router: IRouter = Router();
+
+router.use(["/analytics", "/compliance", "/trust", "/markets"], (req, res, next): void => {
+  if (ENABLE_INTELLIGENCE_PUBLIC) { next(); return; }
+  requireAuth(req, res, () => requireAdmin(req, res, next));
+});
 
 router.get("/analytics/trending", async (_req, res): Promise<void> => {
   const analytics = await db.select().from(productAnalyticsTable).orderBy(desc(productAnalyticsTable.inquiries)).limit(6);

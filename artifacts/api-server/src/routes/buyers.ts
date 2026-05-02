@@ -26,6 +26,8 @@ import {
 } from "@workspace/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { hashPassword, generateToken, requireAuth } from "../lib/auth";
+import { requireAdmin } from "../middleware/admin";
+import { ENABLE_INTELLIGENCE_PUBLIC } from "../lib/flags";
 import { logger } from "../lib/logger";
 import {
   sendEmail,
@@ -671,6 +673,10 @@ router.patch(
 // Returns the current matches for a buyer, sorted desc by match_score.
 // `?preview=true` returns a Phase 1-only coarse candidate count without
 // touching the matches table or invoking Sonnet.
+router.use("/buyers/:id/matches", (req, res, next): void => {
+  if (ENABLE_INTELLIGENCE_PUBLIC) { next(); return; }
+  requireAuth(req, res, () => requireAdmin(req, res, next));
+});
 router.get(
   "/buyers/:id/matches",
   requireAuth,
