@@ -1,0 +1,64 @@
+S1 — Supplier Entity Linkage Verification and Hardening
+[DEPENDS ON: B0 complete]
+---
+
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+FINCAVA-HUB has two entity hierarchies: suppliersTable (field-onboarded farmers, created via /onboarding form) and companiesTable (web-registered businesses with user accounts). The supplier dashboard already has a ProfileCompletenessWidget that calls GET /api/suppliers/my-profile and a claim mechanism (PATCH /api/suppliers/:id/claim). This task audits whether those flows work end-to-end and patches minimally if not. No new schema fields unless data is completely unavailable otherwise.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. lib/db/src/schema/suppliers.ts — full schema including sellableStatus, graduationPathway fields
+3. artifacts/api-server/src/routes/suppliers.ts — find GET /api/suppliers/my-profile and PATCH /api/suppliers/:id/claim (search for "my-profile" and "claim")
+4. artifacts/fincava/src/pages/supplier-dashboard/index.tsx — read ProfileCompletenessWidget fully
+
+AUDIT TASKS (produce findings report before any code changes)
+
+Audit A: GET /api/suppliers/my-profile
+  How does it find the supplier record for the logged-in user?
+  Does it return sellableStatus and graduationPathway?
+  What does it return when no supplier is linked to the company?
+
+Audit B: PATCH /api/suppliers/:id/claim
+  What does claiming do? Which fields does it link?
+  Is there a company_id or user_id stored on the supplier record after claiming?
+  Can a user unclaim or claim a different supplier?
+
+Audit C: ProfileCompletenessWidget
+  Does it display sellableStatus (graduation state)?
+  Does it display graduationPathway (A/B/C/D)?
+  Does it show a "Connect your farm profile" flow if no supplier is linked?
+
+IMPLEMENTATION (only after audit findings are confirmed)
+Based on audit findings, implement the minimum changes needed so that:
+
+Goal 1: A supplier user who has claimed a supplier record sees their graduation status (sellableStatus, pathway, lastEvaluatedAt) in the dashboard overview.
+
+Goal 2: A supplier user who has NOT claimed a supplier record sees a clear prompt to connect their profile — not an error, not a blank space.
+
+Goal 3: GET /api/supplier/status endpoint (add if not present):
+  Auth: requireAuth + requireSupplier role
+  Returns: { found: true, sellableStatus, graduationPathway, lastEvaluatedAt, isGraduated, nextAction: string }
+  Or: { found: false, message: "No farm profile linked. Use the claim flow to connect." }
+  nextAction is a plain English string: e.g., "Upload your ICA registration document to advance to ELIGIBLE" or "Your profile is export ready"
+
+CONSTRAINTS
+No new tables.
+No destructive schema changes.
+Additive only — if a field already exists on the supplier record, use it.
+If the claim mechanism already works perfectly for all three goals: document it and make zero code changes.
+
+ACCEPTANCE CRITERIA
+1. Audit findings documented in a preflight report (Agent produces this before coding)
+2. Supplier user with claimed record: graduation status visible in dashboard
+3. Supplier user without claimed record: sees prompt, no error
+4. GET /api/supplier/status returns correct data for claimed supplier
+5. pnpm typecheck passes
+6. ops/system_gap_analysis.md: M6 updated to FIXED or PARTIAL with notes
+7. ops/task_execution_log.md updated
+
+DO NOT EXECUTE IMMEDIATELY.
+First produce your audit findings for A, B, and C.
+Then propose exactly what code changes are needed.
+Wait for approval before touching any code.
