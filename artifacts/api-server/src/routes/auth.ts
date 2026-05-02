@@ -90,26 +90,41 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
 
   const passwordHash = await hashPassword(password);
-  const [user] = await db.insert(usersTable).values({ email, passwordHash, role }).returning();
 
-  const [profile] = await db.insert(profilesTable).values({
-    userId: user.id,
-    firstName,
-    lastName,
-    country: country ?? null,
-    language: "en",
-  }).returning();
-
+  // ── Atomic: user + profile + company — rolls back all on failure ─────────────
   const companyType = role === "BUYER" ? "IMPORTER" : "EXPORTER";
-  const [company] = await db.insert(companiesTable).values({
-    userId: user.id,
-    name: companyName,
-    type: companyType as any,
-    country: country,
-    region: region ?? null,
-    description: "",
-    verified: false,
-  }).returning();
+  const { user, profile, company } = await db.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(usersTable)
+      .values({ email, passwordHash, role })
+      .returning();
+
+    const [profile] = await tx
+      .insert(profilesTable)
+      .values({
+        userId: user.id,
+        firstName,
+        lastName,
+        country: country ?? null,
+        language: "en",
+      })
+      .returning();
+
+    const [company] = await tx
+      .insert(companiesTable)
+      .values({
+        userId: user.id,
+        name: companyName,
+        type: companyType as any,
+        country: country,
+        region: region ?? null,
+        description: "",
+        verified: false,
+      })
+      .returning();
+
+    return { user, profile, company };
+  });
 
   const token = generateToken(user.id);
   res.cookie("fincava_auth", token, COOKIE_OPTIONS);
