@@ -115,18 +115,15 @@ FIX:
 
 ### H4-B — GET /suppliers/:id Unguarded (SECURITY)
 
-STATUS: **FIXED (P0.4 — 2026-04-23)**
+STATUS: **FIXED (P0.4 — 2026-04-23 + B1 — 2026-05-02)**
 
 FIX:
 * `requireAuth + requireAdmin` applied to `GET /suppliers/:id`
-* Route remains ADMIN-only in v0
-* Buyer-facing detail route will be a separate sanitized endpoint in Epic 2
-
-REMAINING BLOCKER (open):
-* `SupplierDetail` (`supplier-detail.tsx`) calls `GET /api/suppliers/:id` via `useGetSupplier()`
-* No Authorization header, mounted at `/supplier/:id` with no role guard in `App.tsx`
-* Will 401 for all non-admin visitors
-* Must migrate to sanitized buyer route before Epic 2 UI work
+* Route remains ADMIN-only
+* `GET /api/suppliers/marketplace/:id` added (public, no auth) — buyer-safe contract
+* `supplier-detail.tsx` migrated from `/api/suppliers/:id/profile` → `/api/suppliers/marketplace/:id`
+* Excluded fields confirmed absent from response: commercialScore, scoreSnapshot, eligibilityStatus, graduationPathway, whatsappNumber, rutDian, icaRegistro, fitosanitarioCert, economics, ai_outputs
+* `isExportReady` boolean drives product visibility and inquiry CTA gate
 
 ---
 
@@ -174,7 +171,7 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 ### M5 — Missing Readiness Signals in Supplier Detail
 * Buyer-facing supplier detail page will need graduation readiness signals
 * Current `GET /suppliers/:id` is ADMIN-only
-* STATUS: Open — blocked pending Epic 2 sanitized buyer route
+* STATUS: **FIXED (B1 — 2026-05-02)** — `GET /api/suppliers/marketplace/:id` returns `isExportReady` boolean; supplier-detail.tsx gates product tab, certifications tab, and inquiry CTA on `isExportReady`
 
 ### M6 — Supplier Dashboard Absent
 * Supplier has no visibility into their own status, score, or next actions
@@ -225,20 +222,19 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 ### RESOLVED
 * H1 — ICA sync fix ✔
 * H4 — Public supplier exposure ✔ (P0.2)
-* H4-B — GET /suppliers/:id unguarded ✔ (P0.4)
+* H4-B — GET /suppliers/:id unguarded ✔ (P0.4 + B1)
+* M5 — Missing readiness signals in supplier detail ✔ (B1)
 * Slice 4 — AI scoring reliability ✔
 * Slice 6 — Transaction layer ✔
 * Slice 7 — Auth hardening + email verification ✔
 * Slice 8 — Transactional email infrastructure ✔
 
 ### DO NOW (Before Epic 2 UI)
-* Resolve SupplierDetail 401 issue (H4-B blocker) — build sanitized buyer route
 * Verify fincava.com domain in Resend for live email delivery (N1)
 
 ### DO NEXT (Epic 2)
 * Epic 2 T3: onboarding validation layer (resolve M1 type mismatch)
 * Epic 2 T4: compliance alignment (promote onboarding inputs → compliance_docs)
-* Sanitized buyer supplier detail route
 * Marketplace graduation integration (H2)
 
 ### DEFER (Post Epic 2)

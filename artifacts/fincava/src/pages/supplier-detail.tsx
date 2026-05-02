@@ -21,46 +21,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldCheck, MapPin, Globe, Calendar, Star, Loader2, MessageSquare, Leaf, PauseCircle } from "lucide-react";
+import { ShieldCheck, MapPin, Loader2, MessageSquare, Leaf } from "lucide-react";
 import { Product } from "@workspace/api-client-react";
 import { ProductCard } from "@/components/product-card";
-import { TrustBadge, TrustScoreBar } from "@/components/trust-badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
-interface PublicProduct {
+interface MarketplaceSupplierDetail {
   id: number;
   name: string;
-  category: string;
-  pricePerKgUSD: number;
-  images?: string[];
-  [key: string]: any;
-}
-
-interface PublicSupplierProfile {
-  id: number;
-  name: string;
-  region?: string | null;
-  country: string;
-  description?: string | null;
-  logoUrl?: string | null;
-  verified: boolean;
-  isCertified?: boolean;
-  status?: string | null;
-  sellableStatus?: string | null;
-  memberSince: string;
-  website?: string | null;
-  avgRating?: number | null;
-  reviews?: any[];
-  public_trust_score?: number | null;
-  responseTimeHours?: number | null;
-  type?: string;
-  productCategories: string[];
-  products?: PublicProduct[];
-  originStory?: string | null;
-  originStoryImageUrl?: string | null;
-  farmerName?: string | null;
-  certificationDetails?: { id: number; type: string; issuer: string; verified: boolean }[];
+  supplierType: string | null;
+  region: string | null;
+  department: string | null;
+  isExportReady: boolean;
+  inquiryCTAEnabled: boolean;
+  originStory: {
+    farmerName: string;
+    story: string;
+    imageUrl: string | null;
+    location: string;
+  } | null;
+  certifications: { name: string; issuedBy: string; validUntil: string | null }[];
+  products: {
+    id: number;
+    name: string;
+    category: string;
+    description: string;
+    pricePerKgUSD: number;
+    unit: string;
+    imageUrl: string | null;
+  }[];
 }
 
 export default function SupplierDetail() {
@@ -70,7 +60,7 @@ export default function SupplierDetail() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const [profile, setProfile] = useState<PublicSupplierProfile | null>(null);
+  const [profile, setProfile] = useState<MarketplaceSupplierDetail | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
   const [inquiryOpen, setInquiryOpen] = useState(false);
@@ -82,7 +72,7 @@ export default function SupplierDetail() {
   useEffect(() => {
     if (!id) return;
     setProfileLoading(true);
-    fetch(`/api/suppliers/${id}/profile`)
+    fetch(`/api/suppliers/marketplace/${id}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setProfile(data ?? null))
       .catch(() => setProfile(null))
@@ -166,11 +156,12 @@ export default function SupplierDetail() {
     );
   }
 
-  const products = profile.products ?? [];
-  const trustScore = profile.public_trust_score;
-  // Phase 2 = PUBLISHED + supplier has claimed/certified their profile.
-  const isCertified = profile.isCertified ?? false;
-  const isPhase2 = isCertified;
+  const products = profile.products;
+  const isExportReady = profile.isExportReady;
+  const heroImage = profile.originStory?.imageUrl ?? null;
+  const locationLabel = profile.department
+    ? `${profile.region ?? ""}, ${profile.department}`.replace(/^, /, "")
+    : (profile.region ?? "Colombia");
 
   return (
     <div className="pb-12">
@@ -178,12 +169,12 @@ export default function SupplierDetail() {
       <div
         className="h-56 md:h-80 border-b relative overflow-hidden bg-primary/10"
         style={
-          profile.originStoryImageUrl
-            ? { backgroundImage: `url(${profile.originStoryImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+          heroImage
+            ? { backgroundImage: `url(${heroImage})`, backgroundSize: "cover", backgroundPosition: "center" }
             : undefined
         }
       >
-        {profile.originStoryImageUrl && (
+        {heroImage && (
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         )}
       </div>
@@ -193,67 +184,26 @@ export default function SupplierDetail() {
           <div>
             <div className="flex items-center flex-wrap gap-3 mb-2">
               <h1 className="text-3xl md:text-4xl font-serif font-bold">{profile.name}</h1>
-              {/* Operational status badge — only shown once supplier has completed certification */}
-              {isPhase2 && profile.status === "ACTIVE" && (
-                <Badge className="bg-green-50 text-green-700 border border-green-200 h-6 text-xs px-2 flex items-center gap-1">
-                  <Leaf className="w-3 h-3" />
-                  Ready to Supply
-                </Badge>
-              )}
-              {isPhase2 && profile.status === "INACTIVE" && (
-                <Badge className="bg-amber-50 text-amber-700 border border-amber-200 h-6 text-xs px-2 flex items-center gap-1">
-                  <PauseCircle className="w-3 h-3" />
-                  Off Season
-                </Badge>
-              )}
-              {/* Fincava Certified badge — Phase 2 only */}
-              {isPhase2 && (
+              {isExportReady && (
                 <Badge className="bg-primary text-primary-foreground border-transparent h-6 text-xs px-2 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
                   Fincava Certified
                 </Badge>
-              )}
-              {/* Trust badge — Phase 2 only */}
-              {isPhase2 && trustScore != null && (
-                <TrustBadge score={Math.round(trustScore)} size="md" showLabel />
               )}
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-3">
               <div className="flex items-center">
                 <MapPin className="w-4 h-4 mr-1.5 text-primary" />
-                {profile.region ? `${profile.region}, ` : ''}{profile.country}
+                {locationLabel}
               </div>
-              <div className="flex items-center">
-                <Calendar className="w-4 h-4 mr-1.5 text-primary" />
-                Member since {new Date(profile.memberSince).getFullYear()}
-              </div>
-              {profile.avgRating && (
-                <div className="flex items-center">
-                  <Star className="w-4 h-4 mr-1.5 text-yellow-500 fill-current" />
-                  {profile.avgRating.toFixed(1)} ({profile.reviews?.length || 0} reviews)
-                </div>
-              )}
-              {profile.website && (
-                <div className="flex items-center">
-                  <Globe className="w-4 h-4 mr-1.5 text-primary" />
-                  <a
-                    href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline hover:text-primary"
-                  >
-                    Website
-                  </a>
-                </div>
-              )}
             </div>
           </div>
 
-          {isAuthenticated && (
+          {isExportReady && isAuthenticated && (
             <Button size="lg" className="md:w-auto w-full" onClick={openInquiry}>
               <MessageSquare className="w-4 h-4 mr-2" />
-              Contact Supplier
+              Inquire About This Supplier
             </Button>
           )}
         </div>
@@ -261,31 +211,15 @@ export default function SupplierDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Trust score — Phase 2 only */}
-            {isPhase2 && trustScore != null && (
-              <div className="bg-card border rounded-lg p-5">
-                <TrustScoreBar score={Math.round(trustScore)} />
-                {profile.responseTimeHours && (
-                  <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
-                    Avg. response time: <strong>{profile.responseTimeHours}h</strong>
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Phase 1 teaser card — shown instead of trust score when not yet certified */}
-            {!isPhase2 && (
+            {/* Phase 1 teaser card — shown when not yet export-ready */}
+            {!isExportReady && (
               <div className="bg-primary/5 border border-primary/20 rounded-lg p-5">
                 <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">
                   Getting Started
                 </p>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  This farm is being onboarded onto the Fincava platform. Full commercial details will be available once they complete certification.
+                  This supplier is preparing for export. Full commercial details will be available once they complete certification.
                 </p>
-                <Button size="sm" className="mt-4 w-full" onClick={openInquiry}>
-                  <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
-                  Express Interest
-                </Button>
               </div>
             )}
 
@@ -294,28 +228,18 @@ export default function SupplierDetail() {
               <div className="space-y-4 text-sm">
                 <div>
                   <div className="text-xs text-muted-foreground mb-1">Location</div>
-                  <div className="font-medium">{profile.region ? `${profile.region}, ` : ""}{profile.country}</div>
+                  <div className="font-medium">{locationLabel}</div>
                 </div>
-                {profile.type && (
+                {profile.supplierType && (
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Type</div>
-                    <div className="font-medium capitalize">{profile.type.toLowerCase().replace(/_/g, " ")}</div>
+                    <div className="font-medium capitalize">{profile.supplierType.toLowerCase().replace(/_/g, " ")}</div>
                   </div>
                 )}
-                {(profile.productCategories?.length ?? 0) > 0 && (
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-2">Categories</div>
-                    <div className="flex flex-wrap gap-2">
-                      {(profile.productCategories ?? []).map((cat, i) => (
-                        <Badge key={i} variant="secondary" className="font-normal">{cat}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {profile.farmerName && (
+                {profile.originStory?.farmerName && (
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Producer</div>
-                    <div className="font-medium">{profile.farmerName}</div>
+                    <div className="font-medium">{profile.originStory.farmerName}</div>
                   </div>
                 )}
               </div>
@@ -329,14 +253,12 @@ export default function SupplierDetail() {
                 <TabsTrigger value="origin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
                   Origin Story
                 </TabsTrigger>
-                {/* Products tab — Phase 2 only */}
-                {isPhase2 && (
+                {isExportReady && (
                   <TabsTrigger value="products" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
                     Products ({products.length})
                   </TabsTrigger>
                 )}
-                {/* Certifications tab — Phase 2 only */}
-                {isPhase2 && (
+                {isExportReady && profile.certifications.length > 0 && (
                   <TabsTrigger value="certifications" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
                     Certifications
                   </TabsTrigger>
@@ -348,7 +270,7 @@ export default function SupplierDetail() {
                   <div className="bg-card border rounded-lg overflow-hidden">
                     <div className="p-8">
                       <div className="prose prose-sm sm:prose-base text-muted-foreground max-w-none">
-                        {profile.originStory.split('\n\n').map((paragraph, i) => (
+                        {profile.originStory.story.split('\n\n').map((paragraph, i) => (
                           <p key={i} className="mb-4">{paragraph}</p>
                         ))}
                       </div>
@@ -356,24 +278,20 @@ export default function SupplierDetail() {
                   </div>
                 ) : (
                   <div className="text-center py-12 border rounded-lg bg-card/50">
-                    {!isPhase2 ? (
-                      <div className="max-w-sm mx-auto">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                          <Leaf className="w-6 h-6 text-primary" />
-                        </div>
-                        <p className="font-medium text-foreground mb-2">Farm story coming soon</p>
-                        <p className="text-sm text-muted-foreground">
-                          We are working with this farm to document their story. Check back soon.
-                        </p>
+                    <div className="max-w-sm mx-auto">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                        <Leaf className="w-6 h-6 text-primary" />
                       </div>
-                    ) : (
-                      <p className="text-muted-foreground">No origin story available.</p>
-                    )}
+                      <p className="font-medium text-foreground mb-2">Farm story coming soon</p>
+                      <p className="text-sm text-muted-foreground">
+                        We are working with this farm to document their story. Check back soon.
+                      </p>
+                    </div>
                   </div>
                 )}
 
-                {/* Phase 1: contact teaser below origin story */}
-                {!isPhase2 && (
+                {/* Non-export-ready: contact teaser below origin story */}
+                {!isExportReady && (
                   <div className="mt-6 border border-dashed border-primary/30 rounded-lg p-6 bg-primary/5 text-center">
                     <p className="text-sm font-medium text-foreground mb-1">
                       Interested in sourcing from this farm?
@@ -390,7 +308,7 @@ export default function SupplierDetail() {
                 )}
               </TabsContent>
 
-              {isPhase2 && (
+              {isExportReady && (
                 <TabsContent value="products">
                   {products.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -406,32 +324,24 @@ export default function SupplierDetail() {
                 </TabsContent>
               )}
 
-              {isPhase2 && (
+              {isExportReady && profile.certifications.length > 0 && (
                 <TabsContent value="certifications">
-                  {profile.certificationDetails && profile.certificationDetails.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      {profile.certificationDetails.map((cert) => (
-                        <div key={cert.id} className="border rounded-lg p-6 flex items-start">
-                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mr-4 flex-shrink-0">
-                            <ShieldCheck className="w-6 h-6 text-primary" />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-lg mb-1">{cert.type}</h4>
-                            <p className="text-sm text-muted-foreground mb-2">Issued by: {cert.issuer}</p>
-                            {cert.verified && (
-                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-transparent">
-                                Verified by Fincava
-                              </Badge>
-                            )}
-                          </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {profile.certifications.map((cert, i) => (
+                      <div key={i} className="border rounded-lg p-6 flex items-start">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mr-4 flex-shrink-0">
+                          <ShieldCheck className="w-6 h-6 text-primary" />
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 border rounded-lg bg-card/50">
-                      <p className="text-muted-foreground">No certifications listed.</p>
-                    </div>
-                  )}
+                        <div>
+                          <h4 className="font-bold text-lg mb-1">{cert.name}</h4>
+                          <p className="text-sm text-muted-foreground mb-2">Issued by: {cert.issuedBy}</p>
+                          {cert.validUntil && (
+                            <p className="text-xs text-muted-foreground">Valid until: {new Date(cert.validUntil).toLocaleDateString()}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </TabsContent>
               )}
             </Tabs>
