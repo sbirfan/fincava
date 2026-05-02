@@ -49,14 +49,27 @@ router.get("/rfqs/:id", async (req, res): Promise<void> => {
 
   const responsesWithSupplier = await Promise.all(responses.map(async (r) => {
     const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, r.companyId));
-    const [trust] = await db.select().from(trustScoresTable).where(eq(trustScoresTable.companyId, r.companyId));
+    // ── Intelligence decoration (non-blocking) ────────────────────────────────
+    // trustScoresTable is Layer II intelligence data. A read failure must not
+    // fail the core RFQ detail response — fall back to the denormalised
+    // company.trustScore column (or 0) and log the degradation.
+    let trustScore: number = company?.trustScore ?? 0;
+    try {
+      const [trust] = await db.select().from(trustScoresTable).where(eq(trustScoresTable.companyId, r.companyId));
+      trustScore = trust?.score ?? company?.trustScore ?? 0;
+    } catch (trustErr) {
+      logger.warn(
+        { err: trustErr, companyId: r.companyId, rfqId: id },
+        "rfqs: trust-score read failed — serving degraded response (trustScore fallback)",
+      );
+    }
     return {
       ...r,
       createdAt: r.createdAt.toISOString(),
       supplierName: company?.name ?? "Supplier",
       supplierRegion: company?.region ?? null,
       supplierVerified: company?.verified ?? false,
-      trustScore: trust?.score ?? company?.trustScore ?? 0,
+      trustScore,
     };
   }));
 
