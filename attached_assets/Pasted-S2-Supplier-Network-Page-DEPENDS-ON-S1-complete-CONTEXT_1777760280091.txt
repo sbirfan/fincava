@@ -1,0 +1,81 @@
+S2 — Supplier Network Page
+[DEPENDS ON: S1 complete]
+---
+
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+The /suppliers page currently shows only SELLABLE/PUBLISHED suppliers. The confirmed requirements are: rename title and subtitle to align with platform theme, show two sections (Export Ready + Onboarding/Coming Soon for suppliers with origin stories), show anyone with an origin story regardless of graduation status (Admin controls who appears by assigning origin stories), no new schema fields.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/fincava/src/pages/suppliers.tsx — full current implementation
+3. artifacts/api-server/src/routes/suppliers.ts — GET /api/suppliers/marketplace (lines around "marketplace")
+4. artifacts/fincava/src/pages/origin-stories.tsx — how origin stories are currently shown
+5. lib/db/src/schema/ — find origin_stories table definition and its fields
+
+OBJECTIVE
+Enhance the /suppliers page into a two-section Supplier Network page. Update nav label. One additive backend query parameter. No schema changes.
+
+BACKEND CHANGE
+In GET /api/suppliers/marketplace in artifacts/api-server/src/routes/suppliers.ts:
+Add optional query param: ?include_onboarding=true
+
+When include_onboarding=true:
+  Return existing response (SELLABLE/PUBLISHED suppliers) PLUS
+  A second array "onboarding_suppliers" containing suppliers who have an origin_stories record but are NOT SELLABLE or PUBLISHED
+  Fields for onboarding_suppliers: id, name (nombreCompleto), region (municipio), department, storyExcerpt (first 120 characters of origin story text field), imageUrl (from origin_stories), productCategories
+
+When include_onboarding is absent or false: existing behavior unchanged (backward compatible).
+
+FRONTEND CHANGES
+In artifacts/fincava/src/pages/suppliers.tsx:
+
+Change 1 — Page header
+  Remove current title "Verified Suppliers" and subtitle "Partner with top-tier Colombian agricultural producers. Every supplier is vetted for quality, capacity, and fair trade practices."
+  New title: "Supplier Network"
+  New subtitle: "Connecting global buyers with Colombia's finest agricultural producers. Explore verified exporters and discover emerging farms building their export journey."
+  (Adjust wording to match the platform's existing tone if different — read other page headers first)
+
+Change 2 — Section A: Export Ready
+  Label: "Export Ready" with a green verified badge icon
+  Shows: existing SELLABLE/PUBLISHED supplier cards
+  Each card: supplier name, region, product categories, certifications if any, "View Profile" link to /supplier/:id
+  Inquiry CTA: only on these cards
+
+Change 3 — Section B: Building Export Readiness
+  Label: "Coming Soon" or "Building Export Readiness" with amber badge
+  Shows: onboarding_suppliers from the new query param
+  Each card: supplier name, region, story excerpt, product categories
+  NO inquiry CTA, NO contact link
+  Small text: "This supplier is preparing for export — check back soon"
+
+Change 4 — Search and filter
+  Preserve existing search behavior
+  Apply search to both sections
+
+Change 5 — Empty states
+  If no export ready suppliers: "Our first verified suppliers are being prepared. Check back soon."
+  If no onboarding suppliers: do not show Section B header at all
+
+NAVBAR CHANGE (if not already done in P2-T2)
+Change "Suppliers" label to "Supplier Network" in navbar.tsx NAV_LINKS. Href /suppliers unchanged.
+
+CONSTRAINTS
+No schema changes.
+No new tables.
+The ?include_onboarding=true param is additive — default behavior of the endpoint is unchanged.
+
+ACCEPTANCE CRITERIA
+1. /suppliers shows two sections with correct content
+2. GET /api/suppliers/marketplace (no params) returns only SELLABLE/PUBLISHED — existing behavior preserved
+3. GET /api/suppliers/marketplace?include_onboarding=true returns both arrays
+4. Export Ready section cards have inquiry CTA, Onboarding section cards do not
+5. Nav label reads "Supplier Network"
+6. pnpm typecheck passes
+7. Mobile: both sections readable
+
+DO NOT EXECUTE IMMEDIATELY.
+Confirm the origin_stories table fields you found.
+Confirm how you will derive storyExcerpt.
+Wait for approval.

@@ -26,6 +26,9 @@ type MyProfileResponse =
         nombreCompleto: string | null;
         municipio: string | null;
         claimStatus: string | null;
+        sellableStatus: string | null;
+        graduationPathway: string | null;
+        lastEvaluatedAt: string | null;
       };
       profileCompleteness: ProfileCompleteness;
     };
@@ -58,7 +61,29 @@ function ProfileCompletenessWidget() {
   };
 
   if (data === null) return null;
-  if (!data.found) return null;
+  if (!data.found) {
+    return (
+      <Card className="border-l-4 border-l-amber-500">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Leaf className="w-4 h-4 text-amber-600" />
+            <CardTitle className="text-base font-serif">Connect your farm profile</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground">
+            Your farmer record is not yet linked to this account. Connect it to see your graduation status and profile completeness.
+          </p>
+          <Link
+            href="/onboarding"
+            className="mt-3 block w-full text-center text-sm font-medium bg-amber-600 text-white py-2 px-4 rounded-md hover:bg-amber-700 transition-colors"
+          >
+            Connect farm profile
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const { supplierId, supplier, profileCompleteness: pc } = data;
   const isClaimed = claimDone || supplier.claimStatus === "CLAIMED";
@@ -181,6 +206,30 @@ function ProfileCompletenessWidget() {
           <div className="mt-3 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-2.5">
             <ShieldCheck className="w-4 h-4 text-green-600 shrink-0" />
             <p className="text-xs text-green-700 font-medium">Profile claimed — trust score boosted</p>
+          </div>
+        )}
+
+        {/* Graduation status — shown when any graduation data is available */}
+        {(supplier.sellableStatus || supplier.graduationPathway) && (
+          <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3 space-y-1.5">
+            <p className="text-xs font-medium text-gray-700">Graduation Status</p>
+            <div className="flex flex-wrap gap-2 items-center">
+              {supplier.sellableStatus && (
+                <Badge variant="outline" className="text-xs">
+                  {supplier.sellableStatus.replace("_", " ")}
+                </Badge>
+              )}
+              {supplier.graduationPathway && (
+                <Badge variant="outline" className="text-xs">
+                  Pathway {supplier.graduationPathway}
+                </Badge>
+              )}
+            </div>
+            {supplier.lastEvaluatedAt && (
+              <p className="text-xs text-muted-foreground">
+                Last evaluated {new Date(supplier.lastEvaluatedAt).toLocaleDateString()}
+              </p>
+            )}
           </div>
         )}
       </CardContent>

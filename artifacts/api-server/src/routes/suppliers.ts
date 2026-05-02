@@ -1043,12 +1043,14 @@ router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void>
 
   const [supplier] = await db
     .select({
-      id:             suppliersTable.id,
-      nombreCompleto: suppliersTable.nombreCompleto,
-      municipio:      suppliersTable.municipio,
-      department:     suppliersTable.department,
-      sellableStatus: suppliersTable.sellableStatus,
-      claimStatus:    suppliersTable.claimStatus,
+      id:               suppliersTable.id,
+      nombreCompleto:   suppliersTable.nombreCompleto,
+      municipio:        suppliersTable.municipio,
+      department:       suppliersTable.department,
+      sellableStatus:   suppliersTable.sellableStatus,
+      graduationPathway: suppliersTable.graduationPathway,
+      lastEvaluatedAt:  suppliersTable.lastEvaluatedAt,
+      claimStatus:      suppliersTable.claimStatus,
     })
     .from(suppliersTable)
     .where(eq(suppliersTable.email, user.email))
@@ -1076,6 +1078,75 @@ router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void>
   };
 
   res.json({ found: true, supplierId, supplier, profileCompleteness });
+});
+
+// ── GET /api/supplier/status ───────────────────────────────────────────────────
+// Returns structured graduation status for the logged-in supplier.
+// Requires SUPPLIER role. Resolves via email match (same bridge as my-profile).
+// nextAction is a plain-English guidance string derived from sellableStatus.
+router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId as number;
+
+  const [user] = await db
+    .select({ email: usersTable.email, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  if (user.role !== "SUPPLIER") {
+    res.status(403).json({ error: "Supplier accounts only" });
+    return;
+  }
+
+  if (!user.email) {
+    res.json({
+      found: false,
+      message: "No farm profile linked. Use the claim flow to connect.",
+    });
+    return;
+  }
+
+  const [supplier] = await db
+    .select({
+      sellableStatus:    suppliersTable.sellableStatus,
+      graduationPathway: suppliersTable.graduationPathway,
+      lastEvaluatedAt:   suppliersTable.lastEvaluatedAt,
+    })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.email, user.email))
+    .limit(1);
+
+  if (!supplier) {
+    res.json({
+      found: false,
+      message: "No farm profile linked. Use the claim flow to connect.",
+    });
+    return;
+  }
+
+  function deriveNextAction(status: string | null): string {
+    switch (status) {
+      case "NOT_READY":  return "Upload your ICA registration document to advance to ELIGIBLE.";
+      case "ELIGIBLE":   return "Farm data verified — awaiting commercial scoring to become SELLABLE.";
+      case "SELLABLE":   return "Commercially scored and ready — contact support to publish to the marketplace.";
+      case "PUBLISHED":  return "Your profile is export ready and live on the marketplace.";
+      default:           return "Complete your farm profile to begin the graduation process.";
+    }
+  }
+
+  res.json({
+    found:             true,
+    sellableStatus:    supplier.sellableStatus,
+    graduationPathway: supplier.graduationPathway,
+    lastEvaluatedAt:   supplier.lastEvaluatedAt?.toISOString() ?? null,
+    isGraduated:       supplier.sellableStatus != null && supplier.sellableStatus !== "NOT_READY",
+    nextAction:        deriveNextAction(supplier.sellableStatus),
+  });
 });
 
 // ── PATCH /api/suppliers/:id/claim ────────────────────────────────────────────

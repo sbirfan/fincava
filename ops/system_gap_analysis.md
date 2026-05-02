@@ -179,7 +179,11 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 ### M6 — Supplier Dashboard Absent
 * Supplier has no visibility into their own status, score, or next actions
 * Currently admin-driven only
-* STATUS: Open — Phase 2 (System Hardening) priority
+* STATUS: FIXED — S1 task (Phase I Sprint)
+* NOTES: GET /api/suppliers/my-profile now returns graduationPathway + lastEvaluatedAt;
+  new GET /api/supplier/status endpoint returns structured graduation status + nextAction string;
+  ProfileCompletenessWidget renders found:false prompt card (no more silent blank) and
+  graduation status row (sellableStatus badge, pathway badge, lastEvaluatedAt) when data present.
 
 ---
 
