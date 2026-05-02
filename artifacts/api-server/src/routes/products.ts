@@ -123,13 +123,22 @@ router.get("/products", async (req, res): Promise<void> => {
   }
 
   const offset = (page - 1) * limit;
-  const rows = await (query as any).limit(limit).offset(offset);
+
+  const countQuery = db
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(productsTable)
+    .where(and(...conditions));
+
+  const [rows, [{ count }]] = await Promise.all([
+    (query as any).limit(limit).offset(offset),
+    countQuery,
+  ]);
 
   const products = await Promise.all(rows.map((r: any) => buildProductResponse(r.product, r.company)));
 
   res.json({
     products,
-    total: products.length,
+    total: count,
     page,
     limit,
   });
