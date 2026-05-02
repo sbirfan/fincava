@@ -4,8 +4,14 @@ import { db, loansTable, repaymentsTable, ordersTable, usersTable, profilesTable
 import { requireAuth, requireVerifiedEmail } from "../lib/auth";
 import { sendEmail, loanRepaidBuyerEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { ENABLE_FINANCE } from "../lib/flags";
 
 const router: IRouter = Router();
+
+router.use("/finance", (_req, res, next): void => {
+  if (!ENABLE_FINANCE) { res.status(404).json({ error: "Not found" }); return; }
+  next();
+});
 
 function calculateCreditScore(loans: Array<{ status: string }>): number {
   let score = 500;

@@ -4,8 +4,14 @@ import {
   db, shipmentsTable, paymentMilestonesTable, ordersTable, companiesTable
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
+import { ENABLE_LOGISTICS } from "../lib/flags";
 
 const router: IRouter = Router();
+
+router.use("/orders", (_req, res, next): void => {
+  if (!ENABLE_LOGISTICS) { res.status(404).json({ error: "Not found" }); return; }
+  next();
+});
 
 router.get("/orders/:id/shipment", requireAuth, async (req, res): Promise<void> => {
   const orderId = parseInt(req.params.id as string);

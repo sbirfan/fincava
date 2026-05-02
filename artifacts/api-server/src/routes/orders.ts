@@ -14,8 +14,14 @@ import { computeFee } from "../services/fee-service";
 import { logInteraction } from "../lib/interaction-logger";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
 import { isValidFeeStatus } from "../constants/fee-status";
+import { ENABLE_TRANSACTIONS } from "../lib/flags";
 
 const router: IRouter = Router();
+
+router.use(["/buyer/orders", "/supplier/orders"], (_req, res, next): void => {
+  if (!ENABLE_TRANSACTIONS) { res.status(404).json({ error: "Not found" }); return; }
+  next();
+});
 
 async function buildOrderResponse(order: any) {
   const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
