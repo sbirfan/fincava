@@ -338,4 +338,5 @@ Approval gate:
 - 2026-05-02 (P2-R7): Public ranking isolation — marketplace endpoint now orders by `createdAt` (deterministic) instead of `lastEvaluatedAt` (AI-pipeline-dependent). Non-Negotiable §11 enforced in code.
 - 2026-05-02 (P2-R8): Boundary tests added — 24 new tests (15 backend, 9 frontend) locking all gate behaviors; PrivateRoute extracted to standalone component. Total test suite: 84 passing.
 - 2026-05-02 (P2-R9): Documentation aligned — execution log SHAs reconciled (P2-R7: 25550d6, P2-R8: 71f3553); Phase II status snapshot added; Section 5 and Section 7 updated to reflect Phase II enforcement state.
+- 2026-05-02 (B0-BASELINE): Phase I Sprint baseline established — branch `main`, SHA `b3c50ee` (full: `b3c50eea0da1a24eba12cc384a3fad12114e075c`). Typecheck: 4/4 packages clean. Build: all artifacts pass. Test suite: 84/84 passing. Phase II boundary enforcement independently verified (P2-V0-VERIFY: 13/13 checks PASS, GO verdict). No regressions. Phase I Sprint entry confirmed.
 
