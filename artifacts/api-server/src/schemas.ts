@@ -108,6 +108,7 @@ export const AdminSupplierEditBody = z
       .optional()
       .nullable()
       .transform((v) => (v === "" ? null : v)),
+    originStoryPublished: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: "At least one field must be provided",

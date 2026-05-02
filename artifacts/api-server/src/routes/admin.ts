@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
-import { ordersTable, orderItemsTable, productsTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
+import { ordersTable, orderItemsTable, productsTable, originStoriesTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
 import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
@@ -1412,6 +1412,21 @@ router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<voi
           });
         }
       }
+
+      // originStoriesTable.published toggle — surfaces story on Supplier Network page.
+      if (data.originStoryPublished !== undefined) {
+        const supplierProducts = await tx
+          .select({ id: productsTable.id })
+          .from(productsTable)
+          .where(eq(productsTable.supplierId, id));
+        if (supplierProducts.length > 0) {
+          await tx
+            .update(originStoriesTable)
+            .set({ published: data.originStoryPublished })
+            .where(inArray(originStoriesTable.productId, supplierProducts.map((p) => p.id)));
+        }
+      }
+
       return row;
     });
   } catch (err: any) {

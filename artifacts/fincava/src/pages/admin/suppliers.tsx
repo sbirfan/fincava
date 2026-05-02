@@ -36,6 +36,7 @@ interface Supplier {
   description?: string | null;
   publishedToOriginStories?: boolean;
   originStoryImageUrl?: string | null;
+  storyPublished?: boolean;
 }
 
 const SUPPLIER_STATUSES = ["PENDING", "ACTIVE", "INACTIVE"] as const;
@@ -238,6 +239,7 @@ export default function AdminSuppliersPage() {
   const [originPublishing, setOriginPublishing] = useState(false);
   const [originError, setOriginError] = useState("");
   const [originUnpublishing, setOriginUnpublishing] = useState(false);
+  const [storyToggling, setStoryToggling] = useState(false);
   const originFileInputRef = useRef<HTMLInputElement>(null);
 
   // Filters
@@ -695,6 +697,31 @@ export default function AdminSuppliersPage() {
       setOriginError(e.message || "Failed to unpublish from Origin Stories");
     } finally {
       setOriginUnpublishing(false);
+    }
+  }
+
+  async function toggleOriginStoryPublished(supplierId: number, publish: boolean) {
+    setStoryToggling(true);
+    setOriginError("");
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ originStoryPublished: publish }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setSuppliers((prev) =>
+        prev.map((s) => s.id === supplierId ? { ...s, storyPublished: publish } : s),
+      );
+      setSelected((prev) =>
+        prev && prev.id === supplierId ? { ...prev, storyPublished: publish } : prev,
+      );
+    } catch (e: any) {
+      setOriginError(e.message || "Failed to update Supplier Network story flag");
+    } finally {
+      setStoryToggling(false);
     }
   }
 
@@ -1482,6 +1509,41 @@ export default function AdminSuppliersPage() {
                 </>
               )}
             </div>
+
+            {/* ── Supplier Network story publish toggle ─────────────────── */}
+            {selected.ingestionSource === "ADMIN_ENTRY" && (
+              <div className="mt-3">
+                {selected.storyPublished ? (
+                  <>
+                    <div className="mb-2 flex items-center justify-center gap-1.5 text-xs text-indigo-700 font-medium">
+                      <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+                      {lang === "es" ? "Historia visible en Red de Proveedores" : "Story live on Supplier Network"}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(lang === "es"
+                          ? `¿Ocultar la historia de ${selected.nombreCompleto} en la Red de Proveedores?`
+                          : `Hide ${selected.nombreCompleto}'s story from the Supplier Network?`)) {
+                          toggleOriginStoryPublished(selected.id, false);
+                        }
+                      }}
+                      disabled={storyToggling}
+                      className="w-full py-2 rounded-lg text-sm font-medium transition border bg-white hover:bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-300 disabled:opacity-60"
+                    >
+                      {storyToggling ? "Updating…" : (lang === "es" ? "Quitar de Red de Proveedores" : "Unpublish from Supplier Network")}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => toggleOriginStoryPublished(selected.id, true)}
+                    disabled={storyToggling}
+                    className="w-full py-2 rounded-lg text-sm font-semibold transition border bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 disabled:opacity-60"
+                  >
+                    {storyToggling ? "Publishing…" : (lang === "es" ? "📋 Publicar en Red de Proveedores" : "📋 Publish to Supplier Network")}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* ── Origin Stories publish / unpublish ────────────────────── */}
             {selected.ingestionSource === "ADMIN_ENTRY" && (

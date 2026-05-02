@@ -61,6 +61,7 @@ export const originStoriesTable = pgTable("origin_stories", {
   impact: text("impact").notNull(),
   images: text("images").array().notNull().default([]),
   videoUrl: text("video_url"),
+  published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

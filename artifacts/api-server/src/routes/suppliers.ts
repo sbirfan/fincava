@@ -847,7 +847,6 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
   // ── ?include_onboarding=true — Section B: Building Export Readiness ──────────
   // Phase I: existence of an origin_stories row = admin approval to appear here.
   //   The admin's act of creating a story in the admin console is the publishing gate.
-  //   Phase II: add a `published` boolean column to originStoriesTable and filter on it here.
   let onboarding_suppliers: Array<{
     id: number;
     name: string | null;
@@ -872,9 +871,12 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
       .innerJoin(productsTable, eq(productsTable.supplierId, suppliersTable.id))
       .innerJoin(originStoriesTable, eq(originStoriesTable.productId, productsTable.id))
       .where(
-        or(
-          isNull(suppliersTable.sellableStatus),
-          notInArray(suppliersTable.sellableStatus, ["SELLABLE", "PUBLISHED"]),
+        and(
+          eq(originStoriesTable.published, true),
+          or(
+            isNull(suppliersTable.sellableStatus),
+            notInArray(suppliersTable.sellableStatus, ["SELLABLE", "PUBLISHED"]),
+          ),
         ),
       )
       .orderBy(suppliersTable.id, originStoriesTable.id)
