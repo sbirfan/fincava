@@ -880,7 +880,7 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
         ),
       )
       .orderBy(suppliersTable.id, originStoriesTable.id)
-      .limit(40);
+      .limit(200); // buffer for JS dedup — 200 raw rows → safe up to 10 products/supplier for 20 unique results
 
     // Deduplicate by supplier ID — keep first origin story row per supplier.
     const seenIds = new Set<number>();
