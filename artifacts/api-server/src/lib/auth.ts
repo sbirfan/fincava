@@ -22,7 +22,12 @@ function getJwtSecret(): string {
 
 /** Legacy SHA-256 hash used before bcrypt migration — for comparison only. */
 function legacyHash(password: string): string {
-  const salt = process.env["LEGACY_HASH_SALT"] ?? "fincava_salt_2025";
+  const salt = process.env["LEGACY_HASH_SALT"];
+  if (!salt) {
+    throw new Error(
+      "LEGACY_HASH_SALT environment variable is required for legacy password verification but is not set.",
+    );
+  }
   return crypto.createHash("sha256").update(password + salt).digest("hex");
 }
 
