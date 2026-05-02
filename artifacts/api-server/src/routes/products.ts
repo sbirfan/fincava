@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, ilike, sql, desc, asc } from "drizzle-orm";
+import { eq, and, gte, lte, ilike, sql, desc, asc, inArray } from "drizzle-orm";
 import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable, productPlaceholdersTable } from "@workspace/db";
 import {
   ListProductsQueryParams,
@@ -182,8 +182,14 @@ router.get("/products/:id", async (req, res): Promise<void> => {
   const base = await buildProductResponse(row.product, row.company);
   const reviews = await db.select().from(reviewsTable).where(eq(reviewsTable.productId, row.product.id));
 
-  const reviewsWithAuthor = await Promise.all(reviews.map(async (r) => {
-    const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, r.authorId));
+  const authorIds = [...new Set(reviews.map(r => r.authorId))];
+  const profiles = authorIds.length > 0
+    ? await db.select().from(profilesTable).where(inArray(profilesTable.userId, authorIds))
+    : [];
+  const profileMap = new Map(profiles.map(p => [p.userId, p]));
+
+  const reviewsWithAuthor = reviews.map(r => {
+    const profile = profileMap.get(r.authorId);
     return {
       id: r.id,
       authorId: r.authorId,
@@ -195,7 +201,7 @@ router.get("/products/:id", async (req, res): Promise<void> => {
       verified: r.verified,
       createdAt: r.createdAt.toISOString(),
     };
-  }));
+  });
 
   const [story] = await db.select().from(originStoriesTable)
     .where(eq(originStoriesTable.productId, row.product.id));
