@@ -14,6 +14,19 @@ function hashToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
+/** Masks email local-part for privacy-safe logging: foo@bar.com → f***@bar.com */
+function maskEmail(raw: string): string {
+  const at = raw.indexOf("@");
+  if (at <= 0) return "***";
+  return `${raw[0]}***${raw.slice(at)}`;
+}
+
+/** One-way hash of client IP for log correlation without storing the address. */
+function hashIp(ip: string | undefined): string {
+  if (!ip) return "unknown";
+  return `hash:${createHash("sha256").update(ip).digest("hex").slice(0, 8)}`;
+}
+
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
