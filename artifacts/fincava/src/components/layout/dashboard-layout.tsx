@@ -66,7 +66,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'RFQ Inbox', href: `${basePath}/rfqs`, icon: FileQuestion },
     // Trade Finance hidden until ENABLE_FINANCE flag is on.
     { name: 'Trade Finance', href: `${basePath}/finance`, icon: Landmark, hidden: !ENABLE_FINANCE },
-    { name: 'Performance', href: `${basePath}/performance`, icon: BarChart2 },
+    // Performance hidden until intelligence layer is public (ENABLE_INTELLIGENCE_PUBLIC).
+    { name: 'Performance', href: `${basePath}/performance`, icon: BarChart2, hidden: true },
     // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Company Profile', href: `${basePath}/profile`, icon: User },
   ] : [
@@ -76,8 +77,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     // Orders hidden until ENABLE_TRANSACTIONS flag is on.
     { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart, hidden: !ENABLE_TRANSACTIONS },
     { name: 'Messages', href: `${basePath}/messages`, icon: MessageSquare },
-    { name: 'Market Intelligence', href: `${basePath}/market-intel`, icon: Globe },
-    { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
+    // Market Intelligence hidden until ENABLE_INTELLIGENCE_PUBLIC is on.
+    { name: 'Market Intelligence', href: `${basePath}/market-intel`, icon: Globe, hidden: true },
+    // Analytics hidden until ENABLE_INTELLIGENCE_PUBLIC is on.
+    { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2, hidden: true },
     // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Profile Settings', href: `${basePath}/profile`, icon: User },
   ]).filter(item => !item.hidden);

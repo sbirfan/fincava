@@ -181,11 +181,12 @@ function Router() {
         {ENABLE_TRANSACTIONS && <Route path="/dashboard/orders" component={() => <PrivateRoute component={BuyerOrders} roles={["BUYER"]} layout={DashboardLayout} />} />}
         {ENABLE_TRANSACTIONS && <Route path="/dashboard/orders/:id" component={() => <PrivateRoute component={BuyerOrderDetail} roles={["BUYER"]} layout={DashboardLayout} />} />}
         <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/matches" component={() => <PrivateRoute component={BuyerMatches} roles={["BUYER"]} layout={DashboardLayout} />} />
+        {/* Intelligence routes — admin-only until ENABLE_INTELLIGENCE_PUBLIC is on (mirrors P2-R3 backend gate) */}
+        <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["ADMIN"]} layout={DashboardLayout} />} />
+        <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["ADMIN"]} layout={DashboardLayout} />} />
+        <Route path="/dashboard/matches" component={() => <PrivateRoute component={BuyerMatches} roles={["ADMIN"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/profile" component={() => <PrivateRoute component={BuyerProfile} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["BUYER"]} layout={DashboardLayout} />} />
+        <Route path="/dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["ADMIN"]} layout={DashboardLayout} />} />
 
         {/* Supplier Dashboard */}
         <Route path="/supplier-dashboard" component={() => <PrivateRoute component={SupplierDashboard} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
@@ -196,10 +197,12 @@ function Router() {
         {/* Supplier order/finance routes — hidden until flags are on */}
         {ENABLE_TRANSACTIONS && <Route path="/supplier-dashboard/orders" component={() => <PrivateRoute component={SupplierOrders} roles={["SUPPLIER"]} layout={DashboardLayout} />} />}
         <Route path="/supplier-dashboard/rfqs" component={() => <PrivateRoute component={SupplierRFQs} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
-        <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        {/* Intelligence routes — admin-only (trust + analytics endpoints gated by P2-R3) */}
+        <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["ADMIN"]} layout={DashboardLayout} />} />
         {ENABLE_FINANCE && <Route path="/supplier-dashboard/finance" component={() => <PrivateRoute component={SupplierFinance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />}
         <Route path="/supplier-dashboard/profile" component={() => <PrivateRoute component={SupplierProfile} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
-        <Route path="/supplier-dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        {/* AI Assistant — admin-only (intelligence layer) */}
+        <Route path="/supplier-dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["ADMIN"]} layout={DashboardLayout} />} />
 
         {/* Admin */}
         <Route path="/admin" component={() => <PrivateRoute component={AdminDashboard} roles={["ADMIN"]} layout={AdminLayout} />} />
