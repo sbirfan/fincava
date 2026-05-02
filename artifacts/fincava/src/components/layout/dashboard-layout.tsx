@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
+import { ENABLE_TRANSACTIONS, ENABLE_FINANCE } from "@/lib/flags";
 import { 
   LayoutDashboard, 
   Package, 
@@ -55,14 +56,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const isSupplier = user?.role === "SUPPLIER";
   const basePath = isSupplier ? "/supplier-dashboard" : "/dashboard";
 
-  const navigation = isSupplier ? [
+  const navigation = (isSupplier ? [
     { name: 'Overview', href: basePath, icon: LayoutDashboard },
     { name: 'Products', href: `${basePath}/products`, icon: Package },
     { name: 'Add Product', href: `${basePath}/products/new`, icon: PlusCircle },
     { name: 'Inquiries', href: `${basePath}/inquiries`, icon: MessageSquare },
-    { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart },
+    // Orders hidden until ENABLE_TRANSACTIONS flag is on.
+    { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart, hidden: !ENABLE_TRANSACTIONS },
     { name: 'RFQ Inbox', href: `${basePath}/rfqs`, icon: FileQuestion },
-    { name: 'Trade Finance', href: `${basePath}/finance`, icon: Landmark },
+    // Trade Finance hidden until ENABLE_FINANCE flag is on.
+    { name: 'Trade Finance', href: `${basePath}/finance`, icon: Landmark, hidden: !ENABLE_FINANCE },
     { name: 'Performance', href: `${basePath}/performance`, icon: BarChart2 },
     // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Company Profile', href: `${basePath}/profile`, icon: User },
@@ -70,13 +73,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'Overview', href: basePath, icon: LayoutDashboard },
     { name: 'My RFQs', href: `${basePath}/rfqs`, icon: FileQuestion },
     { name: 'My Inquiries', href: `${basePath}/inquiries`, icon: MessageSquare },
-    { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart },
+    // Orders hidden until ENABLE_TRANSACTIONS flag is on.
+    { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart, hidden: !ENABLE_TRANSACTIONS },
     { name: 'Messages', href: `${basePath}/messages`, icon: MessageSquare },
     { name: 'Market Intelligence', href: `${basePath}/market-intel`, icon: Globe },
     { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
     // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Profile Settings', href: `${basePath}/profile`, icon: User },
-  ];
+  ]).filter(item => !item.hidden);
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col gap-4">

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from "react";
+import { ENABLE_TRANSACTIONS, ENABLE_FINANCE } from "./lib/flags";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -176,8 +177,9 @@ function Router() {
         <Route path="/dashboard/rfqs" component={() => <PrivateRoute component={BuyerRFQs} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/rfqs/new" component={() => <PrivateRoute component={BuyerRFQs} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/inquiries" component={() => <PrivateRoute component={BuyerInquiries} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/orders" component={() => <PrivateRoute component={BuyerOrders} roles={["BUYER"]} layout={DashboardLayout} />} />
-        <Route path="/dashboard/orders/:id" component={() => <PrivateRoute component={BuyerOrderDetail} roles={["BUYER"]} layout={DashboardLayout} />} />
+        {/* Buyer order routes — hidden until ENABLE_TRANSACTIONS is on */}
+        {ENABLE_TRANSACTIONS && <Route path="/dashboard/orders" component={() => <PrivateRoute component={BuyerOrders} roles={["BUYER"]} layout={DashboardLayout} />} />}
+        {ENABLE_TRANSACTIONS && <Route path="/dashboard/orders/:id" component={() => <PrivateRoute component={BuyerOrderDetail} roles={["BUYER"]} layout={DashboardLayout} />} />}
         <Route path="/dashboard/messages" component={() => <PrivateRoute component={BuyerMessages} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/market-intel" component={() => <PrivateRoute component={BuyerMarketIntel} roles={["BUYER"]} layout={DashboardLayout} />} />
         <Route path="/dashboard/analytics" component={() => <PrivateRoute component={BuyerAnalytics} roles={["BUYER"]} layout={DashboardLayout} />} />
@@ -191,10 +193,11 @@ function Router() {
         <Route path="/supplier-dashboard/products/new" component={() => <PrivateRoute component={SupplierProductNew} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/products/:id/edit" component={() => <PrivateRoute component={SupplierProductEdit} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/inquiries" component={() => <PrivateRoute component={SupplierInquiries} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
-        <Route path="/supplier-dashboard/orders" component={() => <PrivateRoute component={SupplierOrders} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        {/* Supplier order/finance routes — hidden until flags are on */}
+        {ENABLE_TRANSACTIONS && <Route path="/supplier-dashboard/orders" component={() => <PrivateRoute component={SupplierOrders} roles={["SUPPLIER"]} layout={DashboardLayout} />} />}
         <Route path="/supplier-dashboard/rfqs" component={() => <PrivateRoute component={SupplierRFQs} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
-        <Route path="/supplier-dashboard/finance" component={() => <PrivateRoute component={SupplierFinance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        {ENABLE_FINANCE && <Route path="/supplier-dashboard/finance" component={() => <PrivateRoute component={SupplierFinance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />}
         <Route path="/supplier-dashboard/profile" component={() => <PrivateRoute component={SupplierProfile} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         <Route path="/supplier-dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
 

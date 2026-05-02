@@ -1,5 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useState } from "react";
+import { ENABLE_TRANSACTIONS } from "@/lib/flags";
 import { useGetProduct, useGetSimilarProducts, getGetProductQueryKey, getGetSimilarProductsQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -299,17 +300,22 @@ export default function ProductDetail() {
               )}
             </div>
 
-            <Button className="w-full h-12 text-lg mb-3" onClick={openOrderDialog}>
-              <Package className="w-5 h-5 mr-2" />
-              Place Order
-            </Button>
+            {/* Place Order button — hidden until ENABLE_TRANSACTIONS is on. Dialog preserved below. */}
+            {ENABLE_TRANSACTIONS && (
+              <Button className="w-full h-12 text-lg mb-3" onClick={openOrderDialog}>
+                <Package className="w-5 h-5 mr-2" />
+                Place Order
+              </Button>
+            )}
             <Button variant="outline" className="w-full h-11 mb-4" onClick={handleInquiry}>
               Request Quote / Inquiry
             </Button>
-            <p className="text-center text-xs text-muted-foreground flex items-center justify-center">
-              <ShieldCheck className="w-3 h-3 mr-1" />
-              Fincava Trade Assurance protects your orders
-            </p>
+            {ENABLE_TRANSACTIONS && (
+              <p className="text-center text-xs text-muted-foreground flex items-center justify-center">
+                <ShieldCheck className="w-3 h-3 mr-1" />
+                Fincava Trade Assurance protects your orders
+              </p>
+            )}
           </div>
         </div>
       </div>

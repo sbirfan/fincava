@@ -1,4 +1,5 @@
 import { useGetBuyerStats } from "@workspace/api-client-react";
+import { ENABLE_TRANSACTIONS } from "@/lib/flags";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Link } from "wouter";
@@ -136,28 +137,33 @@ export default function BuyerDashboard() {
             </CardContent>
           </Card>
         </Link>
-        <Link href="/dashboard/orders" className="block group">
-          <Card className="cursor-pointer transition-shadow group-hover:shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium">Orders in Progress</CardTitle>
-              <Clock className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.ordersInProgress || 0}</div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/dashboard/orders" className="block group">
-          <Card className="cursor-pointer transition-shadow group-hover:shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-              <ShoppingCart className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
-            </CardContent>
-          </Card>
-        </Link>
+        {/* Order stat cards — hidden until ENABLE_TRANSACTIONS is on */}
+        {ENABLE_TRANSACTIONS && (
+          <Link href="/dashboard/orders" className="block group">
+            <Card className="cursor-pointer transition-shadow group-hover:shadow-md">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-medium">Orders in Progress</CardTitle>
+                <Clock className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.ordersInProgress || 0}</div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+        {ENABLE_TRANSACTIONS && (
+          <Link href="/dashboard/orders" className="block group">
+            <Card className="cursor-pointer transition-shadow group-hover:shadow-md">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+                <ShoppingCart className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Saved Products</CardTitle>
@@ -198,6 +204,8 @@ export default function BuyerDashboard() {
           </CardContent>
         </Card>
 
+        {/* Recent Orders card — hidden until ENABLE_TRANSACTIONS is on */}
+        {ENABLE_TRANSACTIONS && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-serif">Recent Orders</CardTitle>
@@ -223,6 +231,7 @@ export default function BuyerDashboard() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
   );
