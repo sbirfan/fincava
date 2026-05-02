@@ -1,0 +1,118 @@
+TASK ID: PREPROD-RC1-PHASE1-2
+
+[MANDATORY EXECUTION CONTRACT — APPLY FIRST]
+Follow AGENT_RULE.MD strictly:
+1) Run PREFLIGHT before edits
+2) Define execution plan
+3) Keep changes minimal and scoped
+4) Validate with required commands
+5) Report risks and rollback
+6) If uncertain, STOP and report
+
+Operator constraints:
+- Validation-only task by default (no refactor)
+- If any fix is required, stop and propose a separate patch task
+- Package manager: pnpm only
+- Print before:
+  - git branch --show-current
+  - git rev-parse --short HEAD
+  - git status --short
+
+OBJECTIVE:
+Run a full pre-production release-candidate validation covering all completed Phase I and Phase II enforcement work. Produce pass/fail evidence and release recommendation.
+
+SCOPE:
+A) Phase I controls
+- R2: legacy salt fallback removed and missing-env handling on legacy path
+- R3: register flow atomic transaction behavior
+- R4: token hashing + legacy plaintext compatibility
+- R5: /products pagination total correctness
+- R6: product detail reviews N+1 eliminated
+- R7: verify-email side effects idempotent
+- R8: PII-safe auth logging
+
+B) Phase II controls
+- P2: Core-only public behavior enforced
+- Transaction APIs gated off by default
+- Intelligence public APIs gated/admin-only
+- Public supplier ranking independent of match/trust/analytics
+- Frontend hides transaction surfaces and protects intelligence routes
+- Core -> Intelligence one-way operational behavior (core not blocked if intelligence side path fails)
+
+C) Documentation & governance alignment
+- ops/task_execution_log.md consistent with actual commits
+- docs/SOURCE_OF_TRUTH_ROADMAP.md status snapshot reflects completed Phase I & II
+- feature flag defaults aligned with enforcement behavior
+
+REQUIRED VALIDATION CHECKS:
+
+1) Baseline integrity
+- git branch --show-current
+- git rev-parse --short HEAD
+- git status --short
+- Confirm no uncommitted changes before tests
+
+2) Build/type health
+- pnpm install
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm run typecheck
+- pnpm run build
+
+3) Backend API behavior matrix (report endpoint + expected + actual)
+- Core Layer I endpoints return expected success
+- Transaction endpoints return gated behavior when flags are false (prefer 404 as implemented)
+- Intelligence endpoints:
+  - admin-auth path allowed
+  - non-admin/public path denied/gated
+- Verify no core endpoint depends on transaction/intelligence availability
+
+4) Security/regression checks
+- Auth logs: verify email masked + IP hashed/truncated (no plaintext email/IP/token/password)
+- Legacy hash verification path:
+  - when LEGACY_HASH_SALT missing and legacy hash encountered -> explicit failure path
+- Token flows:
+  - newly issued reset/verification tokens validated via token_hash
+  - legacy plaintext rows still validate in compatibility path (if test fixture/data exists)
+- Verify-email idempotency:
+  - repeated valid claims for same user do not duplicate side effects
+  - emailVerifiedAt unchanged after first verification
+
+5) Data integrity checks
+- Registration simulated failure path does not leave orphan user/profile/company
+- /products pagination:
+  - total remains global count across pages
+- Product detail reviews:
+  - author resolution works with zero/many reviews
+  - no per-review profile query pattern in runtime path (confirm behaviorally)
+
+6) Phase II boundary checks (UI + route-level if app runnable)
+- Public UX limited to discovery/evaluate/RFQ-inquiry intent flow
+- Checkout/order/shipment/finance UI hidden/disabled for public users
+- Intelligence UI inaccessible to non-admin/deep-link attempts blocked safely
+
+7) Source-of-truth consistency
+- Cross-check Phase I/II completion claims in SoT against actual behavior observed
+- Flag any mismatch as release blocker
+
+OUTPUT FORMAT (STRICT):
+
+1. PREFLIGHT findings
+2. Execution plan
+3. Commands run (exact)
+4. Validation matrix (table):
+   - Control ID (R2, R3... P2-R8)
+   - Test performed
+   - Result (Pass/Fail)
+   - Evidence (command/output snippet)
+5. Release blockers (if any)
+6. Risk rating: Low/Medium/High with rationale
+7. Go/No-Go recommendation:
+   - GO only if zero Critical/High blockers
+8. If NO-GO:
+   - exact patch task list (small scoped fixes)
+9. Rollback/readiness notes for deployment
+
+DONE CRITERIA:
+- Complete pass/fail evidence for all Phase I + II controls
+- Clear GO/NO-GO recommendation with explicit blockers list (or none)
+- No code changes unless explicitly approved as follow-up patch tasks
