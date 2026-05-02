@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gt, isNull } from "drizzle-orm";
-import { randomBytes } from "crypto";
+import { eq, and, gt, isNull, or } from "drizzle-orm";
+import { randomBytes, createHash } from "crypto";
 import rateLimit from "express-rate-limit";
 import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable, emailVerificationTokensTable, buyerProfilesTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
@@ -8,6 +8,11 @@ import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithPr
 import { logger } from "../lib/logger";
 import { sendEmail, passwordResetEmail, welcomeEmail, verificationEmail } from "../lib/email";
 import { runMatching as runBuyerMatching } from "../services/buyer-matching-service";
+
+/** sha256 hex digest of a raw token — used for secure storage and lookup. */
+function hashToken(raw: string): string {
+  return createHash("sha256").update(raw).digest("hex");
+}
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -62,7 +67,7 @@ function getAppBaseUrl(): string {
 async function sendVerificationEmail(userId: number, email: string, firstName: string): Promise<void> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-  await db.insert(emailVerificationTokensTable).values({ userId, token, expiresAt });
+  await db.insert(emailVerificationTokensTable).values({ userId, token, tokenHash: hashToken(token), expiresAt });
   const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${token}`;
   const { html, text, subject } = verificationEmail({ firstName: firstName || "there", verifyUrl });
   const result = await sendEmail({ to: email, subject, html, text });
@@ -90,26 +95,41 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
 
   const passwordHash = await hashPassword(password);
-  const [user] = await db.insert(usersTable).values({ email, passwordHash, role }).returning();
 
-  const [profile] = await db.insert(profilesTable).values({
-    userId: user.id,
-    firstName,
-    lastName,
-    country: country ?? null,
-    language: "en",
-  }).returning();
-
+  // ── Atomic: user + profile + company — rolls back all on failure ─────────────
   const companyType = role === "BUYER" ? "IMPORTER" : "EXPORTER";
-  const [company] = await db.insert(companiesTable).values({
-    userId: user.id,
-    name: companyName,
-    type: companyType as any,
-    country: country,
-    region: region ?? null,
-    description: "",
-    verified: false,
-  }).returning();
+  const { user, profile, company } = await db.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(usersTable)
+      .values({ email, passwordHash, role })
+      .returning();
+
+    const [profile] = await tx
+      .insert(profilesTable)
+      .values({
+        userId: user.id,
+        firstName,
+        lastName,
+        country: country ?? null,
+        language: "en",
+      })
+      .returning();
+
+    const [company] = await tx
+      .insert(companiesTable)
+      .values({
+        userId: user.id,
+        name: companyName,
+        type: companyType as any,
+        country: country,
+        region: region ?? null,
+        description: "",
+        verified: false,
+      })
+      .returning();
+
+    return { user, profile, company };
+  });
 
   const token = generateToken(user.id);
   res.cookie("fincava_auth", token, COOKIE_OPTIONS);
@@ -231,7 +251,7 @@ router.post("/auth/forgot-password", passwordResetLimiter, async (req, res): Pro
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-  await db.insert(passwordResetTokensTable).values({ userId: user.id, token, expiresAt });
+  await db.insert(passwordResetTokensTable).values({ userId: user.id, token, tokenHash: hashToken(token), expiresAt });
 
   const resetUrl = `${getAppBaseUrl()}/reset-password?token=${token}`;
 
@@ -258,13 +278,17 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
   }
 
   // Cheap pre-flight check: reject obviously invalid/expired tokens before hashing
+  const tokenHash = hashToken(token);
   const now = new Date();
   const [preCheck] = await db
     .select({ id: passwordResetTokensTable.id })
     .from(passwordResetTokensTable)
     .where(
       and(
-        eq(passwordResetTokensTable.token, token),
+        or(
+          eq(passwordResetTokensTable.tokenHash, tokenHash),
+          eq(passwordResetTokensTable.token, token),
+        ),
         eq(passwordResetTokensTable.used, false),
         gt(passwordResetTokensTable.expiresAt, now),
       ),
@@ -286,7 +310,10 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
       .set({ used: true })
       .where(
         and(
-          eq(passwordResetTokensTable.token, token),
+          or(
+            eq(passwordResetTokensTable.tokenHash, tokenHash),
+            eq(passwordResetTokensTable.token, token),
+          ),
           eq(passwordResetTokensTable.used, false),
           gt(passwordResetTokensTable.expiresAt, now),
         ),
@@ -332,6 +359,7 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
     return;
   }
 
+  const tokenHash = hashToken(token);
   const now = new Date();
   const record = await db.transaction(async (tx) => {
     const [claimed] = await tx
@@ -339,7 +367,10 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
       .set({ used: true })
       .where(
         and(
-          eq(emailVerificationTokensTable.token, token),
+          or(
+            eq(emailVerificationTokensTable.tokenHash, tokenHash),
+            eq(emailVerificationTokensTable.token, token),
+          ),
           eq(emailVerificationTokensTable.used, false),
           gt(emailVerificationTokensTable.expiresAt, now),
         ),

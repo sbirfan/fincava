@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-02 (UTC)
 Owner: Founder + Engineering Operator
-Status: Active execution document (v1.1 alignment pending review complete)
+Status: Active execution document
 
 ---
 
@@ -52,20 +52,6 @@ Non-goals:
 - No checkout/order orchestration required for MVP
 - No financing dependency in public flows
 
-Layer I enforcement rules:
-- Layer I must operate with zero dependency on:
-  - orders
-  - payments
-  - shipments
-  - loans
-- Any code path requiring these is a violation of MVP boundaries.
-
-Buyer journey constraint:
-- MVP user flow is strictly: Discover -> Evaluate -> RFQ/Inquiry -> Confirm Intent -> Off-platform close
-- `Confirm Intent` represents a non-binding expression of interest.
-- No payment, logistics, or fulfillment flows are part of Phase I or II.
-- Fincava does not act as a transaction intermediary in Phase I or II.
-
 ## Layer II — INTELLIGENCE (Soft-active, Admin-first)
 Internal decision support now; automation-ready later.
 
@@ -79,10 +65,6 @@ Rules:
 - Admin-only UI/API exposure for now
 - One-directional data flow: Core -> Intelligence
 - No public ranking/sorting dependency on intelligence outputs
-- Public supplier visibility, ranking, or ordering must NOT depend on:
-  - `match_score`
-  - `trust_score`
-  - analytics outputs
 
 Future evolution:
 - Can become active automation orchestrator via explicit, gated interfaces
@@ -247,32 +229,18 @@ Exit criteria:
 
 ---
 
-## 9) Operating Model (Replit-first execution mode (temporary), with GitHub as persistent source of record.)
+## 9) Operating Model (Replit-first, GitHub controlled)
 
 Current working model:
-- Changes authored with Replit Agent task-by-task under temporary Replit-first execution mode, with GitHub as persistent source of record.
-- Each task runs in isolated Replit-managed branch context with checkpoint commit
-- Validation is performed before continuation
-- Changes are promoted forward sequentially
-- Record task log entry with task ID, SHA, commands, and outcome
+- Changes authored with Replit Agent task-by-task
+- Checkpoint commit created per execution step
+- Validate immediately with typecheck/build
+- Record task log entry
+- Promote to GitHub with clear traceability
 
 Task gating:
 - Do not run next task until current task is reviewed and accepted
 - If failed: debug -> fix -> revalidate -> then continue
-
-### Branch policy (current)
-- Logical mainline progression with Replit-managed isolated execution contexts.
-- Do **not** enforce manual branch-per-task while using this temporary model.
-- Traceability and rollback are provided by checkpoint commits and task execution logs.
-
-### Why this is acceptable temporarily
-- Task-level traceability
-- Rollback capability
-- Controlled sequential progression
-- Lower operational overhead for founder-led execution
-- No external production users are impacted
-- Controlled disruption is allowed during MVP formation
-
 
 ---
 
@@ -304,24 +272,7 @@ Approval gate:
 
 ---
 
-## 12) Task Status Snapshot (R0-R9)
-
-| Task | Status | Notes |
-|---|---|---|
-| R0 CI Stabilization | Completed | Redundant preflight workflow removed from active path; canonical CI retained. |
-| R1 Typecheck Unblock | Completed | TS2769 path previously addressed in execution history. |
-| R2 Legacy Salt Fallback | Completed | Hardcoded fallback removed; explicit missing-env error on legacy verification path. |
-| R3 Register Transaction | In Progress/Validated | Transaction wrapping validated in execution loop; ensure final promotion record is captured. |
-| R4 Token Hashing | In Progress/Validated | Schema + compatibility validation performed; confirm promoted commit/log consistency. |
-| R5 Pagination Total | Pending | Not started. |
-| R6 Reviews N+1 | Pending | Not started. |
-| R7 Verify Idempotency | Pending | Not started. |
-| R8 PII-safe Logging | Pending | Not started. |
-| R9 Execution Log Wrap | Ongoing | Updated per task; continue at each completion gate. |
-
-> Last aligned against `ops/task_execution_log.md` on 2026-05-02 UTC.
-
-## 13) Open Questions (to finalize next revision)
+## 12) Open Questions (to finalize next revision)
 
 1. Preferred long-term canonical authoring flow:
    - Replit-first with GitHub promotion (current)
@@ -332,14 +283,7 @@ Approval gate:
 
 ---
 
-## 14) Change Log
+## 13) Change Log
 
 - 2026-05-02: Initial Source of Truth document created, consolidating architecture, phases, and execution governance.
-- 2026-05-02: v1.1 alignment update — marked Replit-first as temporary canonical mode, documented main-branch Replit-managed progression policy, and added R0-R9 task status snapshot.
-- 2026-05-02: v1.1.1:
-  - Corrected execution wording
-  - Clarified Replit vs GitHub roles
-  - Added Layer I enforcement rules
-  - Added buyer journey constraint
-  - Added intelligence isolation rule
 
