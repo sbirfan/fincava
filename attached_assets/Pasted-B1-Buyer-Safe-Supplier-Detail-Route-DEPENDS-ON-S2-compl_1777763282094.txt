@@ -1,0 +1,65 @@
+B1 — Buyer-Safe Supplier Detail Route
+[DEPENDS ON: S2 complete]
+---
+
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+GET /api/suppliers/:id is admin-only and returns internal scoring data. SupplierDetail.tsx calls this route and returns 401 for all non-admin users. This breaks Origin Stories (links to /supplier/:id), the Supplier Network page detail links, and any direct navigation. This is the highest-priority frontend bug.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/api-server/src/routes/suppliers.ts — find GET /api/suppliers/:id (admin route) and GET /api/suppliers/marketplace (public route) to understand existing patterns
+3. artifacts/fincava/src/pages/supplier-detail.tsx — full current implementation, find which API hook or fetch it uses
+4. lib/db/src/schema/suppliers.ts, certifications.ts (or wherever certifications table is defined), origin_stories — understand available fields
+5. lib/api-client-react/src/ — check if useGetSupplier hook exists and what route it calls
+
+OBJECTIVE
+Add GET /api/suppliers/marketplace/:id (public, no auth required). Update SupplierDetail.tsx to use it. Admin route unchanged.
+
+BACKEND: New Route GET /api/suppliers/marketplace/:id
+Place this route in artifacts/api-server/src/routes/suppliers.ts BEFORE the existing GET /api/suppliers/:id route (to avoid path collision — marketplace/:id must be registered before :id).
+
+Returns (buyer-safe fields only):
+  id, name (nombreCompleto), supplierType, region (municipio), department
+  isExportReady: boolean (true if sellableStatus is SELLABLE or PUBLISHED)
+  originStory: { farmerName, story, imageUrl, location } or null
+  certifications: array of { name, issuedBy, validUntil }
+  products: array of { id, name, category, description, pricePerKgUSD, unit, imageUrl } — only if isExportReady is true
+  inquiryCTAEnabled: boolean (same as isExportReady)
+
+Does NOT return: commercialScore, eligibilityStatus, scoreSnapshot, graduationPathway, whatsappNumber, rutDian, icaRegistro, fitosanitarioCert, economics data, ai_outputs content.
+
+Returns 404 if supplier does not exist.
+No auth required on this route.
+
+FRONTEND: Update SupplierDetail.tsx
+Replace the current admin API call (useGetSupplier or fetch to /api/suppliers/:id) with a fetch to /api/suppliers/marketplace/:id.
+No credentials needed.
+
+Display:
+  Supplier name, type, region
+  Origin story section if originStory is not null
+  Certifications list if any
+  Products grid if isExportReady is true
+  If isExportReady: show "Inquire About This Supplier" button linking to /dashboard/inquiries (or opening inquiry form)
+  If not isExportReady: show "This supplier is preparing for export" message — no contact CTA
+
+CONSTRAINTS
+Do not modify GET /api/suppliers/:id — admin route stays unchanged.
+No schema changes.
+Route order matters: marketplace/:id must be registered before :id in the router.
+
+ACCEPTANCE CRITERIA
+1. GET /api/suppliers/marketplace/:id returns 200 for unauthenticated request with buyer-safe data
+2. Response body does NOT contain any of: commercialScore, scoreSnapshot, eligibilityStatus, graduationPathway, whatsappNumber, rutDian, icaRegistro
+3. Buyer can view /supplier/[any-id] without 401
+4. Origin Stories page links work — clicking a story navigates to supplier detail without error
+5. Admin route GET /api/suppliers/:id still returns 401 for non-admin (regression test)
+6. pnpm typecheck passes
+7. ops/system_gap_analysis.md: H4-B marked FIXED, M5 marked FIXED
+
+DO NOT EXECUTE IMMEDIATELY.
+Confirm the exact route registration order you will use.
+Confirm which fields currently exist on the supplier + origin_stories join.
+Wait for approval.
