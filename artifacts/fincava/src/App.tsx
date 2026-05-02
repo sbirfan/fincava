@@ -1,11 +1,12 @@
 import { lazy, Suspense, useState, useEffect } from "react";
 import { ENABLE_TRANSACTIONS, ENABLE_FINANCE } from "./lib/flags";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { PrivateRoute, PageLoader } from "@/components/private-route";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppLayout } from "@/components/layout/app-layout";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -119,29 +120,6 @@ const queryClient = new QueryClient({
   },
 });
 
-const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="w-6 h-6 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin" />
-  </div>
-);
-
-function PrivateRoute({ component: Component, roles, layout: Layout = AppLayout }: {
-  component: React.ComponentType;
-  roles?: string[];
-  layout?: React.ComponentType<{ children: React.ReactNode }>;
-}) {
-  const { isAuthenticated, isLoading, user } = useAuth();
-
-  if (isLoading) return <PageLoader />;
-  if (!isAuthenticated) return <Redirect to="/login" />;
-  if (roles && user && !roles.includes(user.role)) return <Redirect to="/" />;
-
-  return (
-    <Layout>
-      <Component />
-    </Layout>
-  );
-}
 
 function Router() {
   return (
