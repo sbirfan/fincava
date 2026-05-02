@@ -150,7 +150,7 @@ export default function ProductDetail() {
         body: JSON.stringify({
           productId: id,
           buyerEmail: user?.email ?? "",
-          buyerName: user?.name ?? user?.email ?? "",
+          buyerName: user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : (user as any)?.email ?? "",
           company: (user as any)?.companyName ?? "Independent Buyer",
           country: (user as any)?.country ?? "Unknown",
           message: inquiryMessage.trim(),

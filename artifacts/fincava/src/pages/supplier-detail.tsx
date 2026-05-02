@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ShieldCheck, MapPin, Globe, Calendar, Star, Loader2, MessageSquare, Leaf, PauseCircle } from "lucide-react";
+import { Product } from "@workspace/api-client-react";
 import { ProductCard } from "@/components/product-card";
 import { TrustBadge, TrustScoreBar } from "@/components/trust-badge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -119,7 +120,7 @@ export default function SupplierDetail() {
         body: JSON.stringify({
           productId: parseInt(selectedProductId, 10),
           buyerEmail: user?.email ?? "",
-          buyerName: user?.name ?? user?.email ?? "",
+          buyerName: user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : (user as any)?.email ?? "",
           company: (user as any)?.companyName ?? "Independent Buyer",
           country: (user as any)?.country ?? "Unknown",
           message: message.trim(),
@@ -394,7 +395,7 @@ export default function SupplierDetail() {
                   {products.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                       {products.map((product) => (
-                        <ProductCard key={product.id} product={product} />
+                        <ProductCard key={product.id} product={product as unknown as Product} />
                       ))}
                     </div>
                   ) : (

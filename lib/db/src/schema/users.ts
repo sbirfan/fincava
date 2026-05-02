@@ -17,7 +17,7 @@ export const profilesTable = pgTable("profiles", {
   id: serial("id").primaryKey(),
   userId: serial("user_id").notNull().references(() => usersTable.id),
   firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
+  lastName: text("last_name"),
   phone: text("phone"),
   country: text("country"),
   language: text("language").notNull().default("en"),
