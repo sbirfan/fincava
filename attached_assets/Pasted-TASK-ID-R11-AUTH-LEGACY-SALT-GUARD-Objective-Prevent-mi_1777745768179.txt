@@ -1,0 +1,61 @@
+TASK ID: R11-AUTH-LEGACY-SALT-GUARD
+
+Objective:
+Prevent missing LEGACY_HASH_SALT from causing uncontrolled auth request failures while keeping the insecure hardcoded fallback removed.
+
+Problem:
+R2 correctly removed the hardcoded legacy salt fallback, but legacyHash() currently throws during request-time password verification if LEGACY_HASH_SALT is missing. If a legacy SHA-256 user logs in while the env var is missing, auth may fail with an uncontrolled 500.
+
+Preflight:
+1. Run git status.
+2. Confirm branch is main.
+3. Confirm latest HEAD SHA.
+4. Inspect:
+   - artifacts/api-server/src/lib/auth.ts
+   - artifacts/api-server/src/routes/auth.ts
+   - any existing tests for auth/login/change-password
+5. Do not change API response contracts unless needed to avoid 500s.
+
+Do:
+1. Keep hardcoded fallback removed.
+2. Add a safe legacy password verification path:
+   - Missing LEGACY_HASH_SALT must not create an uncaught request error.
+   - Login/change-password should fail safely and log a controlled server-side error.
+3. Prefer one of these approaches:
+   - Add a typed result from verifyPassword such as:
+     { valid: false, errorCode: "LEGACY_SALT_MISSING" }
+   - Or catch a specific LegacySaltMissingError in auth routes.
+4. Ensure invalid credentials still return the existing 401 response shape:
+   - { error: "Invalid email or password" }
+5. Ensure no salt value, password, or hash is logged.
+6. Add or update tests if test framework exists:
+   - bcrypt user login still works
+   - legacy hash with env present works and upgrades hash
+   - legacy hash with env missing returns controlled failure, not unhandled 500
+7. Update ops/task_execution_log.md with R11 row after checks pass.
+
+Constraints:
+- No hardcoded fallback.
+- No auth redesign.
+- No DB schema changes.
+- No endpoint contract change for normal login.
+- Minimal diff.
+
+Checks:
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm run build
+- relevant auth tests if available
+
+Done Criteria:
+- Missing LEGACY_HASH_SALT no longer causes uncaught request failure.
+- Legacy users still authenticate when env var is present.
+- Bcrypt users are unaffected.
+- No sensitive values are logged.
+- Execution log updated.
+
+Output required:
+1. files changed
+2. exact commands run
+3. command outputs summary
+4. risks
+5. Ready for next task: Yes/No
