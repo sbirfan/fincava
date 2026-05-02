@@ -929,6 +929,107 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
   });
 });
 
+// ── GET /api/suppliers/marketplace/:id — public buyer-safe supplier detail ────
+// No authentication required.
+// Excludes: commercialScore, scoreSnapshot, eligibilityStatus, graduationPathway,
+// whatsappNumber, rutDian, icaRegistro, fitosanitarioCert, economics, ai_outputs.
+// Must be registered BEFORE GET /api/suppliers/:id to avoid path collision.
+router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
+  const supplierId = Number(req.params.id);
+  if (isNaN(supplierId)) {
+    res.status(400).json({ error: "Invalid supplier id" });
+    return;
+  }
+
+  const [supplier] = await db
+    .select({
+      id:             suppliersTable.id,
+      nombreCompleto: suppliersTable.nombreCompleto,
+      supplierType:   suppliersTable.supplierType,
+      municipio:      suppliersTable.municipio,
+      department:     suppliersTable.department,
+      sellableStatus: suppliersTable.sellableStatus,
+    })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!supplier) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+
+  const isExportReady =
+    supplier.sellableStatus === "SELLABLE" ||
+    supplier.sellableStatus === "PUBLISHED";
+
+  // First published origin story linked to this supplier (via products join).
+  const [storyRow] = await db
+    .select({
+      farmerName: originStoriesTable.farmerName,
+      story:      originStoriesTable.story,
+      images:     originStoriesTable.images,
+      region:     originStoriesTable.region,
+    })
+    .from(originStoriesTable)
+    .innerJoin(productsTable, eq(originStoriesTable.productId, productsTable.id))
+    .where(
+      and(
+        eq(productsTable.supplierId, supplierId),
+        eq(originStoriesTable.published, true),
+      ),
+    )
+    .orderBy(originStoriesTable.id)
+    .limit(1);
+
+  const originStory = storyRow
+    ? {
+        farmerName: storyRow.farmerName,
+        story:      storyRow.story,
+        imageUrl:   storyRow.images?.[0] ?? null,
+        location:   storyRow.region,
+      }
+    : null;
+
+  // Products are only surfaced for export-ready suppliers.
+  const products = isExportReady
+    ? (
+        await db
+          .select({
+            id:            productsTable.id,
+            name:          productsTable.name,
+            category:      productsTable.category,
+            description:   productsTable.description,
+            pricePerKgUSD: productsTable.pricePerKgUSD,
+            images:        productsTable.images,
+          })
+          .from(productsTable)
+          .where(eq(productsTable.supplierId, supplierId))
+      ).map((p) => ({
+        id:            p.id,
+        name:          p.name,
+        category:      p.category,
+        description:   p.description,
+        pricePerKgUSD: p.pricePerKgUSD,
+        unit:          "kg",
+        imageUrl:      p.images?.[0] ?? null,
+      }))
+    : [];
+
+  res.json({
+    id:                supplier.id,
+    name:              supplier.nombreCompleto,
+    supplierType:      supplier.supplierType,
+    region:            supplier.municipio ?? null,
+    department:        supplier.department ?? null,
+    isExportReady,
+    inquiryCTAEnabled: isExportReady,
+    originStory,
+    certifications:    [],
+    products,
+  });
+});
+
 // ── GET /api/suppliers/:id/evaluations ───────────────────────────────────────
 router.get("/suppliers/:id/evaluations", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
