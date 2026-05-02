@@ -85,9 +85,9 @@ async function sendVerificationEmail(userId: number, email: string, firstName: s
   const { html, text, subject } = verificationEmail({ firstName: firstName || "there", verifyUrl });
   const result = await sendEmail({ to: email, subject, html, text });
   if (result.ok) {
-    logger.info({ userId, email }, "Verification email sent");
+    logger.info({ userId, email: maskEmail(email) }, "Verification email sent");
   } else {
-    logger.error({ userId, email, reason: result.reason, detail: (result as any).detail }, "Verification email delivery failed");
+    logger.error({ userId, email: maskEmail(email), reason: result.reason, detail: (result as any).detail }, "Verification email delivery failed");
   }
 }
 
@@ -183,7 +183,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const result = user ? await verifyPassword(password, user.passwordHash) : { valid: false as const };
   if (!user || !result.valid) {
-    logger.warn({ email, ip: req.ip }, "Login failed: invalid credentials");
+    logger.warn({ email: maskEmail(email), ip: hashIp(req.ip) }, "Login failed: invalid credentials");
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
@@ -191,9 +191,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   // Transparently upgrade legacy SHA-256 hashes to bcrypt on first login
   if (result.newHash) {
     await db.update(usersTable).set({ passwordHash: result.newHash }).where(eq(usersTable.id, user.id));
-    logger.info({ userId: user.id, email }, "Password hash upgraded: SHA-256 → bcrypt");
+    logger.info({ userId: user.id, email: maskEmail(email) }, "Password hash upgraded: SHA-256 → bcrypt");
   }
-  logger.info({ userId: user.id, email, role: user.role, ip: req.ip }, "Login success");
+  logger.info({ userId: user.id, email: maskEmail(email), role: user.role, ip: hashIp(req.ip) }, "Login success");
 
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, user.id));
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, user.id));
@@ -237,7 +237,7 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
   }
 
   await db.update(usersTable).set({ passwordHash: await hashPassword(newPassword) }).where(eq(usersTable.id, userId));
-  logger.info({ userId, email: user.email }, "Password changed successfully");
+  logger.info({ userId, email: maskEmail(user.email) }, "Password changed successfully");
   res.json({ success: true });
 });
 
@@ -271,9 +271,9 @@ router.post("/auth/forgot-password", passwordResetLimiter, async (req, res): Pro
   const { html, text } = passwordResetEmail({ resetUrl, firstName: profile?.firstName ?? "there" });
   const result = await sendEmail({ to: user.email, subject: "Reset your Fincava password", html, text });
   if (result.ok) {
-    logger.info({ userId: user.id, email }, "Password reset email sent");
+    logger.info({ userId: user.id, email: maskEmail(email) }, "Password reset email sent");
   } else {
-    logger.error({ userId: user.id, email, reason: result.reason, detail: (result as any).detail }, "Password reset email delivery failed");
+    logger.error({ userId: user.id, email: maskEmail(email), reason: result.reason, detail: (result as any).detail }, "Password reset email delivery failed");
   }
 });
 
