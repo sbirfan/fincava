@@ -24,7 +24,7 @@ import { computePublicTrustScore } from "../services/confidence-scorer";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
-import { desc, eq, and, gte, lte, sql, count, inArray, ilike, or } from "drizzle-orm";
+import { desc, asc, eq, and, gte, lte, sql, count, inArray, ilike, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   evaluateSupplier,
@@ -778,7 +778,12 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
         sql`EXISTS (SELECT 1 FROM products p WHERE p.supplier_id = ${suppliersTable.id})`,
       )
     )
-    .orderBy(sql`${suppliersTable.lastEvaluatedAt} DESC NULLS LAST`)
+    // P2-R7: Order by createdAt (stable, intelligence-independent).
+    // lastEvaluatedAt was previously used here but is set only by the AI evaluation
+    // pipeline — meaning public marketplace order depended on intelligence runs.
+    // createdAt is a safe, deterministic public signal (newest suppliers first).
+    // id tiebreaker ensures a fully stable page across identical createdAt values.
+    .orderBy(desc(suppliersTable.createdAt), asc(suppliersTable.id))
     .limit(20);
 
   // Secondary query: fetch products linked to these suppliers via supplier_id.
