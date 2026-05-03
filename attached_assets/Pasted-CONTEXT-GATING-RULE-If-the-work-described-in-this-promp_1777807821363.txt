@@ -1,0 +1,215 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence and make NO code changes. Document in ops/task_execution_log.md.
+
+P1.5-A has added PATCH /api/buyer/onboarding and GET /api/buyer/onboarding to the backend. This task builds the extended buyer profile form at /buyer/onboarding, wires the success nudge after /buyer-register, and adds the completion banner to the buyer dashboard.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/fincava/src/pages/buyer-register.tsx — understand post-registration flow
+3. artifacts/fincava/src/pages/dashboard/ — find the buyer dashboard index or layout file
+4. artifacts/fincava/src/i18n/translations.ts — understand translation key structure
+5. artifacts/fincava/src/components/ — scan for multi-step form or wizard components that can be reused
+
+OBJECTIVE
+Build /buyer/onboarding as a 4-section multi-step form. Add post-registration nudge and dashboard completion banner.
+
+---
+
+FORM STRUCTURE — /buyer/onboarding
+
+Overall pattern:
+- 4 active sections rendered as steps with a progress indicator (Step 1 of 4, Step 2 of 4…)
+- Section navigation: Next / Back buttons. Final section has Submit instead of Next.
+- Conditional questions only render when their parent category is selected (see logic below)
+- On each Next: PATCH /api/buyer/onboarding with current section's data before advancing
+- On load: GET /api/buyer/onboarding — if profile exists, pre-fill all fields. If 404, start fresh.
+- On final Submit: PATCH last section data → then fire matching trigger (Change 4) → redirect to /dashboard/matches with toast "Profile complete — your supplier matches are ready."
+
+---
+
+SECTION 1 — Company Profile
+All questions always shown.
+
+Display read-only at top: "Sourcing for: [companyName], [country]" (already captured at /buyer-register — do not ask again)
+
+Q2 — What best describes your business? (single select, required)
+  Options: Specialty Roaster / Commodity Trader / Craft Chocolatier / Food Distributor / Grocery Retailer / Specialty Retailer / Food Manufacturer / Restaurant or Hospitality / Other
+  Field: buyerSegment
+
+Q3 — How many locations do you source for? (single select, required)
+  Options: 1 location / 2–5 / 6–20 / 20+ locations
+  Field: locationCount
+
+Q4 — Annual purchasing budget (USD, all categories) (single select, required)
+  Options: < $50k / $50k–$250k / $250k–$1M / $1M–$5M / > $5M
+  Field: annualBudgetUsd
+
+---
+
+SECTION 2 — Product Interests
+
+Display read-only summary: "You're sourcing: [productCategories list]" (captured at /buyer-register — do not ask again)
+
+Q6 — Coffee: What quality tier do you target? (single select)
+  CONDITIONAL: show only if productCategories includes Coffee or Specialty Coffee
+  Options: Specialty (SCA 80+) / High Commercial (75–79) / Standard Commercial (70–74) / Bulk Commodity
+  Field: coffeeQualityTier
+
+Q7 — Coffee: Flavor profile preferences (multi-select)
+  CONDITIONAL: show only if Q6 is shown
+  Options: Fruity/Bright / Chocolatey/Nutty / Floral/Aromatic / Heavy Body / Single-Origin Critical / Blends Acceptable
+  Field: coffeeFlavorProfile
+
+Q8 — Cacao: Target flavor profile (single select)
+  CONDITIONAL: show only if productCategories includes Cacao or Fine Cacao
+  Options: Fruity/Floral/Citrus / Chocolate/Nutty/Caramel / Balanced for Blending / No Preference (Commodity)
+  Field: cacaoFlavorProfile
+
+Q9 — Exotic fruits: Which form do you need? (multi-select)
+  CONDITIONAL: show only if productCategories includes any fruit (Lulo / Uchuva / Pitahaya / Feijoa / Other tropical fruits)
+  Options: Fresh (air-shipped) / Frozen Pulp / Dehydrated/Dried / Concentrate or Juice
+  Field: fruitForm
+
+Q10 — Do you need year-round availability? (single select, required)
+  Options: Year-Round (Critical) / Seasonal Acceptable / Flexible
+  Field: availabilityRequirement
+
+Q11 — Preferred order frequency (single select, required)
+  Options: Weekly/Bi-weekly / Monthly / Quarterly / Annual Contracts / Ad-hoc
+  Field: orderFrequency
+
+---
+
+SECTION 3 — Volume & Pricing
+
+Q12 — Typical order size for Coffee (single select)
+  CONDITIONAL: show only if Coffee in productCategories
+  Options: < 500 kg / 500–2,000 kg / 2,000–10,000 kg / 10,000–50,000 kg / 50,000+ kg
+  Field: coffeeOrderSizeKg
+
+Q13 — Typical order size for Cacao (single select)
+  CONDITIONAL: show only if Cacao in productCategories
+  Options: < 500 kg / 500–5,000 kg / 5,000–20,000 kg / 20,000+ kg
+  Field: cacaoOrderSizeKg
+
+Q14 — Typical order size for Exotic Fruits (single select)
+  CONDITIONAL: show only if any fruit in productCategories
+  Options: < 500 kg / 500–2,000 kg / 2,000–10,000 kg / 10,000+ kg
+  Field: fruitOrderSizeKg
+
+Q15 — Price sensitivity (single select, required)
+  Options: Quality-First (willing to pay 20–50% premium) / Balanced (quality + competitive price) / Cost-Driven (lowest price for acceptable quality)
+  Field: priceSensitivity
+
+Q16 — Price transparency needed (multi-select, required)
+  Options: Single price per lot / Full breakdown (FOB + shipping + certs) / Carbon cost visibility / Price history for negotiations
+  Field: priceTransparency
+
+---
+
+SECTION 4 — Quality & Certifications
+
+Display read-only: "Required certifications: [requiredCertifications list]" (captured at /buyer-register — do not ask again)
+
+Q18 — Which certifications are nice-to-have? (multi-select)
+  Options: Fairtrade / Fair Trade USA / Rainforest Alliance / 4C (Coffee) / USDA/EU Organic / GLOBALG.A.P. / HACCP / IFS or BRC / Cacao-Trace / Carbon-Verified / None Required
+  Field: certsNiceToHave
+
+Q19 — Is supply chain traceability critical? (single select, required)
+  Options: Yes, farm-to-cup essential / Yes, lot-level sufficient / Preferred but not mandatory / No requirement
+  Field: traceabilityLevel
+
+Q20 — Required quality documentation (multi-select, required)
+  Options: SCA cupping scores / Sensory analysis reports / Lab analysis (moisture, defects, metals) / Fermentation/processing records / Phytosanitary permits / Carbon footprint data / Social audit reports
+  Field: qualityDocRequired
+
+Q21 — Coffee: Acceptable defect rate? (single select)
+  CONDITIONAL: show only if Coffee in productCategories
+  Options: < 1% (Specialty) / 1–5% (High Commercial) / 5–10% (Standard) / 10%+ Acceptable
+  Field: coffeeDefectRate
+
+Q22 — Cacao: Acceptable internal mold percentage? (single select)
+  CONDITIONAL: show only if Cacao in productCategories
+  Options: < 1% (Fine Flavor) / 1–2% (Specialty) / 2–5% (Commercial) / No Specific Requirement
+  Field: cacaoMoldPct
+
+Q23 — Do you need consistent supply from the same farm or region? (single select, required)
+  Options: Yes, single-source preferred / Yes, from approved supplier pool / No, variety acceptable if specs met / No preference
+  Field: sourceConsistency
+
+Q24 — How do you verify quality after receipt? (multi-select)
+  CONDITIONAL: show only if buyerSegment is specialty_roaster or craft_chocolatier
+  Options: In-house lab testing / Supplier certifications/documentation / Sensory or cupping evaluation / Quality consultant / Multiple methods
+  Field: qualityVerification
+
+---
+
+SECTION 5 (labeled "Your Values" on progress indicator) — Sustainability
+
+Q31 — Is sustainability a competitive differentiator for your brand? (single select, required)
+  Options: Yes, critical to brand positioning / Yes, important to our market / Yes, but secondary to price or quality / Not important
+  Field: sustainabilityImportance
+
+Q32 — Which sustainability dimensions matter most? (multi-select)
+  CONDITIONAL: show only if Q31 ≠ not_important
+  Options: Carbon-Neutral Farming / Fair/Living Wages / Organic/Pesticide-Free / Biodiversity/Agroforestry / Water Conservation / Women or Minority Farmer Support / Community Investment / All Equally Important
+  Field: sustainabilityDimensions
+
+---
+
+CHANGE 2 — Post-registration nudge on /buyer-register
+
+After successful registration, replace the current success state with:
+  Heading: "Account created. Let's find your ideal suppliers."
+  Subtext: "Answer 4 quick sections about your sourcing needs. Takes about 3 minutes. Your matches improve with every answer."
+  Primary button: "Start Profile" → navigates to /buyer/onboarding
+  Secondary link: "Skip for now → go to dashboard" → navigates to /dashboard
+
+---
+
+CHANGE 3 — Completion nudge on buyer dashboard
+
+On the buyer dashboard, read p2CompletionPct from GET /api/buyer/onboarding.
+If p2CompletionPct < 100: show amber banner at top:
+  "[p2CompletionPct]% profile complete — better data means better matches. [Continue Profile →]"
+  Link → /buyer/onboarding (form pre-fills from existing data)
+If p2CompletionPct === 100 or profile not started (404): no banner.
+
+---
+
+CHANGE 4 — Trigger matching on form completion
+
+After the final section PATCH succeeds, call the matching trigger endpoint (check buyers.ts or matching routes for POST /api/buyers/run-matching or equivalent).
+Fire as non-blocking: do not await before redirecting. Redirect to /dashboard/matches immediately.
+If no matching trigger endpoint exists or it is admin-only: document as gap P2-B2 in ops/system_gap_analysis.md. Do not build it in this task.
+
+---
+
+TRANSLATIONS
+Add t.buyerOnboarding key block to translations.ts (en + es). Follow t.buyerRegister pattern.
+Translate: all section headings, step labels, question labels, all option labels, Back/Next/Submit buttons, success message, dashboard banner text, "Skip for now" link.
+
+CONSTRAINTS
+No backend changes — backend completed in P1.5-A.
+No schema changes.
+Do not re-ask Q1 (companyName/country), Q5 (productCategories), Q17 (requiredCertifications) — display read-only.
+PATCH per section on Next. GET on load for pre-fill.
+
+ACCEPTANCE CRITERIA
+1. /buyer/onboarding loads and renders Section 1 correctly
+2. Conditional questions appear/hide based on productCategories from existing profile
+3. Each section's data saved via PATCH before advancing
+4. Final submit → matching trigger → redirect to /dashboard/matches with toast
+5. /buyer-register success shows "Start Profile" → /buyer/onboarding
+6. Dashboard completion banner shows correct % and link when p2CompletionPct < 100
+7. Spanish translations work for all new form text
+8. pnpm typecheck passes
+
+DO NOT EXECUTE IMMEDIATELY.
+Show what currently happens after /buyer-register success.
+Confirm where the buyer dashboard entry point is (single file or multiple).
+List any existing multi-step/wizard components in src/components/ that can be reused.
+Show how productCategories is accessible — confirm it comes back from GET /api/buyer/onboarding.
+Confirm whether a matching trigger endpoint exists and what it expects.
+Wait for approval.
