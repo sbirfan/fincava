@@ -82,7 +82,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     // Analytics hidden until ENABLE_INTELLIGENCE_PUBLIC is on.
     { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2, hidden: true },
     // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
-    { name: 'Profile Settings', href: `${basePath}/profile`, icon: User },
+    { name: 'Sourcing Profile', href: `${basePath}/profile`, icon: User },
   ]).filter(item => !item.hidden);
 
   const SidebarContent = () => (

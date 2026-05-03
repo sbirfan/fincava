@@ -622,6 +622,28 @@ const en = {
       all_equally: "All Equally Important",
     },
   },
+  dashboard: {
+    sourcingProfile: {
+      pageTitle: "Sourcing Profile",
+      pageDesc: "Manage your sourcing preferences and account settings.",
+      statusComplete: "Complete",
+      statusInProgress: "In Progress",
+      statusEmpty: "Empty",
+      saved: "Saved ✓",
+      saveFailed: "Save failed",
+      retry: "Retry",
+      emptyStateBody: "Complete your sourcing profile to get matched with Colombian suppliers.",
+      emptyStateCta: "Start Profile →",
+      completionSidebar: "Profile Completion",
+      wizardLink: "Use Step-by-Step Wizard",
+      sectionDescs: [
+        "Your business type, size, and annual purchasing budget.",
+        "The products you source and how you want to receive them.",
+        "Order volumes and price expectations.",
+        "Certifications, quality standards, and sustainability priorities.",
+      ],
+    },
+  },
 };
 
 const es: typeof en = {
@@ -1244,6 +1266,28 @@ const es: typeof en = {
       women_minority: "Apoyo a Agricultoras o Minorías",
       community_investment: "Inversión Comunitaria",
       all_equally: "Todos por Igual",
+    },
+  },
+  dashboard: {
+    sourcingProfile: {
+      pageTitle: "Perfil de Abastecimiento",
+      pageDesc: "Gestiona tus preferencias de abastecimiento y la configuración de tu cuenta.",
+      statusComplete: "Completo",
+      statusInProgress: "En Progreso",
+      statusEmpty: "Vacío",
+      saved: "Guardado ✓",
+      saveFailed: "Error al guardar",
+      retry: "Reintentar",
+      emptyStateBody: "Completa tu perfil de abastecimiento para ser conectado con proveedores colombianos.",
+      emptyStateCta: "Iniciar Perfil →",
+      completionSidebar: "Completitud del Perfil",
+      wizardLink: "Usar el Asistente Paso a Paso",
+      sectionDescs: [
+        "Tipo de negocio, tamaño y presupuesto anual de compras.",
+        "Los productos que abasteces y cómo deseas recibirlos.",
+        "Volúmenes de pedido y expectativas de precio.",
+        "Certificaciones, estándares de calidad y prioridades de sostenibilidad.",
+      ],
     },
   },
 };

@@ -130,7 +130,7 @@ function TeaserMatchBanner() {
         <CardDescription>{body}</CardDescription>
       </CardHeader>
       <CardContent>
-        <Link href={hasAB ? "/dashboard/matches" : "/dashboard/profile"}>
+        <Link href={hasAB ? "/dashboard/matches" : "/buyer/onboarding"}>
           <Button>
             {hasAB ? "View matches" : "Complete my profile"}
             <ArrowRight className="ml-2 w-4 h-4" />
@@ -159,9 +159,16 @@ export default function BuyerDashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight">Buyer Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Manage your sourcing operations, inquiries, and orders.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-serif font-bold tracking-tight">Buyer Dashboard</h1>
+          <p className="text-muted-foreground mt-2">Manage your sourcing operations, inquiries, and orders.</p>
+        </div>
+        <Link href="/dashboard/profile" className="shrink-0 mt-1">
+          <Button variant="outline" size="sm" className="gap-1.5">
+            Edit Profile <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </Link>
       </div>
 
       <CompletionBanner />
