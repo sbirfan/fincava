@@ -1,0 +1,161 @@
+CONTEXT
+
+GATING RULE: If any part of this work is already complete, document evidence in ops/task_execution_log.md and skip only that part.
+
+This task covers two features:
+F1 — Routing and CTA cleanup (sidebar rename, banner link updates)
+F2 — Editable sourcing profile at /dashboard/profile replacing the current broken page
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/fincava/src/components/layout/dashboard-layout.tsx — find sidebar nav items, specifically the "Profile Settings" or equivalent link
+3. artifacts/fincava/src/pages/dashboard/index.tsx — find CompletionBanner and TeaserMatchBanner components, confirm their CTA link targets
+4. artifacts/fincava/src/pages/dashboard/profile.tsx (or wherever /dashboard/profile currently lives) — show the full current implementation, confirm it is broken/empty
+5. artifacts/fincava/src/i18n/translations.ts — find the dashboard nav translation keys
+6. artifacts/fincava/src/App.tsx — confirm how /dashboard/profile is currently routed
+
+OBJECTIVE
+F1: Fix routing inconsistencies so all profile-related CTAs point to the correct destination.
+F2: Replace the broken /dashboard/profile page with a full editable sourcing profile.
+
+---
+
+FEATURE 1 — Routing and CTA cleanup
+
+Change 1a — Sidebar rename
+In dashboard-layout.tsx: rename the "Profile Settings" nav item to "Sourcing Profile".
+Update the translation key in translations.ts (en + es): en = "Sourcing Profile", es = "Perfil de Abastecimiento".
+The link target stays /dashboard/profile.
+
+Change 1b — TeaserMatchBanner CTA
+In dashboard/index.tsx: find the TeaserMatchBanner "Complete my profile" CTA.
+Change its link target from /dashboard/profile to /buyer/onboarding.
+Rationale: the teaser banner appears when the buyer has never started the wizard. It should launch the step-by-step wizard, not the edit view.
+
+Change 1c — CompletionBanner CTA
+The amber CompletionBanner already links to /buyer/onboarding — confirm this is correct and leave unchanged.
+If it points elsewhere, update it to /buyer/onboarding.
+
+Change 1d — Dashboard overview "Edit Profile" link
+On the buyer dashboard overview (dashboard/index.tsx), add a small "Edit Profile →" text link or icon-button near the completion percentage display.
+Link target: /dashboard/profile (the edit view, not the wizard).
+This gives returning buyers a direct path to edit specific fields without re-running the wizard.
+
+---
+
+FEATURE 2 — Editable sourcing profile at /dashboard/profile
+
+Layout:
+- Single page at /dashboard/profile, rendered inside DashboardLayout (not AppLayout — this is a dashboard sub-page)
+- Left column (main, ~70% width): four collapsible section cards
+- Right column (sidebar, ~30% width, sticky): completion overview
+
+Sticky sidebar content:
+- Overall completion % (large number, color-coded: <50% red, 50–79% amber, 80–99% blue, 100% green)
+- Per-section status list:
+  Section 1 — Company Profile: Complete ✅ / In Progress 🔄 / Empty ○
+  Section 2 — Product Interests: [status]
+  Section 3 — Volume & Pricing: [status]
+  Section 4 — Quality & Values: [status]
+- Clicking a section status label scrolls to and expands that section
+
+Section cards — default state:
+- First incomplete section: expanded by default on page load
+- All other sections: collapsed by default
+- Each card has a header with section name + status badge + chevron toggle
+
+Section card content:
+Each section renders all its fields in editable form using shadcn/ui components (Select, Checkbox, RadioGroup, etc.) — same field definitions as the wizard.
+Same conditional rendering rules apply:
+  Coffee questions (Q6/Q7/Q12/Q21) only shown if COFFEE in targetProducts
+  Cacao questions (Q8/Q13/Q22) only shown if CACAO in targetProducts
+  Fruit questions (Q9/Q14) only shown if EXOTIC_FRUIT in targetProducts
+  Q24 only shown if buyerSegment is specialty_roaster or craft_chocolatier
+  Q32 only shown if sustainabilityImportance ≠ not_important
+
+Read-only display at top of each relevant section (do not re-ask these):
+  Section 1 top: "Company: [companyName], [country]"
+  Section 2 top: "Sourcing categories: [targetProducts list]"
+  Section 4 top: "Required certifications: [requiredCertsP1 list]"
+
+Auto-save behavior:
+- Auto-save fires on field blur (when user leaves a field) or on select/checkbox change
+- Debounce: 500ms after the triggering event
+- Do NOT fire while a dropdown is actively open
+- On save: call PATCH /api/buyer/onboarding with the changed section's fields only
+- After successful save: show "Saved ✓" indicator on the section card header for 2 seconds, then fade
+- On save error: show "Save failed — retry" with a manual retry button
+- No explicit Submit button anywhere on this page
+
+Section completion logic (mirrors backend):
+A section is "Complete" when all non-conditional required fields in that section have a non-null value.
+A section is "In Progress" when at least one field has a value but not all required fields are filled.
+A section is "Empty" when no fields in that section have a value.
+
+Data loading:
+On page mount: GET /api/buyer/onboarding
+If 200: pre-fill all fields, compute section statuses client-side
+If 404: show empty form with a banner "Start your sourcing profile to get matched with suppliers. [Start Profile →] links to /buyer/onboarding"
+Show a loading skeleton while the GET is in flight
+
+Fields per section — use exact same field names as the wizard (BL-1 inherits from P1.5-B):
+
+SECTION 1 — Company Profile
+  buyerSegment (single select)
+  locationCount (single select)
+  annualBudgetUsd (single select)
+
+SECTION 2 — Product Interests
+  coffeeQualityTier (single select, conditional: COFFEE)
+  coffeeFlavorProfile (multi-select, conditional: COFFEE)
+  cacaoFlavorProfile (single select, conditional: CACAO)
+  fruitForm (multi-select, conditional: EXOTIC_FRUIT)
+  availabilityRequirement (single select)
+  orderFrequency (single select)
+
+SECTION 3 — Volume & Pricing
+  coffeeOrderSizeKg (single select, conditional: COFFEE)
+  cacaoOrderSizeKg (single select, conditional: CACAO)
+  fruitOrderSizeKg (single select, conditional: EXOTIC_FRUIT)
+  priceSensitivity (single select)
+  priceTransparency (multi-select)
+
+SECTION 4 — Quality & Values
+  certsNiceToHave (multi-select)
+  traceabilityLevel (single select)
+  qualityDocRequired (multi-select)
+  coffeeDefectRate (single select, conditional: COFFEE)
+  cacaoMoldPct (single select, conditional: CACAO)
+  sourceConsistency (single select)
+  qualityVerification (multi-select, conditional: specialty_roaster or craft_chocolatier)
+  sustainabilityImportance (single select)
+  sustainabilityDimensions (multi-select, conditional: sustainabilityImportance ≠ not_important)
+
+TRANSLATIONS
+Add t.dashboard.sourcingProfile key block in translations.ts (en + es).
+Minimum: page title, section headings, status labels (Complete/In Progress/Empty), "Saved ✓", "Save failed — retry", 404 empty state text, "Edit Profile →" label.
+All field labels and option labels are already in t.buyerOnboarding from P1.5-B — reuse them directly, do not duplicate.
+
+CONSTRAINTS
+No backend changes. PATCH /api/buyer/onboarding and GET /api/buyer/onboarding are already built.
+No schema changes.
+/dashboard/profile must render inside DashboardLayout (sidebar nav visible, not full-screen wizard mode).
+
+ACCEPTANCE CRITERIA
+1. Sidebar shows "Sourcing Profile" linking to /dashboard/profile (EN + ES)
+2. TeaserMatchBanner CTA links to /buyer/onboarding
+3. Dashboard overview has "Edit Profile →" link to /dashboard/profile
+4. /dashboard/profile loads, pre-fills all existing profile data from GET /api/buyer/onboarding
+5. First incomplete section is expanded on load; others collapsed
+6. Editing a field and tabbing away triggers auto-save PATCH within 500ms
+7. "Saved ✓" indicator appears after successful save
+8. 404 state renders empty form with wizard launch banner
+9. Section completion statuses update correctly after saves
+10. pnpm typecheck passes
+
+DO NOT EXECUTE IMMEDIATELY.
+Show the current /dashboard/profile implementation — confirm it is broken and what it currently renders.
+Show the current sidebar nav items in dashboard-layout.tsx (exact label + href pairs).
+Confirm CompletionBanner and TeaserMatchBanner current link targets.
+Confirm /dashboard/profile route registration in App.tsx (PrivateRoute roles, layout wrapper).
+Wait for approval.
