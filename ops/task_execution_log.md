@@ -90,6 +90,77 @@ Resolves naming drift between planned R-series identifiers and executed task IDs
 
 ---
 
+## B7 — Email Funnel Verification (Phase 1 — Preflight Analysis Only)
+**Date:** 2026-05-03
+**Status:** PHASE 1 COMPLETE — No code changes made. Phase 2 not required.
+
+### Preflight findings
+
+**RESEND_API_KEY:** Present in Replit Secrets (`re_EJgLx...`, 36 chars). API key is live.
+**N1 domain status:** Cannot confirm `noreply@fincava.com` verification from codebase — requires Resend dashboard inspection. See system_gap_analysis.md N1.
+
+### All exported email functions in email.ts (20 total)
+
+| Line | Function | Type |
+|---|---|---|
+| 18 | `sendEmail` | Core dispatcher (not a template) |
+| 94 | `supplierApplicationConfirmationEmail` | Supplier onboarding → supplier |
+| 115 | `supplierApplicationAdminAlertEmail` | Supplier onboarding → admin |
+| 174 | `supplierStatusChangeEmail` | Status change → supplier (nullable return) |
+| 203 | `supplierGraduationEmail` | Graduation → supplier |
+| 301 | `orderStatusEmail` | Order status → buyer (nullable return) |
+| 362 | `loanStatusEmail` | Loan status → supplier (nullable return) |
+| 391 | `newInquiryEmail` | Inquiry created → supplier |
+| 421 | `rfqResponseEmail` | RFQ response → buyer |
+| 448 | `rfqAwardEmail` | RFQ awarded → winning supplier |
+| 475 | `loanRepaidBuyerEmail` | Loan repaid → buyer |
+| 504 | `buyerOnboardAdminAlertEmail` | Buyer onboarding → admin |
+| 557 | `buyerIntentAdminAlertEmail` | Purchase intent → admin |
+| 604 | `adminRoleChangeEmail` | Role change → user |
+| 631 | `welcomeEmail` | Register → new user |
+| 652 | `adminCreatedAccountEmail` | Admin-created account → user |
+| 669 | `adminPasswordResetEmail` | Admin password reset → user |
+| 685 | `passwordResetEmail` | Forgot-password → user |
+| 699 | `buyerMatchReadyEmail` | Phase 3 match → buyer |
+| 727 | `verificationEmail` | Email verification → new user |
+
+### 8-test call-site map
+
+| Test | Route | Template called | Wrapper pattern | sendEmail position | Result |
+|---|---|---|---|---|---|
+| T1 | `POST /api/inquiries` | `newInquiryEmail` | `Promise.resolve().then(async()=>{try{…}catch{warn}})` | inside try/catch | **PASS** |
+| T2 | `PATCH /api/supplier/inquiries/:id` | *none — not wired* | — | — | **NOT IMPLEMENTED** (gap N5) |
+| T3 | `POST /api/rfqs` | *none* | — | — | **PASS** (no email expected) |
+| T4 | `POST /api/rfqs/:id/respond` | `rfqResponseEmail` | `Promise.resolve().then(async()=>{try{…}catch{warn}})` | inside try/catch | **PASS** |
+| T5 | `POST /api/rfqs/:id/award` | `rfqAwardEmail` | `try{…}catch{warn}` inline after `res.json()` | inside try/catch | **PASS** |
+| T6 | `POST /api/buyer/intent` | `buyerIntentAdminAlertEmail` | `Promise.resolve().then(async()=>{try{…}catch{warn}})` | inside try/catch | **PASS** |
+| T7 | `POST /api/auth/register` | `welcomeEmail` + `verificationEmail` | `Promise.resolve().then(async()=>{…try{verif}catch{warn}})` | `sendEmail` has internal try/catch; never throws | **PASS** |
+| T8 | `POST /api/auth/forgot-password` | `passwordResetEmail` | `res.json()` sent first (line 262); DB + email follow | awaited post-response; `sendEmail` never throws; result logged | **PASS** |
+
+### Synchronous throw scan
+
+All 19 template functions are pure synchronous string builders using `esc()` (null-safe, line 49–57) and `baseTemplate()` (string interpolation, line 59–90). Neither can throw.
+
+Three templates return `null` by design: `supplierStatusChangeEmail`, `orderStatusEmail`, `loanStatusEmail`. All callers null-check before calling `sendEmail`.
+
+**Verdict: no template throws synchronously. Phase 2 fixes not required.**
+
+### Pattern notes (non-blocking observations)
+
+- **T5 award route** uses inline `try/catch` after `res.json()` rather than `Promise.resolve().then()`. Functionally equivalent — response flushed, all email logic inside try/catch. Not a fix target.
+- **T7 register route** `welcomeEmail` `sendEmail` call has no inner try/catch in outer Promise wrapper. Safe because `sendEmail` internally catches all exceptions and returns `{ok:false}` instead of throwing. Low-priority consistency note.
+- **T8 forgot-password** `sendEmail` is awaited after response is sent — correct and intentional (anti-enumeration pattern: response at line 262 first, email work after).
+
+### New gap identified
+
+- **N5**: No email sent when supplier responds to an inquiry. `PATCH /api/supplier/inquiries/:id` only updates status. No `inquiryResponseEmail` template exists. Documented in system_gap_analysis.md as N5.
+
+### Phase 2 determination
+
+No template throws synchronously. No synchronous throw propagates to any API caller. **Phase 2 is not required for this task.**
+
+---
+
 ## B6 — Confirm Interest Flow (Phase I Order Intent)
 **Date:** 2026-05-03
 **Status:** COMPLETE

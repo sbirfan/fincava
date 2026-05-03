@@ -202,7 +202,9 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 * `noreply@fincava.com` must be verified in Resend dashboard
 * Dev environment: sends silently skipped (WARN log) when `RESEND_API_KEY` absent
 * Prod environment: 403 from Resend API if domain not verified
-* STATUS: Open — requires DNS record propagation + Resend dashboard verification
+* `RESEND_API_KEY` confirmed present in Replit Secrets (`re_EJgLx...`, 36 chars) — B7 2026-05-03
+* Domain verification status: cannot be confirmed from codebase — requires Resend dashboard check
+* STATUS: Open — operational action only (add DNS TXT/MX records, verify in dashboard)
 
 ### N2 — No Health Endpoint at /api/health (ARCHITECTURE)
 * `GET /api/health` returns 404 — not registered
@@ -210,14 +212,22 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 * STATUS: Open — minor. Only relevant if using external load balancers or uptime monitors
 
 ### N3 — Email Verification Not Enforced on All Sensitive Routes (UX/SECURITY)
-* `requireVerifiedEmail` currently guards only `POST /api/buyer/orders` and `POST /api/finance/loan`
+* `requireVerifiedEmail` guards: `POST /api/buyer/orders`, `POST /api/finance/loan`, `POST /api/buyer/intent`
 * Other sensitive actions (RFQ creation, inquiry submission) do not require verification
 * STATUS: Open — acceptable for MVP; can expand guards incrementally
+* Updated B7 2026-05-03: `/api/buyer/intent` added to guarded list (B6)
 
 ### N4 — Unverified Supplier User Access (SECURITY)
 * Supplier users can update order status and respond to RFQs without email verification
 * `requireVerifiedEmail` only applied to buyer-specific sensitive routes
 * STATUS: Open — acceptable for MVP given supplier onboarding is admin-assisted
+
+### N5 — No Email Notification for Supplier Inquiry Response (PRODUCT_LOGIC)
+* `PATCH /api/supplier/inquiries/:id` updates inquiry status only — no email fired to buyer
+* No `inquiryResponseEmail` template exists in email.ts
+* Buyer receives no notification when supplier accepts/declines/responds to their inquiry
+* Identified: B7 preflight 2026-05-03
+* STATUS: Open — gap, not a crash risk. Building the template is out of scope for B7 (per task rules: "NOT permitted: adding new templates"). Defer to Phase II buyer experience work.
 
 ---
 

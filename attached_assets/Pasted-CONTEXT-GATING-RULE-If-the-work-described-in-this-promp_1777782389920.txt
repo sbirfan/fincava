@@ -1,0 +1,52 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+The platform has 10+ email templates via Resend. All use fire-and-forget pattern (never block API response). RESEND_API_KEY is in Replit Secrets. The domain noreply@fincava.com may need DNS verification in Resend dashboard. This task validates the commercial funnel notifications end-to-end.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/api-server/src/lib/email.ts — all email template functions
+3. ops/system_gap_analysis.md — check N1 (email domain verification) status
+
+OBJECTIVE
+Verify every email in the buyer-supplier commercial funnel fires correctly. Document results. Fix silently broken templates.
+
+TEST SEQUENCE (use curl scripts or trigger via UI)
+Test 1: New inquiry (POST /api/inquiries) — verify newInquiryEmail fires to supplier
+Test 2: Supplier responds to inquiry — verify responseEmail fires to buyer (if implemented)
+Test 3: Buyer creates RFQ — no email expected (verify no error)
+Test 4: Supplier responds to RFQ (POST /api/rfqs/:id/respond) — verify rfqResponseEmail fires
+Test 5: RFQ awarded — verify award notification to winning supplier
+Test 6: Order intent created (POST /api/buyer/intent) — verify admin notification fires
+Test 7: Auth flow — verify verification email fires on register
+Test 8: Password reset — verify reset email fires
+
+FOR EACH TEST: document template name, recipient, subject line, trigger route, and PASS/FAIL.
+
+PHASE 1 — VERIFY (no code changes)
+Run all 8 tests. Document PASS/FAIL for each in ops/task_execution_log.md.
+Do not touch any code during Phase 1.
+
+PHASE 2 — TARGETED FIX (only if Phase 1 reveals a specific failure)
+Permitted fix: if an email template function throws synchronously (not just RESEND absent),
+fix only that function so the error is caught and logged, not propagated to the API caller.
+Scope limit: one function at a time. Each fix is a separate commit.
+NOT permitted in this task: adding new templates, restructuring email.ts, changing recipients or subjects.
+If a template is missing: note it as a gap in ops/system_gap_analysis.md. Do not build it here.
+
+DOMAIN CHECK
+Verify N1 status: if RESEND_API_KEY exists in Secrets, check if noreply@fincava.com domain is verified. Document status. Do not fix DNS (outside codebase scope) — note it as an operational action item.
+
+ACCEPTANCE CRITERIA
+1. All 8 tests documented with PASS/FAIL
+2. No email template throws synchronously into API response path
+3. N1 domain status documented
+4. ops/system_gap_analysis.md: N1, N3 status updated
+5. ops/task_execution_log.md: B7 entry with test results
+
+DO NOT EXECUTE IMMEDIATELY.
+Read email.ts and list all exported email functions with their expected arguments.
+For each of the 8 test routes, identify which email function is called and confirm the fire-and-forget wrapper is present.
+Flag any template that calls Resend directly without a try/catch or null guard.
+Wait for approval before running any tests.
