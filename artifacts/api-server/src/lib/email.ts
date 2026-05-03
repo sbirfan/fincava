@@ -552,6 +552,47 @@ export function buyerOnboardAdminAlertEmail(opts: {
   return { html, text };
 }
 
+// ── Buyer intent admin alert ──────────────────────────────────────────────────
+
+export function buyerIntentAdminAlertEmail(opts: {
+  buyerName: string;
+  buyerEmail: string;
+  supplierName: string;
+  estimatedQuantityKg: number;
+  notes?: string | null;
+  intentId: number;
+  adminUrl: string;
+}): { subject: string; html: string; text: string } {
+  const subject = `New Purchase Intent — ${esc(opts.supplierName)} — ${opts.estimatedQuantityKg.toLocaleString()} kg`;
+
+  const html = baseTemplate(`
+    <p>A buyer has confirmed purchase interest on Fincava.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:160px;">Buyer</td><td style="padding:6px 0;font-weight:600;">${esc(opts.buyerName)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Email</td><td style="padding:6px 0;">${esc(opts.buyerEmail)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Supplier</td><td style="padding:6px 0;">${esc(opts.supplierName)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Est. Quantity</td><td style="padding:6px 0;">${opts.estimatedQuantityKg.toLocaleString()} kg</td></tr>
+      ${opts.notes ? `<tr><td style="padding:6px 0;color:#78716c;">Notes</td><td style="padding:6px 0;">${esc(opts.notes)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">Intent ID</td><td style="padding:6px 0;">#${opts.intentId}</td></tr>
+    </table>
+    <p><a href="${opts.adminUrl}" class="btn">View in admin panel</a></p>
+  `);
+
+  const text = [
+    "New purchase intent on Fincava:",
+    "",
+    `Buyer: ${opts.buyerName} (${opts.buyerEmail})`,
+    `Supplier: ${opts.supplierName}`,
+    `Estimated quantity: ${opts.estimatedQuantityKg.toLocaleString()} kg`,
+    opts.notes ? `Notes: ${opts.notes}` : null,
+    `Intent ID: #${opts.intentId}`,
+    "",
+    `Review: ${opts.adminUrl}`,
+  ].filter(Boolean).join("\n");
+
+  return { subject, html, text };
+}
+
 // ── Admin role-change template ────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {

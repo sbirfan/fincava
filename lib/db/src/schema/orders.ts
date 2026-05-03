@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
 import { productsTable } from "./products";
+import { suppliersTable } from "./suppliers";
 
 export const orderStatusEnum = pgEnum("order_status", [
   "INQUIRY", "SAMPLE_REQUESTED", "QUOTED", "CONFIRMED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "COMPLETED", "CANCELLED"
@@ -19,6 +20,10 @@ export const ordersTable = pgTable("orders", {
   destinationPort: text("destination_port"),
   shippingMethod: text("shipping_method"),
   notes: text("notes"),
+  // ── Intent tracking (Phase I) ───────────────────────────────────────────────
+  // Set when a buyer confirms purchase interest via POST /api/buyer/intent.
+  // Null for orders created through the full order flow.
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
   // ── Fee tracking ───────────────────────────────────────────────────────────
   // Computed at order creation time. Rate = 4 %. First 10 orders → WAIVED.
   feePercentage: real("fee_percentage"),

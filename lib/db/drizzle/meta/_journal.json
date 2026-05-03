@@ -71,6 +71,13 @@
       "when": 1746144000000,
       "tag": "0009_origin_story_publishing",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777781488917,
+      "tag": "0010_elite_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

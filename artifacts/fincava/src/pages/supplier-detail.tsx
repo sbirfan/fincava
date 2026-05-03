@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldCheck, MapPin, Loader2, MessageSquare, ArrowLeft, Clock, FileText } from "lucide-react";
+import { ShieldCheck, MapPin, Loader2, MessageSquare, ArrowLeft, Clock, FileText, Handshake } from "lucide-react";
 import { Product } from "@workspace/api-client-react";
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
@@ -75,6 +75,12 @@ export default function SupplierDetail() {
   const [quantityKg, setQuantityKg] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [intentOpen, setIntentOpen] = useState(false);
+  const [intentSent, setIntentSent] = useState(false);
+  const [intentQuantityKg, setIntentQuantityKg] = useState("");
+  const [intentNotes, setIntentNotes] = useState("");
+  const [intentSubmitting, setIntentSubmitting] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     setProfileLoading(true);
@@ -96,6 +102,55 @@ export default function SupplierDetail() {
       return;
     }
     setInquiryOpen(true);
+  }
+
+  function openIntent() {
+    if (!isAuthenticated) {
+      toast({
+        title: "Login required",
+        description: "Please log in to confirm purchase interest.",
+        variant: "destructive",
+      });
+      setLocation("/login");
+      return;
+    }
+    setIntentOpen(true);
+  }
+
+  async function submitIntent() {
+    const qty = parseFloat(intentQuantityKg);
+    if (!intentQuantityKg || isNaN(qty) || qty <= 0) {
+      toast({ title: "Quantity required", description: "Please enter a valid quantity in kg.", variant: "destructive" });
+      return;
+    }
+    setIntentSubmitting(true);
+    try {
+      const res = await fetch("/api/buyer/intent", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          supplierId: id,
+          estimatedQuantityKg: qty,
+          notes: intentNotes.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        let errMsg = `Request failed (${res.status})`;
+        try {
+          const json = await res.json();
+          if (typeof json?.error === "string") errMsg = json.error;
+        } catch { /* ignore */ }
+        throw new Error(errMsg);
+      }
+      setIntentQuantityKg("");
+      setIntentNotes("");
+      setIntentSent(true);
+    } catch (e: any) {
+      toast({ title: "Failed to submit", description: e.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setIntentSubmitting(false);
+    }
   }
 
   async function submitInquiry() {
@@ -255,13 +310,18 @@ export default function SupplierDetail() {
           {/* ── Section 5: CTAs (export-ready only) ── */}
           {isExportReady && (
             <div className="flex flex-wrap gap-3">
-              {/* Secondary: Create RFQ */}
+              {/* Tertiary: Create RFQ */}
               <Link href="/dashboard/rfqs">
                 <Button size="lg" variant="outline" className="w-full sm:w-auto">
                   <FileText className="w-4 h-4 mr-2" />
                   Create RFQ
                 </Button>
               </Link>
+              {/* Secondary: Confirm Purchase Interest */}
+              <Button size="lg" variant="outline" className="w-full sm:w-auto" onClick={openIntent}>
+                <Handshake className="w-4 h-4 mr-2" />
+                Confirm Purchase Interest
+              </Button>
               {/* Primary: Send Inquiry (dialog) */}
               <Button size="lg" className="w-full sm:w-auto" onClick={openInquiry}>
                 <MessageSquare className="w-4 h-4 mr-2" />
@@ -424,6 +484,92 @@ export default function SupplierDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Confirm Purchase Interest Dialog ── */}
+      <Dialog open={intentOpen} onOpenChange={(open) => { setIntentOpen(open); if (!open) setIntentSent(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Confirm Purchase Interest</DialogTitle>
+            {!intentSent && (
+              <DialogDescription>
+                Express structured purchase intent for <strong>{profile.name}</strong>. The Fincava team will coordinate next steps within 48 hours.
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          {intentSent ? (
+            <div className="flex flex-col items-center text-center gap-4 py-6">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-base font-semibold mb-1">Your interest has been confirmed.</p>
+                <p className="text-sm text-muted-foreground">The Fincava team will reach out within 48 hours to coordinate next steps.</p>
+              </div>
+              <Button variant="outline" className="mt-2" onClick={() => { setIntentOpen(false); setIntentSent(false); }}>
+                Close
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-2">
+              <div>
+                <Label>Supplier</Label>
+                <div className="mt-1 px-3 py-2 rounded-md border bg-muted/50 text-sm font-medium text-muted-foreground">
+                  {profile.name}
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="intent-quantity">
+                  Estimated Quantity (kg) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="intent-quantity"
+                  type="number"
+                  min={1}
+                  placeholder="e.g. 2000"
+                  value={intentQuantityKg}
+                  onChange={(e) => setIntentQuantityKg(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="intent-notes">Notes — optional</Label>
+                <Textarea
+                  id="intent-notes"
+                  placeholder="Desired delivery timeline, quality grade, incoterm preference, etc."
+                  value={intentNotes}
+                  onChange={(e) => setIntentNotes(e.target.value)}
+                  className="mt-1 min-h-[90px]"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => setIntentOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={submitIntent}
+                  disabled={intentSubmitting || !intentQuantityKg || parseFloat(intentQuantityKg) <= 0}
+                >
+                  {intentSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Submitting…
+                    </>
+                  ) : (
+                    "Confirm Interest"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Contact Supplier Dialog ── */}
       <Dialog open={inquiryOpen} onOpenChange={(open) => { setInquiryOpen(open); if (!open) setInquirySent(false); }}>

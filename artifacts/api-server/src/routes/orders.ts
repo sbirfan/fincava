@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray } from "drizzle-orm";
-import { db, ordersTable, orderItemsTable, productsTable, usersTable, profilesTable, companiesTable, messagesTable } from "@workspace/db";
+import { db, ordersTable, orderItemsTable, productsTable, usersTable, profilesTable, companiesTable, messagesTable, suppliersTable } from "@workspace/db";
 import {
   CreateOrderBody,
   GetBuyerOrderParams,
@@ -8,7 +8,7 @@ import {
   UpdateOrderStatusBody,
 } from "@workspace/api-zod";
 import { requireAuth, requireVerifiedEmail } from "../lib/auth";
-import { sendEmail, orderStatusEmail } from "../lib/email";
+import { sendEmail, orderStatusEmail, buyerIntentAdminAlertEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { computeFee } from "../services/fee-service";
 import { logInteraction } from "../lib/interaction-logger";
@@ -62,6 +62,74 @@ router.get("/buyer/orders", requireAuth, async (req, res): Promise<void> => {
 
   const results = await Promise.all(orders.map(buildOrderResponse));
   res.json(results);
+});
+
+router.post("/buyer/intent", requireAuth, requireVerifiedEmail, async (req, res): Promise<void> => {
+  const userId = (req as any).userId as number;
+
+  const { supplierId, productId, estimatedQuantityKg, notes } = req.body ?? {};
+  if (!supplierId || typeof supplierId !== "number") {
+    res.status(400).json({ error: "supplierId (number) is required" }); return;
+  }
+  if (!estimatedQuantityKg || typeof estimatedQuantityKg !== "number" || estimatedQuantityKg <= 0) {
+    res.status(400).json({ error: "estimatedQuantityKg must be a positive number" }); return;
+  }
+
+  const [supplier] = await db.select({ id: suppliersTable.id, nombreCompleto: suppliersTable.nombreCompleto })
+    .from(suppliersTable).where(eq(suppliersTable.id, supplierId));
+  if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+
+  const notesText = [
+    `Estimated quantity: ${estimatedQuantityKg.toLocaleString()} kg`,
+    notes ? notes.trim() : null,
+  ].filter(Boolean).join(". ");
+
+  const [order] = await db.insert(ordersTable).values({
+    buyerId: userId,
+    status: "INQUIRY",
+    totalUSD: 0,
+    incoterm: "FOB",
+    supplierId: supplier.id,
+    notes: notesText,
+  }).returning();
+
+  logger.info({ event: "BUYER_INTENT_CREATED", intentId: order.id, buyerId: userId, supplierId: supplier.id, estimatedQuantityKg });
+
+  res.status(201).json({
+    intentId: order.id,
+    message: "Fincava will reach out within 48 hours to coordinate next steps.",
+  });
+
+  // Fire-and-forget: admin notification email
+  Promise.resolve().then(async () => {
+    try {
+      const [buyerUser] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
+      if (!buyerUser?.email) return;
+
+      const [buyerProfile] = await db.select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+        .from(profilesTable).where(eq(profilesTable.userId, userId));
+      const buyerName = buyerProfile
+        ? `${buyerProfile.firstName} ${buyerProfile.lastName}`.trim()
+        : buyerUser.email;
+
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const emailContent = buyerIntentAdminAlertEmail({
+        buyerName,
+        buyerEmail: buyerUser.email,
+        supplierName: supplier.nombreCompleto,
+        estimatedQuantityKg,
+        notes: notes?.trim() ?? null,
+        intentId: order.id,
+        adminUrl: `${appBaseUrl}/admin`,
+      });
+
+      await sendEmail({ to: "info@fincava.com", subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+    } catch (err) {
+      logger.warn({ err, intentId: order.id }, "Buyer intent admin email failed");
+    }
+  });
 });
 
 router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res): Promise<void> => {

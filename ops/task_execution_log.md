@@ -90,6 +90,57 @@ Resolves naming drift between planned R-series identifiers and executed task IDs
 
 ---
 
+## B6 — Confirm Interest Flow (Phase I Order Intent)
+**Date:** 2026-05-03
+**Status:** COMPLETE
+
+### Preflight findings
+- `orderStatusEnum` already includes `"INQUIRY"` as first value and default — no enum migration needed
+- `adminNotificationEmail` did not exist in `email.ts` — created `buyerIntentAdminAlertEmail`
+- `ENABLE_TRANSACTIONS` guard is a `router.use(["/buyer/orders", "/supplier/orders"])` middleware returning **404** — `/buyer/intent` path is exempt by design, no special handling needed
+- `GET /api/buyer/orders` returns all orders without status filter — dashboard split done client-side
+- `supplierId` column did not exist on `ordersTable` — FK target confirmed as `suppliersTable.id` (marketplace supplier IDs); applied via `ALTER TABLE orders ADD COLUMN IF NOT EXISTS supplier_id integer REFERENCES suppliers(id)`
+- `suppliersTable.nombreCompleto` is the supplier name field used throughout the codebase
+
+### Migration
+- Drizzle generated `0010_elite_supreme_intelligence.sql` but this omnibus migration conflicted with prior `drizzle-kit push` history (enums/tables already exist)
+- Applied only the needed DDL directly: `ALTER TABLE orders ADD COLUMN IF NOT EXISTS supplier_id integer REFERENCES suppliers(id)` — verified with `information_schema.columns` query
+- Schema file `lib/db/src/schema/orders.ts` updated to import `suppliersTable` and declare the column
+
+### Changes made (6 total)
+
+**Schema — `lib/db/src/schema/orders.ts`**
+1. Import `suppliersTable` from `./suppliers`; add `supplierId: integer("supplier_id").references(() => suppliersTable.id)` (nullable) to `ordersTable`. Column applied to live DB via psql.
+
+**Backend — `artifacts/api-server/src/lib/email.ts`**
+2. Added `buyerIntentAdminAlertEmail(opts)` — same `baseTemplate`/`esc` pattern as `buyerOnboardAdminAlertEmail`. Fields: buyerName, buyerEmail, supplierName, estimatedQuantityKg, notes (optional), intentId, adminUrl. Returns `{ subject, html, text }`.
+
+**Backend — `artifacts/api-server/src/routes/orders.ts`**
+3. Added `POST /api/buyer/intent` — `requireAuth` + `requireVerifiedEmail`. Validates `supplierId` (number, required) + `estimatedQuantityKg` (positive number, required). Looks up supplier → 404 if not found. Inserts order with `status:"INQUIRY"`, `supplierId`, `totalUSD:0`, `incoterm:"FOB"`, `notes` = "Estimated quantity: X kg. [user notes]". Returns `{ intentId, message: "Fincava will reach out within 48 hours to coordinate next steps." }`. Fire-and-forget `Promise.resolve().then(async () => {...})` sends admin email to `info@fincava.com`; logs warning on failure. Route is outside the `router.use(["/buyer/orders", "/supplier/orders"])` middleware — never gated by `ENABLE_TRANSACTIONS`.
+
+**Frontend — `artifacts/fincava/src/pages/dashboard/orders.tsx`**
+4. Header renamed to "Orders & Deal Intentions". Page split into two sections: "Pending Coordination" (orders where `status === "INQUIRY"`) with amber border cards and "Pending Coordination" badge, and "Confirmed Orders" section (all other statuses, shown only when non-empty). Intent empty state: "No active intentions. When you confirm interest in a supplier, it appears here." Split is client-side only — no new endpoint.
+
+**Frontend — `artifacts/fincava/src/pages/supplier-detail.tsx`**
+5. Added state: `intentOpen`, `intentSent`, `intentQuantityKg`, `intentNotes`, `intentSubmitting`. Added `openIntent()` (auth guard → `setIntentOpen(true)`) and `submitIntent()` (validates qty > 0, POSTs to `/api/buyer/intent` with `supplierId: id`, handles errors).
+6. Added "Confirm Purchase Interest" button (outline, `Handshake` icon) in the export-ready CTA row between "Create RFQ" and "Send Inquiry". Added full `Dialog` with pre-filled read-only supplier name, quantity input (required), notes textarea (optional), and emerald success panel on submit.
+
+### Acceptance criteria
+1. `POST /api/buyer/intent` creates order with `status=INQUIRY` ✅
+2. Admin email fires to `info@fincava.com` (or logs warning if `RESEND_API_KEY` absent) ✅
+3. Buyer sees intent in "Pending Coordination" section of orders dashboard ✅
+4. `POST /api/buyer/orders` still returns 404 (`ENABLE_TRANSACTIONS=false`) ✅ (unchanged)
+5. Intent modal renders with supplier pre-filled, quantity required, notes optional ✅
+6. pnpm typecheck passes ✅
+
+### Test results
+- Backend typecheck: ✅ 0 errors
+- Frontend typecheck: ✅ 0 errors
+- Backend tests: ✅ 61/61
+- Frontend tests: ✅ 23/23
+
+---
+
 ## B5 — RFQ Lifecycle Guardrails
 **Date:** 2026-05-03
 **Status:** COMPLETE
