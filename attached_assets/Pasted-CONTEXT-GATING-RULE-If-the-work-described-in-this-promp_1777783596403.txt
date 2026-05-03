@@ -1,0 +1,48 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+The platform has GET /api/healthz (active, used by Replit deployment health check) but GET /api/health returns 404. This task adds the alias and does a final deploy readiness check.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/api-server/src/routes/health.ts — current health implementation
+3. artifacts/api-server/src/app.ts or index.ts — see how health route is registered
+4. .replit — check which health check URL is configured
+
+TASKS
+
+Task 1 — Add /api/health alias
+  In health.ts (or wherever healthz is defined): register the same handler on both /api/health and /api/healthz
+  Return identical response: { status: "ok", timestamp: ISO string }
+
+Task 2 — Verify Replit health check target
+  Check .replit for healthcheckPath or equivalent
+  Document which path Replit is checking
+  If it uses /api/healthz: leave as is, /api/health is additive
+  If it uses /api/health: confirm the new route resolves the 404
+
+Task 3 — Final build check
+  pnpm -r run typecheck — must be clean
+  pnpm -r run build — must succeed
+  Document result
+
+Task 4 — Sprint closure
+  Update docs/SOURCE_OF_TRUTH_ROADMAP.md: add changelog entry "Phase I Sprint complete — B0 through B9 delivered"
+  Update ops/task_execution_log.md: B9 entry + sprint summary
+  Git commit: "chore: B9 health route — Phase I Sprint complete"
+
+ACCEPTANCE CRITERIA
+1. GET /api/health returns 200 { status: "ok" }
+2. GET /api/healthz still returns 200 (not broken)
+3. pnpm typecheck: zero errors
+4. pnpm build: success
+5. SoT and task log updated
+6. Commit with correct message
+
+DO NOT EXECUTE IMMEDIATELY.
+Show the current health.ts implementation — confirm the response shape.
+Show how the healthz route is registered in app.ts/index.ts (router.get or app.get, path prefix).
+Show the healthcheckPath value in .replit.
+Confirm: does pnpm -r run build currently pass clean, or are there known build warnings?
+Wait for approval.
