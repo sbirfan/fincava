@@ -53,3 +53,37 @@ Resolves naming drift between planned R-series identifiers and executed task IDs
 | 2026-05-02 | S2-Q-ONBOARDING-LIMIT-FIX | main | <pending> | Y | N | pnpm --filter @workspace/api-server run typecheck (clean); backend 61/61 pass; grep .limit(200) suppliers.ts line 883 confirmed with comment | Pass | Y | 1 line changed: artifacts/api-server/src/routes/suppliers.ts line 883 — .limit(40) → .limit(200) with inline comment "buffer for JS dedup — 200 raw rows → safe up to 10 products/supplier for 20 unique results". No other lines changed. Dedup logic, slice(0,20), join conditions, where clause all untouched. Gating rule checked: limit was 40 (not 200+), work required. |
 | 2026-05-02 | S2-SUPPLIER-NETWORK-PAGE | main | <pending> | Y | N | pnpm --filter @workspace/api-server run typecheck (clean); pnpm --filter @workspace/fincava run typecheck (clean); pnpm -r run build (all 3 artifacts pass); 84/84 tests pass; smoke test: GET /api/suppliers/marketplace → { suppliers, platformFeePercent } (onboarding_suppliers absent — backward compat CONFIRMED); GET /api/suppliers/marketplace?include_onboarding=true → { suppliers, onboarding_suppliers, platformFeePercent } (onboarding_suppliers present — new path CONFIRMED) | Pass | Y | 3 files changed, no schema changes. suppliers.ts: added originStoriesTable to @workspace/db import; added isNull + notInArray to drizzle-orm import; added ?include_onboarding=true branch after existing marketplace response mapping — runs join chain (suppliersTable→productsTable→originStoriesTable), deduplicates by supplier ID (Set, limit 40→slice 20), secondary products query for productCategories, maps storyExcerpt with ellipsis guard (story.length>120 ? slice(0,120).trimEnd()+'…' : story), imageUrl=images[0]??null; Phase I comment: existence=published, Phase II add published boolean; res.json spread includes onboarding_suppliers only when param present. suppliers.tsx: full rewrite — added OnboardingSupplier type; fetch updated to ?include_onboarding=true; filteredExportReady + filteredOnboarding derived separately; bothEmpty flag for page-level empty state; Section A Export Ready (ShieldCheck/emerald, inquiry CTA, per-section empty state); Section B Building Export Readiness (Leaf/amber, no inquiry CTA, "preparing for export" notice, per-section empty state); search applies to both sections independently; Adjustment 3 per-section empty state behavior confirmed. translations.ts: en.nav.suppliers → "Supplier Network"; es.nav.suppliers → "Red de Proveedores". |
 | 2026-05-02 | S1-SUPPLIER-ENTITY-LINKAGE | main | 77c75de | Y | N | pnpm --filter @workspace/api-server run typecheck (clean); pnpm --filter @workspace/fincava run typecheck (clean); pnpm -r run build (clean) | Pass | Y | Audit A: GET /api/suppliers/my-profile extended — added graduationPathway + lastEvaluatedAt to SELECT; response now includes both fields. Audit B: PATCH /api/suppliers/:id/claim unchanged — works correctly, no patch needed. Audit C: ProfileCompletenessWidget updated — found:false now renders "Connect farm profile" prompt card (not null); found:true now shows graduation status row (sellableStatus badge, pathway badge, lastEvaluatedAt). New GET /api/supplier/status endpoint added — requireAuth + SUPPLIER role check; returns sellableStatus, graduationPathway, lastEvaluatedAt, isGraduated, nextAction; found:false returns guidance message. ops/system_gap_analysis.md M6 updated to FIXED. No schema changes. No migrations. |
+
+---
+
+## B3 — Supplier Detail Visual Enrichment
+**Date:** 2026-05-03
+**Status:** COMPLETE
+
+### Changes made
+- `artifacts/fincava/src/pages/supplier-detail.tsx` — full rewrite (single file, no backend changes)
+
+### 6 changes executed
+1. **Header — type badge**: `formatSupplierType()` helper converts raw enum (e.g. `FARMER`) to title case badge rendered inline with supplier name using `Badge variant="outline"`.
+2. **Header — export-ready badge rename**: Label changed from "Fincava Certified" → "Export Ready" (green, `bg-emerald-600`).
+3. **Header — "Preparing for Export" amber badge**: Renders for `!isExportReady` with `Clock` icon, `bg-amber-50 text-amber-700 border-amber-200` styling.
+4. **Back navigation**: `<Link href="/suppliers">← Back to Supplier Network</Link>` added above hero banner at page top, uses `ArrowLeft` lucide icon.
+5. **Origin Story tab**: Gated on `profile.originStory !== null`. When present: farmerName + location attribution header (`bg-muted/30` border-b strip) renders above story paragraphs. Null state placeholder (`<Leaf>` icon + "Farm story coming soon") removed entirely.
+6. **Non-export-ready CTA in sidebar**: "Get in Touch" button block removed. Replaced with plain amber notice card: "This supplier is building export readiness. Check back when they are verified."
+7. **Header CTAs (export-ready)**: Both CTAs now always visible to all visitors when `isExportReady` (removed `isAuthenticated` gate from header; `openInquiry()` handles auth redirect internally). "Create RFQ" added as `<Link href="/dashboard/rfqs"><Button variant="outline">` secondary button. "Send Inquiry" (dialog) is primary button.
+8. **Certification cards**: `<div>` wrapper replaced with `<Card><CardContent>` from `@/components/ui/card`.
+9. **Edge case**: When `originStory === null && !isExportReady` (no tabs renderable), a fallback `<div>` with info text renders instead of empty `<Tabs>`.
+10. **Imports**: `Leaf` removed (no longer used); `ArrowLeft`, `Clock`, `FileText` added; `Card`, `CardContent` added from `@/components/ui/card`.
+
+### Acceptance criteria
+1. Export Ready badge ✅ green `bg-emerald-600`, isExportReady=true suppliers
+2. Origin story renders when present, absent when null ✅ tab gated on `profile.originStory !== null`
+3. Certifications visible when present ✅ Card/CardContent per cert, isExportReady && certifications.length > 0
+4. Products section only for export-ready ✅ `isExportReady && <TabsContent value="products">`
+5. Inquiry CTA only on export-ready pages ✅ CTAs block gated on `isExportReady`; sidebar shows text-only notice for !isExportReady
+6. pnpm typecheck passes ✅ zero errors
+7. Mobile readable ✅ `flex-wrap gap-2` on badges; `w-full sm:w-auto` on CTA buttons; responsive grid maintained
+
+### Test results
+- Backend: 61/61 ✅
+- Frontend: 23/23 ✅

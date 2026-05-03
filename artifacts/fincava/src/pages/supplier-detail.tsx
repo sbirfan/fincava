@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -21,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldCheck, MapPin, Loader2, MessageSquare, Leaf } from "lucide-react";
+import { ShieldCheck, MapPin, Loader2, MessageSquare, ArrowLeft, Clock, FileText } from "lucide-react";
 import { Product } from "@workspace/api-client-react";
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
@@ -51,6 +52,10 @@ interface MarketplaceSupplierDetail {
     unit: string;
     imageUrl: string | null;
   }[];
+}
+
+function formatSupplierType(raw: string): string {
+  return raw.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function SupplierDetail() {
@@ -110,7 +115,7 @@ export default function SupplierDetail() {
         body: JSON.stringify({
           productId: parseInt(selectedProductId, 10),
           buyerEmail: user?.email ?? "",
-          buyerName: user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : (user as any)?.email ?? "",
+          buyerName: user ? [user.firstName, user.lastName].filter(Boolean).join(" ") : (user as any)?.email ?? "",
           company: (user as any)?.companyName ?? "Independent Buyer",
           country: (user as any)?.country ?? "Unknown",
           message: message.trim(),
@@ -133,6 +138,7 @@ export default function SupplierDetail() {
   if (profileLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
+        <Skeleton className="h-5 w-48 mb-6 rounded" />
         <Skeleton className="h-[200px] w-full rounded-xl mb-8" />
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <Skeleton className="h-[400px] rounded-xl" />
@@ -150,7 +156,7 @@ export default function SupplierDetail() {
       <div className="container mx-auto px-4 py-24 text-center">
         <h2 className="text-2xl font-bold mb-4">Supplier not found</h2>
         <Link href="/suppliers">
-          <Button>Back to Suppliers</Button>
+          <Button>Back to Supplier Network</Button>
         </Link>
       </div>
     );
@@ -163,11 +169,28 @@ export default function SupplierDetail() {
     ? `${profile.region ?? ""}, ${profile.department}`.replace(/^, /, "")
     : (profile.region ?? "Colombia");
 
+  const defaultTab = profile.originStory
+    ? "origin"
+    : isExportReady
+    ? "products"
+    : "";
+
   return (
     <div className="pb-12">
-      {/* Hero Banner */}
+      {/* ── Section 6: Back navigation ── */}
+      <div className="container mx-auto px-4 pt-6">
+        <Link
+          href="/suppliers"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Supplier Network
+        </Link>
+      </div>
+
+      {/* ── Hero Banner ── */}
       <div
-        className="h-56 md:h-80 border-b relative overflow-hidden bg-primary/10"
+        className="h-56 md:h-80 border-b relative overflow-hidden bg-primary/10 mt-4"
         style={
           heroImage
             ? { backgroundImage: `url(${heroImage})`, backgroundSize: "cover", backgroundPosition: "center" }
@@ -180,19 +203,39 @@ export default function SupplierDetail() {
       </div>
 
       <div className="container mx-auto px-4 pt-8">
+        {/* ── Section 1: Header ── */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div>
-            <div className="flex items-center flex-wrap gap-3 mb-2">
+            {/* Name + badges */}
+            <div className="flex items-center flex-wrap gap-2 mb-3">
               <h1 className="text-3xl md:text-4xl font-serif font-bold">{profile.name}</h1>
+
+              {/* Supplier type badge */}
+              {profile.supplierType && (
+                <Badge variant="outline" className="h-6 text-xs px-2 font-medium">
+                  {formatSupplierType(profile.supplierType)}
+                </Badge>
+              )}
+
+              {/* Export Ready (green) */}
               {isExportReady && (
-                <Badge className="bg-primary text-primary-foreground border-transparent h-6 text-xs px-2 flex items-center gap-1">
+                <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white border-transparent h-6 text-xs px-2 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
-                  Fincava Certified
+                  Export Ready
+                </Badge>
+              )}
+
+              {/* Preparing for Export (amber) */}
+              {!isExportReady && (
+                <Badge className="bg-amber-50 text-amber-700 border border-amber-200 h-6 text-xs px-2 flex items-center gap-1 hover:bg-amber-50">
+                  <Clock className="w-3 h-3" />
+                  Preparing for Export
                 </Badge>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-3">
+            {/* Location row */}
+            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center">
                 <MapPin className="w-4 h-4 mr-1.5 text-primary" />
                 {locationLabel}
@@ -200,24 +243,33 @@ export default function SupplierDetail() {
             </div>
           </div>
 
-          {isExportReady && isAuthenticated && (
-            <Button size="lg" className="md:w-auto w-full" onClick={openInquiry}>
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Inquire About This Supplier
-            </Button>
+          {/* ── Section 5: CTAs (export-ready only) ── */}
+          {isExportReady && (
+            <div className="flex flex-wrap gap-3">
+              {/* Secondary: Create RFQ */}
+              <Link href="/dashboard/rfqs">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Create RFQ
+                </Button>
+              </Link>
+              {/* Primary: Send Inquiry (dialog) */}
+              <Button size="lg" className="w-full sm:w-auto" onClick={openInquiry}>
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Send Inquiry
+              </Button>
+            </div>
           )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Sidebar */}
+          {/* ── Sidebar ── */}
           <div className="lg:col-span-3 space-y-6">
+            {/* Non-export-ready notice — text only, no CTA */}
             {!isExportReady && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-5">
-                <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">
-                  Getting Started
-                </p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  This supplier is preparing for export. Full commercial details will be available once they complete certification.
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-5">
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  This supplier is building export readiness. Check back when they are verified.
                 </p>
               </div>
             )}
@@ -232,7 +284,7 @@ export default function SupplierDetail() {
                 {profile.supplierType && (
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Type</div>
-                    <div className="font-medium capitalize">{profile.supplierType.toLowerCase().replace(/_/g, " ")}</div>
+                    <div className="font-medium">{formatSupplierType(profile.supplierType)}</div>
                   </div>
                 )}
                 {profile.originStory?.farmerName && (
@@ -245,106 +297,121 @@ export default function SupplierDetail() {
             </div>
           </div>
 
-          {/* Main Content */}
+          {/* ── Main Content: Tabs ── */}
           <div className="lg:col-span-9">
-            <Tabs defaultValue="origin" className="w-full">
-              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent mb-6">
-                <TabsTrigger value="origin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-                  Origin Story
-                </TabsTrigger>
-                {isExportReady && (
-                  <TabsTrigger value="products" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-                    Products ({products.length})
-                  </TabsTrigger>
-                )}
-                {isExportReady && profile.certifications.length > 0 && (
-                  <TabsTrigger value="certifications" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-                    Certifications
-                  </TabsTrigger>
-                )}
-              </TabsList>
+            {defaultTab ? (
+              <Tabs defaultValue={defaultTab} className="w-full">
+                <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent mb-6">
+                  {/* ── Section 2: Origin Story tab — only when originStory is non-null ── */}
+                  {profile.originStory && (
+                    <TabsTrigger
+                      value="origin"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3"
+                    >
+                      Origin Story
+                    </TabsTrigger>
+                  )}
 
-              <TabsContent value="origin">
-                {profile.originStory ? (
-                  <div className="bg-card border rounded-lg overflow-hidden">
-                    <div className="p-8">
-                      <div className="prose prose-sm sm:prose-base text-muted-foreground max-w-none">
-                        {profile.originStory.story.split('\n\n').map((paragraph, i) => (
-                          <p key={i} className="mb-4">{paragraph}</p>
+                  {/* ── Section 4: Products tab — export-ready only ── */}
+                  {isExportReady && (
+                    <TabsTrigger
+                      value="products"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3"
+                    >
+                      Products ({products.length})
+                    </TabsTrigger>
+                  )}
+
+                  {/* ── Section 3: Certifications tab ── */}
+                  {isExportReady && profile.certifications.length > 0 && (
+                    <TabsTrigger
+                      value="certifications"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3"
+                    >
+                      Certifications
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+
+                {/* Origin Story content — farmerName + location attribution + story text */}
+                {profile.originStory && (
+                  <TabsContent value="origin">
+                    <div className="bg-card border rounded-lg overflow-hidden">
+                      {/* Attribution header */}
+                      <div className="px-8 pt-7 pb-5 border-b bg-muted/30">
+                        <p className="font-serif font-semibold text-lg leading-tight">
+                          {profile.originStory.farmerName}
+                        </p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+                          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                          {profile.originStory.location}
+                        </p>
+                      </div>
+                      {/* Story paragraphs */}
+                      <div className="p-8">
+                        <div className="prose prose-sm sm:prose-base text-muted-foreground max-w-none">
+                          {profile.originStory.story.split("\n\n").map((paragraph, i) => (
+                            <p key={i} className="mb-4 last:mb-0">
+                              {paragraph}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                )}
+
+                {/* Products content */}
+                {isExportReady && (
+                  <TabsContent value="products">
+                    {products.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {products.map((product) => (
+                          <ProductCard key={product.id} product={product as unknown as Product} />
                         ))}
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12 border rounded-lg bg-card/50">
-                    <div className="max-w-sm mx-auto">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                        <Leaf className="w-6 h-6 text-primary" />
+                    ) : (
+                      <div className="text-center py-12 border rounded-lg bg-card/50">
+                        <p className="text-muted-foreground">No products listed currently.</p>
                       </div>
-                      <p className="font-medium text-foreground mb-2">Farm story coming soon</p>
-                      <p className="text-sm text-muted-foreground">
-                        We are working with this farm to document their story. Check back soon.
-                      </p>
-                    </div>
-                  </div>
+                    )}
+                  </TabsContent>
                 )}
 
-                {!isExportReady && (
-                  <div className="mt-6 border border-dashed border-primary/30 rounded-lg p-6 bg-primary/5 text-center">
-                    <p className="text-sm font-medium text-foreground mb-1">
-                      Interested in sourcing from this farm?
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Pricing and order details will be available once this supplier completes Fincava certification.
-                      Reach out early to get priority access.
-                    </p>
-                    <Button size="sm" onClick={openInquiry}>
-                      <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
-                      Get in Touch
-                    </Button>
-                  </div>
-                )}
-              </TabsContent>
-
-              {isExportReady && (
-                <TabsContent value="products">
-                  {products.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                      {products.map((product) => (
-                        <ProductCard key={product.id} product={product as unknown as Product} />
+                {/* Certifications content — Card/CardContent per spec */}
+                {isExportReady && profile.certifications.length > 0 && (
+                  <TabsContent value="certifications">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      {profile.certifications.map((cert, i) => (
+                        <Card key={i}>
+                          <CardContent className="p-6 flex items-start gap-4">
+                            <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <ShieldCheck className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-base mb-1 truncate">{cert.name}</h4>
+                              <p className="text-sm text-muted-foreground">Issued by: {cert.issuedBy}</p>
+                              {cert.validUntil && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Valid until: {new Date(cert.validUntil).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
-                  ) : (
-                    <div className="text-center py-12 border rounded-lg bg-card/50">
-                      <p className="text-muted-foreground">No products listed currently.</p>
-                    </div>
-                  )}
-                </TabsContent>
-              )}
-
-              {isExportReady && profile.certifications.length > 0 && (
-                <TabsContent value="certifications">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {profile.certifications.map((cert, i) => (
-                      <div key={i} className="border rounded-lg p-6 flex items-start">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mr-4 flex-shrink-0">
-                          <ShieldCheck className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-lg mb-1">{cert.name}</h4>
-                          <p className="text-sm text-muted-foreground mb-2">Issued by: {cert.issuedBy}</p>
-                          {cert.validUntil && (
-                            <p className="text-xs text-muted-foreground">
-                              Valid until: {new Date(cert.validUntil).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-              )}
-            </Tabs>
+                  </TabsContent>
+                )}
+              </Tabs>
+            ) : (
+              /* Edge case: no origin story, not export-ready → no tabs to show */
+              <div className="text-center py-16 border rounded-lg bg-card/50">
+                <p className="text-muted-foreground text-sm">
+                  Supplier information will be available once they complete onboarding.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -353,7 +420,7 @@ export default function SupplierDetail() {
       <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">Contact Supplier</DialogTitle>
+            <DialogTitle className="font-serif text-xl">Send Inquiry</DialogTitle>
             <DialogDescription>
               Send an inquiry to <strong>{profile.name}</strong>. They will respond via your Fincava dashboard.
             </DialogDescription>
