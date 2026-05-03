@@ -69,6 +69,7 @@ export default function SupplierDetail() {
   const [profileLoading, setProfileLoading] = useState(true);
 
   const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [inquirySent, setInquirySent] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [message, setMessage] = useState("");
   const [quantityKg, setQuantityKg] = useState("");
@@ -122,12 +123,20 @@ export default function SupplierDetail() {
           quantityKg: quantityKg ? parseFloat(quantityKg) : null,
         }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      toast({ title: "Inquiry sent!", description: "The supplier has been notified and will respond via your dashboard." });
-      setInquiryOpen(false);
+      if (!res.ok) {
+        let errMsg = `Request failed (${res.status})`;
+        try {
+          const json = await res.json();
+          if (typeof json?.error === "string") errMsg = json.error;
+        } catch {
+          // body was not JSON — keep the status-code fallback
+        }
+        throw new Error(errMsg);
+      }
       setMessage("");
       setQuantityKg("");
       setSelectedProductId("");
+      setInquirySent(true);
     } catch (e: any) {
       toast({ title: "Failed to send", description: e.message || "Please try again.", variant: "destructive" });
     } finally {
@@ -417,15 +426,33 @@ export default function SupplierDetail() {
       </div>
 
       {/* ── Contact Supplier Dialog ── */}
-      <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
+      <Dialog open={inquiryOpen} onOpenChange={(open) => { setInquiryOpen(open); if (!open) setInquirySent(false); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Send Inquiry</DialogTitle>
-            <DialogDescription>
-              Send an inquiry to <strong>{profile.name}</strong>. They will respond via your Fincava dashboard.
-            </DialogDescription>
+            {!inquirySent && (
+              <DialogDescription>
+                Send an inquiry to <strong>{profile.name}</strong>. They will respond via your Fincava dashboard.
+              </DialogDescription>
+            )}
           </DialogHeader>
 
+          {inquirySent ? (
+            <div className="flex flex-col items-center text-center gap-4 py-6">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-base font-semibold mb-1">Inquiry sent.</p>
+                <p className="text-sm text-muted-foreground">You will hear from the supplier within 2–3 business days.</p>
+              </div>
+              <Button variant="outline" className="mt-2" onClick={() => { setInquiryOpen(false); setInquirySent(false); }}>
+                Close
+              </Button>
+            </div>
+          ) : (
           <div className="space-y-4 mt-2">
             {products.length > 0 ? (
               <div>
@@ -497,6 +524,7 @@ export default function SupplierDetail() {
               </Button>
             </div>
           </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -87,3 +87,43 @@ Resolves naming drift between planned R-series identifiers and executed task IDs
 ### Test results
 - Backend: 61/61 ✅
 - Frontend: 23/23 ✅
+
+---
+
+## B4 — Buyer Inquiry Flow UX
+**Date:** 2026-05-03
+**Status:** COMPLETE
+
+### Changes made (6 total)
+
+**Backend — `artifacts/api-server/src/routes/inquiries.ts`**
+1. **Session prefill (buyerEmail + buyerName):** `POST /api/inquiries` now overrides body values with authenticated session data. Two indexed point-lookups (no joins, no service calls): `usersTable` by `userId` → `email`; `profilesTable` by `userId` → `firstName`, `lastName`. Graceful fallback: if profile row absent, `buyerName` falls back to email-prefix (`email.split("@")[0]`). `profilesTable` added to `@workspace/db` import.
+
+**Frontend — `artifacts/fincava/src/pages/supplier-detail.tsx`**
+2. **Success confirmation panel:** Added `inquirySent: boolean` state. On successful POST, instead of closing dialog + showing toast, sets `inquirySent = true`. Dialog content switches to a centered confirmation panel: emerald checkmark circle, "Inquiry sent." heading, "You will hear from the supplier within 2–3 business days." subtitle, "Close" button. `onOpenChange` resets `inquirySent = false` on any dismiss so re-opening shows the form fresh.
+3. **Error path fix:** Replaced `throw new Error(await res.text())` with structured extraction: tries `res.json()` → extracts `json.error` string → falls back to `Request failed (${res.status})`. Raw JSON never surfaces to the buyer.
+
+**Frontend — `artifacts/fincava/src/pages/dashboard/inquiries.tsx`**
+4. **Status badges with clear labels:** Three distinct states: `PENDING` → "Pending" (`variant="outline"` + `border-amber-400 text-amber-700 bg-amber-50`); `RESPONDED` → "Responded" (`variant="default"`); `CLOSED` → "Closed" (`variant="secondary"`). Three helper functions: `statusLabel`, `statusVariant`, `statusClassName`.
+5. **Date submitted:** `new Date(inquiry.createdAt).toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })` rendered below product name. Uses browser system locale (`undefined`). No `date-fns` dependency added.
+6. **Empty state:** Updated to spec: "No inquiries yet." + "Browse the Supplier Network to find Colombian producers." with `<Link href="/suppliers">` from wouter.
+
+**Change 3 — VERIFY-ONLY (supplier dashboard):**
+- **STEP 1 — PASS:** `GET /api/supplier/inquiries` returns all inquiries for the authenticated supplier's products. Filters by `productIds` derived from `companiesTable` lookup (company → products) — functionally correct.
+- **STEP 2 — PASS:** `PATCH /api/supplier/inquiries/:id` updates status with ownership check (company → product.companyId match). `RESPONDED` and `CLOSED` transitions work. `useUpdateInquiryStatus` hook wired in frontend with toast + cache invalidation.
+- Zero code changes made to supplier dashboard.
+
+### Schema note
+`firstName`/`lastName` live on `profilesTable`, not `usersTable` (usersTable has only: id, email, passwordHash, role, emailVerifiedAt, createdAt). The constraint "single db.select() from usersTable" assumed name columns on usersTable — corrected to two indexed point-lookups after schema inspection.
+
+### Acceptance criteria
+1. Logged-in buyer submits inquiry — buyerEmail/buyerName from session ✅
+2. Success confirmation message shown after submission ✅
+3. Buyer dashboard shows inquiry with status, supplier name, product name, date ✅
+4. Empty state renders with Supplier Network link ✅
+5. Supplier sees inquiry in dashboard — PASS (verified, no changes needed) ✅
+6. pnpm typecheck passes — backend ✅, frontend ✅
+
+### Test results
+- Backend: 61/61 ✅
+- Frontend: 23/23 ✅

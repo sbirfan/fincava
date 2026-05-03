@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, inArray } from "drizzle-orm";
-import { db, inquiriesTable, productsTable, companiesTable, usersTable } from "@workspace/db";
+import { db, inquiriesTable, productsTable, companiesTable, usersTable, profilesTable } from "@workspace/db";
 import {
   CreateInquiryBody,
   UpdateInquiryStatusParams,
@@ -40,10 +40,30 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  // Override buyerEmail and buyerName from the authenticated session — do not trust body values.
+  // email lives on usersTable; firstName/lastName live on profilesTable (two indexed point-lookups, no joins).
+  const userId = (req as any).userId as number;
+  const [sessionUser] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (!sessionUser) {
+    res.status(401).json({ error: "Session user not found" });
+    return;
+  }
+  const [sessionProfile] = await db
+    .select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, userId));
+  const buyerEmail = sessionUser.email;
+  const buyerName = sessionProfile
+    ? [sessionProfile.firstName, sessionProfile.lastName].filter(Boolean).join(" ")
+    : sessionUser.email.split("@")[0];
+
   const [inquiry] = await db.insert(inquiriesTable).values({
     productId: parsed.data.productId,
-    buyerEmail: parsed.data.buyerEmail,
-    buyerName: parsed.data.buyerName,
+    buyerEmail,
+    buyerName,
     company: parsed.data.company,
     country: parsed.data.country,
     message: parsed.data.message,

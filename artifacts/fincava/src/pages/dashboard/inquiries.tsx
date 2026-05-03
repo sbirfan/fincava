@@ -2,6 +2,24 @@ import { useListBuyerInquiries } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "wouter";
+
+function statusLabel(status: string): string {
+  if (status === "RESPONDED") return "Responded";
+  if (status === "CLOSED") return "Closed";
+  return "Pending";
+}
+
+function statusVariant(status: string): "default" | "secondary" | "outline" {
+  if (status === "RESPONDED") return "default";
+  if (status === "CLOSED") return "secondary";
+  return "outline";
+}
+
+function statusClassName(status: string): string {
+  if (status === "PENDING") return "border-amber-400 text-amber-700 bg-amber-50";
+  return "";
+}
 
 export default function BuyerInquiries() {
   const { data: inquiries, isLoading } = useListBuyerInquiries();
@@ -24,9 +42,17 @@ export default function BuyerInquiries() {
           {inquiries.map((inquiry) => (
             <Card key={inquiry.id}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg font-serif">{inquiry.productName}</CardTitle>
-                <Badge variant={inquiry.status === 'RESPONDED' ? 'default' : 'secondary'}>
-                  {inquiry.status}
+                <div>
+                  <CardTitle className="text-lg font-serif">{inquiry.productName}</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(inquiry.createdAt).toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })}
+                  </p>
+                </div>
+                <Badge
+                  variant={statusVariant(inquiry.status)}
+                  className={statusClassName(inquiry.status)}
+                >
+                  {statusLabel(inquiry.status)}
                 </Badge>
               </CardHeader>
               <CardContent>
@@ -51,8 +77,13 @@ export default function BuyerInquiries() {
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-lg font-medium mb-2">No inquiries yet</p>
-            <p className="text-muted-foreground">You haven't sent any inquiries to suppliers.</p>
+            <p className="text-lg font-medium mb-2">No inquiries yet.</p>
+            <p className="text-muted-foreground">
+              <Link href="/suppliers" className="text-primary underline underline-offset-2 hover:opacity-80">
+                Browse the Supplier Network
+              </Link>{" "}
+              to find Colombian producers.
+            </p>
           </CardContent>
         </Card>
       )}
