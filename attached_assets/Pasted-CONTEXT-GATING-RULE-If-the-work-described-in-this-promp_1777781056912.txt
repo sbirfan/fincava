@@ -1,0 +1,57 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+The full orders system exists (POST /api/buyer/orders with CONFIRMED → SHIPPED → DELIVERED states). However per Phase I architecture, transactions are off (ENABLE_TRANSACTIONS=false). This task creates a lightweight "Order Intent" or "Confirm Interest" flow that works within Phase I — no payment, no logistics, just a structured signal that a buyer wants to proceed. The existing order system stays dormant for now.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. docs/SOURCE_OF_TRUTH_ROADMAP.md — re-read Layer I non-goals and Layer III scope
+3. artifacts/api-server/src/routes/orders.ts — understand existing order POST flow
+4. artifacts/fincava/src/pages/dashboard/orders.tsx — current buyer orders page
+
+OBJECTIVE
+Create a Phase I-compatible "Confirm Interest" flow. Buyer can express structured purchase intent for a supplier/product. No payment. No fulfillment. Fincava team coordinates manually. Repurpose the existing order infrastructure with a new restricted entry point.
+
+BACKEND
+Create POST /api/buyer/intent (new route in orders.ts or a new intents.ts file):
+  Auth: requireAuth + requireVerifiedEmail
+  Body: { supplierId, productId (optional), estimatedQuantityKg, notes }
+  Creates an order record with status = 'INQUIRY' (first status in existing enum)
+  Does NOT require ENABLE_TRANSACTIONS flag — this is a Phase I surface
+  Returns: { intentId: orderId, message: "Fincava will reach out within 48 hours to coordinate next steps." }
+  Triggers: adminNotificationEmail to info@fincava.com with buyer name, supplier, quantity, notes
+
+FRONTEND
+  Change 1 — "Confirm Interest" button on supplier detail page (post-B3)
+    Below inquiry CTA, add secondary CTA: "Confirm Purchase Interest"
+    Opens a modal (not a new page): fields are supplier name (pre-filled, read-only), estimated quantity kg, notes (optional)
+    Submit calls POST /api/buyer/intent
+    On success: show "Your interest has been confirmed. The Fincava team will reach out within 48 hours."
+
+  Change 2 — Buyer orders dashboard (dashboard/orders.tsx)
+    Rename section header to "Orders & Deal Intentions"
+    Show intents (status=INQUIRY) in a separate section from any future confirmed orders
+    Label: "Pending Coordination — Fincava team is reviewing"
+    Empty state: "No active intentions. When you confirm interest in a supplier, it appears here."
+
+CONSTRAINTS
+No payment processing.
+No logistics booking.
+POST /api/buyer/orders (the full order creation) remains gated by ENABLE_TRANSACTIONS.
+The new POST /api/buyer/intent is a Phase I surface — no feature flag needed.
+
+ACCEPTANCE CRITERIA
+1. POST /api/buyer/intent creates an order record with status INQUIRY
+2. Admin email notification fires (or logs warning if RESEND_API_KEY absent)
+3. Buyer sees the intent in their orders dashboard under correct label
+4. POST /api/buyer/orders still returns 503 (ENABLE_TRANSACTIONS=false)
+5. Intent modal renders and submits correctly
+6. pnpm typecheck passes
+
+DO NOT EXECUTE IMMEDIATELY.
+Confirm the orders table schema — does status enum include 'INQUIRY' as a valid value?
+Confirm whether adminNotificationEmail exists in email.ts or needs to be created.
+Confirm the current ENABLE_TRANSACTIONS guard location — is it in the route handler or middleware?
+Show the current buyer orders dashboard fetch — does it query all orders or filter by status?
+Wait for approval.
