@@ -1,0 +1,61 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+SupplierDetail.tsx now uses the buyer-safe /api/suppliers/marketplace/:id route. This task enriches the visual presentation: certifications display, trust/export-ready badge, origin story section, and inquiry/RFQ CTAs.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/fincava/src/pages/supplier-detail.tsx — post-B1 implementation
+3. artifacts/fincava/src/components/ — scan for existing badge, card, or trust-score components to reuse
+4. The response shape of GET /api/suppliers/marketplace/:id (defined in B1)
+
+OBJECTIVE
+Improve the visual layout and information density of the supplier detail page for buyers.
+
+CHANGES
+
+Section 1 — Header
+  Supplier name (large), type badge (FARMER / COOPERATIVE / EXPORTER), region + department
+  Export Ready badge (green, prominent) or "Preparing for Export" (amber) based on isExportReady
+
+Section 2 — Origin Story
+  If originStory exists: full-width image header, farmerName, story text, location
+  If null: do not render section — no placeholder
+
+Section 3 — Certifications
+  If certifications array is non-empty: render certification badges with name and issuing body
+  Reuse existing certification badge components if they exist
+
+Section 4 — Products (export-ready suppliers only)
+  Grid of product cards: name, category, price per kg, description excerpt
+  Only render if isExportReady is true
+
+Section 5 — Inquiry / Contact CTAs
+  If isExportReady:
+    Primary: "Send Inquiry" — links to /dashboard/inquiries or pre-fills inquiry form with supplierId
+    Secondary: "Create RFQ" — links to /dashboard/rfqs
+  If not isExportReady:
+    No CTA. Text: "This supplier is building export readiness. Check back when they are verified."
+
+Section 6 — Back navigation
+  "← Back to Supplier Network" link to /suppliers
+
+CONSTRAINTS
+No backend changes in this task.
+No schema changes.
+Do not show: commercial score, pathway, compliance document status, economics data.
+
+ACCEPTANCE CRITERIA
+1. Export Ready badge visible for SELLABLE/PUBLISHED suppliers
+2. Origin story renders correctly when present, absent when null
+3. Certifications visible when present
+4. Products section only renders for export-ready suppliers
+5. Inquiry CTA only on export-ready supplier pages
+6. pnpm typecheck passes
+7. Mobile: all sections readable on small screen (no horizontal overflow)
+
+DO NOT EXECUTE IMMEDIATELY.
+List all existing components in artifacts/fincava/src/components/ that you plan to reuse.
+Confirm the full interface shape currently in supplier-detail.tsx (post-B1).
+Wait for approval.
