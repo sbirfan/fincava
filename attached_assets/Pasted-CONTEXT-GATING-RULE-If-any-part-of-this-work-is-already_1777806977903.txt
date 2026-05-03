@@ -1,0 +1,109 @@
+CONTEXT
+
+GATING RULE: If any part of this work is already complete, document evidence in ops/task_execution_log.md and skip only that part. Do not skip the preflight.
+
+Phase 1.5 adds the extended buyer onboarding system. The /buyer-register form captures 12 fields (Phase 1 baseline). This task adds the backend layer for the extended 25-question profile at /buyer/onboarding covering Sections 1–4 and Section 6 of the buyer addendum (Section 5 Logistics is deferred).
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. lib/db/src/schema/ — find the buyer_profiles table definition (likely buyers.ts or in an existing schema file). Print ALL column names currently present.
+3. artifacts/api-server/src/routes/buyers.ts (or wherever POST /api/buyers/onboard lives) — print the full current implementation
+4. artifacts/api-server/src/lib/matching.ts (or wherever calculateMatchScore / runMatching lives) — print the buyer profile fields currently used in the matching prompt
+
+OBJECTIVE
+1. Identify which columns are missing from buyer_profiles for the 25 in-scope questions
+2. Add missing columns via direct DDL (established pattern — do NOT run Drizzle omnibus migration)
+3. Add PATCH /api/buyer/onboarding endpoint for partial profile updates
+4. Add GET /api/buyer/onboarding endpoint to fetch current extended profile
+5. Update matching prompt to include new buyer profile signals
+
+---
+
+IN-SCOPE QUESTIONS (25 questions — Sections 1–4 + Section 6)
+
+SECTION 1 — Company Profile (new fields only — companyName, companyType, country already captured)
+  Q2: buyerSegment — single select: specialty_roaster / commodity_trader / craft_chocolatier / food_distributor / grocery_retailer / specialty_retailer / food_manufacturer / restaurant_hospitality / other
+  Q3: locationCount — single select: one / two_to_five / six_to_twenty / twenty_plus
+  Q4: annualBudgetUsd — single select: under_50k / 50k_to_250k / 250k_to_1m / 1m_to_5m / over_5m
+
+SECTION 2 — Product Interests (productCategories already captured — add these)
+  Q6: coffeeQualityTier — text enum (conditional: shown if coffee selected): specialty_sca80 / high_commercial_75_79 / standard_commercial_70_74 / bulk_commodity
+  Q7: coffeeFlavorProfile — text[] (conditional: coffee): fruity_bright / chocolatey_nutty / floral_aromatic / heavy_body / single_origin_critical / blends_acceptable
+  Q8: cacaoFlavorProfile — text enum (conditional: cacao): fruity_floral_citrus / chocolate_nutty_caramel / balanced_blending / no_preference
+  Q9: fruitForm — text[] (conditional: exotic fruits): fresh_airshipped / frozen_pulp / dehydrated_dried / concentrate_juice
+  Q10: availabilityRequirement — text enum: year_round_critical / seasonal_acceptable / flexible
+  Q11: orderFrequency — text enum: weekly_biweekly / monthly / quarterly / annual_contracts / ad_hoc
+
+SECTION 3 — Volume & Pricing (volumeBand already captured — add these)
+  Q12: coffeeOrderSizeKg — text enum (conditional: coffee): under_500 / 500_to_2000 / 2000_to_10000 / 10000_to_50000 / over_50000
+  Q13: cacaoOrderSizeKg — text enum (conditional: cacao): under_500 / 500_to_5000 / 5000_to_20000 / over_20000
+  Q14: fruitOrderSizeKg — text enum (conditional: fruits): under_500 / 500_to_2000 / 2000_to_10000 / over_10000
+  Q15: priceSensitivity — text enum: quality_first / balanced / cost_driven
+  Q16: priceTransparency — text[] (multi): single_price / full_breakdown / carbon_cost / price_history
+
+SECTION 4 — Quality & Certifications (requiredCertifications already captured — add these)
+  Q18: certsNiceToHave — text[] (same options as requiredCertifications)
+  Q19: traceabilityLevel — text enum: farm_to_cup / lot_level / preferred_not_mandatory / no_requirement
+  Q20: qualityDocRequired — text[] multi: sca_cupping / sensory_analysis / lab_analysis / fermentation_records / phytosanitary / carbon_footprint / social_audit
+  Q21: coffeeDefectRate — text enum (conditional: coffee): under_1pct / one_to_5pct / five_to_10pct / ten_plus_acceptable
+  Q22: cacaoMoldPct — text enum (conditional: cacao): under_1pct / one_to_2pct / two_to_5pct / no_requirement
+  Q23: sourceConsistency — text enum: single_source_preferred / approved_pool / variety_acceptable / no_preference
+  Q24: qualityVerification — text[] (conditional: specialty_roaster or craft_chocolatier segment): inhouse_lab / supplier_certs / sensory_cupping / quality_consultant / multiple
+
+SECTION 6 — Sustainability (2 questions — always shown)
+  Q31: sustainabilityImportance — text enum: critical_to_brand / important_to_market / secondary / not_important
+  Q32: sustainabilityDimensions — text[] (conditional: Q31 != not_important): carbon_neutral / fair_wages / organic / biodiversity / water_conservation / women_minority / community_investment / all_equally
+
+---
+
+SCHEMA RULES
+- All new columns are nullable (existing rows unaffected)
+- Arrays stored as text[] in Postgres
+- Use text (not enum types) for all new columns — avoids Drizzle enum migration complexity
+- Add p2CompletionPct integer default 0 if not present
+- Add p2SectionsDone text[] default '{}' if not present
+
+MIGRATION PATTERN (established in B6)
+Do NOT run the Drizzle omnibus migration file — it contains already-pushed schema and will fail.
+Instead: for each missing column, run individual ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS ... statements directly.
+Verify each column against information_schema.columns after adding.
+
+PATCH /api/buyer/onboarding
+  Auth: requireAuth
+  Body: partial — accepts any subset of the 25 fields above
+  On save: recalculate p2CompletionPct as:
+    sections_done = count of sections where ALL non-conditional required fields are answered
+    pct = (sections_done / 4) * 100  (4 active sections: 1, 2, 3, 4 — Section 6 is bonus)
+  Update p2SectionsDone array accordingly
+  Returns: { profile: updated fields, p2CompletionPct, p2SectionsDone }
+
+GET /api/buyer/onboarding
+  Auth: requireAuth
+  Returns: all extended profile fields for the authenticated buyer
+  Returns 404 if no buyer_profile row exists yet (buyer registered but hasn't started onboarding)
+
+MATCHING ENGINE UPDATE
+After confirming the GET/PATCH endpoints work, read the matching prompt in matching.ts.
+Add the following buyer signals to the prompt context (only if non-null in buyer profile):
+  - buyerSegment (maps to specialty vs commodity routing)
+  - coffeeQualityTier, coffeeFlavorProfile (for coffee supplier matching)
+  - cacaoFlavorProfile (for cacao)
+  - priceSensitivity (quality_first buyers → match to high AI score suppliers)
+  - traceabilityLevel (farm_to_cup buyers → only match suppliers with origin story published)
+  - sustainabilityImportance + sustainabilityDimensions (sustainability-focused buyers → weight cert overlap higher)
+Do NOT change the scoring weights (30/25/20/15/10). Add these as qualitative context in the prompt narrative only.
+
+ACCEPTANCE CRITERIA
+1. buyer_profiles has all 25 new columns (verified via information_schema.columns)
+2. PATCH /api/buyer/onboarding saves partial updates correctly
+3. GET /api/buyer/onboarding returns current extended profile
+4. p2CompletionPct recalculates correctly on each PATCH
+5. Matching prompt context includes new buyer signals
+6. pnpm typecheck passes
+7. ops/system_gap_analysis.md: P2-B1 marked IN PROGRESS
+
+DO NOT EXECUTE IMMEDIATELY.
+Print all current buyer_profiles columns from the schema file.
+For each of the 25 in-scope fields, state: EXISTS (column name) or MISSING (will add).
+Show the current matching prompt context — which buyer fields does it currently use?
+Wait for approval.
