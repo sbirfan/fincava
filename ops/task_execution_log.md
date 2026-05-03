@@ -55,6 +55,30 @@ Resolves naming drift between planned R-series identifiers and executed task IDs
 | 2026-05-02 | S1-SUPPLIER-ENTITY-LINKAGE | main | 77c75de | Y | N | pnpm --filter @workspace/api-server run typecheck (clean); pnpm --filter @workspace/fincava run typecheck (clean); pnpm -r run build (clean) | Pass | Y | Audit A: GET /api/suppliers/my-profile extended — added graduationPathway + lastEvaluatedAt to SELECT; response now includes both fields. Audit B: PATCH /api/suppliers/:id/claim unchanged — works correctly, no patch needed. Audit C: ProfileCompletenessWidget updated — found:false now renders "Connect farm profile" prompt card (not null); found:true now shows graduation status row (sellableStatus badge, pathway badge, lastEvaluatedAt). New GET /api/supplier/status endpoint added — requireAuth + SUPPLIER role check; returns sellableStatus, graduationPathway, lastEvaluatedAt, isGraduated, nextAction; found:false returns guidance message. ops/system_gap_analysis.md M6 updated to FIXED. No schema changes. No migrations. |
 
 | 2026-05-03 | B8-MOBILE-I18N | main | e84a7b5 | Y | N | pnpm --filter @workspace/fincava run typecheck (clean); pnpm --filter @workspace/api-server run test (61/61 pass); pnpm --filter @workspace/fincava run test (23/23 pass) | Pass | Y | C2 buyer-register: added t.buyerRegister key block (21 keys + nested companyTypes/productCategories/volumeBands/timeBands/errors/toasts) to translations.ts en+es at structural parity enforced by es:typeof en; added useLanguage() to buyer-register.tsx; formSchema converted to useMemo([lang]); FormData defined as explicit type (not z.infer from useMemo); all 40+ hardcoded strings replaced with tr.*; COMPANY_TYPE_VALUES/PRODUCT_CATEGORY_VALUES/VOLUME_BAND_VALUES/TIME_BAND_VALUES kept as module-level value arrays; labeled arrays computed per-render from tr.*; useEffect clearErrors on lang change follows register.tsx lines 90-97 pattern exactly; COMMON_CERTS intentionally kept English (international cert names). C4 supplier-detail (3 toasts only): added useLanguage() import + const { lang } = useLanguage(); replaced 3 hardcoded English inquiry validation toasts with inline lang==="es"?"...":"..." ternaries — no new translation keys, no changes to rfqs.tsx. C1 navbar + C2 /register + C3 mobile: confirmed already complete during preflight, zero changes. |
+| 2026-05-03 | B9-HEALTH-ALIAS | main | auto-committed | Y | N | pnpm -r run typecheck (4/4 clean); pnpm -r run build (all 3 artifacts pass); curl /api/health → 200 {"status":"ok"} (live confirmed post-restart); curl /api/healthz → 200 {"status":"ok"} (regression confirmed) | Pass | Y | Task 1: health.ts — added router.get("/health", ...) with identical handler body (HealthCheckResponse.parse({status:"ok"})) alongside existing /healthz; 2 lines added, no logic change. Task 2: .replit has no healthcheckPath key; autoscale deployment probes "/" by default — /api/health alias is purely additive, /api/healthz unaffected. Task 3: typecheck 4/4 clean; build all artifacts pass (pre-existing Vite chunk size + sourcemap warnings unchanged — not regressionable). Task 4: SOURCE_OF_TRUTH_ROADMAP.md changelog updated — "Phase I Sprint complete — B0 through B9 delivered". Commit message: chore: B9 health route — Phase I Sprint complete. |
+
+---
+
+## Phase I Sprint Summary
+**Sprint:** B0 → B9
+**Status:** COMPLETE
+**Baseline SHA:** b3c50ee
+**Completion SHA:** pending (chore: B9 health route — Phase I Sprint complete)
+
+| Task | ID | Result |
+|---|---|---|
+| Phase I baseline snapshot | B0-BASELINE | ✅ |
+| Buyer-safe supplier detail route | B1-BUYER-SAFE-SUPPLIER-DETAIL-ROUTE | ✅ |
+| Graduation gate on products | B2-GRADUATION-GATE-PRODUCTS | ✅ |
+| Supplier detail visual enrichment | B3 | ✅ |
+| Buyer inquiry flow | B4 | ✅ |
+| Buyer dashboard | B5 | ✅ |
+| Confirm interest flow | B6 | ✅ |
+| Email funnel verification | B7 | ✅ |
+| Mobile / i18n | B8-MOBILE-I18N | ✅ |
+| Health route alias + sprint closure | B9-HEALTH-ALIAS | ✅ |
+
+Test suite at closure: **84/84 passing** (61 backend + 23 frontend). Typecheck: **4/4 packages clean**. Build: **all artifacts pass**.
 
 ---
 
