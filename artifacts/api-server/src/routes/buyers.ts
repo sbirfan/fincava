@@ -873,6 +873,362 @@ router.get(
   },
 );
 
+// ── GET /api/buyer/onboarding ─────────────────────────────────────────────────
+// Returns all 25 extended onboarding fields for the authenticated buyer.
+// Returns 404 if the buyer_profile row does not yet exist.
+// URL: singular /buyer (no :id) — identity derived from auth cookie.
+router.get("/buyer/onboarding", requireAuth, async (req, res): Promise<void> => {
+  const userId: number = (req as any).userId;
+
+  const [profile] = await db
+    .select({
+      id: buyerProfilesTable.id,
+      // Phase 1 baseline (for context)
+      companyName: buyerProfilesTable.companyName,
+      country: buyerProfilesTable.country,
+      targetProducts: buyerProfilesTable.targetProducts,
+      volumeBand: buyerProfilesTable.volumeBand,
+      requiredCertsP1: buyerProfilesTable.requiredCertsP1,
+      timeToFirstOrder: buyerProfilesTable.timeToFirstOrder,
+      // Progress
+      p2CompletionPct: buyerProfilesTable.p2CompletionPct,
+      p2SectionsDone: buyerProfilesTable.p2SectionsDone,
+      // Section 1
+      buyerSegment: buyerProfilesTable.buyerSegment,
+      locationCount: buyerProfilesTable.locationCount,
+      annualBudgetUsd: buyerProfilesTable.annualBudgetUsd,
+      // Section 2
+      coffeeQualityTier: buyerProfilesTable.coffeeQualityTier,
+      coffeeFlavorProfile: buyerProfilesTable.coffeeFlavorProfile,
+      cacaoFlavorProfile: buyerProfilesTable.cacaoFlavorProfile,
+      fruitForm: buyerProfilesTable.fruitForm,
+      availabilityRequirement: buyerProfilesTable.availabilityRequirement,
+      orderFrequency: buyerProfilesTable.orderFrequency,
+      // Section 3
+      coffeeOrderSizeKg: buyerProfilesTable.coffeeOrderSizeKg,
+      cacaoOrderSizeKg: buyerProfilesTable.cacaoOrderSizeKg,
+      fruitOrderSizeKg: buyerProfilesTable.fruitOrderSizeKg,
+      priceSensitivity: buyerProfilesTable.priceSensitivity,
+      priceTransparency: buyerProfilesTable.priceTransparency,
+      // Section 4
+      certsNiceToHave: buyerProfilesTable.certsNiceToHave,
+      traceabilityLevel: buyerProfilesTable.traceabilityLevel,
+      qualityDocRequired: buyerProfilesTable.qualityDocRequired,
+      coffeeDefectRate: buyerProfilesTable.coffeeDefectRate,
+      cacaoMoldPct: buyerProfilesTable.cacaoMoldPct,
+      sourceConsistency: buyerProfilesTable.sourceConsistency,
+      qualityVerification: buyerProfilesTable.qualityVerification,
+      // Section 6
+      sustainabilityImportance: buyerProfilesTable.sustainabilityImportance,
+      sustainabilityDimensions: buyerProfilesTable.sustainabilityDimensions,
+    })
+    .from(buyerProfilesTable)
+    .where(eq(buyerProfilesTable.userId, userId));
+
+  if (!profile) {
+    res.status(404).json({ error: "No buyer profile found. Complete registration first." });
+    return;
+  }
+
+  res.json({ profile });
+});
+
+// ── PATCH /api/buyer/onboarding ───────────────────────────────────────────────
+// Partial update of any subset of the 25 extended onboarding fields.
+// Auth: requireAuth — identity from cookie; no :id in URL.
+// On save: recomputes p2CompletionPct and merges S1–S4 keys into p2SectionsDone
+//   without disturbing existing A–F keys written by PATCH /api/buyers/:id/profile.
+// Returns: { profile: updated extended fields, p2CompletionPct, p2SectionsDone }
+
+// Non-conditional required fields per section that determine "section done".
+// Conditional fields (coffeeQualityTier, coffeeFlavorProfile, etc.) are not
+// required for completion — they only sharpen the matching signal when present.
+const ONBOARD_SECTION_REQUIRED: Record<"S1" | "S2" | "S3" | "S4", string[]> = {
+  S1: ["buyerSegment", "locationCount", "annualBudgetUsd"],
+  S2: ["availabilityRequirement", "orderFrequency"],
+  S3: ["priceSensitivity"],
+  S4: ["traceabilityLevel", "sourceConsistency"],
+};
+
+const ONBOARD_ARRAY_FIELDS = new Set([
+  "coffeeFlavorProfile",
+  "fruitForm",
+  "priceTransparency",
+  "certsNiceToHave",
+  "qualityDocRequired",
+  "qualityVerification",
+  "sustainabilityDimensions",
+]);
+
+function isOnboardFieldComplete(
+  profile: Record<string, unknown>,
+  field: string,
+): boolean {
+  const v = profile[field];
+  if (ONBOARD_ARRAY_FIELDS.has(field)) return Array.isArray(v) && v.length > 0;
+  return v !== null && v !== undefined && v !== "";
+}
+
+function computeOnboardProgress(
+  profile: Record<string, unknown>,
+  existingSectionsDone: string[],
+): { sectionsDone: string[]; pct: number } {
+  const sectionKeys = ["S1", "S2", "S3", "S4"] as const;
+  const newlyDone = sectionKeys.filter((sec) =>
+    ONBOARD_SECTION_REQUIRED[sec].every((f) => isOnboardFieldComplete(profile, f)),
+  );
+
+  // Merge: keep existing A–F keys, replace S* keys with freshly computed set.
+  const existingNonS = existingSectionsDone.filter((k) => !k.startsWith("S"));
+  const sectionsDone = [...existingNonS, ...newlyDone];
+  const pct = Math.round((newlyDone.length / sectionKeys.length) * 100);
+
+  return { sectionsDone, pct };
+}
+
+const ExtendedOnboardingBody = z.object({
+  // Section 1
+  buyerSegment: z
+    .enum([
+      "specialty_roaster",
+      "commodity_trader",
+      "craft_chocolatier",
+      "food_distributor",
+      "grocery_retailer",
+      "specialty_retailer",
+      "food_manufacturer",
+      "restaurant_hospitality",
+      "other",
+    ])
+    .nullable()
+    .optional(),
+  locationCount: z
+    .enum(["one", "two_to_five", "six_to_twenty", "twenty_plus"])
+    .nullable()
+    .optional(),
+  annualBudgetUsd: z
+    .enum(["under_50k", "50k_to_250k", "250k_to_1m", "1m_to_5m", "over_5m"])
+    .nullable()
+    .optional(),
+  // Section 2
+  coffeeQualityTier: z
+    .enum(["specialty_sca80", "high_commercial_75_79", "standard_commercial_70_74", "bulk_commodity"])
+    .nullable()
+    .optional(),
+  coffeeFlavorProfile: z
+    .array(
+      z.enum([
+        "fruity_bright",
+        "chocolatey_nutty",
+        "floral_aromatic",
+        "heavy_body",
+        "single_origin_critical",
+        "blends_acceptable",
+      ]),
+    )
+    .max(6)
+    .nullable()
+    .optional(),
+  cacaoFlavorProfile: z
+    .enum(["fruity_floral_citrus", "chocolate_nutty_caramel", "balanced_blending", "no_preference"])
+    .nullable()
+    .optional(),
+  fruitForm: z
+    .array(z.enum(["fresh_airshipped", "frozen_pulp", "dehydrated_dried", "concentrate_juice"]))
+    .max(4)
+    .nullable()
+    .optional(),
+  availabilityRequirement: z
+    .enum(["year_round_critical", "seasonal_acceptable", "flexible"])
+    .nullable()
+    .optional(),
+  orderFrequency: z
+    .enum(["weekly_biweekly", "monthly", "quarterly", "annual_contracts", "ad_hoc"])
+    .nullable()
+    .optional(),
+  // Section 3
+  coffeeOrderSizeKg: z
+    .enum(["under_500", "500_to_2000", "2000_to_10000", "10000_to_50000", "over_50000"])
+    .nullable()
+    .optional(),
+  cacaoOrderSizeKg: z
+    .enum(["under_500", "500_to_5000", "5000_to_20000", "over_20000"])
+    .nullable()
+    .optional(),
+  fruitOrderSizeKg: z
+    .enum(["under_500", "500_to_2000", "2000_to_10000", "over_10000"])
+    .nullable()
+    .optional(),
+  priceSensitivity: z
+    .enum(["quality_first", "balanced", "cost_driven"])
+    .nullable()
+    .optional(),
+  priceTransparency: z
+    .array(
+      z.enum(["single_price", "full_breakdown", "carbon_cost", "price_history"]),
+    )
+    .max(4)
+    .nullable()
+    .optional(),
+  // Section 4
+  certsNiceToHave: z.array(z.string().min(1).max(80)).max(20).nullable().optional(),
+  traceabilityLevel: z
+    .enum(["farm_to_cup", "lot_level", "preferred_not_mandatory", "no_requirement"])
+    .nullable()
+    .optional(),
+  qualityDocRequired: z
+    .array(
+      z.enum([
+        "sca_cupping",
+        "sensory_analysis",
+        "lab_analysis",
+        "fermentation_records",
+        "phytosanitary",
+        "carbon_footprint",
+        "social_audit",
+      ]),
+    )
+    .max(7)
+    .nullable()
+    .optional(),
+  coffeeDefectRate: z
+    .enum(["under_1pct", "one_to_5pct", "five_to_10pct", "ten_plus_acceptable"])
+    .nullable()
+    .optional(),
+  cacaoMoldPct: z
+    .enum(["under_1pct", "one_to_2pct", "two_to_5pct", "no_requirement"])
+    .nullable()
+    .optional(),
+  sourceConsistency: z
+    .enum(["single_source_preferred", "approved_pool", "variety_acceptable", "no_preference"])
+    .nullable()
+    .optional(),
+  qualityVerification: z
+    .array(
+      z.enum([
+        "inhouse_lab",
+        "supplier_certs",
+        "sensory_cupping",
+        "quality_consultant",
+        "multiple",
+      ]),
+    )
+    .max(5)
+    .nullable()
+    .optional(),
+  // Section 6
+  sustainabilityImportance: z
+    .enum(["critical_to_brand", "important_to_market", "secondary", "not_important"])
+    .nullable()
+    .optional(),
+  sustainabilityDimensions: z
+    .array(
+      z.enum([
+        "carbon_neutral",
+        "fair_wages",
+        "organic",
+        "biodiversity",
+        "water_conservation",
+        "women_minority",
+        "community_investment",
+        "all_equally",
+      ]),
+    )
+    .max(8)
+    .nullable()
+    .optional(),
+});
+
+router.patch("/buyer/onboarding", requireAuth, async (req, res): Promise<void> => {
+  const userId: number = (req as any).userId;
+
+  const parsed = ExtendedOnboardingBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  // Must have an existing buyer_profile row.
+  const [existing] = await db
+    .select()
+    .from(buyerProfilesTable)
+    .where(eq(buyerProfilesTable.userId, userId));
+
+  if (!existing) {
+    res.status(404).json({
+      error: "No buyer profile found. Complete /buyer-register first.",
+    });
+    return;
+  }
+
+  // Build update set — only include keys present in the parsed body (partial update).
+  // Explicitly cast to Drizzle's insert type to satisfy the update() overload.
+  const updates = parsed.data as Partial<typeof buyerProfilesTable.$inferInsert>;
+
+  // Project the update onto the existing profile to recompute progress.
+  const projected: Record<string, unknown> = {
+    ...(existing as unknown as Record<string, unknown>),
+    ...(updates as Record<string, unknown>),
+  };
+
+  const existingSectionsDone = (existing.p2SectionsDone ?? []) as string[];
+  const { sectionsDone, pct } = computeOnboardProgress(projected, existingSectionsDone);
+
+  const [updated] = await db
+    .update(buyerProfilesTable)
+    .set({
+      ...updates,
+      p2CompletionPct: pct,
+      p2SectionsDone: sectionsDone,
+      updatedAt: new Date(),
+    })
+    .where(eq(buyerProfilesTable.userId, userId))
+    .returning({
+      id: buyerProfilesTable.id,
+      p2CompletionPct: buyerProfilesTable.p2CompletionPct,
+      p2SectionsDone: buyerProfilesTable.p2SectionsDone,
+      // Section 1
+      buyerSegment: buyerProfilesTable.buyerSegment,
+      locationCount: buyerProfilesTable.locationCount,
+      annualBudgetUsd: buyerProfilesTable.annualBudgetUsd,
+      // Section 2
+      coffeeQualityTier: buyerProfilesTable.coffeeQualityTier,
+      coffeeFlavorProfile: buyerProfilesTable.coffeeFlavorProfile,
+      cacaoFlavorProfile: buyerProfilesTable.cacaoFlavorProfile,
+      fruitForm: buyerProfilesTable.fruitForm,
+      availabilityRequirement: buyerProfilesTable.availabilityRequirement,
+      orderFrequency: buyerProfilesTable.orderFrequency,
+      // Section 3
+      coffeeOrderSizeKg: buyerProfilesTable.coffeeOrderSizeKg,
+      cacaoOrderSizeKg: buyerProfilesTable.cacaoOrderSizeKg,
+      fruitOrderSizeKg: buyerProfilesTable.fruitOrderSizeKg,
+      priceSensitivity: buyerProfilesTable.priceSensitivity,
+      priceTransparency: buyerProfilesTable.priceTransparency,
+      // Section 4
+      certsNiceToHave: buyerProfilesTable.certsNiceToHave,
+      traceabilityLevel: buyerProfilesTable.traceabilityLevel,
+      qualityDocRequired: buyerProfilesTable.qualityDocRequired,
+      coffeeDefectRate: buyerProfilesTable.coffeeDefectRate,
+      cacaoMoldPct: buyerProfilesTable.cacaoMoldPct,
+      sourceConsistency: buyerProfilesTable.sourceConsistency,
+      qualityVerification: buyerProfilesTable.qualityVerification,
+      // Section 6
+      sustainabilityImportance: buyerProfilesTable.sustainabilityImportance,
+      sustainabilityDimensions: buyerProfilesTable.sustainabilityDimensions,
+    });
+
+  req.log.info(
+    { userId, buyerProfileId: existing.id, sectionsDone, pct },
+    "buyer extended onboarding PATCH saved",
+  );
+
+  res.json({
+    profile: updated,
+    p2CompletionPct: updated.p2CompletionPct,
+    p2SectionsDone: updated.p2SectionsDone,
+  });
+});
+
 // ── PATCH /api/buyers/:id/marketing-preferences ──────────────────────────────
 // Buyer-side endpoint to manage marketing opt-in + topic interests. Caller
 // must own the profile.

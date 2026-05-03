@@ -376,3 +376,65 @@ Spoofed body email `spoofed-email-b@evil.invalid` not stored. Session email writ
 Cleanup: dev — inquiry id 3, user id 63, company id 53, profile deleted. Production — test registration (userId 7, `smoketest-a-b9@fincava-test.invalid`) cannot be deleted via agent (production DB is read-only replica); record is inert (BUYER role, no products, no inquiries).
 
 ### Overall: 3/3 PASS — Phase I Sprint production-verified ✅
+
+---
+
+## P2-B1 — Phase 1.5 Extended Buyer Onboarding Backend
+
+**Date:** 2026-05-03
+**Task ID:** P2-B1
+**Status:** IN PROGRESS (backend complete; frontend form deferred to P2-B2)
+
+### Preflight findings
+
+- buyer_profiles had 37 columns; 22 new columns required across Sections 1–4 + 6
+- 1 of 25 in-scope fields (traceabilityLevel / Q19) already existed — skipped in DDL
+- p2_completion_pct and p2_sections_done already present — skipped in DDL
+- Matching prompt buyerPayload had 20 fields; 6 new extended signals added (traceabilityLevel already included)
+- Flagged and resolved: p2SectionsDone key collision (old A–F vs new S1–S4) — solved with prefixed keys
+
+### Changes made
+
+**DDL (22 ALTER TABLE ADD COLUMN IF NOT EXISTS):**
+- Section 1: buyer_segment, location_count, annual_budget_usd
+- Section 2: coffee_quality_tier, coffee_flavor_profile (text[]), cacao_flavor_profile, fruit_form (text[]), availability_requirement, order_frequency
+- Section 3: coffee_order_size_kg, cacao_order_size_kg, fruit_order_size_kg, price_sensitivity, price_transparency (text[])
+- Section 4: certs_nice_to_have (text[]), quality_doc_required (text[]), coffee_defect_rate, cacao_mold_pct, source_consistency, quality_verification (text[])
+- Section 6: sustainability_importance, sustainability_dimensions (text[])
+- Verified: 23/23 rows returned from information_schema.columns (22 new + traceability_level existing)
+
+**Schema:** lib/db/src/schema/buyer-profiles.ts — 22 new Drizzle fields added with inline documentation
+
+**Routes:** artifacts/api-server/src/routes/buyers.ts
+- GET /api/buyer/onboarding — auth required, returns all 25 extended fields + Phase 1 baseline + progress counters; 404 if no profile row
+- PATCH /api/buyer/onboarding — auth required, partial update of any subset of 25 fields; recomputes p2CompletionPct (S1–S4, pct = newlyDone/4*100) and merges S* keys into p2SectionsDone without touching existing A–F keys; validates all enums and array members via Zod
+
+**Matching service:** artifacts/api-server/src/services/buyer-matching-service.ts
+- buyerPayload extended with 6 conditional new signals (spread-in only when non-null/non-empty): buyerSegment, coffeeQualityTier, coffeeFlavorProfile, cacaoFlavorProfile, priceSensitivity, sustainabilityImportance, sustainabilityDimensions
+
+**Matching prompt:** artifacts/api-server/src/config/buyer-matching-prompts.ts
+- Added "Qualitative routing signals" block covering all 7 extended signals
+- Scoring weights unchanged (Product 30% / Cert 25% / Origin 20% / Volume 15% / Supplier Type 10%)
+- Signals adjust scores within each dimension band, not across them
+
+### Typecheck
+- pnpm run typecheck: PASS — 0 errors across all 4 workspace packages (api-server, fincava, mockup-sandbox, scripts)
+
+### Smoke tests (7/7 PASS)
+1. GET /api/buyer/onboarding (unauthenticated) → 401 ✅
+2. PATCH /api/buyer/onboarding (unauthenticated) → 401 ✅
+3. Register test buyer (userId 64) → 201 ✅
+4. GET /api/buyer/onboarding (authenticated) → 200, all 23 extended fields null ✅
+5. PATCH partial S1 (buyerSegment only) → pct=0, sectionsDone=[] (S1 incomplete) ✅
+6. PATCH full S1–S4 completion → pct=100, sectionsDone=["S1","S2","S3","S4"] ✅
+7. PATCH invalid enum (priceSensitivity="bargain_hunter") → 400 with field error ✅
+- Test buyer (userId 64) cascade-deleted from dev DB after testing
+
+### Completion criterion mapping
+1. ✅ 23/23 columns verified via information_schema.columns (22 new + traceability_level existing)
+2. ✅ PATCH /api/buyer/onboarding saves partial updates correctly
+3. ✅ GET /api/buyer/onboarding returns current extended profile
+4. ✅ p2CompletionPct recalculates correctly on each PATCH (S1–S4 logic; Section 6 is bonus)
+5. ✅ Matching prompt includes new buyer signals (6 new fields + qualitative routing block)
+6. ✅ pnpm typecheck passes (0 errors)
+7. ✅ ops/system_gap_analysis.md — P2-B1 marked IN PROGRESS (see below)

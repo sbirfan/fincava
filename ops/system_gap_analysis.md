@@ -274,6 +274,23 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 
 ---
 
+## 10. Phase 1.5 — Extended Buyer Onboarding
+
+### P2-B1 — Extended Buyer Onboarding Backend (IN PROGRESS — 2026-05-03)
+
+STATUS: **IN PROGRESS** — backend complete; frontend form (P2-B2) deferred.
+
+SCOPE:
+- 22 new columns added to buyer_profiles via individual ALTER TABLE ADD COLUMN IF NOT EXISTS
+- GET /api/buyer/onboarding — returns all 25 extended profile fields; 404 if no profile row
+- PATCH /api/buyer/onboarding — partial update of any subset of 25 fields; recomputes p2CompletionPct (S1–S4 / 4 * 100); merges S1–S4 keys into p2SectionsDone without disturbing existing A–F keys from the legacy PATCH /api/buyers/:id/profile endpoint
+- buyerPayload in runMatching() extended with 6 new conditional signals (spread-in only when non-null)
+- Matching prompt updated with qualitative routing block (weights unchanged: 30/25/20/15/10)
+
+OPEN: Frontend multi-step form at /buyer/onboarding (P2-B2 — not yet scheduled)
+
+---
+
 ## 9. Summary
 
 The system is:

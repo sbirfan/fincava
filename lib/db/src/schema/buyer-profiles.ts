@@ -4,7 +4,8 @@
 //
 // Phase 1 columns: state, volume_band, required_certs_p1, time_to_first_order
 // Phase 2 columns: p2_completion_pct, p2_sections_done, traceability_level, etc.
-// All Phase 1/2 columns are nullable or defaulted — fully backward compatible
+// Phase 1.5 extended onboarding columns: buyer_segment, coffee_quality_tier, price_sensitivity, etc.
+// All Phase 1/2/1.5 columns are nullable or defaulted — fully backward compatible
 // with existing buyer_profiles rows created via /api/buyers/onboard.
 
 import {
@@ -81,6 +82,62 @@ export const buyerProfilesTable = pgTable(
     // ── Marketing opt-in (admin-driven sends respect this) ────────────────────
     marketingOptIn: boolean("marketing_opt_in").notNull().default(false),
     marketingTopics: text("marketing_topics").array().notNull().default([]),
+
+    // ── Phase 1.5 Extended Onboarding — Section 1: Company Profile ───────────
+    // Q2: buyer segment (finer-grained than companyType)
+    buyerSegment: text("buyer_segment"),
+    // Q3: number of locations / roasting sites / distribution points
+    locationCount: text("location_count"),
+    // Q4: annual purchasing budget band
+    annualBudgetUsd: text("annual_budget_usd"),
+
+    // ── Phase 1.5 Extended Onboarding — Section 2: Product Interests ─────────
+    // Q6: coffee quality tier (conditional: shown when COFFEE in targetProducts)
+    coffeeQualityTier: text("coffee_quality_tier"),
+    // Q7: preferred coffee flavor profiles (multi-select, conditional: coffee)
+    coffeeFlavorProfile: text("coffee_flavor_profile").array(),
+    // Q8: cacao flavor profile (conditional: CACAO in targetProducts)
+    cacaoFlavorProfile: text("cacao_flavor_profile"),
+    // Q9: exotic fruit preferred forms (multi-select, conditional: EXOTIC_FRUIT)
+    fruitForm: text("fruit_form").array(),
+    // Q10: availability / seasonality requirement
+    availabilityRequirement: text("availability_requirement"),
+    // Q11: preferred order cadence
+    orderFrequency: text("order_frequency"),
+
+    // ── Phase 1.5 Extended Onboarding — Section 3: Volume & Pricing ──────────
+    // Q12: per-order coffee volume band in kg (conditional: coffee)
+    coffeeOrderSizeKg: text("coffee_order_size_kg"),
+    // Q13: per-order cacao volume band in kg (conditional: cacao)
+    cacaoOrderSizeKg: text("cacao_order_size_kg"),
+    // Q14: per-order fruit volume band in kg (conditional: fruits)
+    fruitOrderSizeKg: text("fruit_order_size_kg"),
+    // Q15: price/quality trade-off preference
+    priceSensitivity: text("price_sensitivity"),
+    // Q16: price transparency requirements (multi-select)
+    priceTransparency: text("price_transparency").array(),
+
+    // ── Phase 1.5 Extended Onboarding — Section 4: Quality & Certifications ──
+    // Q18: nice-to-have certifications (vs hard-required in requiredCertsP1)
+    certsNiceToHave: text("certs_nice_to_have").array(),
+    // Q19: traceability level — already present as Phase 2 Section A field
+    //      (traceabilityLevel / traceability_level — reused here, no new column)
+    // Q20: quality documentation required (multi-select)
+    qualityDocRequired: text("quality_doc_required").array(),
+    // Q21: acceptable coffee defect rate (conditional: coffee)
+    coffeeDefectRate: text("coffee_defect_rate"),
+    // Q22: acceptable cacao mold percentage (conditional: cacao)
+    cacaoMoldPct: text("cacao_mold_pct"),
+    // Q23: single-source vs pool sourcing preference
+    sourceConsistency: text("source_consistency"),
+    // Q24: quality verification method (multi-select, conditional: specialty segments)
+    qualityVerification: text("quality_verification").array(),
+
+    // ── Phase 1.5 Extended Onboarding — Section 6: Sustainability ────────────
+    // Q31: how central sustainability is to the buyer's brand/sourcing strategy
+    sustainabilityImportance: text("sustainability_importance"),
+    // Q32: specific sustainability dimensions required (multi-select)
+    sustainabilityDimensions: text("sustainability_dimensions").array(),
 
     // ── Timestamps ────────────────────────────────────────────────────────────
     onboardedAt: timestamp("onboarded_at", { withTimezone: true })

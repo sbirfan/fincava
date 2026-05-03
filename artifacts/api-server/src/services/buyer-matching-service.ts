@@ -321,6 +321,24 @@ export async function runMatching(buyerProfileId: number): Promise<{
       socialImpactReqs: profile.socialImpactReqs,
       earlyStageSupplierOpen: profile.earlyStageSupplierOpen,
       languagePreference: profile.languagePreference,
+      // ── Phase 1.5 extended onboarding signals ──────────────────────────────
+      // Included only when non-null; Claude's qualitative routing block uses
+      // these to adjust scores within each dimension band (weights unchanged).
+      ...(profile.buyerSegment != null && { buyerSegment: profile.buyerSegment }),
+      ...(profile.coffeeQualityTier != null && { coffeeQualityTier: profile.coffeeQualityTier }),
+      ...(profile.coffeeFlavorProfile != null &&
+        (profile.coffeeFlavorProfile as string[]).length > 0 && {
+          coffeeFlavorProfile: profile.coffeeFlavorProfile,
+        }),
+      ...(profile.cacaoFlavorProfile != null && { cacaoFlavorProfile: profile.cacaoFlavorProfile }),
+      ...(profile.priceSensitivity != null && { priceSensitivity: profile.priceSensitivity }),
+      ...(profile.sustainabilityImportance != null && {
+        sustainabilityImportance: profile.sustainabilityImportance,
+      }),
+      ...(profile.sustainabilityDimensions != null &&
+        (profile.sustainabilityDimensions as string[]).length > 0 && {
+          sustainabilityDimensions: profile.sustainabilityDimensions,
+        }),
     };
 
     try {
