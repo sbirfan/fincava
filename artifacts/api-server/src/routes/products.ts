@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, ilike, sql, desc, asc, inArray } from "drizzle-orm";
-import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable, productPlaceholdersTable } from "@workspace/db";
+import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable, productPlaceholdersTable, suppliersTable, sellableStatusEnum } from "@workspace/db";
 import {
   ListProductsQueryParams,
   CreateProductBody,
@@ -20,6 +20,12 @@ const BooleanFilters = z.object({
   directTrade: z.coerce.boolean().optional(),
   organic: z.coerce.boolean().optional(),
 });
+
+// Derived from sellableStatusEnum — no raw string literals.
+// Only products whose supplier has reached SELLABLE or PUBLISHED appear on the public marketplace.
+const GRADUATED_STATUSES = sellableStatusEnum.enumValues.filter(
+  (v): v is "SELLABLE" | "PUBLISHED" => v === "SELLABLE" || v === "PUBLISHED",
+);
 
 const router: IRouter = Router();
 
@@ -79,6 +85,9 @@ router.get("/products", async (req, res): Promise<void> => {
     page = 1, limit = 20,
   } = parsed.data;
 
+  // Hard cap — no Zod schema change per spec.
+  const cappedLimit = Math.min(limit, 50);
+
   const boolParsed = BooleanFilters.safeParse(req.query);
   if (!boolParsed.success) {
     res.status(400).json({ error: boolParsed.error.message });
@@ -89,15 +98,22 @@ router.get("/products", async (req, res): Promise<void> => {
   const filterDirectTrade = boolParsed.data.directTrade === true;
   const filterOrganic = boolParsed.data.organic === true;
 
+  // INNER JOIN on suppliersTable via the direct products.supplierId column.
+  // Products with supplierId = null (no verified supplier link) are excluded.
+  // GRADUATED_STATUSES uses sellableStatusEnum.enumValues — no raw string literals.
   let query = db.select({
     product: productsTable,
     company: companiesTable,
   })
     .from(productsTable)
     .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
+    .innerJoin(suppliersTable, eq(productsTable.supplierId, suppliersTable.id))
     .$dynamic();
 
-  const conditions = [eq(productsTable.active, true)];
+  const conditions = [
+    eq(productsTable.active, true),
+    inArray(suppliersTable.sellableStatus, GRADUATED_STATUSES),
+  ];
 
   if (category) conditions.push(eq(productsTable.category, category as any));
   if (origin) conditions.push(ilike(productsTable.origin, `%${origin}%`));
@@ -122,15 +138,17 @@ router.get("/products", async (req, res): Promise<void> => {
     query = query.orderBy(desc(productsTable.createdAt)) as any;
   }
 
-  const offset = (page - 1) * limit;
+  const offset = (page - 1) * cappedLimit;
 
+  // countQuery carries its own INNER JOIN — conditions reference suppliersTable.
   const countQuery = db
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(productsTable)
+    .innerJoin(suppliersTable, eq(productsTable.supplierId, suppliersTable.id))
     .where(and(...conditions));
 
   const [rows, [{ count }]] = await Promise.all([
-    (query as any).limit(limit).offset(offset),
+    (query as any).limit(cappedLimit).offset(offset),
     countQuery,
   ]);
 
@@ -140,7 +158,8 @@ router.get("/products", async (req, res): Promise<void> => {
     products,
     total: count,
     page,
-    limit,
+    limit: cappedLimit,
+    totalPages: Math.ceil(count / cappedLimit),
   });
 });
 

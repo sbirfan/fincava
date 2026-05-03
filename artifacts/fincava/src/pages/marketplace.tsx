@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Search, SlidersHorizontal, Users, Handshake, Leaf, Droplets } from "lucide-react";
+import { Search, SlidersHorizontal, Users, Handshake, Leaf, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
+
+const PAGE_SIZE = 20;
 
 export default function Marketplace() {
   const [search, setSearch] = useState("");
@@ -18,6 +20,7 @@ export default function Marketplace() {
   const [filterWomenLed, setFilterWomenLed] = useState(false);
   const [filterDirectTrade, setFilterDirectTrade] = useState(false);
   const [filterOrganic, setFilterOrganic] = useState(false);
+  const [page, setPage] = useState(1);
 
   const hasImpactFilter = filterSmallholder || filterWomenLed || filterDirectTrade || filterOrganic;
 
@@ -25,7 +28,11 @@ export default function Marketplace() {
     search: search || undefined,
     category: category === "all" ? undefined : category,
     sort: sort,
+    page,
+    limit: PAGE_SIZE,
   });
+
+  const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   const products = (data?.products ?? []) as any[];
 
@@ -37,6 +44,8 @@ export default function Marketplace() {
     return true;
   });
 
+  function resetPage() { setPage(1); }
+
   function clearAll() {
     setSearch("");
     setCategory("all");
@@ -45,6 +54,7 @@ export default function Marketplace() {
     setFilterWomenLed(false);
     setFilterDirectTrade(false);
     setFilterOrganic(false);
+    setPage(1);
   }
 
   return (
@@ -78,14 +88,14 @@ export default function Marketplace() {
                     placeholder="Search products..." 
                     className="pl-9"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => { setSearch(e.target.value); resetPage(); }}
                   />
                 </div>
               </div>
 
               <div>
                 <label className="text-sm font-medium mb-2 block">Category</label>
-                <Select value={category} onValueChange={setCategory}>
+                <Select value={category} onValueChange={(v) => { setCategory(v); resetPage(); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
@@ -101,7 +111,7 @@ export default function Marketplace() {
 
               <div>
                 <label className="text-sm font-medium mb-2 block">Sort By</label>
-                <Select value={sort} onValueChange={setSort}>
+                <Select value={sort} onValueChange={(v) => { setSort(v); resetPage(); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Newest" />
                   </SelectTrigger>
@@ -125,7 +135,7 @@ export default function Marketplace() {
                     <Checkbox
                       id="directTrade"
                       checked={filterDirectTrade}
-                      onCheckedChange={(v) => setFilterDirectTrade(!!v)}
+                      onCheckedChange={(v) => { setFilterDirectTrade(!!v); resetPage(); }}
                       className="mt-0.5"
                     />
                     <Label htmlFor="directTrade" className="text-sm leading-snug cursor-pointer">
@@ -140,7 +150,7 @@ export default function Marketplace() {
                     <Checkbox
                       id="smallholder"
                       checked={filterSmallholder}
-                      onCheckedChange={(v) => setFilterSmallholder(!!v)}
+                      onCheckedChange={(v) => { setFilterSmallholder(!!v); resetPage(); }}
                       className="mt-0.5"
                     />
                     <Label htmlFor="smallholder" className="text-sm leading-snug cursor-pointer">
@@ -155,7 +165,7 @@ export default function Marketplace() {
                     <Checkbox
                       id="womenLed"
                       checked={filterWomenLed}
-                      onCheckedChange={(v) => setFilterWomenLed(!!v)}
+                      onCheckedChange={(v) => { setFilterWomenLed(!!v); resetPage(); }}
                       className="mt-0.5"
                     />
                     <Label htmlFor="womenLed" className="text-sm leading-snug cursor-pointer">
@@ -168,7 +178,7 @@ export default function Marketplace() {
                     <Checkbox
                       id="organic"
                       checked={filterOrganic}
-                      onCheckedChange={(v) => setFilterOrganic(!!v)}
+                      onCheckedChange={(v) => { setFilterOrganic(!!v); resetPage(); }}
                       className="mt-0.5"
                     />
                     <Label htmlFor="organic" className="text-sm leading-snug cursor-pointer">
@@ -229,14 +239,41 @@ export default function Marketplace() {
               ))
             ) : (
               <div className="col-span-full text-center py-20 bg-card border rounded-lg border-dashed">
-                <p className="text-lg font-medium mb-2">No products found</p>
-                <p className="text-muted-foreground mb-4">Try adjusting your filters to see more results.</p>
+                <p className="text-lg font-medium mb-2">Export-ready products are being listed.</p>
+                <p className="text-muted-foreground mb-4">Verified suppliers are preparing their first shipments.</p>
                 <Button variant="outline" onClick={clearAll}>
                   Clear Filters
                 </Button>
               </div>
             )}
           </div>
+
+          {/* Pagination controls — shown only when more than one page exists */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isLoading}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Prev
+              </Button>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || isLoading}
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

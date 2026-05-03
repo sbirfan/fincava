@@ -67,19 +67,22 @@ IMPACT: Eligibility gate now correctly reflects supplier-declared ICA status at 
 
 ### H2 — Marketplace / Graduation Disconnect (PRODUCT_LOGIC)
 
-CURRENT_STATE:
-* Product marketplace shows products regardless of supplier readiness
-* `/supplier-marketplace` validation surface is graduation-aware (SELLABLE/PUBLISHED only)
+CURRENT_STATE (at open):
+* Product marketplace showed products regardless of supplier readiness
+* `/supplier-marketplace` validation surface was graduation-aware (SELLABLE/PUBLISHED only)
 
-GAP:
-* Main product marketplace not gated by graduation status
-* Buyer cannot evaluate supplier readiness from product listings
+STATUS: **FIXED (B2 — 2026-05-03)**
 
-TARGET_STATE:
-* Products gated or annotated by `sellableStatus` in main marketplace
-* Epic 2 will introduce this as part of marketplace enrichment
-
-STATUS: Open — deferred to Epic 2 marketplace expansion phase
+FIX:
+* `GET /api/products` now INNER JOINs `productsTable.supplierId → suppliersTable.id`
+* `inArray(suppliersTable.sellableStatus, GRADUATED_STATUSES)` applied to both main query and countQuery
+* `GRADUATED_STATUSES` derived from `sellableStatusEnum.enumValues` — no raw string literals
+* Products with `supplierId = null` (no verified supplier link) excluded by INNER JOIN semantics
+* Partial index `suppliers_sellable_status_idx` on `sellable_status IN ('SELLABLE','PUBLISHED')` already present — query is index-eligible
+* `Math.min(limit, 50)` hard cap applied in route handler (no Zod schema change)
+* Response adds `totalPages: Math.ceil(count / cappedLimit)`
+* Frontend: `page` state added; all filter handlers reset to page 1; Prev/Next controls shown when `totalPages > 1`; "Page X of Y" indicator; empty state updated to specified text
+* `products/featured` and `products/:id/similar` intentionally not gated (out of scope)
 
 ---
 
@@ -222,6 +225,7 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 
 ### RESOLVED
 * H1 — ICA sync fix ✔
+* H2 — Marketplace / Graduation Disconnect ✔ (B2)
 * H4 — Public supplier exposure ✔ (P0.2)
 * H4-B — GET /suppliers/:id unguarded ✔ (P0.4 + B1)
 * M5 — Missing readiness signals in supplier detail ✔ (B1)
@@ -236,7 +240,7 @@ STATUS: Partially fixed (H1 ICA sync). Full compliance unification deferred to P
 ### DO NEXT (Epic 2)
 * Epic 2 T3: onboarding validation layer (resolve M1 type mismatch)
 * Epic 2 T4: compliance alignment (promote onboarding inputs → compliance_docs)
-* Marketplace graduation integration (H2)
+* Supplier dashboard (M6)
 
 ### DEFER (Post Epic 2)
 * Durable job queue (H3) — Phase 4
