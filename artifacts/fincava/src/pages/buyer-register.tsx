@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,39 +13,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ArrowLeft, ShoppingCart, Check } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-const COMPANY_TYPES = [
-  { value: "ROASTER", label: "Roaster" },
-  { value: "IMPORTER", label: "Importer" },
-  { value: "DISTRIBUTOR", label: "Distributor" },
-  { value: "MANUFACTURER", label: "Manufacturer / Brand" },
-  { value: "COOPERATIVE", label: "Cooperative" },
-] as const;
-
-const PRODUCT_CATEGORIES = [
-  { value: "COFFEE", label: "Coffee" },
-  { value: "CACAO", label: "Cacao" },
-  { value: "AVOCADO", label: "Avocado" },
-  { value: "EXOTIC_FRUIT", label: "Exotic Fruit" },
-  { value: "SUPERFOOD", label: "Superfood" },
-  { value: "PROCESSED", label: "Processed" },
-  { value: "TEXTILE", label: "Textile" },
-  { value: "OTHER", label: "Other" },
-] as const;
-
-const VOLUME_BANDS = [
-  { value: "<10MT", label: "<10 MT/year (1–2 lots)" },
-  { value: "10-50MT", label: "10–50 MT/year (3–8 MT × 3 orders)" },
-  { value: "50-200MT", label: "50–200 MT/year (full container × 3+)" },
-  { value: "200+MT", label: "200+ MT/year (commercial scale)" },
-] as const;
-
-const TIME_BANDS = [
-  { value: "WITHIN_30D", label: "Within 30 days" },
-  { value: "1_3M", label: "1–3 months" },
-  { value: "3_6M", label: "3–6 months" },
-  { value: "EXPLORATORY", label: "Exploratory — no fixed timeline" },
-] as const;
+const COMPANY_TYPE_VALUES = ["ROASTER", "IMPORTER", "DISTRIBUTOR", "MANUFACTURER", "COOPERATIVE"] as const;
+const PRODUCT_CATEGORY_VALUES = ["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED", "TEXTILE", "OTHER"] as const;
+const VOLUME_BAND_VALUES = ["<10MT", "10-50MT", "50-200MT", "200+MT"] as const;
+const TIME_BAND_VALUES = ["WITHIN_30D", "1_3M", "3_6M", "EXPLORATORY"] as const;
 
 const COMMON_CERTS = [
   "EU Organic",
@@ -59,29 +32,49 @@ const COMMON_CERTS = [
   "Kosher",
 ] as const;
 
-const formSchema = z.object({
-  firstName: z.string().min(1, "Required"),
-  lastName: z.string().optional(),
-  email: z.string().email(),
-  password: z.string().min(8, "Min 8 characters"),
-  companyName: z.string().min(2),
-  companyType: z.enum(["ROASTER", "IMPORTER", "DISTRIBUTOR", "MANUFACTURER", "COOPERATIVE"]),
-  country: z.string().min(2),
-  productCategories: z
-    .array(z.enum(["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED", "TEXTILE", "OTHER"]))
-    .min(1, "Pick at least one product"),
-  volumeBand: z.enum(["<10MT", "10-50MT", "50-200MT", "200+MT"]),
-  requiredCerts: z.array(z.string()).default([]),
-  timeToFirstOrder: z.enum(["WITHIN_30D", "1_3M", "3_6M", "EXPLORATORY"]),
-  marketingOptIn: z.boolean().default(false),
-});
-type FormData = z.infer<typeof formSchema>;
+type FormData = {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  password: string;
+  companyName: string;
+  companyType: (typeof COMPANY_TYPE_VALUES)[number];
+  country: string;
+  productCategories: (typeof PRODUCT_CATEGORY_VALUES)[number][];
+  volumeBand: (typeof VOLUME_BAND_VALUES)[number];
+  requiredCerts: string[];
+  timeToFirstOrder: (typeof TIME_BAND_VALUES)[number];
+  marketingOptIn: boolean;
+};
 
 export default function BuyerRegisterPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
+  const { lang, t } = useLanguage();
+  const tr = t.buyerRegister;
+
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        firstName: z.string().min(1, tr.errors.firstNameRequired),
+        lastName: z.string().optional(),
+        email: z.string().email(),
+        password: z.string().min(8, tr.errors.passwordMin),
+        companyName: z.string().min(2),
+        companyType: z.enum(["ROASTER", "IMPORTER", "DISTRIBUTOR", "MANUFACTURER", "COOPERATIVE"]),
+        country: z.string().min(2),
+        productCategories: z
+          .array(z.enum(["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED", "TEXTILE", "OTHER"]))
+          .min(1, tr.errors.productRequired),
+        volumeBand: z.enum(["<10MT", "10-50MT", "50-200MT", "200+MT"]),
+        requiredCerts: z.array(z.string()).default([]),
+        timeToFirstOrder: z.enum(["WITHIN_30D", "1_3M", "3_6M", "EXPLORATORY"]),
+        marketingOptIn: z.boolean().default(false),
+      }),
+    [lang], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -101,6 +94,25 @@ export default function BuyerRegisterPage() {
     },
   });
 
+  useEffect(() => {
+    form.clearErrors();
+  }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const companyTypes = COMPANY_TYPE_VALUES.map((v) => ({ value: v, label: tr.companyTypes[v] }));
+  const productCategoryItems = PRODUCT_CATEGORY_VALUES.map((v) => ({ value: v, label: tr.productCategories[v] }));
+  const volumeBands = [
+    { value: "<10MT" as const, label: tr.volumeBands.lt10MT },
+    { value: "10-50MT" as const, label: tr.volumeBands.mt10_50 },
+    { value: "50-200MT" as const, label: tr.volumeBands.mt50_200 },
+    { value: "200+MT" as const, label: tr.volumeBands.mt200plus },
+  ];
+  const timeBands = [
+    { value: "WITHIN_30D" as const, label: tr.timeBands.within30d },
+    { value: "1_3M" as const, label: tr.timeBands.m1_3 },
+    { value: "3_6M" as const, label: tr.timeBands.m3_6 },
+    { value: "EXPLORATORY" as const, label: tr.timeBands.exploratory },
+  ];
+
   const onSubmit = async (values: FormData) => {
     setSubmitting(true);
     try {
@@ -113,24 +125,18 @@ export default function BuyerRegisterPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         const msg =
-          typeof json?.error === "string"
-            ? json.error
-            : "Registration failed. Please check your details and try again.";
-        toast({ title: "Registration failed", description: msg, variant: "destructive" });
+          typeof json?.error === "string" ? json.error : tr.toasts.failedDefault;
+        toast({ title: tr.toasts.failed, description: msg, variant: "destructive" });
         setSubmitting(false);
         return;
       }
-      // Cookie is set server-side; refresh auth context.
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-      toast({
-        title: "Welcome to Fincava",
-        description: "Check your email to verify your account. You can start exploring now.",
-      });
+      toast({ title: tr.toasts.welcome, description: tr.toasts.welcomeDesc });
       navigate("/dashboard");
-    } catch (err) {
+    } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server. Please try again.",
+        title: tr.toasts.networkError,
+        description: tr.toasts.networkErrorDesc,
         variant: "destructive",
       });
       setSubmitting(false);
@@ -140,21 +146,16 @@ export default function BuyerRegisterPage() {
   const productCategories = form.watch("productCategories");
   const requiredCerts = form.watch("requiredCerts");
 
-  const toggleArray = (
-    field: "productCategories" | "requiredCerts",
-    value: string,
-  ) => {
+  const toggleArray = (field: "productCategories" | "requiredCerts", value: string) => {
     const current = form.getValues(field) as string[];
-    const next = current.includes(value)
-      ? current.filter((v) => v !== value)
-      : [...current, value];
+    const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
     form.setValue(field as any, next as any, { shouldValidate: true, shouldDirty: true });
   };
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-10">
       <Link href="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6">
-        <ArrowLeft className="mr-1 h-4 w-4" /> Back to home
+        <ArrowLeft className="mr-1 h-4 w-4" /> {tr.backToHome}
       </Link>
 
       <Card>
@@ -164,10 +165,8 @@ export default function BuyerRegisterPage() {
               <ShoppingCart className="h-6 w-6" />
             </div>
             <div>
-              <CardTitle>Register as a Buyer</CardTitle>
-              <CardDescription>
-                7 quick questions. We use your answers to match you with the right Colombian suppliers.
-              </CardDescription>
+              <CardTitle>{tr.title}</CardTitle>
+              <CardDescription>{tr.description}</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -182,7 +181,7 @@ export default function BuyerRegisterPage() {
                   name="firstName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>First name</FormLabel>
+                      <FormLabel>{tr.firstName}</FormLabel>
                       <FormControl><Input {...field} data-testid="input-firstName" /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -193,7 +192,7 @@ export default function BuyerRegisterPage() {
                   name="lastName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Last name (optional)</FormLabel>
+                      <FormLabel>{tr.lastName}</FormLabel>
                       <FormControl><Input {...field} data-testid="input-lastName" /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -206,7 +205,7 @@ export default function BuyerRegisterPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Work email</FormLabel>
+                      <FormLabel>{tr.workEmail}</FormLabel>
                       <FormControl><Input type="email" {...field} data-testid="input-email" /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -217,9 +216,9 @@ export default function BuyerRegisterPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>{tr.password}</FormLabel>
                       <FormControl><Input type="password" {...field} data-testid="input-password" /></FormControl>
-                      <FormDescription>Minimum 8 characters.</FormDescription>
+                      <FormDescription>{tr.passwordHint}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -233,7 +232,7 @@ export default function BuyerRegisterPage() {
                   name="companyName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company name</FormLabel>
+                      <FormLabel>{tr.companyName}</FormLabel>
                       <FormControl><Input {...field} data-testid="input-companyName" /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -244,8 +243,10 @@ export default function BuyerRegisterPage() {
                   name="country"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Country</FormLabel>
-                      <FormControl><Input placeholder="e.g. Germany" {...field} data-testid="input-country" /></FormControl>
+                      <FormLabel>{tr.country}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={tr.countryPlaceholder} {...field} data-testid="input-country" />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -257,16 +258,16 @@ export default function BuyerRegisterPage() {
                 name="companyType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Company type</FormLabel>
+                    <FormLabel>{tr.companyType}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-companyType">
-                          <SelectValue placeholder="Select type" />
+                          <SelectValue placeholder={tr.companyTypePlaceholder} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {COMPANY_TYPES.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        {companyTypes.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -281,10 +282,10 @@ export default function BuyerRegisterPage() {
                 name="productCategories"
                 render={() => (
                   <FormItem>
-                    <FormLabel>What are you sourcing?</FormLabel>
-                    <FormDescription>Pick all that apply.</FormDescription>
+                    <FormLabel>{tr.sourcing}</FormLabel>
+                    <FormDescription>{tr.sourcingHint}</FormDescription>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-                      {PRODUCT_CATEGORIES.map((p) => {
+                      {productCategoryItems.map((p) => {
                         const selected = productCategories.includes(p.value as any);
                         return (
                           <button
@@ -315,7 +316,7 @@ export default function BuyerRegisterPage() {
                 name="volumeBand"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Annual sourcing volume</FormLabel>
+                    <FormLabel>{tr.volume}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-volumeBand">
@@ -323,14 +324,12 @@ export default function BuyerRegisterPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {VOLUME_BANDS.map((v) => (
+                        {volumeBands.map((v) => (
                           <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      Think in lots? 1 MT ≈ 16 bags of green coffee. A typical container = ~19 MT.
-                    </FormDescription>
+                    <FormDescription>{tr.volumeHint}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -342,8 +341,8 @@ export default function BuyerRegisterPage() {
                 name="requiredCerts"
                 render={() => (
                   <FormItem>
-                    <FormLabel>Required certifications (optional)</FormLabel>
-                    <FormDescription>Hard requirements only — preferences come later.</FormDescription>
+                    <FormLabel>{tr.certs}</FormLabel>
+                    <FormDescription>{tr.certsHint}</FormDescription>
                     <div className="flex flex-wrap gap-2 pt-2">
                       {COMMON_CERTS.map((c) => {
                         const selected = requiredCerts.includes(c);
@@ -374,7 +373,7 @@ export default function BuyerRegisterPage() {
                 name="timeToFirstOrder"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>When do you want to place your first order?</FormLabel>
+                    <FormLabel>{tr.timeline}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-timeToFirstOrder">
@@ -382,8 +381,8 @@ export default function BuyerRegisterPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {TIME_BANDS.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        {timeBands.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -406,10 +405,8 @@ export default function BuyerRegisterPage() {
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Send me product updates and occasional market news</FormLabel>
-                      <FormDescription>
-                        We never share your email. You can unsubscribe at any time.
-                      </FormDescription>
+                      <FormLabel>{tr.marketingLabel}</FormLabel>
+                      <FormDescription>{tr.marketingHint}</FormDescription>
                     </div>
                   </FormItem>
                 )}
@@ -418,12 +415,12 @@ export default function BuyerRegisterPage() {
 
             <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-between">
               <p className="text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link href="/login" className="text-primary hover:underline">Log in</Link>
+                {tr.alreadyHaveAccount}{" "}
+                <Link href="/login" className="text-primary hover:underline">{tr.login}</Link>
               </p>
               <Button type="submit" disabled={submitting} data-testid="button-submit" className="w-full sm:w-auto">
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create my account
+                {tr.submit}
               </Button>
             </CardFooter>
           </form>

@@ -27,6 +27,7 @@ import { Product } from "@workspace/api-client-react";
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MarketplaceSupplierDetail {
   id: number;
@@ -63,6 +64,7 @@ export default function SupplierDetail() {
   const id = parseInt(params.id || "0", 10);
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
+  const { lang } = useLanguage();
   const [, setLocation] = useLocation();
 
   const [profile, setProfile] = useState<MarketplaceSupplierDetail | null>(null);
@@ -120,7 +122,7 @@ export default function SupplierDetail() {
   async function submitIntent() {
     const qty = parseFloat(intentQuantityKg);
     if (!intentQuantityKg || isNaN(qty) || qty <= 0) {
-      toast({ title: "Quantity required", description: "Please enter a valid quantity in kg.", variant: "destructive" });
+      toast({ title: lang === "es" ? "Cantidad requerida" : "Quantity required", description: lang === "es" ? "Por favor ingresa una cantidad válida en kg." : "Please enter a valid quantity in kg.", variant: "destructive" });
       return;
     }
     setIntentSubmitting(true);
@@ -155,11 +157,11 @@ export default function SupplierDetail() {
 
   async function submitInquiry() {
     if (!selectedProductId && (profile?.products ?? []).length > 0) {
-      toast({ title: "Select a product", description: "Please choose which product you are inquiring about.", variant: "destructive" });
+      toast({ title: lang === "es" ? "Selecciona un producto" : "Select a product", description: lang === "es" ? "Por favor elige el producto sobre el que consultas." : "Please choose which product you are inquiring about.", variant: "destructive" });
       return;
     }
     if (!message.trim()) {
-      toast({ title: "Message required", description: "Please write a message to the supplier.", variant: "destructive" });
+      toast({ title: lang === "es" ? "Mensaje requerido" : "Message required", description: lang === "es" ? "Por favor escribe un mensaje al proveedor." : "Please write a message to the supplier.", variant: "destructive" });
       return;
     }
     setSubmitting(true);
