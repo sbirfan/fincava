@@ -189,7 +189,10 @@ export default function AdminIngestionNew() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Enrichment failed — please try again.");
+        const fieldHint = Array.isArray(data.issues) && data.issues.length > 0
+          ? ` (${data.issues[0].path.join(" › ")}: ${data.issues[0].message})`
+          : "";
+        throw new Error((data.error ?? "Enrichment failed — please try again.") + fieldHint);
       }
       const data: EnrichedProfile = await res.json();
       setEnriched(data);
@@ -259,7 +262,10 @@ export default function AdminIngestionNew() {
       }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Save failed — please try again.");
+        const fieldHint = Array.isArray(data.issues) && data.issues.length > 0
+          ? ` (${data.issues[0].path.join(" › ")}: ${data.issues[0].message})`
+          : "";
+        throw new Error((data.error ?? "Save failed — please try again.") + fieldHint);
       }
       const savedData = await res.json().catch(() => ({}));
       // Show success panel — let admin optionally publish to Origin Stories

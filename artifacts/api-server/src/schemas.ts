@@ -155,7 +155,7 @@ export const IngestionSupplierBody = z.object({
   customSupplierType: z.string().max(120).optional(),
   description: z.string().max(2000).optional().nullable(),
   normalizedName: z.string().max(200).optional().nullable(),
-  sourceUrl: z.string().url().optional().nullable(),
+  sourceUrl: z.string().max(1000).optional().nullable(),
   country: z.string().max(100).optional().default("Colombia"),
   categoryHint: z.string().max(100).optional().nullable(),
   batchId: z.number().int().positive().optional().nullable(),
