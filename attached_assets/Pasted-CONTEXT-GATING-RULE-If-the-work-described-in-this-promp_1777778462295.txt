@@ -1,0 +1,61 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+The inquiry system exists and works. POST /api/inquiries creates an inquiry and triggers a supplier email notification. GET /api/buyer/inquiries lists buyer inquiries. This task improves the buyer-facing UX around the inquiry flow.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/api-server/src/routes/inquiries.ts — full POST /api/inquiries and GET /api/buyer/inquiries
+3. artifacts/fincava/src/pages/dashboard/inquiries.tsx — current buyer inquiry dashboard
+4. artifacts/fincava/src/components/ — look for any existing inquiry form component
+
+OBJECTIVE
+Make the inquiry flow complete and reliable from the buyer perspective.
+
+CHANGES
+
+Backend (minimal):
+  Confirm POST /api/inquiries validates: productId, buyerEmail (or from session), message, quantityKg
+  Add: if buyer is authenticated, prefill buyerEmail and buyerName from session user — do not require re-entry
+  Confirm: supplier notification email fires on POST — check for suppression bugs when RESEND_API_KEY is absent
+
+Frontend:
+  Change 1 — Inquiry form (wherever it is invoked from B3 CTA or dashboard)
+    Pre-fill buyerEmail and buyerName from auth context for logged-in users
+    Required fields: message, quantityKg (optional)
+    On success: show "Inquiry sent. You will hear from the supplier within 2-3 business days." confirmation — not just redirect
+    On error: show specific error message, not generic failure
+
+  Change 2 — Buyer inquiries dashboard (dashboard/inquiries.tsx)
+    Show inquiry status (PENDING / RESPONDED / CLOSED) with clear labels
+    Show supplier name and product name for each inquiry
+    Show date submitted
+    Empty state: "No inquiries yet. Browse the Supplier Network to find Colombian producers."
+
+  VERIFY-ONLY SECTION — do not make code changes here without explicit approval
+  Change 3 — Supplier inquiries (supplier-dashboard/inquiries.tsx)
+    STEP 1 — VERIFY: Confirm supplier can see all inquiries about their products.
+    STEP 2 — VERIFY: Confirm PATCH /api/supplier/inquiries/:id works to update status.
+    STEP 3 — DOCUMENT: Record PASS/FAIL for each check in ops/task_execution_log.md.
+    STEP 4 — IF BROKEN: Stop. Report the specific failure. Do not fix inline.
+             Create a separate task card describing the fix needed. Do not expand scope.
+
+CONSTRAINTS
+No schema changes.
+Email notification behavior: if RESEND_API_KEY is absent, log warning — do not throw or break the POST response.
+
+ACCEPTANCE CRITERIA
+1. Logged-in buyer submits inquiry — buyerEmail and buyerName are pre-filled from session
+2. Success confirmation message shown after submission
+3. Buyer dashboard shows inquiry with status, supplier name, product name, date
+4. Empty state renders correctly
+5. Supplier receives inquiry in their dashboard
+6. pnpm typecheck passes
+
+DO NOT EXECUTE IMMEDIATELY.
+Show the current POST /api/inquiries request body validation (Zod schema or inline checks).
+Show how buyerEmail/buyerName are currently sourced — from request body or session?
+Confirm whether the inquiry form is a standalone component or inline in supplier-detail.tsx.
+Confirm whether RESEND_API_KEY absence is currently handled or would throw.
+Wait for approval.
