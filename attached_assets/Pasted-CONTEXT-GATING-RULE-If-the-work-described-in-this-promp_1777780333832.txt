@@ -1,0 +1,67 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+The RFQ system is built: rfqs table, rfq_responses table, POST /api/rfqs, GET /api/rfqs, POST /api/rfqs/:id/respond, POST /api/rfqs/:id/award/:responseId. The public RFQ board at /rfqs exists. Buyer and supplier RFQ dashboards exist. This task hardens the UX and adds guardrails.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/api-server/src/routes/rfqs.ts — full route implementation
+3. artifacts/fincava/src/pages/rfqs.tsx — public RFQ board
+4. artifacts/fincava/src/pages/rfq-detail.tsx — RFQ detail page
+5. artifacts/fincava/src/pages/dashboard/rfqs.tsx — buyer RFQ dashboard
+6. artifacts/fincava/src/pages/supplier-dashboard/rfqs.tsx — supplier RFQ response inbox
+
+OBJECTIVE
+Make RFQ creation and response flows reliable and buyer/supplier-friendly. Add lifecycle guardrails.
+
+BACKEND CHANGES (minimal)
+  POST /api/rfqs/:id/award/:responseId:
+    Check: can only award an OPEN rfq. If already AWARDED or CLOSED, return 409 with message.
+    After award: set rfq.status = AWARDED, set rfq_response.awarded = true for the winning response.
+    Trigger rfqResponseEmail to awarded supplier if not already doing so.
+
+  Authorization guardrail:
+    POST /api/rfqs/:id/respond: verify the responding supplier owns a company — requireAuth check.
+    POST /api/rfqs/:id/award: verify the awarding user is the RFQ creator (buyerId match).
+    Return 403 with clear message if not.
+
+FRONTEND CHANGES
+  Change 1 — RFQ creation (buyer dashboard)
+    Form validation: title required, productCategory required, quantityKg > 0, deadline must be future date
+    On submit: show confirmation "RFQ published. Suppliers will respond within the deadline."
+    Show RFQ status badge: OPEN (green) / AWARDED (blue) / CLOSED (gray)
+
+  Change 2 — RFQ detail page (/rfq/:id)
+    Show responses list for the RFQ creator (buyer)
+    Each response: supplier name, price per kg, lead time, message
+    Award button only visible to the RFQ creator and only when RFQ is OPEN
+
+  Change 3 — Supplier RFQ inbox
+    Show open RFQs matching supplier product categories (if possible — filter by productCategory)
+    Response form: pricePerKgUSD, leadTimeDays, message — all required
+    Show "Already Responded" if supplier has an existing response for this RFQ
+
+  Change 4 — Notifications
+    Verify: when a supplier's response is awarded, they receive rfqResponseEmail
+    Verify: when a new RFQ is created, no notification to all suppliers (too noisy) — only on response award
+
+CONSTRAINTS
+No schema changes.
+Award logic changes only affect status fields — no new columns needed.
+
+ACCEPTANCE CRITERIA
+1. Awarding an already-awarded RFQ returns 409
+2. Non-creator cannot award an RFQ (403)
+3. Supplier cannot respond without auth (401)
+4. RFQ creation form validates all required fields before POST
+5. Award button only visible to RFQ creator
+6. Supplier sees "Already Responded" on responded RFQs
+7. pnpm typecheck passes
+
+DO NOT EXECUTE IMMEDIATELY.
+Show the current award route — does it already check rfq.status before updating?
+Show how POST /api/rfqs/:id/respond currently identifies the supplier — session userId or body param?
+Confirm whether rfqResponseEmail exists and what it expects as arguments.
+Confirm whether rfq-detail.tsx currently fetches responses or only the RFQ header.
+Wait for approval.
