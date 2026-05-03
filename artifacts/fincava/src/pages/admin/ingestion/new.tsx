@@ -477,8 +477,14 @@ export default function AdminIngestionNew() {
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ imageUrl: originImageUrl.trim() || undefined }),
                     });
-                    const j = await r.json().catch(() => ({}));
-                    if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+                    const j = await r.json().catch(() => ({})) as Record<string, unknown>;
+                    if (!r.ok) {
+                      const msg = typeof j.error === "string" ? j.error
+                        : (j.error && typeof j.error === "object"
+                          ? Object.values(j.error as Record<string, string[]>).flat()[0] ?? `HTTP ${r.status}`
+                          : `HTTP ${r.status}`);
+                      throw new Error(msg);
+                    }
                     setOriginPublished(true);
                   } catch (e: any) {
                     setOriginError(e.message || "Failed to publish to Origin Stories");

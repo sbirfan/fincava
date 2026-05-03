@@ -206,6 +206,16 @@ function DocModal({
   );
 }
 
+function toErrMsg(json: Record<string, unknown>, status: number): string {
+  if (typeof json.error === "string") return json.error;
+  if (typeof json.message === "string") return json.message;
+  if (json.error && typeof json.error === "object") {
+    const first = Object.values(json.error as Record<string, string[]>)[0];
+    if (Array.isArray(first) && typeof first[0] === "string") return first[0];
+  }
+  return `HTTP ${status}`;
+}
+
 export default function AdminSuppliersPage() {
   const { lang } = useLanguage();
   const [, setLocation] = useLocation();
@@ -549,7 +559,7 @@ export default function AdminSuppliersPage() {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `HTTP ${res.status}`);
+        throw new Error(toErrMsg(j, res.status));
       }
       setScoreStatus((prev) => ({ ...prev, [supplierId]: "started" }));
       setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
@@ -572,7 +582,7 @@ export default function AdminSuppliersPage() {
         body: JSON.stringify({ actor: "ADMIN", justification: "Published via admin console" }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(toErrMsg(json, res.status));
       setSuppliers((prev) =>
         prev.map((s) => s.id === supplierId ? { ...s, sellableStatus: "PUBLISHED" } : s)
       );
@@ -595,7 +605,7 @@ export default function AdminSuppliersPage() {
         body: JSON.stringify({ actor: "ADMIN", justification: "Unpublished via admin console" }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(toErrMsg(json, res.status));
       setSuppliers((prev) =>
         prev.map((s) => s.id === supplierId ? { ...s, sellableStatus: "SELLABLE" } : s)
       );
@@ -650,7 +660,7 @@ export default function AdminSuppliersPage() {
         body: JSON.stringify({ imageUrl: imageUrl.trim() || undefined }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(toErrMsg(json, res.status));
       const newImageUrl = imageUrl.trim() || null;
       setSuppliers((prev) =>
         prev.map((s) =>
@@ -682,7 +692,7 @@ export default function AdminSuppliersPage() {
         credentials: "include",
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(toErrMsg(json, res.status));
       setSuppliers((prev) =>
         prev.map((s) =>
           s.id === supplierId ? { ...s, publishedToOriginStories: false } : s,
@@ -711,7 +721,7 @@ export default function AdminSuppliersPage() {
         body: JSON.stringify({ originStoryPublished: publish }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(toErrMsg(json, res.status));
       setSuppliers((prev) =>
         prev.map((s) => s.id === supplierId ? { ...s, storyPublished: publish } : s),
       );
@@ -735,7 +745,7 @@ export default function AdminSuppliersPage() {
       });
       if (!res.ok) {
         const j = await res.json();
-        throw new Error(j.error ?? `HTTP ${res.status}`);
+        throw new Error(toErrMsg(j, res.status));
       }
       setWaStatus((prev) => ({ ...prev, [supplierId]: { state: "sent" } }));
       setSuppliers((prev) =>

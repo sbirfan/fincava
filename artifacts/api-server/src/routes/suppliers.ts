@@ -943,12 +943,16 @@ router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
 
   const [supplier] = await db
     .select({
-      id:             suppliersTable.id,
-      nombreCompleto: suppliersTable.nombreCompleto,
-      supplierType:   suppliersTable.supplierType,
-      municipio:      suppliersTable.municipio,
-      department:     suppliersTable.department,
-      sellableStatus: suppliersTable.sellableStatus,
+      id:                      suppliersTable.id,
+      nombreCompleto:          suppliersTable.nombreCompleto,
+      supplierType:            suppliersTable.supplierType,
+      municipio:               suppliersTable.municipio,
+      department:              suppliersTable.department,
+      sellableStatus:          suppliersTable.sellableStatus,
+      publishedToOriginStories: suppliersTable.publishedToOriginStories,
+      description:             suppliersTable.description,
+      originStoryImageUrl:     suppliersTable.originStoryImageUrl,
+      registeredBy:            suppliersTable.registeredBy,
     })
     .from(suppliersTable)
     .where(eq(suppliersTable.id, supplierId))
@@ -963,33 +967,55 @@ router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
     supplier.sellableStatus === "SELLABLE" ||
     supplier.sellableStatus === "PUBLISHED";
 
-  // First published origin story linked to this supplier (via products join).
-  const [storyRow] = await db
-    .select({
-      farmerName: originStoriesTable.farmerName,
-      story:      originStoriesTable.story,
-      images:     originStoriesTable.images,
-      region:     originStoriesTable.region,
-    })
-    .from(originStoriesTable)
-    .innerJoin(productsTable, eq(originStoriesTable.productId, productsTable.id))
-    .where(
-      and(
-        eq(productsTable.supplierId, supplierId),
-        eq(originStoriesTable.published, true),
-      ),
-    )
-    .orderBy(originStoriesTable.id)
-    .limit(1);
+  // Origin story: prefer supplier-level fields (matches the /api/origin-stories
+  // list endpoint which uses publishedToOriginStories + description).
+  // Falls back to the origin_stories table via the products join for suppliers
+  // that have product-linked stories instead.
+  let originStory: {
+    farmerName: string;
+    story: string;
+    imageUrl: string | null;
+    location: string;
+  } | null = null;
 
-  const originStory = storyRow
-    ? {
+  if (supplier.publishedToOriginStories && supplier.description?.trim()) {
+    originStory = {
+      farmerName: supplier.registeredBy ?? supplier.nombreCompleto,
+      story:      supplier.description,
+      imageUrl:   supplier.originStoryImageUrl ?? null,
+      location:   supplier.department
+        ? `${supplier.municipio}, ${supplier.department}`
+        : (supplier.municipio ?? "Colombia"),
+    };
+  } else {
+    // Fallback: first published origin_stories row linked via products.
+    const [storyRow] = await db
+      .select({
+        farmerName: originStoriesTable.farmerName,
+        story:      originStoriesTable.story,
+        images:     originStoriesTable.images,
+        region:     originStoriesTable.region,
+      })
+      .from(originStoriesTable)
+      .innerJoin(productsTable, eq(originStoriesTable.productId, productsTable.id))
+      .where(
+        and(
+          eq(productsTable.supplierId, supplierId),
+          eq(originStoriesTable.published, true),
+        ),
+      )
+      .orderBy(originStoriesTable.id)
+      .limit(1);
+
+    if (storyRow) {
+      originStory = {
         farmerName: storyRow.farmerName,
         story:      storyRow.story,
         imageUrl:   storyRow.images?.[0] ?? null,
         location:   storyRow.region,
-      }
-    : null;
+      };
+    }
+  }
 
   // Products are only surfaced for export-ready suppliers.
   const products = isExportReady

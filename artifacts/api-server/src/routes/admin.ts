@@ -1724,7 +1724,8 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
 // Publishes an ingestion-sourced supplier profile to the public Origin Stories
 // page.  Requires a non-empty description — returns 422 otherwise.
 const PublishOriginStoryBody = z.object({
-  imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  // Accept absolute URLs, root-relative storage paths (/api/storage/...), or empty.
+  imageUrl: z.string().optional().or(z.literal("")),
 });
 
 router.post(
