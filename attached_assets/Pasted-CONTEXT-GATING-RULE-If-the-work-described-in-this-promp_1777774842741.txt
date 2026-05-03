@@ -1,0 +1,58 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+GET /api/products currently returns all products regardless of supplier graduation status. Option B (confirmed): only show products from SELLABLE/PUBLISHED suppliers. The product→company→supplier chain is needed to filter. The marketplace page already has search, category filter, and sort — these must be preserved.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/api-server/src/routes/products.ts — GET /api/products full implementation
+3. lib/db/src/schema/products.ts — products table fields and FK to companies
+4. lib/db/src/schema/suppliers.ts — suppliersTable fields including sellableStatus
+5. lib/db/src/schema/companies.ts (or wherever companies schema is)
+6. artifacts/fincava/src/pages/marketplace.tsx — current frontend implementation
+
+OBJECTIVE
+Gate GET /api/products to SELLABLE/PUBLISHED supplier products. Add pagination. Preserve all existing filters.
+
+BACKEND CHANGES
+
+Change 1 — Graduation gating
+Modify GET /api/products to JOIN products → companies → suppliers WHERE suppliers.sellableStatus IN ('SELLABLE', 'PUBLISHED').
+How to handle missing link: if a product's company has no supplier record (EXPORTER type who hasn't been graduated), exclude it from results. Log: logger.debug with productId and companyId for monitoring.
+
+Change 2 — Pagination
+Add query params: page (default 1), limit (default 20, max 50).
+Response shape becomes:
+  { products: [...], total: number, page: number, limit: number, totalPages: number }
+  Keep "products" array as the primary field — backward compatible.
+
+Change 3 — Preserve existing filters
+search (text match on name, category, description), category, sort — all unchanged logic, just also apply the graduation gate.
+
+FRONTEND CHANGES
+Update marketplace.tsx to handle paginated response:
+  Read total, page, totalPages from response
+  Add prev/next pagination controls below the product grid
+  Show "Page X of Y" indicator
+  Empty state: "Export-ready products are being listed. Verified suppliers are preparing their first shipments." — shown when filtered results are empty
+
+CONSTRAINTS
+No schema changes.
+Response must include "products" array (backward compatible).
+If graduation join returns no products at all (no verified suppliers yet): return empty array, not error.
+
+ACCEPTANCE CRITERIA
+1. GET /api/products only returns products from SELLABLE/PUBLISHED suppliers
+2. A product from a non-graduated supplier is NOT in the response
+3. Pagination: GET /api/products?page=2&limit=5 returns correct offset
+4. search and category filters still narrow results correctly
+5. Frontend shows pagination controls when totalPages > 1
+6. Empty state renders when no products available
+7. pnpm typecheck passes
+8. ops/system_gap_analysis.md: H2 marked FIXED
+
+DO NOT EXECUTE IMMEDIATELY.
+Show the JOIN query you plan to write.
+Confirm how products.companyId relates to companies and companies to suppliers.
+Wait for approval.
