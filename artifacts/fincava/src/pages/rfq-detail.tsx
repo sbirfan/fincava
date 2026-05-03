@@ -143,7 +143,7 @@ export default function RFQDetail() {
                           <span className="text-muted-foreground">Lead time: <strong>{r.leadTimeDays}d</strong></span>
                           {rfq.quantityKg && <span className="text-muted-foreground">Total: <strong>${(r.pricePerKgUSD * rfq.quantityKg).toLocaleString()}</strong></span>}
                         </div>
-                        {user?.role === "BUYER" && rfq.status === "OPEN" && !r.awarded && (
+                        {user?.id === rfq.buyerId && rfq.status === "OPEN" && !r.awarded && (
                           <Button size="sm" onClick={() => awardBid.mutate(r.id)} disabled={awardBid.isPending}>
                             <Award className="w-3 h-3 mr-1" /> Award Bid
                           </Button>

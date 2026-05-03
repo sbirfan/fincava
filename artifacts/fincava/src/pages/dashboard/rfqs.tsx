@@ -49,7 +49,7 @@ export default function BuyerRFQs() {
     }).then(r => r.json()),
     onSuccess: (res) => {
       if (res.error) { toast({ title: "Error", description: res.error, variant: "destructive" }); return; }
-      toast({ title: "RFQ posted!", description: "Suppliers can now submit bids." });
+      toast({ title: "RFQ published.", description: "Suppliers will respond within the deadline." });
       queryClient.invalidateQueries({ queryKey: ["/api/buyer/rfqs"] });
       setOpen(false);
       setForm({ title: "", description: "", productCategory: "COFFEE", quantityKg: "", targetPriceUSD: "", destination: "", destinationPort: "", incoterm: "FOB", deadline: "" });
@@ -134,7 +134,16 @@ export default function BuyerRFQs() {
               </div>
               <Button
                 className="w-full"
-                disabled={!form.title || !form.description || !form.quantityKg || !form.destination || !form.deadline || createRFQ.isPending}
+                disabled={
+                  !form.title ||
+                  !form.description ||
+                  !form.quantityKg ||
+                  parseFloat(form.quantityKg) <= 0 ||
+                  !form.destination ||
+                  !form.deadline ||
+                  new Date(form.deadline) <= new Date() ||
+                  createRFQ.isPending
+                }
                 onClick={() => createRFQ.mutate({ ...form, quantityKg: parseFloat(form.quantityKg), targetPriceUSD: form.targetPriceUSD ? parseFloat(form.targetPriceUSD) : undefined })}
               >
                 {createRFQ.isPending ? "Posting..." : "Post RFQ"}

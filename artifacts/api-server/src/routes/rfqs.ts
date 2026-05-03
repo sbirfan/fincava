@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import {
-  db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable, usersTable
+  db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable, usersTable, productsTable
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { sendEmail, rfqResponseEmail, rfqAwardEmail } from "../lib/email";
@@ -169,8 +169,15 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).userId as number;
   const rfqId = parseInt(req.params.id as string);
   const responseId = parseInt(req.params.responseId as string);
+  if (isNaN(rfqId) || isNaN(responseId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [rfq] = await db.select().from(rfqsTable).where(eq(rfqsTable.id, rfqId));
+  if (!rfq) { res.status(404).json({ error: "RFQ not found" }); return; }
+  if (rfq.buyerId !== userId) { res.status(403).json({ error: "Only the RFQ creator can award bids" }); return; }
+  if (rfq.status !== "OPEN") { res.status(409).json({ error: `RFQ is already ${rfq.status.toLowerCase()} — cannot award` }); return; }
 
   await db.update(rfqResponsesTable).set({ awarded: 1 }).where(eq(rfqResponsesTable.id, responseId));
   await db.update(rfqsTable).set({ status: "AWARDED" }).where(eq(rfqsTable.id, rfqId));
@@ -218,10 +225,18 @@ router.get("/supplier/rfqs", requireAuth, async (req, res): Promise<void> => {
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) { res.status(403).json({ error: "Supplier only" }); return; }
 
-  const myResponses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.companyId, company.id));
+  const [myResponses, myProducts] = await Promise.all([
+    db.select({ rfqId: rfqResponsesTable.rfqId }).from(rfqResponsesTable).where(eq(rfqResponsesTable.companyId, company.id)),
+    db.select({ category: productsTable.category }).from(productsTable).where(eq(productsTable.supplierId, company.id)),
+  ]);
   const respondedRfqIds = myResponses.map(r => r.rfqId);
+  const supplierCategories = [...new Set(myProducts.map(p => p.category))];
 
-  const openRfqs = await db.select().from(rfqsTable).where(eq(rfqsTable.status, "OPEN")).orderBy(desc(rfqsTable.createdAt));
+  let rfqQuery = db.select().from(rfqsTable).where(eq(rfqsTable.status, "OPEN")).$dynamic();
+  if (supplierCategories.length > 0) {
+    rfqQuery = rfqQuery.where(and(eq(rfqsTable.status, "OPEN"), inArray(rfqsTable.productCategory, supplierCategories))) as any;
+  }
+  const openRfqs = await rfqQuery.orderBy(desc(rfqsTable.createdAt));
 
   const result = openRfqs.map(rfq => ({
     ...rfq,

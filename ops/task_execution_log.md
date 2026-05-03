@@ -90,6 +90,46 @@ Resolves naming drift between planned R-series identifiers and executed task IDs
 
 ---
 
+## B5 — RFQ Lifecycle Guardrails
+**Date:** 2026-05-03
+**Status:** COMPLETE
+
+### Gating scan (already done — no code changes needed for these)
+- `POST /api/rfqs/:id/respond` — ✅ `requireAuth` + `companiesTable WHERE userId` → 403 already enforced
+- `rfqAwardEmail` on award — ✅ already in fire-and-forget try/catch at award route lines 181–213
+- No broadcast email on RFQ creation — ✅ `POST /api/rfqs` sends nothing
+- Responses list on `rfq-detail.tsx` — ✅ `GET /api/rfqs/:id` returns `responses: responsesWithSupplier`; "Bids Received" section fully rendered
+- Status badges OPEN/AWARDED/CLOSED on buyer dashboard — ✅ `statusColor` map + Badge already present
+- Supplier "Bid Submitted" indicator on inbox cards — ✅ `hasResponded` badge + opacity-75
+
+### Changes made (5 total)
+
+**Backend — `artifacts/api-server/src/routes/rfqs.ts`**
+1. **Award route guardrails:** Added `userId` extraction from session. Before the two `db.update` calls: fetch rfq row → 404 if not found → 403 if `rfq.buyerId !== userId` → 409 if `rfq.status !== "OPEN"` (message includes the actual current status). `isNaN` guard added for both `rfqId` and `responseId`. Zero changes to email or update logic below the guards.
+2. **Supplier inbox category filter:** `GET /api/supplier/rfqs` now runs `myResponses` and `myProducts` lookups in parallel (`Promise.all`). Derives `supplierCategories` from `productsTable WHERE supplierId = company.id`. If `supplierCategories.length > 0`, applies `inArray(rfqsTable.productCategory, supplierCategories)`. If no products (dev-DB — all `supplierId=NULL`), shows all OPEN RFQs unchanged. `productsTable` added to import.
+
+**Frontend — `artifacts/fincava/src/pages/rfq-detail.tsx`**
+3. **Award button scoped to RFQ creator:** Condition changed from `user?.role === "BUYER"` to `user?.id === rfq.buyerId`.
+
+**Frontend — `artifacts/fincava/src/pages/dashboard/rfqs.tsx`**
+4. **Form validation:** Added `parseFloat(form.quantityKg) <= 0` and `new Date(form.deadline) <= new Date()` to the `disabled` prop.
+5. **Success message:** `"RFQ published."` / `"Suppliers will respond within the deadline."` per spec.
+
+### Acceptance criteria
+1. Awarding already-awarded RFQ → 409 ✅
+2. Non-creator award attempt → 403 ✅
+3. Supplier respond without auth → 401 ✅ (pre-existing)
+4. Form validates quantityKg > 0 + future deadline ✅
+5. Award button only to RFQ creator ✅
+6. Supplier "Bid Submitted" on responded RFQs ✅ (pre-existing)
+7. pnpm typecheck passes ✅
+
+### Test results
+- Backend: 61/61 ✅
+- Frontend: 23/23 ✅
+
+---
+
 ## B4 — Buyer Inquiry Flow UX
 **Date:** 2026-05-03
 **Status:** COMPLETE
