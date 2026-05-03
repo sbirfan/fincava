@@ -22,8 +22,6 @@ export function Navbar() {
     { href: "/marketplace", label: t.nav.products },
     { href: "/platform", label: t.nav.platform },
     { href: "/suppliers", label: t.nav.suppliers },
-    { href: "/markets", label: t.nav.markets },
-    { href: "/impact", label: t.nav.impact },
     { href: "/investors", label: t.nav.investors },
   ];
 

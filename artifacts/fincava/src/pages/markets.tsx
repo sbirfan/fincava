@@ -131,9 +131,9 @@ export default function Markets() {
       </div>
 
       {/* Global signals bar */}
-      {!isLoading && intelligence && (
+      {!isLoading && intelligence && (intelligence.marketHighlights ?? []).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-          {intelligence.marketHighlights.map(m => (
+          {(intelligence.marketHighlights ?? []).map(m => (
             <Card key={m.market} className="text-center">
               <CardContent className="py-4 px-3">
                 <div className="flex items-center justify-center gap-2 mb-1">
