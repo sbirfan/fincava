@@ -7,6 +7,47 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Package, MessageSquare, ShoppingCart, Clock, Sparkles, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+// P2-B2 — amber completion banner shown when buyer has started but not finished onboarding.
+function CompletionBanner() {
+  const { t } = useLanguage();
+  const tr = t.buyerOnboarding;
+  const { data, isError } = useQuery<{ profile: { p2CompletionPct: number } | null }>({
+    queryKey: ["buyer-onboarding-pct"],
+    queryFn: async () => {
+      const res = await fetch("/api/buyer/onboarding", { credentials: "include" });
+      if (!res.ok) return { profile: null };
+      return res.json();
+    },
+  });
+
+  const pct = data?.profile?.p2CompletionPct ?? null;
+  if (pct === null || pct >= 100 || isError) return null;
+
+  return (
+    <Card className="border-amber-200 bg-amber-50" data-testid="completion-banner">
+      <CardContent className="flex items-center justify-between py-4 px-5">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-amber-800">
+            {tr.dashBannerText.replace("{pct}", String(pct))}
+          </p>
+          <div className="mt-2 h-1.5 bg-amber-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-amber-500 rounded-full transition-all"
+              style={{ width: `${Math.max(pct, 4)}%` }}
+            />
+          </div>
+        </div>
+        <Link href="/buyer/onboarding" className="ml-4 shrink-0">
+          <Button size="sm" variant="outline" className="border-amber-300 hover:bg-amber-100 text-amber-800">
+            {tr.dashBannerLink}
+          </Button>
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
 
 // Phase 3 — teaser banner shown on the main dashboard before/while matches are loading.
 function TeaserMatchBanner() {
@@ -123,6 +164,7 @@ export default function BuyerDashboard() {
         <p className="text-muted-foreground mt-2">Manage your sourcing operations, inquiries, and orders.</p>
       </div>
 
+      <CompletionBanner />
       <TeaserMatchBanner />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

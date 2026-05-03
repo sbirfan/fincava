@@ -52,8 +52,10 @@ export default function BuyerRegisterPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
+  const [successData, setSuccessData] = useState<{ companyName: string } | null>(null);
   const { lang, t } = useLanguage();
   const tr = t.buyerRegister;
+  const trO = t.buyerOnboarding;
 
   const formSchema = useMemo(
     () =>
@@ -132,7 +134,9 @@ export default function BuyerRegisterPage() {
       }
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       toast({ title: tr.toasts.welcome, description: tr.toasts.welcomeDesc });
-      navigate("/dashboard");
+      setSuccessData({ companyName: values.companyName });
+      setSubmitting(false);
+      return;
     } catch {
       toast({
         title: tr.toasts.networkError,
@@ -151,6 +155,41 @@ export default function BuyerRegisterPage() {
     const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
     form.setValue(field as any, next as any, { shouldValidate: true, shouldDirty: true });
   };
+
+  if (successData) {
+    return (
+      <div className="container mx-auto max-w-xl px-4 py-16">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="rounded-full bg-emerald-100 p-2 text-emerald-600">
+                <Check className="h-5 w-5" />
+              </div>
+              <CardTitle className="text-xl font-serif">{trO.nudgeTitle}</CardTitle>
+            </div>
+            <CardDescription className="text-base">{trO.nudgeBody}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Button
+              className="w-full"
+              onClick={() => navigate("/buyer/onboarding")}
+              data-testid="button-start-profile"
+            >
+              {trO.nudgeStart}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => navigate("/dashboard")}
+              data-testid="button-skip-onboarding"
+            >
+              {trO.nudgeSkip}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-10">

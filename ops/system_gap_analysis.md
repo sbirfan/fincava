@@ -309,4 +309,43 @@ discoverability and long-term infrastructure durability.
 
 ---
 
+## P2-B2-MATCH — No Buyer-Accessible Matching Trigger
+
+**Classification:** GAP
+**Introduced:** 2026-05-03
+**Task:** P2-B2 (Buyer Onboarding Wizard)
+
+### Description
+
+After a buyer completes the 4-step onboarding wizard (`PATCH /api/buyer/onboarding`), there is no buyer-facing endpoint to trigger the AI matching pipeline. The final wizard step saves the profile data and redirects to `/dashboard` with a toast message, but matching does not run automatically.
+
+### Current State
+
+| Endpoint | Auth guard | Buyer-accessible? |
+|---|---|---|
+| `POST /api/admin/buyers/:id/run-match` | `requireAdmin` | No — admin only |
+| Implicit trigger in `PATCH /api/buyers/:id/profile` | `requireAuth` | Only fires on legacy S1+S2 completion via old section model |
+| `PATCH /api/buyer/onboarding` | `requireAuth` | Saves P2 data + updates `p2CompletionPct`; does **not** auto-trigger matching |
+
+### Context — Matches Route Gate
+
+`/dashboard/matches` in `App.tsx` is currently gated to `roles={["ADMIN"]}`. Buyers with completed profiles cannot view their match results until this gate is opened to `["BUYER"]` or `["BUYER", "ADMIN"]`. This is a separate but related gap.
+
+### Impact
+
+- Buyers who complete the wizard see the toast "Profile complete — your match results will be ready shortly." but results do not appear without an admin manually calling `POST /api/admin/buyers/:id/run-match`.
+- The toast copy is accurate in intent (results will be ready) but assumes ops will trigger the run within a reasonable window.
+
+### Recommended Fix
+
+Option A (preferred): Auto-trigger matching inside `PATCH /api/buyer/onboarding` when `p2CompletionPct` reaches 100 for the first time (idempotent, check `p2SectionsDone` before calling the matcher).
+
+Option B: Add a buyer-facing `POST /api/buyer/onboarding/run-match` endpoint that calls the same matching pipeline used by the admin route, rate-limited to once per 24 hours per buyer.
+
+Both options also require opening `/dashboard/matches` to `roles={["BUYER"]}`.
+
+**Effort estimate:** 2–4 hours (Option A), 4–6 hours (Option B).
+
+---
+
 END
