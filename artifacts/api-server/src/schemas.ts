@@ -93,7 +93,7 @@ export const AdminSupplierEditBody = z
       .nullable()
       .transform((v) => (v === "" ? null : v)),
     supplierType: z.enum(["FARMER", "COOPERATIVE", "EXPORTER", "PROCESSOR", "DISTRIBUTOR", "OTHER"]).optional(),
-    customSupplierType: z.string().max(120).optional(),
+    customSupplierType: z.string().max(120).optional().nullable(),
     registeredBy: z
       .string()
       .trim()
@@ -152,7 +152,7 @@ export const IngestionSupplierBody = z.object({
   whatsappNumber: z.string().max(30).optional().nullable(),
   email: z.string().email().optional().nullable(),
   supplierType: z.enum(["FARMER", "COOPERATIVE", "EXPORTER", "PROCESSOR", "DISTRIBUTOR", "OTHER"]).optional().default("FARMER"),
-  customSupplierType: z.string().max(120).optional(),
+  customSupplierType: z.string().max(120).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
   normalizedName: z.string().max(200).optional().nullable(),
   sourceUrl: z.string().max(1000).optional().nullable(),
