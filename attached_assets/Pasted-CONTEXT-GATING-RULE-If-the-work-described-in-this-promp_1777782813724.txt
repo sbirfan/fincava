@@ -1,0 +1,55 @@
+CONTEXT
+
+GATING RULE: If the work described in this prompt is already complete, scan for evidence (route exists, flag is wired, component is present, log entry exists). Document the evidence in ops/task_execution_log.md and make NO code changes.
+
+The platform is bilingual (EN/ES). Several known gaps: mobile navbar menu, Spanish labels missing on /register and /buyer-register, validation messages in English only. This task addresses the most impactful mobile and language gaps without touching translations infrastructure.
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/fincava/src/components/layout/navbar.tsx — mobile menu implementation
+3. artifacts/fincava/src/pages/register.tsx — check for Spanish label gaps
+4. artifacts/fincava/src/pages/buyer-register.tsx — same
+5. artifacts/fincava/src/contexts/LanguageContext.tsx (or equivalent i18n file) — understand translation pattern
+
+OBJECTIVE
+Fix mobile navbar and Spanish label gaps on registration pages.
+
+CHANGES
+
+Change 1 — Mobile navbar
+  Verify the mobile hamburger menu opens and shows all current NAV_LINKS including "Supplier Network" and "Origin Stories"
+  If mobile menu is missing any links from the desktop nav: sync them
+  Verify language toggle is accessible on mobile
+
+Change 2 — Register page Spanish labels
+  For every form label, placeholder, button, and validation message on /register:
+    Wrap in the existing translation function (t.xxx or equivalent pattern from LanguageContext)
+    Add Spanish translations for any label that has none
+  Same for /buyer-register
+
+Change 3 — Marketplace mobile pass
+  On /marketplace: verify product cards stack correctly on mobile (no horizontal overflow)
+  On /suppliers (Supplier Network): verify both sections stack correctly on mobile
+  On /supplier/:id: verify supplier detail reads correctly on mobile
+
+Change 4 — Validation messages
+  On inquiry form and RFQ creation form: ensure required field messages appear in the active language
+
+CONSTRAINTS
+Do not restructure the translation system.
+Do not add new translation keys beyond what is needed for the form labels above.
+
+ACCEPTANCE CRITERIA
+1. Mobile navbar shows all nav links including Supplier Network and Origin Stories
+2. /register has Spanish translations for all labels when language is ES
+3. /buyer-register has Spanish translations for all labels when language is ES
+4. Marketplace page has no horizontal overflow on 375px viewport
+5. Supplier Network page renders correctly on 375px
+6. pnpm typecheck passes
+
+DO NOT EXECUTE IMMEDIATELY.
+List which NAV_LINKS are currently in the mobile menu vs desktop menu — show any gaps.
+List which labels/placeholders on /register and /buyer-register currently have no Spanish translation.
+Show how the translation system works — what function/hook, what key structure.
+For Changes 3 and 4: confirm whether these are already responsive (Tailwind grid/flex) or have hardcoded widths that would overflow.
+Wait for approval.
