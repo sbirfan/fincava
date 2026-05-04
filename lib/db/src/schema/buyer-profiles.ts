@@ -139,6 +139,12 @@ export const buyerProfilesTable = pgTable(
     // Q32: specific sustainability dimensions required (multi-select)
     sustainabilityDimensions: text("sustainability_dimensions").array(),
 
+    // ── Profile approval workflow ─────────────────────────────────────────────
+    // Admin-controlled status: PENDING_REVIEW | APPROVED | REVISION_REQUESTED | NEEDS_ATTENTION
+    p2ApprovalStatus: text("p2_approval_status").notNull().default("PENDING_REVIEW"),
+    // Free-text note shown to buyer only when status = REVISION_REQUESTED
+    p2RevisionNote: text("p2_revision_note"),
+
     // ── Timestamps ────────────────────────────────────────────────────────────
     onboardedAt: timestamp("onboarded_at", { withTimezone: true })
       .notNull()

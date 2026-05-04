@@ -386,6 +386,30 @@ export function loanStatusEmail(opts: {
   return { html, text, subject: copy.subject };
 }
 
+// ── Buyer profile approval templates ─────────────────────────────────────────
+
+export function buyerRevisionRequestedEmail(opts: {
+  buyerName: string;
+  buyerEmail: string;
+  revisionNote: string;
+  profileUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = "Action needed: your Fincava sourcing profile needs updates";
+  const html = baseTemplate(`
+    <p>Hello ${esc(opts.buyerName)},</p>
+    <p>Our team has reviewed your Fincava sourcing profile and needs a few updates before we can match you with suppliers.</p>
+    <div style="background:#fffbeb;border-left:4px solid #d97706;padding:14px 18px;margin:0 0 20px;border-radius:0 6px 6px 0;font-family:system-ui,sans-serif;font-size:14px;color:#92400e;">
+      <p style="margin:0 0 4px;font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:0.04em;">Updates requested</p>
+      <p style="margin:0;line-height:1.6;">${esc(opts.revisionNote)}</p>
+    </div>
+    <p>Please log in and update the sections highlighted on your profile page.</p>
+    <p><a href="${opts.profileUrl}" class="btn">Update My Profile</a></p>
+    <p class="note">Once you've made the updates, our team will be notified automatically. If you have questions, contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Hello ${opts.buyerName},\n\nOur team has reviewed your Fincava sourcing profile and needs a few updates.\n\nUpdates requested:\n${opts.revisionNote}\n\nPlease update your profile: ${opts.profileUrl}\n\nIf you have questions, contact info@fincava.com\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 // ── Inquiry & RFQ notification templates ─────────────────────────────────────
 
 export function newInquiryEmail(opts: {

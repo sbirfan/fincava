@@ -77,6 +77,9 @@ interface P2Profile {
   // tracking
   p2CompletionPct: number;
   p2SectionsDone: string[];
+  // approval workflow
+  p2ApprovalStatus: string | null;
+  p2RevisionNote: string | null;
   // marketing (from same DB row, may or may not be present)
   marketingOptIn?: boolean;
   marketingTopics?: string[];
@@ -452,6 +455,39 @@ export default function BuyerProfile() {
         <h1 className="text-3xl font-serif font-bold tracking-tight">{tr.pageTitle}</h1>
         <p className="text-muted-foreground mt-2">{tr.pageDesc}</p>
       </div>
+
+      {/* ── Approval status banner (M11) ─────────────────────────────────────── */}
+      {profile?.p2ApprovalStatus === "REVISION_REQUESTED" && (
+        <div
+          className="flex gap-3 rounded-xl border border-amber-300/40 bg-amber-50 px-4 py-3"
+          data-testid="banner-revision-requested"
+        >
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-amber-800">Profile updates requested</p>
+            {profile.p2RevisionNote && (
+              <p className="text-sm text-amber-700">{profile.p2RevisionNote}</p>
+            )}
+            <p className="text-xs text-amber-600">
+              Please update the sections below and save. Our team will be notified automatically.
+            </p>
+          </div>
+        </div>
+      )}
+      {profile?.p2ApprovalStatus === "NEEDS_ATTENTION" && (
+        <div
+          className="flex gap-3 rounded-xl border border-amber-300/40 bg-amber-50 px-4 py-3"
+          data-testid="banner-needs-attention"
+        >
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-amber-800">Your profile needs attention</p>
+            <p className="text-xs text-amber-600">
+              Our team has flagged your profile for review. Please ensure all sections are complete and accurate.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── P2 Sourcing Profile section ─────────────────────────────────────── */}
       {profileError ? (

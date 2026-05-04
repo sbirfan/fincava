@@ -890,9 +890,11 @@ router.get("/buyer/onboarding", requireAuth, async (req, res): Promise<void> => 
       volumeBand: buyerProfilesTable.volumeBand,
       requiredCertsP1: buyerProfilesTable.requiredCertsP1,
       timeToFirstOrder: buyerProfilesTable.timeToFirstOrder,
-      // Progress
-      p2CompletionPct: buyerProfilesTable.p2CompletionPct,
-      p2SectionsDone: buyerProfilesTable.p2SectionsDone,
+      // Progress + approval status
+      p2CompletionPct:  buyerProfilesTable.p2CompletionPct,
+      p2SectionsDone:   buyerProfilesTable.p2SectionsDone,
+      p2ApprovalStatus: buyerProfilesTable.p2ApprovalStatus,
+      p2RevisionNote:   buyerProfilesTable.p2RevisionNote,
       // Section 1
       buyerSegment: buyerProfilesTable.buyerSegment,
       locationCount: buyerProfilesTable.locationCount,
@@ -1174,10 +1176,23 @@ router.patch("/buyer/onboarding", requireAuth, async (req, res): Promise<void> =
   const existingSectionsDone = (existing.p2SectionsDone ?? []) as string[];
   const { sectionsDone, pct } = computeOnboardProgress(projected, existingSectionsDone);
 
+  // M7 auto-transition: when buyer first hits 100%, confirm PENDING_REVIEW status
+  // so the admin sees it as ready for review. Does not overwrite APPROVED,
+  // REVISION_REQUESTED, or NEEDS_ATTENTION — those are admin-set states.
+  const prevPct = existing.p2CompletionPct ?? 0;
+  const autoApprovalSet: Partial<typeof buyerProfilesTable.$inferInsert> = {};
+  if (prevPct < 100 && pct >= 100) {
+    const currentStatus = existing.p2ApprovalStatus;
+    if (!currentStatus || currentStatus === "PENDING_REVIEW") {
+      autoApprovalSet.p2ApprovalStatus = "PENDING_REVIEW";
+    }
+  }
+
   const [updated] = await db
     .update(buyerProfilesTable)
     .set({
       ...updates,
+      ...autoApprovalSet,
       p2CompletionPct: pct,
       p2SectionsDone: sectionsDone,
       updatedAt: new Date(),

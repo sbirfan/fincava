@@ -19,7 +19,7 @@ import { runOnboardPipeline } from "../services/onboard-pipeline";
 import { randomUUID } from "crypto";
 import { and, desc, eq, inArray, count, sum, sql, ilike, or, isNull, type SQL } from "drizzle-orm";
 import { companyTypeEnum } from "@workspace/db";
-import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail } from "../lib/email";
+import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail, buyerRevisionRequestedEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { FEE_STATUSES } from "../constants/fee-status";
@@ -271,6 +271,8 @@ router.get("/admin/buyers", ...adminOnly, async (req, res): Promise<void> => {
       importFrequency:   buyerProfilesTable.importFrequency,
       state:             buyerProfilesTable.state,
       p2CompletionPct:   buyerProfilesTable.p2CompletionPct,
+      p2SectionsDone:    buyerProfilesTable.p2SectionsDone,
+      p2ApprovalStatus:  buyerProfilesTable.p2ApprovalStatus,
       marketingOptIn:    buyerProfilesTable.marketingOptIn,
       marketingTopics:   buyerProfilesTable.marketingTopics,
       onboardedAt:       buyerProfilesTable.onboardedAt,
@@ -600,6 +602,223 @@ router.get("/admin/buyers/:id/activity", ...adminOnly, async (req, res): Promise
     .limit(100);
 
   res.json({ success: true, data: rows });
+});
+
+// ── GET /api/admin/buyers/:id/onboarding ────────────────────────────────────
+router.get("/admin/buyers/:id/onboarding", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const [row] = await db
+    .select({
+      p2CompletionPct:         buyerProfilesTable.p2CompletionPct,
+      p2SectionsDone:          buyerProfilesTable.p2SectionsDone,
+      p2ApprovalStatus:        buyerProfilesTable.p2ApprovalStatus,
+      p2RevisionNote:          buyerProfilesTable.p2RevisionNote,
+      buyerSegment:            buyerProfilesTable.buyerSegment,
+      locationCount:           buyerProfilesTable.locationCount,
+      annualBudgetUsd:         buyerProfilesTable.annualBudgetUsd,
+      coffeeQualityTier:       buyerProfilesTable.coffeeQualityTier,
+      coffeeFlavorProfile:     buyerProfilesTable.coffeeFlavorProfile,
+      cacaoFlavorProfile:      buyerProfilesTable.cacaoFlavorProfile,
+      fruitForm:               buyerProfilesTable.fruitForm,
+      availabilityRequirement: buyerProfilesTable.availabilityRequirement,
+      orderFrequency:          buyerProfilesTable.orderFrequency,
+      coffeeOrderSizeKg:       buyerProfilesTable.coffeeOrderSizeKg,
+      cacaoOrderSizeKg:        buyerProfilesTable.cacaoOrderSizeKg,
+      fruitOrderSizeKg:        buyerProfilesTable.fruitOrderSizeKg,
+      priceSensitivity:        buyerProfilesTable.priceSensitivity,
+      priceTransparency:       buyerProfilesTable.priceTransparency,
+      certsNiceToHave:         buyerProfilesTable.certsNiceToHave,
+      traceabilityLevel:       buyerProfilesTable.traceabilityLevel,
+      qualityDocRequired:      buyerProfilesTable.qualityDocRequired,
+      coffeeDefectRate:        buyerProfilesTable.coffeeDefectRate,
+      cacaoMoldPct:            buyerProfilesTable.cacaoMoldPct,
+      sourceConsistency:       buyerProfilesTable.sourceConsistency,
+      qualityVerification:     buyerProfilesTable.qualityVerification,
+      sustainabilityImportance: buyerProfilesTable.sustainabilityImportance,
+      sustainabilityDimensions: buyerProfilesTable.sustainabilityDimensions,
+    })
+    .from(buyerProfilesTable)
+    .where(eq(buyerProfilesTable.id, profileId));
+
+  if (!row) {
+    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    return;
+  }
+
+  res.json({ success: true, data: row });
+});
+
+// ── PATCH /api/admin/buyers/:id/onboarding ──────────────────────────────────
+// Direct admin field overrides — does NOT recalculate p2CompletionPct / p2SectionsDone.
+const AdminOnboardingPatchBody = z.object({
+  buyerSegment:            z.string().nullable().optional(),
+  locationCount:           z.string().nullable().optional(),
+  annualBudgetUsd:         z.string().nullable().optional(),
+  coffeeQualityTier:       z.string().nullable().optional(),
+  coffeeFlavorProfile:     z.array(z.string()).nullable().optional(),
+  cacaoFlavorProfile:      z.string().nullable().optional(),
+  fruitForm:               z.array(z.string()).nullable().optional(),
+  availabilityRequirement: z.string().nullable().optional(),
+  orderFrequency:          z.string().nullable().optional(),
+  coffeeOrderSizeKg:       z.string().nullable().optional(),
+  cacaoOrderSizeKg:        z.string().nullable().optional(),
+  fruitOrderSizeKg:        z.string().nullable().optional(),
+  priceSensitivity:        z.string().nullable().optional(),
+  priceTransparency:       z.array(z.string()).nullable().optional(),
+  certsNiceToHave:         z.array(z.string()).nullable().optional(),
+  traceabilityLevel:       z.string().nullable().optional(),
+  qualityDocRequired:      z.array(z.string()).nullable().optional(),
+  coffeeDefectRate:        z.string().nullable().optional(),
+  cacaoMoldPct:            z.string().nullable().optional(),
+  sourceConsistency:       z.string().nullable().optional(),
+  qualityVerification:     z.array(z.string()).nullable().optional(),
+  sustainabilityImportance: z.string().nullable().optional(),
+  sustainabilityDimensions: z.array(z.string()).nullable().optional(),
+});
+
+router.patch("/admin/buyers/:id/onboarding", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const body = AdminOnboardingPatchBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ success: false, error: "Invalid fields", issues: body.error.issues });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: buyerProfilesTable.id })
+    .from(buyerProfilesTable)
+    .where(eq(buyerProfilesTable.id, profileId));
+
+  if (!existing) {
+    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    return;
+  }
+
+  const updates = body.data as Partial<typeof buyerProfilesTable.$inferInsert>;
+
+  const [updated] = await db
+    .update(buyerProfilesTable)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(buyerProfilesTable.id, profileId))
+    .returning({
+      buyerSegment:            buyerProfilesTable.buyerSegment,
+      locationCount:           buyerProfilesTable.locationCount,
+      annualBudgetUsd:         buyerProfilesTable.annualBudgetUsd,
+      coffeeQualityTier:       buyerProfilesTable.coffeeQualityTier,
+      coffeeFlavorProfile:     buyerProfilesTable.coffeeFlavorProfile,
+      cacaoFlavorProfile:      buyerProfilesTable.cacaoFlavorProfile,
+      fruitForm:               buyerProfilesTable.fruitForm,
+      availabilityRequirement: buyerProfilesTable.availabilityRequirement,
+      orderFrequency:          buyerProfilesTable.orderFrequency,
+      coffeeOrderSizeKg:       buyerProfilesTable.coffeeOrderSizeKg,
+      cacaoOrderSizeKg:        buyerProfilesTable.cacaoOrderSizeKg,
+      fruitOrderSizeKg:        buyerProfilesTable.fruitOrderSizeKg,
+      priceSensitivity:        buyerProfilesTable.priceSensitivity,
+      priceTransparency:       buyerProfilesTable.priceTransparency,
+      certsNiceToHave:         buyerProfilesTable.certsNiceToHave,
+      traceabilityLevel:       buyerProfilesTable.traceabilityLevel,
+      qualityDocRequired:      buyerProfilesTable.qualityDocRequired,
+      coffeeDefectRate:        buyerProfilesTable.coffeeDefectRate,
+      cacaoMoldPct:            buyerProfilesTable.cacaoMoldPct,
+      sourceConsistency:       buyerProfilesTable.sourceConsistency,
+      qualityVerification:     buyerProfilesTable.qualityVerification,
+      sustainabilityImportance: buyerProfilesTable.sustainabilityImportance,
+      sustainabilityDimensions: buyerProfilesTable.sustainabilityDimensions,
+    });
+
+  req.log.info({ adminId: requesterIdOf(req), profileId }, "admin buyer onboarding override saved");
+  res.json({ success: true, data: updated });
+});
+
+// ── PATCH /api/admin/buyers/:id/approval ─────────────────────────────────────
+const ApprovalBody = z.object({
+  status: z.enum(["PENDING_REVIEW", "APPROVED", "REVISION_REQUESTED", "NEEDS_ATTENTION"]),
+  revisionNote: z.string().max(500).optional(),
+});
+
+router.patch("/admin/buyers/:id/approval", ...adminOnly, async (req, res): Promise<void> => {
+  const profileId = parseInt(req.params.id as string, 10);
+  if (isNaN(profileId)) {
+    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    return;
+  }
+
+  const body = ApprovalBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ success: false, error: "Invalid approval request", issues: body.error.issues });
+    return;
+  }
+
+  const { status, revisionNote } = body.data;
+
+  if (status === "REVISION_REQUESTED" && (!revisionNote || !revisionNote.trim())) {
+    res.status(400).json({ success: false, error: "revisionNote is required when status is REVISION_REQUESTED" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: buyerProfilesTable.id, userId: buyerProfilesTable.userId })
+    .from(buyerProfilesTable)
+    .where(eq(buyerProfilesTable.id, profileId));
+
+  if (!existing) {
+    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    return;
+  }
+
+  const noteToSave = status === "REVISION_REQUESTED" ? (revisionNote ?? null) : null;
+
+  const [updated] = await db
+    .update(buyerProfilesTable)
+    .set({ p2ApprovalStatus: status, p2RevisionNote: noteToSave, updatedAt: new Date() })
+    .where(eq(buyerProfilesTable.id, profileId))
+    .returning({
+      p2ApprovalStatus: buyerProfilesTable.p2ApprovalStatus,
+      p2RevisionNote:   buyerProfilesTable.p2RevisionNote,
+    });
+
+  // Fire-and-forget email on REVISION_REQUESTED — response does not block on delivery
+  if (status === "REVISION_REQUESTED") {
+    const [userRow] = await db
+      .select({
+        email:     usersTable.email,
+        firstName: profilesTable.firstName,
+        lastName:  profilesTable.lastName,
+      })
+      .from(usersTable)
+      .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+      .where(eq(usersTable.id, existing.userId));
+
+    if (userRow) {
+      const buyerName =
+        [userRow.firstName, userRow.lastName].filter(Boolean).join(" ") || userRow.email;
+      const domain = process.env["REPLIT_DOMAINS"]?.split(",")[0];
+      const appUrl = domain ? `https://${domain}` : "https://fincava.com";
+      const emailContent = buyerRevisionRequestedEmail({
+        buyerName,
+        buyerEmail: userRow.email,
+        revisionNote: revisionNote!,
+        profileUrl: `${appUrl}/dashboard/profile`,
+      });
+      sendEmail({ to: userRow.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text })
+        .catch((err: unknown) => {
+          req.log.warn({ err, profileId }, "buyerRevisionRequestedEmail send failed (non-blocking)");
+        });
+    }
+  }
+
+  req.log.info({ adminId: requesterIdOf(req), profileId, status }, "buyer profile approval status updated");
+  res.json({ success: true, data: updated });
 });
 
 // ── POST /api/admin/buyers/:id/reset-score ────────────────────────────────────

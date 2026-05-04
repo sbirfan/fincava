@@ -26,6 +26,7 @@ interface BuyerRow {
   state: string;
   p2CompletionPct: number;
   p2SectionsDone: string[];
+  p2ApprovalStatus: string;
   marketingOptIn: boolean;
   marketingTopics: string[];
   matchCount: number;
@@ -265,6 +266,7 @@ export default function AdminBuyers() {
                 <th className="text-left px-4 py-3">Country</th>
                 <th className="text-left px-4 py-3">State</th>
                 <th className="text-left px-4 py-3">Completion</th>
+                <th className="text-left px-4 py-3">Approval</th>
                 <th className="text-left px-4 py-3">Matches</th>
                 <th className="text-left px-4 py-3">Gaps</th>
                 <th className="text-left px-4 py-3">Marketing</th>
@@ -275,13 +277,13 @@ export default function AdminBuyers() {
             <tbody className="divide-y divide-white/5">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-white/40">
+                  <td colSpan={11} className="px-4 py-8 text-center text-white/40">
                     <Loader2 className="h-5 w-5 mx-auto animate-spin" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-white/40">
+                  <td colSpan={11} className="px-4 py-8 text-center text-white/40">
                     No buyers match these filters.
                   </td>
                 </tr>
@@ -333,6 +335,9 @@ export default function AdminBuyers() {
                             {b.p2CompletionPct}%
                           </span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <ApprovalBadge status={b.p2ApprovalStatus ?? "PENDING_REVIEW"} />
                       </td>
                       <td className="px-4 py-3 text-white/70 tabular-nums">
                         {b.matchCount}
@@ -465,7 +470,7 @@ function BuyerDrawer({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"overview" | "matches" | "gaps" | "activity">("overview");
+  const [tab, setTab] = useState<"overview" | "matches" | "gaps" | "profile" | "activity">("overview");
   const [actionResult, setActionResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const { data: detailResp, isLoading: detailLoading } = useQuery<{
@@ -701,12 +706,12 @@ function BuyerDrawer({
           </div>
         )}
 
-        <div className="px-6 pt-4 border-b border-white/10 flex gap-1">
-          {(["overview", "matches", "gaps", "activity"] as const).map((t) => (
+        <div className="px-6 pt-4 border-b border-white/10 flex gap-1 overflow-x-auto">
+          {(["overview", "matches", "gaps", "profile", "activity"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-3 py-2 text-sm font-medium rounded-t-md transition ${
+              className={`px-3 py-2 text-sm font-medium rounded-t-md transition whitespace-nowrap ${
                 tab === t
                   ? "bg-white/10 text-white"
                   : "text-white/40 hover:text-white"
@@ -719,6 +724,8 @@ function BuyerDrawer({
                 ? `Matches${buyer?.matchCount != null ? ` (${buyer.matchCount})` : ""}`
                 : t === "gaps"
                 ? `Gaps${buyer?.gapCount != null ? ` (${buyer.gapCount})` : ""}`
+                : t === "profile"
+                ? "Profile"
                 : "Activity"}
             </button>
           ))}
@@ -747,12 +754,478 @@ function BuyerDrawer({
               escalating={escalateMutation.isPending}
               error={escalateMutation.error as Error | null}
             />
+          ) : tab === "profile" ? (
+            <ProfilePane profileId={profileId} />
           ) : tab === "activity" ? (
             <ActivityPane
               loading={activityLoading}
               rows={activityResp?.data ?? []}
             />
           ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Profile tab types and helpers ─────────────────────────────────────────────
+
+interface AdminOnboardingData {
+  p2CompletionPct: number;
+  p2SectionsDone: string[];
+  p2ApprovalStatus: string;
+  p2RevisionNote: string | null;
+  buyerSegment: string | null;
+  locationCount: string | null;
+  annualBudgetUsd: string | null;
+  coffeeQualityTier: string | null;
+  coffeeFlavorProfile: string[] | null;
+  cacaoFlavorProfile: string | null;
+  fruitForm: string[] | null;
+  availabilityRequirement: string | null;
+  orderFrequency: string | null;
+  coffeeOrderSizeKg: string | null;
+  cacaoOrderSizeKg: string | null;
+  fruitOrderSizeKg: string | null;
+  priceSensitivity: string | null;
+  priceTransparency: string[] | null;
+  certsNiceToHave: string[] | null;
+  traceabilityLevel: string | null;
+  qualityDocRequired: string[] | null;
+  coffeeDefectRate: string | null;
+  cacaoMoldPct: string | null;
+  sourceConsistency: string | null;
+  qualityVerification: string[] | null;
+  sustainabilityImportance: string | null;
+  sustainabilityDimensions: string[] | null;
+}
+
+const APPROVAL_BADGE_CLS: Record<string, string> = {
+  APPROVED: "bg-emerald-500/15 text-emerald-300 border-emerald-500/20",
+  PENDING_REVIEW: "bg-blue-500/15 text-blue-300 border-blue-500/20",
+  REVISION_REQUESTED: "bg-amber-500/15 text-amber-300 border-amber-500/20",
+  NEEDS_ATTENTION: "bg-red-500/15 text-red-300 border-red-500/20",
+};
+const APPROVAL_LABELS: Record<string, string> = {
+  APPROVED: "Approved",
+  PENDING_REVIEW: "Pending Review",
+  REVISION_REQUESTED: "Revision Requested",
+  NEEDS_ATTENTION: "Needs Attention",
+};
+function ApprovalBadge({ status }: { status: string }) {
+  const cls = APPROVAL_BADGE_CLS[status] ?? "bg-white/10 text-white/60 border-white/10";
+  return (
+    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${cls}`}>
+      {APPROVAL_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+function AdminSelectField({
+  label, value, options, onChange,
+}: {
+  label: string;
+  value: string | null;
+  options: { value: string; label: string }[];
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] text-white/40 uppercase tracking-wider">{label}</label>
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-white/30"
+      >
+        <option value="">— not set —</option>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function AdminArrayField({
+  label, value, onChange,
+}: {
+  label: string;
+  value: string[] | null;
+  onChange: (v: string[] | null) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] text-white/40 uppercase tracking-wider">{label} (comma-separated)</label>
+      <input
+        type="text"
+        value={(value ?? []).join(", ")}
+        onChange={(e) => {
+          const s = e.target.value.trim();
+          onChange(s ? s.split(",").map((x) => x.trim()).filter(Boolean) : null);
+        }}
+        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30"
+      />
+    </div>
+  );
+}
+
+function SectionCard({
+  title, done, editing, onEdit, onCancel, onSave, saving, error, children,
+}: {
+  title: string;
+  done: boolean | undefined;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+  error: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-white/40 uppercase tracking-wider">{title}</p>
+          {done ? (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/20">done</span>
+          ) : (
+            <span className="text-[10px] text-white/40">pending</span>
+          )}
+        </div>
+        {editing ? (
+          <div className="flex items-center gap-2">
+            {error && <span className="text-xs text-red-300 mr-1">{error}</span>}
+            <button onClick={onCancel} className="text-xs text-white/40 hover:text-white transition">Cancel</button>
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 transition"
+            >
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Save
+            </button>
+          </div>
+        ) : (
+          <button onClick={onEdit} className="text-xs text-white/40 hover:text-emerald-300 transition">Edit</button>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ProfilePane({ profileId }: { profileId: number }) {
+  const qc = useQueryClient();
+
+  const { data: onboardResp, isLoading } = useQuery<{ success: boolean; data: AdminOnboardingData }>({
+    queryKey: ["admin-buyer-onboarding", profileId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/buyers/${profileId}/onboarding`, { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      return res.json();
+    },
+  });
+
+  const od = onboardResp?.data;
+  type EditSection = "S1" | "S2" | "S3" | "S4";
+  const [editSection, setEditSection] = useState<EditSection | null>(null);
+  const [editValues, setEditValues] = useState<Partial<AdminOnboardingData>>({});
+  const [sectionSaving, setSectionSaving] = useState(false);
+  const [sectionError, setSectionError] = useState<string | null>(null);
+
+  const [revisionNote, setRevisionNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [approvalSuccess, setApprovalSuccess] = useState<string | null>(null);
+
+  function openEdit(section: EditSection) {
+    if (!od) return;
+    setSectionError(null);
+    setEditSection(section);
+    if (section === "S1") {
+      setEditValues({ buyerSegment: od.buyerSegment, locationCount: od.locationCount, annualBudgetUsd: od.annualBudgetUsd });
+    } else if (section === "S2") {
+      setEditValues({ coffeeQualityTier: od.coffeeQualityTier, coffeeFlavorProfile: od.coffeeFlavorProfile, cacaoFlavorProfile: od.cacaoFlavorProfile, fruitForm: od.fruitForm, availabilityRequirement: od.availabilityRequirement, orderFrequency: od.orderFrequency });
+    } else if (section === "S3") {
+      setEditValues({ coffeeOrderSizeKg: od.coffeeOrderSizeKg, cacaoOrderSizeKg: od.cacaoOrderSizeKg, fruitOrderSizeKg: od.fruitOrderSizeKg, priceSensitivity: od.priceSensitivity, priceTransparency: od.priceTransparency });
+    } else {
+      setEditValues({ certsNiceToHave: od.certsNiceToHave, traceabilityLevel: od.traceabilityLevel, qualityDocRequired: od.qualityDocRequired, coffeeDefectRate: od.coffeeDefectRate, cacaoMoldPct: od.cacaoMoldPct, sourceConsistency: od.sourceConsistency, qualityVerification: od.qualityVerification, sustainabilityImportance: od.sustainabilityImportance, sustainabilityDimensions: od.sustainabilityDimensions });
+    }
+  }
+
+  async function saveSection() {
+    setSectionSaving(true);
+    setSectionError(null);
+    try {
+      const res = await fetch(`/api/admin/buyers/${profileId}/onboarding`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editValues),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json?.error ?? `Failed (${res.status})`);
+      qc.invalidateQueries({ queryKey: ["admin-buyer-onboarding", profileId] });
+      setEditSection(null);
+    } catch (err) {
+      setSectionError((err as Error).message);
+    } finally {
+      setSectionSaving(false);
+    }
+  }
+
+  async function handleApproval(status: string) {
+    if (status === "REVISION_REQUESTED" && !revisionNote.trim()) {
+      setApprovalError("Revision note is required for REVISION_REQUESTED.");
+      return;
+    }
+    setApprovalSaving(true);
+    setApprovalError(null);
+    setApprovalSuccess(null);
+    try {
+      const body: Record<string, unknown> = { status };
+      if (status === "REVISION_REQUESTED") body.revisionNote = revisionNote.trim();
+      const res = await fetch(`/api/admin/buyers/${profileId}/approval`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json?.error ?? `Failed (${res.status})`);
+      setApprovalSuccess(`Status updated to: ${APPROVAL_LABELS[status] ?? status}`);
+      if (status !== "REVISION_REQUESTED") setRevisionNote("");
+      qc.invalidateQueries({ queryKey: ["admin-buyer-onboarding", profileId] });
+      qc.invalidateQueries({ queryKey: ["admin-buyers"] });
+      qc.invalidateQueries({ queryKey: ["admin-buyer-detail", profileId] });
+    } catch (err) {
+      setApprovalError((err as Error).message);
+    } finally {
+      setApprovalSaving(false);
+    }
+  }
+
+  if (isLoading) return <Loader2 className="h-5 w-5 animate-spin text-white/40" />;
+  if (!od) return <p className="text-sm text-white/40">No onboarding profile found.</p>;
+
+  const curStatus = od.p2ApprovalStatus ?? "PENDING_REVIEW";
+  const ev = editValues;
+  const set = (k: keyof AdminOnboardingData, v: unknown) =>
+    setEditValues((prev) => ({ ...prev, [k]: v }));
+
+  return (
+    <div className="space-y-4 text-sm" data-testid="pane-profile">
+      {/* Progress summary */}
+      <div className="flex items-center justify-between text-xs text-white/50 bg-white/5 rounded-lg px-3 py-2 border border-white/10">
+        <span>P2 Completion: <strong className="text-white">{od.p2CompletionPct}%</strong></span>
+        <ApprovalBadge status={curStatus} />
+      </div>
+
+      {/* S1 — Company Profile */}
+      <SectionCard
+        title="S1 — Company Profile"
+        done={od.p2SectionsDone?.includes("S1")}
+        editing={editSection === "S1"}
+        onEdit={() => openEdit("S1")}
+        onCancel={() => { setEditSection(null); setSectionError(null); }}
+        onSave={saveSection}
+        saving={sectionSaving}
+        error={editSection === "S1" ? sectionError : null}
+      >
+        {editSection === "S1" ? (
+          <div className="space-y-3 mt-2">
+            <AdminSelectField label="Buyer segment" value={ev.buyerSegment as string | null ?? null} onChange={(v) => set("buyerSegment", v)}
+              options={[{ value: "specialty_roaster", label: "Specialty roaster" }, { value: "commodity_trader", label: "Commodity trader" }, { value: "craft_chocolatier", label: "Craft chocolatier" }, { value: "food_distributor", label: "Food distributor" }, { value: "grocery_retailer", label: "Grocery retailer" }, { value: "specialty_retailer", label: "Specialty retailer" }, { value: "food_manufacturer", label: "Food manufacturer" }, { value: "restaurant_hospitality", label: "Restaurant / hospitality" }, { value: "other", label: "Other" }]} />
+            <AdminSelectField label="Location count" value={ev.locationCount as string | null ?? null} onChange={(v) => set("locationCount", v)}
+              options={[{ value: "one", label: "One" }, { value: "two_to_five", label: "2–5" }, { value: "six_to_twenty", label: "6–20" }, { value: "twenty_plus", label: "20+" }]} />
+            <AdminSelectField label="Annual budget (USD)" value={ev.annualBudgetUsd as string | null ?? null} onChange={(v) => set("annualBudgetUsd", v)}
+              options={[{ value: "under_50k", label: "< $50k" }, { value: "50k_to_250k", label: "$50k–$250k" }, { value: "250k_to_1m", label: "$250k–$1M" }, { value: "1m_to_5m", label: "$1M–$5M" }, { value: "over_5m", label: "> $5M" }]} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <Field label="Buyer segment" value={od.buyerSegment ?? "—"} />
+            <Field label="Location count" value={od.locationCount ?? "—"} />
+            <Field label="Annual budget" value={od.annualBudgetUsd ?? "—"} />
+          </div>
+        )}
+      </SectionCard>
+
+      {/* S2 — Product Interests */}
+      <SectionCard
+        title="S2 — Product Interests"
+        done={od.p2SectionsDone?.includes("S2")}
+        editing={editSection === "S2"}
+        onEdit={() => openEdit("S2")}
+        onCancel={() => { setEditSection(null); setSectionError(null); }}
+        onSave={saveSection}
+        saving={sectionSaving}
+        error={editSection === "S2" ? sectionError : null}
+      >
+        {editSection === "S2" ? (
+          <div className="space-y-3 mt-2">
+            <AdminSelectField label="Coffee quality tier" value={ev.coffeeQualityTier as string | null ?? null} onChange={(v) => set("coffeeQualityTier", v)}
+              options={[{ value: "specialty_sca80", label: "Specialty SCA 80+" }, { value: "high_commercial_75_79", label: "High commercial 75–79" }, { value: "standard_commercial_70_74", label: "Standard 70–74" }, { value: "bulk_commodity", label: "Bulk commodity" }]} />
+            <AdminArrayField label="Coffee flavor profile" value={ev.coffeeFlavorProfile as string[] | null} onChange={(v) => set("coffeeFlavorProfile", v)} />
+            <AdminSelectField label="Cacao flavor profile" value={ev.cacaoFlavorProfile as string | null ?? null} onChange={(v) => set("cacaoFlavorProfile", v)}
+              options={[{ value: "fruity_floral_citrus", label: "Fruity / floral / citrus" }, { value: "chocolate_nutty_caramel", label: "Chocolate / nutty / caramel" }, { value: "balanced_blending", label: "Balanced / blending" }, { value: "no_preference", label: "No preference" }]} />
+            <AdminArrayField label="Fruit form" value={ev.fruitForm as string[] | null} onChange={(v) => set("fruitForm", v)} />
+            <AdminSelectField label="Availability requirement" value={ev.availabilityRequirement as string | null ?? null} onChange={(v) => set("availabilityRequirement", v)}
+              options={[{ value: "year_round_critical", label: "Year-round critical" }, { value: "seasonal_acceptable", label: "Seasonal acceptable" }, { value: "flexible", label: "Flexible" }]} />
+            <AdminSelectField label="Order frequency" value={ev.orderFrequency as string | null ?? null} onChange={(v) => set("orderFrequency", v)}
+              options={[{ value: "weekly_biweekly", label: "Weekly / biweekly" }, { value: "monthly", label: "Monthly" }, { value: "quarterly", label: "Quarterly" }, { value: "annual_contracts", label: "Annual contracts" }, { value: "ad_hoc", label: "Ad hoc" }]} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <Field label="Coffee quality tier" value={od.coffeeQualityTier ?? "—"} />
+            <Field label="Coffee flavors" value={fmtArr(od.coffeeFlavorProfile)} />
+            <Field label="Cacao flavor" value={od.cacaoFlavorProfile ?? "—"} />
+            <Field label="Fruit form" value={fmtArr(od.fruitForm)} />
+            <Field label="Availability" value={od.availabilityRequirement ?? "—"} />
+            <Field label="Order frequency" value={od.orderFrequency ?? "—"} />
+          </div>
+        )}
+      </SectionCard>
+
+      {/* S3 — Volume & Pricing */}
+      <SectionCard
+        title="S3 — Volume & Pricing"
+        done={od.p2SectionsDone?.includes("S3")}
+        editing={editSection === "S3"}
+        onEdit={() => openEdit("S3")}
+        onCancel={() => { setEditSection(null); setSectionError(null); }}
+        onSave={saveSection}
+        saving={sectionSaving}
+        error={editSection === "S3" ? sectionError : null}
+      >
+        {editSection === "S3" ? (
+          <div className="space-y-3 mt-2">
+            <AdminSelectField label="Coffee order size (kg)" value={ev.coffeeOrderSizeKg as string | null ?? null} onChange={(v) => set("coffeeOrderSizeKg", v)}
+              options={[{ value: "under_500", label: "< 500 kg" }, { value: "500_to_2000", label: "500–2,000 kg" }, { value: "2000_to_10000", label: "2,000–10,000 kg" }, { value: "10000_to_50000", label: "10,000–50,000 kg" }, { value: "over_50000", label: "> 50,000 kg" }]} />
+            <AdminSelectField label="Cacao order size (kg)" value={ev.cacaoOrderSizeKg as string | null ?? null} onChange={(v) => set("cacaoOrderSizeKg", v)}
+              options={[{ value: "under_500", label: "< 500 kg" }, { value: "500_to_5000", label: "500–5,000 kg" }, { value: "5000_to_20000", label: "5,000–20,000 kg" }, { value: "over_20000", label: "> 20,000 kg" }]} />
+            <AdminSelectField label="Fruit order size (kg)" value={ev.fruitOrderSizeKg as string | null ?? null} onChange={(v) => set("fruitOrderSizeKg", v)}
+              options={[{ value: "under_500", label: "< 500 kg" }, { value: "500_to_2000", label: "500–2,000 kg" }, { value: "2000_to_10000", label: "2,000–10,000 kg" }, { value: "over_10000", label: "> 10,000 kg" }]} />
+            <AdminSelectField label="Price sensitivity" value={ev.priceSensitivity as string | null ?? null} onChange={(v) => set("priceSensitivity", v)}
+              options={[{ value: "quality_first", label: "Quality first" }, { value: "balanced", label: "Balanced" }, { value: "cost_driven", label: "Cost-driven" }]} />
+            <AdminArrayField label="Price transparency" value={ev.priceTransparency as string[] | null} onChange={(v) => set("priceTransparency", v)} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <Field label="Coffee order size" value={od.coffeeOrderSizeKg ?? "—"} />
+            <Field label="Cacao order size" value={od.cacaoOrderSizeKg ?? "—"} />
+            <Field label="Fruit order size" value={od.fruitOrderSizeKg ?? "—"} />
+            <Field label="Price sensitivity" value={od.priceSensitivity ?? "—"} />
+            <Field label="Price transparency" value={fmtArr(od.priceTransparency)} />
+          </div>
+        )}
+      </SectionCard>
+
+      {/* S4 — Quality & Sustainability */}
+      <SectionCard
+        title="S4 — Quality & Sustainability"
+        done={od.p2SectionsDone?.includes("S4")}
+        editing={editSection === "S4"}
+        onEdit={() => openEdit("S4")}
+        onCancel={() => { setEditSection(null); setSectionError(null); }}
+        onSave={saveSection}
+        saving={sectionSaving}
+        error={editSection === "S4" ? sectionError : null}
+      >
+        {editSection === "S4" ? (
+          <div className="space-y-3 mt-2">
+            <AdminArrayField label="Certs nice to have" value={ev.certsNiceToHave as string[] | null} onChange={(v) => set("certsNiceToHave", v)} />
+            <AdminSelectField label="Traceability level" value={ev.traceabilityLevel as string | null ?? null} onChange={(v) => set("traceabilityLevel", v)}
+              options={[{ value: "farm_to_cup", label: "Farm to cup" }, { value: "lot_level", label: "Lot level" }, { value: "preferred_not_mandatory", label: "Preferred not mandatory" }, { value: "no_requirement", label: "No requirement" }]} />
+            <AdminArrayField label="Quality docs required" value={ev.qualityDocRequired as string[] | null} onChange={(v) => set("qualityDocRequired", v)} />
+            <AdminSelectField label="Coffee defect rate" value={ev.coffeeDefectRate as string | null ?? null} onChange={(v) => set("coffeeDefectRate", v)}
+              options={[{ value: "under_1pct", label: "< 1%" }, { value: "one_to_5pct", label: "1–5%" }, { value: "five_to_10pct", label: "5–10%" }, { value: "ten_plus_acceptable", label: "10%+ acceptable" }]} />
+            <AdminSelectField label="Cacao mold %" value={ev.cacaoMoldPct as string | null ?? null} onChange={(v) => set("cacaoMoldPct", v)}
+              options={[{ value: "under_1pct", label: "< 1%" }, { value: "one_to_2pct", label: "1–2%" }, { value: "two_to_5pct", label: "2–5%" }, { value: "no_requirement", label: "No requirement" }]} />
+            <AdminSelectField label="Source consistency" value={ev.sourceConsistency as string | null ?? null} onChange={(v) => set("sourceConsistency", v)}
+              options={[{ value: "single_source_preferred", label: "Single source preferred" }, { value: "approved_pool", label: "Approved pool" }, { value: "variety_acceptable", label: "Variety acceptable" }, { value: "no_preference", label: "No preference" }]} />
+            <AdminArrayField label="Quality verification" value={ev.qualityVerification as string[] | null} onChange={(v) => set("qualityVerification", v)} />
+            <AdminSelectField label="Sustainability importance" value={ev.sustainabilityImportance as string | null ?? null} onChange={(v) => set("sustainabilityImportance", v)}
+              options={[{ value: "critical_to_brand", label: "Critical to brand" }, { value: "important_to_market", label: "Important to market" }, { value: "secondary", label: "Secondary" }, { value: "not_important", label: "Not important" }]} />
+            <AdminArrayField label="Sustainability dimensions" value={ev.sustainabilityDimensions as string[] | null} onChange={(v) => set("sustainabilityDimensions", v)} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <Field label="Certs (nice)" value={fmtArr(od.certsNiceToHave)} />
+            <Field label="Traceability" value={od.traceabilityLevel ?? "—"} />
+            <Field label="Quality docs" value={fmtArr(od.qualityDocRequired)} />
+            <Field label="Coffee defect rate" value={od.coffeeDefectRate ?? "—"} />
+            <Field label="Cacao mold %" value={od.cacaoMoldPct ?? "—"} />
+            <Field label="Source consistency" value={od.sourceConsistency ?? "—"} />
+            <Field label="Quality verification" value={fmtArr(od.qualityVerification)} />
+            <Field label="Sustainability imp." value={od.sustainabilityImportance ?? "—"} />
+            <Field label="Sustainability dims." value={fmtArr(od.sustainabilityDimensions)} />
+          </div>
+        )}
+      </SectionCard>
+
+      {/* Approval controls (M10) */}
+      <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-4" data-testid="panel-approval">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-white/40 uppercase tracking-wider">Approval Status</p>
+          <ApprovalBadge status={curStatus} />
+        </div>
+
+        {curStatus === "REVISION_REQUESTED" && od.p2RevisionNote && (
+          <div className="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-200 rounded p-2">
+            <span className="font-semibold">Current note: </span>{od.p2RevisionNote}
+          </div>
+        )}
+
+        <div className="space-y-1">
+          <label className="text-[10px] text-white/40 uppercase tracking-wider">
+            Revision note (required for "Request Revision")
+          </label>
+          <textarea
+            value={revisionNote}
+            onChange={(e) => setRevisionNote(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="Describe what the buyer needs to update…"
+            className="mt-1 w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30 resize-none"
+            data-testid="input-revision-note"
+          />
+        </div>
+
+        {approvalError && <p className="text-xs text-red-300" data-testid="approval-error">{approvalError}</p>}
+        {approvalSuccess && <p className="text-xs text-emerald-300" data-testid="approval-success">{approvalSuccess}</p>}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => handleApproval("APPROVED")}
+            disabled={approvalSaving || curStatus === "APPROVED"}
+            className="px-3 py-1.5 text-xs font-medium rounded border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            data-testid="button-approve"
+          >
+            {approvalSaving ? <Loader2 className="h-3 w-3 animate-spin inline mr-1" /> : null}Approve
+          </button>
+          <button
+            onClick={() => handleApproval("REVISION_REQUESTED")}
+            disabled={approvalSaving}
+            className="px-3 py-1.5 text-xs font-medium rounded border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            data-testid="button-request-revision"
+          >
+            Request Revision
+          </button>
+          <button
+            onClick={() => handleApproval("NEEDS_ATTENTION")}
+            disabled={approvalSaving || curStatus === "NEEDS_ATTENTION"}
+            className="px-3 py-1.5 text-xs font-medium rounded border border-red-500/40 text-red-300 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            data-testid="button-needs-attention"
+          >
+            Needs Attention
+          </button>
+          <button
+            onClick={() => handleApproval("PENDING_REVIEW")}
+            disabled={approvalSaving || curStatus === "PENDING_REVIEW"}
+            className="px-3 py-1.5 text-xs font-medium rounded border border-blue-500/40 text-blue-300 hover:bg-blue-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            data-testid="button-pending-review"
+          >
+            Reset to Pending
+          </button>
         </div>
       </div>
     </div>
