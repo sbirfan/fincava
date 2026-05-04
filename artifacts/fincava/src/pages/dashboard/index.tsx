@@ -148,8 +148,8 @@ export default function BuyerDashboard() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-64 mb-6" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className={`grid grid-cols-1 md:grid-cols-2 ${ENABLE_TRANSACTIONS ? "lg:grid-cols-4" : "lg:grid-cols-2"} gap-6`}>
+          {Array.from({ length: ENABLE_TRANSACTIONS ? 4 : 2 }).map((_, i) => (
             <Skeleton key={i} className="h-32 w-full rounded-xl" />
           ))}
         </div>
@@ -174,7 +174,7 @@ export default function BuyerDashboard() {
       <CompletionBanner />
       <TeaserMatchBanner />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${ENABLE_TRANSACTIONS ? "lg:grid-cols-4" : "lg:grid-cols-2"} gap-6`}>
         <Link href="/dashboard/inquiries" className="block group">
           <Card className="cursor-pointer transition-shadow group-hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">

@@ -502,6 +502,7 @@ export default function BuyerOnboardingPage() {
     { value: "phytosanitary", label: tr.qualityDocOpts.phytosanitary },
     { value: "carbon_footprint", label: tr.qualityDocOpts.carbon_footprint },
     { value: "social_audit", label: tr.qualityDocOpts.social_audit },
+    { value: "no_requirement", label: tr.qualityDocOpts.no_requirement },
   ];
   const coffeeDefectOptions = [
     { value: "under_1pct", label: tr.coffeeDefectOpts.under_1pct },

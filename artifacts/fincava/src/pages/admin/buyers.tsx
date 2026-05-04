@@ -421,7 +421,32 @@ export default function AdminBuyers() {
 
 // ── Drawer ──────────────────────────────────────────────────────────────────
 
-interface BuyerDetail extends BuyerRow {}
+interface BuyerDetail extends BuyerRow {
+  companyVerified: boolean | null;
+  // P2 Onboarding (S1–S4)
+  buyerSegment: string | null;
+  locationCount: string | null;
+  annualBudgetUsd: string | null;
+  availabilityRequirement: string | null;
+  orderFrequency: string | null;
+  coffeeQualityTier: string | null;
+  coffeeFlavorProfile: string[];
+  coffeeOrderSizeKg: string | null;
+  coffeeDefectRate: string | null;
+  cacaoFlavorProfile: string | null;
+  cacaoOrderSizeKg: string | null;
+  cacaoMoldPct: string | null;
+  fruitForm: string[];
+  fruitOrderSizeKg: string | null;
+  priceSensitivity: string | null;
+  priceTransparency: string[];
+  certsNiceToHave: string[];
+  qualityDocRequired: string[];
+  sourceConsistency: string | null;
+  qualityVerification: string[];
+  sustainabilityImportance: string | null;
+  sustainabilityDimensions: string[];
+}
 interface MatchRow {
   id: number;
   buyerProfileId: number;
@@ -1530,6 +1555,52 @@ function OverviewPane({ buyer }: { buyer: BuyerDetail }) {
           />
         </div>
         <Field label="Platform intent" value={fmtArr(buyer.platformIntent)} />
+      </div>
+
+      {/* P2 Onboarding (S1–S4) */}
+      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-emerald-400/80 uppercase tracking-wider">
+            P2 Onboarding Profile (S1–S4)
+          </p>
+          <span className="text-[10px] text-white/40 italic">Edit via Profile tab ↑</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Buyer segment" value={buyer.buyerSegment ?? "—"} />
+          <Field label="Location count" value={buyer.locationCount ?? "—"} />
+          <Field label="Annual budget (USD)" value={buyer.annualBudgetUsd ?? "—"} />
+          <Field label="Availability req." value={buyer.availabilityRequirement ?? "—"} />
+          <Field label="Order frequency" value={buyer.orderFrequency ?? "—"} />
+          <Field label="Price sensitivity" value={buyer.priceSensitivity ?? "—"} />
+          <Field label="Source consistency" value={buyer.sourceConsistency ?? "—"} />
+          <Field label="Sustainability" value={buyer.sustainabilityImportance ?? "—"} />
+        </div>
+        {(buyer.coffeeQualityTier || (buyer.coffeeFlavorProfile ?? []).length > 0 || buyer.coffeeOrderSizeKg || buyer.coffeeDefectRate) && (
+          <div className="pt-1 space-y-2">
+            <p className="text-[10px] text-white/40 uppercase tracking-wider">Coffee specifics</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Quality tier" value={buyer.coffeeQualityTier ?? "—"} />
+              <Field label="Order size (kg)" value={buyer.coffeeOrderSizeKg ?? "—"} />
+              <Field label="Defect rate" value={buyer.coffeeDefectRate ?? "—"} />
+            </div>
+            <Field label="Flavor profile" value={fmtArr(buyer.coffeeFlavorProfile ?? [])} />
+          </div>
+        )}
+        {(buyer.cacaoFlavorProfile || buyer.cacaoOrderSizeKg || buyer.cacaoMoldPct) && (
+          <div className="pt-1 space-y-2">
+            <p className="text-[10px] text-white/40 uppercase tracking-wider">Cacao specifics</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Flavor profile" value={buyer.cacaoFlavorProfile ?? "—"} />
+              <Field label="Order size (kg)" value={buyer.cacaoOrderSizeKg ?? "—"} />
+              <Field label="Mold tolerance" value={buyer.cacaoMoldPct ?? "—"} />
+            </div>
+          </div>
+        )}
+        <Field label="Price transparency" value={fmtArr(buyer.priceTransparency ?? [])} />
+        <Field label="Certs nice-to-have" value={fmtArr(buyer.certsNiceToHave ?? [])} />
+        <Field label="Quality docs required" value={fmtArr(buyer.qualityDocRequired ?? [])} />
+        <Field label="Quality verification" value={fmtArr(buyer.qualityVerification ?? [])} />
+        <Field label="Sustainability dimensions" value={fmtArr(buyer.sustainabilityDimensions ?? [])} />
       </div>
 
       {/* Marketing */}

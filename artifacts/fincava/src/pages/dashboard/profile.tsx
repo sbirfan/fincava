@@ -384,6 +384,7 @@ export default function BuyerProfile() {
       const newDone: string[] = json.profile?.p2SectionsDone ?? json.sectionsDone ?? sectionsDone;
       setSectionsDone(newDone);
       queryClient.invalidateQueries({ queryKey: ["buyer-onboarding-pct"] });
+      queryClient.invalidateQueries({ queryKey: ["buyer-onboarding"] });
       setSS(section, "saved");
       clearTimeout(fadeTimersRef.current[section]);
       fadeTimersRef.current[section] = setTimeout(() => {

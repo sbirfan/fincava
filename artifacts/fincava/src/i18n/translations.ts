@@ -579,6 +579,7 @@ const en = {
       phytosanitary: "Phytosanitary permits",
       carbon_footprint: "Carbon footprint data",
       social_audit: "Social audit reports",
+      no_requirement: "No requirement",
     },
     coffeeDefectOpts: {
       under_1pct: "< 1% (Specialty)",
@@ -1225,6 +1226,7 @@ const es: typeof en = {
       phytosanitary: "Permisos fitosanitarios",
       carbon_footprint: "Datos de huella de carbono",
       social_audit: "Informes de auditoría social",
+      no_requirement: "Sin requisito",
     },
     coffeeDefectOpts: {
       under_1pct: "< 1% (Especialidad)",

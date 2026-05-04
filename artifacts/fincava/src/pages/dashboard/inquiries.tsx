@@ -1,6 +1,7 @@
 import { useListBuyerInquiries } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 
@@ -78,12 +79,12 @@ export default function BuyerInquiries() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-lg font-medium mb-2">No inquiries yet.</p>
-            <p className="text-muted-foreground">
-              <Link href="/suppliers" className="text-primary underline underline-offset-2 hover:opacity-80">
-                Browse the Supplier Network
-              </Link>{" "}
+            <p className="text-muted-foreground mb-3">
               to find Colombian producers.
             </p>
+            <Link href="/suppliers">
+              <Button variant="outline" size="sm">Browse the Supplier Network</Button>
+            </Link>
           </CardContent>
         </Card>
       )}

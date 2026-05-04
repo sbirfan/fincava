@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MapPin, ShieldCheck, Star, Leaf } from "lucide-react";
+import { Search, MapPin, ShieldCheck, Star, Leaf, ArrowLeft } from "lucide-react";
 import { TrustBadge } from "@/components/trust-badge";
 
 interface MarketplaceSupplier {
@@ -90,6 +90,16 @@ export default function Suppliers() {
 
   return (
     <div className="container mx-auto px-4 py-12">
+      {/* Back navigation */}
+      <div className="mb-6">
+        <Link href="/dashboard">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </Link>
+      </div>
+
       {/* Page header */}
       <div className="max-w-3xl mx-auto text-center mb-12">
         <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Supplier Network</h1>
