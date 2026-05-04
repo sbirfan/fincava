@@ -1397,40 +1397,15 @@ function OverviewPane({ buyer }: { buyer: BuyerDetail }) {
 
       {/* Phase 1 snapshot */}
       <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
-        <div>
-          <p className="text-xs text-white/40 uppercase tracking-wider">
-            Phase 1 — registration
-          </p>
-          <p className="text-[10px] text-white/25 mt-0.5">
-            Captured during buyer sign-up. Fields showing — were not collected at the time of registration.
-          </p>
-        </div>
+        <p className="text-xs text-white/40 uppercase tracking-wider">
+          Phase 1 — registration
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Volume band" value={buyer.volumeBand ?? "—"} />
-          <Field
-            label="Intended volume"
-            value={
-              buyer.intendedVolumeMt != null
-                ? `${buyer.intendedVolumeMt} MT`
-                : "—"
-            }
-          />
-          <Field label="Frequency" value={buyer.importFrequency ?? "—"} />
-          <Field label="Incoterm" value={buyer.preferredIncoterm ?? "—"} />
-          <Field
-            label="Destination port"
-            value={buyer.destinationPort ?? "—"}
-          />
-          <Field
-            label="Time to first order"
-            value={buyer.timeToFirstOrder ?? "—"}
-          />
+          <Field label="Time to first order" value={buyer.timeToFirstOrder ?? "—"} />
         </div>
         <Field label="Target products" value={fmtArr(buyer.targetProducts)} />
-        <Field
-          label="Required certifications (P1)"
-          value={fmtArr(buyer.requiredCertsP1)}
-        />
+        <Field label="Required certifications" value={fmtArr(buyer.requiredCertsP1)} />
       </div>
 
       {/* P2 Onboarding (S1–S4) */}
