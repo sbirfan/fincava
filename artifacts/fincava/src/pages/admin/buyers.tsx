@@ -1267,6 +1267,14 @@ const SECTION_LABELS: Record<string, string> = {
 };
 const ALL_SECTIONS = ["A", "B", "C", "D", "E", "F"] as const;
 
+const P2_WIZARD_LABELS: Record<string, string> = {
+  S1: "S1 — Company profile",
+  S2: "S2 — Product interests",
+  S3: "S3 — Volume & pricing",
+  S4: "S4 — Quality & values",
+};
+const P2_WIZARD_SECTIONS = ["S1", "S2", "S3", "S4"] as const;
+
 function fmtBool(v: boolean | null | undefined): string {
   if (v === true) return "Yes";
   if (v === false) return "No";
@@ -1328,16 +1336,19 @@ function OverviewPane({ buyer }: { buyer: BuyerDetail }) {
         className="rounded-lg border border-white/10 bg-white/5 p-3"
         data-testid="completeness-breakdown"
       >
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1">
           <p className="text-xs text-white/40 uppercase tracking-wider">
-            Completeness ({done.size}/{ALL_SECTIONS.length} sections)
+            P2 Wizard progress
           </p>
-          <span className="text-xs text-white/60 tabular-nums">
+          <span className="text-xs text-white/60 tabular-nums font-medium">
             {buyer.p2CompletionPct}%
           </span>
         </div>
+        <p className="text-[10px] text-white/30 mb-2">
+          Populated when buyer completes the onboarding wizard at /buyer/onboarding
+        </p>
         <div className="grid grid-cols-2 gap-1.5">
-          {ALL_SECTIONS.map((s) => {
+          {P2_WIZARD_SECTIONS.map((s) => {
             const isDone = done.has(s);
             return (
               <div
@@ -1354,18 +1365,46 @@ function OverviewPane({ buyer }: { buyer: BuyerDetail }) {
                 ) : (
                   <span className="h-3.5 w-3.5 inline-block rounded-full border border-white/30" />
                 )}
-                <span>{SECTION_LABELS[s]}</span>
+                <span>{P2_WIZARD_LABELS[s]}</span>
               </div>
             );
           })}
         </div>
+        {/* Legacy A–F section completion (old profile editor) */}
+        {ALL_SECTIONS.some((s) => done.has(s)) && (
+          <div className="mt-3 pt-2 border-t border-white/10">
+            <p className="text-[10px] text-white/30 mb-1.5">Legacy profile sections (A–F)</p>
+            <div className="flex flex-wrap gap-1">
+              {ALL_SECTIONS.map((s) => {
+                const isDone = done.has(s);
+                return (
+                  <span
+                    key={s}
+                    className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                      isDone
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                        : "bg-white/[0.02] border-white/10 text-white/40"
+                    }`}
+                  >
+                    {s}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Phase 1 snapshot */}
       <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
-        <p className="text-xs text-white/40 uppercase tracking-wider">
-          Phase 1 — registration
-        </p>
+        <div>
+          <p className="text-xs text-white/40 uppercase tracking-wider">
+            Phase 1 — registration
+          </p>
+          <p className="text-[10px] text-white/25 mt-0.5">
+            Captured during buyer sign-up. Fields showing — were not collected at the time of registration.
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Volume band" value={buyer.volumeBand ?? "—"} />
           <Field
