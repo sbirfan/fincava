@@ -1,0 +1,148 @@
+CONTEXT
+
+GATING RULE: If any part of this work is already complete, document evidence in ops/task_execution_log.md and skip only that part.
+
+BL-1 delivered F1 (routing) and F2 (editable buyer profile at /dashboard/profile). This task delivers F3: admin visibility and control over buyer P2 profiles.
+
+Three sub-features:
+F3a — New "Profile" tab in the existing admin buyer detail drawer
+F3b — Approval workflow with buyer-facing status display and email notification
+F3c — P2 completion % and approval status column on the admin buyer list
+
+PREFLIGHT — READ THESE FILES BEFORE ANYTHING ELSE
+1. AGENT_RULE.MD
+2. artifacts/fincava/src/pages/admin/buyers.tsx — full implementation: buyer list table, drawer structure, existing tabs (Overview / Matches / Gaps / Activity)
+3. artifacts/api-server/src/routes/admin.ts — find existing admin buyer endpoints (GET /api/admin/buyers, GET /api/admin/buyers/:id, any existing buyer update routes)
+4. lib/db/src/schema/ — find buyer_profiles table definition, confirm p2ApprovalStatus column does NOT yet exist
+5. lib/email.ts — confirm buyerRevisionRequestedEmail does NOT exist
+6. artifacts/fincava/src/pages/dashboard/profile.tsx — find where the approval status badge should be added (top of page, near the heading)
+
+OBJECTIVE
+F3a: Add a "Profile" tab to the admin buyer drawer showing P2 onboarding data with admin-editable override per section.
+F3b: Add approval workflow — status tracking, admin approve/revision actions, buyer-facing badge and email.
+F3c: Add P2 completion % and approval badge to the admin buyer list table.
+
+---
+
+FEATURE 3a — Admin Profile Tab
+
+Tab placement: Add "Profile" as the 4th tab in the buyer detail drawer (after Overview / Matches / Gaps, before Activity).
+
+Tab content — two parts:
+
+PART 1: P2 Profile display + admin override
+Display all 23 P2 fields from buyer_profiles in four collapsible section cards (same section structure as /dashboard/profile: Company Profile / Product Interests / Volume & Pricing / Quality & Values).
+
+For each field: show current value (or "—" if null) alongside an editable input.
+Admin can edit any field. Save button per section (explicit, not debounced — admin edits are intentional overrides).
+
+API for admin read: GET /api/admin/buyers/:id/onboarding (new endpoint)
+  Returns all 23 P2 fields + p2CompletionPct + p2SectionsDone + p2ApprovalStatus
+  Auth: requireAdmin
+
+API for admin save: PATCH /api/admin/buyers/:id/onboarding (new endpoint)
+  Accepts any subset of the 23 P2 fields
+  Does NOT recalculate p2CompletionPct — admin overrides are raw field updates only
+  Returns updated fields
+  Auth: requireAdmin
+
+PART 2: Approval workflow controls (below the section cards)
+Show current approval status with a badge (see F3b for status definitions).
+Three action buttons (shown based on current status — see logic below):
+  "Approve Profile" → sets p2ApprovalStatus to APPROVED
+  "Request Revisions" → sets p2ApprovalStatus to REVISION_REQUESTED; reveals a text input for the revision note (plain text, max 500 chars); on submit, saves note and fires buyerRevisionRequestedEmail
+  "Needs Attention" → sets p2ApprovalStatus to NEEDS_ATTENTION (for flagged issues without a buyer-facing note)
+
+Button visibility rules:
+  Status PENDING_REVIEW: show all three buttons
+  Status APPROVED: show "Request Revisions" and "Needs Attention" only
+  Status REVISION_REQUESTED: show "Approve Profile" and "Needs Attention" only
+  Status NEEDS_ATTENTION: show "Approve Profile" and "Request Revisions" only
+
+All three actions call PATCH /api/admin/buyers/:id/approval (new endpoint):
+  Body: { status, revisionNote? }
+  Auth: requireAdmin
+  On REVISION_REQUESTED: fire buyerRevisionRequestedEmail (fire-and-forget)
+  Returns updated p2ApprovalStatus + revisionNote
+
+---
+
+FEATURE 3b — Approval Workflow
+
+Schema migration:
+Add two columns to buyer_profiles:
+  p2_approval_status text DEFAULT 'PENDING_REVIEW' NOT NULL
+  p2_revision_note text (nullable)
+
+Use direct DDL (established pattern — do NOT run Drizzle omnibus migration):
+  ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS p2_approval_status text NOT NULL DEFAULT 'PENDING_REVIEW';
+  ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS p2_revision_note text;
+Verify both via information_schema.columns after applying.
+
+Status values: PENDING_REVIEW | APPROVED | REVISION_REQUESTED | NEEDS_ATTENTION
+(No REJECTED — account-level decisions are separate from profile approval)
+
+Auto-transition rule: when PATCH /api/buyer/onboarding sets p2CompletionPct to 100 for the first time (previous value < 100, new value = 100), automatically set p2ApprovalStatus to PENDING_REVIEW if current status is null or PENDING_REVIEW. Do not change status if it is already APPROVED, REVISION_REQUESTED, or NEEDS_ATTENTION.
+
+New email template — buyerRevisionRequestedEmail(opts):
+  opts: { buyerName, buyerEmail, revisionNote, profileUrl }
+  Subject: "Action needed: your Fincava sourcing profile needs updates"
+  Body: greeting, explain the team has reviewed their profile and needs some updates, show the revision note in a highlighted box, CTA button "Update My Profile" → profileUrl
+  Follow existing baseTemplate/esc pattern in email.ts
+  Fire-and-forget on PATCH /api/admin/buyers/:id/approval when status = REVISION_REQUESTED
+
+Buyer-facing status badge:
+Add to /dashboard/profile.tsx at the top of the page, below the heading:
+  PENDING_REVIEW: subtle gray badge "Under Review"
+  APPROVED: green badge "Profile Approved ✓"
+  REVISION_REQUESTED: amber alert box (not just a badge) showing:
+    "Updates requested by the Fincava team: [revisionNote]"
+    CTA: "Update My Profile" scrolls to first incomplete or flagged section
+  NEEDS_ATTENTION: amber badge "Flagged for Review" — no note shown to buyer
+  Null / no profile: no badge shown
+
+Data source: read p2ApprovalStatus and p2_revision_note from GET /api/buyer/onboarding response (add these two fields to the endpoint's SELECT).
+
+---
+
+FEATURE 3c — Admin Buyer List Enhancement
+
+In the admin buyers list table (admin/buyers.tsx):
+Add two columns after the existing "State" column:
+  Column 1: "Profile" — shows p2CompletionPct as a compact progress bar (e.g. 65%) with color coding (<50 red, 50–79 amber, 80–99 blue, 100 green)
+  Column 2: "Status" — shows p2ApprovalStatus as a badge:
+    PENDING_REVIEW: gray "Pending"
+    APPROVED: green "Approved"
+    REVISION_REQUESTED: amber "Revisions"
+    NEEDS_ATTENTION: amber "Flagged"
+    null: gray "—"
+
+These two values must be included in the existing GET /api/admin/buyers list response.
+Check whether the list endpoint already returns buyer_profiles fields. If not, LEFT JOIN buyer_profiles on user_id and include p2CompletionPct and p2ApprovalStatus in the SELECT.
+
+CONSTRAINTS
+No changes to /dashboard/profile.tsx beyond adding the approval status badge (F3b buyer-facing piece).
+Admin overrides via PATCH /api/admin/buyers/:id/onboarding do NOT recalculate p2CompletionPct.
+buyerRevisionRequestedEmail fires only on REVISION_REQUESTED status transitions — not on APPROVED or NEEDS_ATTENTION.
+Matching is NOT auto-triggered on approval — separate admin action.
+
+ACCEPTANCE CRITERIA
+1. "Profile" tab visible in admin buyer drawer
+2. All 23 P2 fields displayed and editable per section, with explicit Save per section
+3. PATCH /api/admin/buyers/:id/onboarding saves fields without recalculating completion %
+4. Approval action buttons shown/hidden based on current status
+5. PATCH /api/admin/buyers/:id/approval sets status correctly
+6. buyerRevisionRequestedEmail fires on REVISION_REQUESTED (logged if RESEND absent)
+7. p2_approval_status and p2_revision_note columns verified in information_schema.columns
+8. Buyer sees correct status badge on /dashboard/profile
+9. REVISION_REQUESTED buyer sees revision note in amber alert
+10. Admin buyer list shows p2CompletionPct and p2ApprovalStatus columns
+11. pnpm typecheck passes
+
+DO NOT EXECUTE IMMEDIATELY.
+Show the current admin buyer drawer tab structure (exact tab names and component structure).
+Show the current GET /api/admin/buyers list endpoint — does it already JOIN buyer_profiles? Which fields does it return?
+Confirm p2_approval_status and p2_revision_note do NOT yet exist in buyer_profiles.
+Confirm buyerRevisionRequestedEmail does NOT yet exist in email.ts.
+Show how GET /api/buyer/onboarding currently SELECTs from buyer_profiles — confirm p2ApprovalStatus and p2RevisionNote are not yet in the response.
+Wait for approval.
