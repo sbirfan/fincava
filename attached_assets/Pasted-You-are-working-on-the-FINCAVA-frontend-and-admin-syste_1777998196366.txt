@@ -1,0 +1,306 @@
+You are working on the FINCAVA frontend and admin system.
+
+This is NOT an implementation task yet.
+
+This is a structured ANALYSIS + DESIGN + REVIEW task.
+
+You must:
+1. Perform a full frontend truth-in-claims audit
+2. Evaluate all public numbers and claims
+3. Propose a controlled system for managing those numbers
+4. Present findings and proposed updates using Replit Canvas
+5. Ask for approval before making ANY code changes
+
+DO NOT implement changes until explicitly approved.
+
+--------------------------------------------------
+CONTEXT
+--------------------------------------------------
+
+FINCAVA is in early-stage build.
+
+Many public-facing numbers and claims (homepage, markets page, etc.) may:
+- Be hardcoded
+- Be outdated
+- Be based on assumptions
+- Be partially true but not verified
+- Be aspirational (not yet real)
+
+We do NOT want to:
+- Show false precision
+- Show unverified traction
+- Show misleading “live” claims
+- Remove valuable metrics unnecessarily
+
+Instead:
+We want a **controlled, admin-driven system** where metrics can be:
+- Verified
+- Toggled on/off
+- Previewed before publishing
+
+--------------------------------------------------
+OBJECTIVES
+--------------------------------------------------
+
+1. Identify ALL public-facing claims and numbers
+2. Compare them against actual platform/data reality
+3. Classify each claim
+4. Propose:
+   - Copy corrections
+   - Visibility rules
+   - Admin-controlled metrics system
+5. Present everything BEFORE implementation
+
+--------------------------------------------------
+SCOPE
+--------------------------------------------------
+
+Focus on:
+
+1. Homepage / Index page
+2. Markets page
+3. Platform page (if relevant to claims)
+4. i18n / translations
+5. Stat cards
+6. Traction sections
+7. Buyer/Supplier sections
+8. Hero sections
+9. Metadata / SEO copy
+
+--------------------------------------------------
+PREFLIGHT ANALYSIS
+--------------------------------------------------
+
+Search for ALL instances of:
+
+Numbers / claims:
+- “12+”
+- “15+”
+- “85+”
+- “$4.2M”
+- “Trade Facilitated”
+- “Countries Reached”
+- “Verified Producers”
+- “Active buyers”
+- “Live order flow”
+- “Real trade”
+- “Shipments”
+- “Tracked”
+- “Markets”
+- “Regions”
+
+Capability claims:
+- logistics
+- distribution
+- tracking
+- compliance
+- finance (ensure still removed)
+- export-ready
+- real-time
+- live
+
+--------------------------------------------------
+DATA SOURCE VALIDATION
+--------------------------------------------------
+
+For EACH claim determine:
+
+1. Is it:
+   - Hardcoded frontend
+   - Pulled from API
+   - Derived from DB
+   - Seed/mock/demo data
+   - Admin-controlled
+   - Unknown
+
+2. If dynamic:
+   - Identify exact data source
+   - Confirm if data is real or mock
+
+3. If hardcoded:
+   - Check if it reflects current reality
+
+--------------------------------------------------
+CLASSIFICATION SYSTEM
+--------------------------------------------------
+
+Classify EVERY claim into:
+
+A. KEEP
+- Backed by real, live, verifiable data
+
+B. REWRITE
+- Directionally useful but overstated
+- Needs early-stage positioning
+
+C. HIDE
+- Misleading or unsupported
+
+D. ADMIN-CONTROLLED
+- Valuable but should not be hardcoded
+- Should be toggleable
+
+E. NEEDS CONFIRMATION
+- Cannot verify from code/data
+
+--------------------------------------------------
+CRITICAL RULE
+--------------------------------------------------
+
+NO number should appear publicly unless:
+
+- It is live-data backed
+OR
+- It has:
+  - Source
+  - Owner
+  - Last verified date
+
+--------------------------------------------------
+ADMIN-CONTROLLED PUBLIC METRICS SYSTEM (DESIGN TASK)
+--------------------------------------------------
+
+Design (DO NOT IMPLEMENT) a system for:
+
+Public Metrics Management
+
+Each metric should include:
+- metric_key
+- label
+- value
+- description (optional)
+- source_type:
+  - live_db
+  - manual_verified
+  - external_research
+- source_note (text or URL)
+- last_verified_date
+- owner
+- visibility_toggle (true/false)
+- status:
+  - draft
+  - published
+
+Admin Console Requirements:
+- View all public metrics
+- Edit values and labels
+- Toggle visibility ON/OFF
+- Preview before publish
+- See source + verification info
+- Publish/unpublish without code changes
+
+Frontend Behavior:
+- Render ONLY metrics marked:
+  visible = true AND status = published
+- If hidden:
+  - Layout collapses cleanly
+- If entire section empty:
+  - Replace with early-stage language OR hide section
+
+--------------------------------------------------
+HOMEPAGE STRATEGY
+--------------------------------------------------
+
+Where numbers are not verified:
+
+Replace with early-stage positioning:
+
+Example:
+“FINCAVA is building a trusted sourcing platform for Colombian agricultural trade. We are onboarding early suppliers and buyers now.”
+
+DO NOT:
+- Invent new numbers
+- Replace false claims with different false claims
+
+--------------------------------------------------
+MARKETS PAGE STRATEGY
+--------------------------------------------------
+
+Determine:
+
+Is it:
+1. Dynamic market data → KEEP (if real)
+2. Research-based → LABEL clearly
+3. Hardcoded → MOVE to admin control OR rewrite
+
+Rules:
+- “Target Markets” = SAFE
+- “Active Markets” = ONLY if verified
+
+--------------------------------------------------
+REQUIRED OUTPUT (BEFORE ANY CHANGES)
+--------------------------------------------------
+
+You must produce:
+
+1. Executive Summary
+
+2. Current State vs Reality Analysis
+
+3. Claim Inventory Table:
+   - Claim
+   - Location
+   - Source type
+   - Risk level
+   - Classification
+   - Recommendation
+
+4. Homepage Plan (REPLIT CANVAS REQUIRED):
+   Show:
+   - Current version
+   - Proposed version
+   - Section-by-section updates
+
+5. Markets Page Analysis
+
+6. Admin Metrics System Proposal
+
+7. Data Strategy Recommendation:
+   - What becomes dynamic
+   - What becomes admin-controlled
+   - What gets removed
+
+8. Open Questions / Missing Info
+
+--------------------------------------------------
+CANVAS REQUIREMENT
+--------------------------------------------------
+
+Use Replit Canvas to show:
+
+1. Homepage:
+   - Before vs After
+   - Updated sections
+   - Removed claims
+   - Rewritten copy
+
+2. Admin Console (Concept):
+   - Public Metrics dashboard layout
+   - Example metric entries
+   - Toggle behavior
+   - Preview state
+
+--------------------------------------------------
+IMPORTANT EXECUTION RULE
+--------------------------------------------------
+
+DO NOT:
+- Modify code
+- Apply changes
+- Remove content
+- Add new content
+
+UNTIL:
+- Findings are presented
+- Canvas review is complete
+- Approval is explicitly given
+
+--------------------------------------------------
+GOAL
+--------------------------------------------------
+
+Move FINCAVA from:
+“Hardcoded marketing claims”
+
+TO:
+“A controlled, trustworthy, data-driven public narrative”
