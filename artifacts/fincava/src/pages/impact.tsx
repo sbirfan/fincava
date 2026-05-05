@@ -18,10 +18,30 @@ interface ImpactData {
   tradeVolumeUSD: number;
 }
 
+// Placeholder profiles — not real individuals. Real producer stories will be added
+// when verified by the team and published through the admin content system.
 const FARMER_STORIES = [
-  { name: "Carlos Andres Muñoz", region: "Huila", product: "Specialty Coffee", quote: "Direct trade changed everything. I can plan my children's futures now.", photo: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=200" },
-  { name: "Doña Esperanza Villamil", region: "Tumaco", product: "Fine Cacao", quote: "When buyers know my name, the relationship changes. We are partners.", photo: "https://images.unsplash.com/photo-1595701003538-e7e76b5eeea4?w=200" },
-  { name: "Ximena Patiño Gómez", region: "Sierra Nevada", product: "Coffee 90.3pts", quote: "I returned to my land because I believed in the future. Fincava made that future real.", photo: "https://images.unsplash.com/photo-1546961342-ea5f62d918e2?w=200" },
+  {
+    name: "Specialty Coffee Producer",
+    region: "Huila",
+    product: "Specialty Coffee",
+    quote: "Direct trade relationships allow producers to invest in quality, plan ahead, and build a sustainable business for the next generation.",
+    photo: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=200",
+  },
+  {
+    name: "Cacao Farmer, Pacific Coast",
+    region: "Tumaco",
+    product: "Fine Cacao",
+    quote: "When buyers understand the origin of what they source, the relationship becomes a partnership — not just a transaction.",
+    photo: "https://images.unsplash.com/photo-1595701003538-e7e76b5eeea4?w=200",
+  },
+  {
+    name: "Smallholder Coffee Grower",
+    region: "Sierra Nevada",
+    product: "Specialty Coffee",
+    quote: "Access to verified international buyers changes what is possible on a small farm. Quality becomes worth investing in.",
+    photo: "https://images.unsplash.com/photo-1546961342-ea5f62d918e2?w=200",
+  },
 ];
 
 const SDG_GOALS = [
@@ -104,14 +124,14 @@ export default function Impact() {
       <section className="py-20 bg-card border-y">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">Farmers Behind Your Products</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">These are real people with real farms, real challenges, and real futures shaped by your sourcing decisions.</p>
+            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Producers We Work With</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">The Fincava network connects buyers with smallholder farming communities across Colombia's key agricultural regions. Below is an illustration of the types of producers we work with.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {FARMER_STORIES.map(farmer => (
               <Card key={farmer.name} className="overflow-hidden">
                 <div className="h-48 bg-muted relative overflow-hidden">
-                  <img src={farmer.photo} alt={farmer.name} className="w-full h-full object-cover object-top" />
+                  <img src={farmer.photo} alt={`${farmer.product} producer, ${farmer.region}`} className="w-full h-full object-cover object-top" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <div className="absolute bottom-3 left-4 text-white">
                     <p className="font-semibold">{farmer.name}</p>

@@ -39,12 +39,12 @@ const SUPPLIER_FEATURE_ICONS = [Globe, Banknote, Truck, Star];
 const TRACTION_STAT_ICONS = [ShieldCheck, MapPin, Users, BarChart3];
 
 const SUPPLIER_MARKETS = [
-  { flag: "🇸🇦", market: "Saudi Arabia", orders: "3 active" },
-  { flag: "🇯🇵", market: "Japan", orders: "1 active" },
-  { flag: "🇰🇷", market: "South Korea", orders: "2 active" },
-  { flag: "🇦🇪", market: "UAE", orders: "4 active" },
-  { flag: "🇸🇬", market: "Singapore", orders: "1 active" },
-  { flag: "🇳🇱", market: "Netherlands", orders: "2 active" },
+  { flag: "🇸🇦", market: "Saudi Arabia", status: "Target market" },
+  { flag: "🇯🇵", market: "Japan", status: "Target market" },
+  { flag: "🇰🇷", market: "South Korea", status: "Target market" },
+  { flag: "🇦🇪", market: "UAE", status: "Target market" },
+  { flag: "🇸🇬", market: "Singapore", status: "Target market" },
+  { flag: "🇳🇱", market: "Netherlands", status: "Target market" },
 ];
 
 export default function Home() {
@@ -118,13 +118,11 @@ export default function Home() {
 
           <motion.div
             variants={fadeUp} initial="hidden" animate="visible" custom={4}
-            className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/8 rounded-2xl overflow-hidden border border-white/10 max-w-3xl mx-auto"
+            className="mt-20 grid grid-cols-2 gap-px bg-white/8 rounded-2xl overflow-hidden border border-white/10 max-w-lg mx-auto"
           >
             {[
-              { value: stats?.verifiedSuppliers || "12+", label: h.hero.stats.producers },
-              { value: stats?.totalProducts || "40+", label: h.hero.stats.products },
-              { value: "15+", label: h.hero.stats.countries },
-              { value: "$4.2M+", label: h.hero.stats.trade },
+              { value: stats?.verifiedSuppliers ?? "–", label: h.hero.stats.producers },
+              { value: stats?.totalProducts ?? "–", label: h.hero.stats.products },
             ].map(m => (
               <div key={m.label} className="bg-white/[0.04] px-6 py-5 text-center">
                 <div className="text-2xl font-bold text-white mb-0.5">{m.value}</div>
@@ -319,18 +317,6 @@ export default function Home() {
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${o.statusColor}`}>{o.status}</span>
                   </div>
                 ))}
-                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-border">
-                  {[
-                    { label: h.forBuyers.dashboard.leadTime, value: "14 days" },
-                    { label: h.forBuyers.dashboard.docs, value: "100%" },
-                    { label: h.forBuyers.dashboard.satisfaction, value: "4.9 ★" },
-                  ].map(s => (
-                    <div key={s.label} className="text-center">
-                      <div className="text-base font-bold">{s.value}</div>
-                      <div className="text-xs text-muted-foreground">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </motion.div>
           </div>
@@ -356,7 +342,7 @@ export default function Home() {
                     <div key={m.market} className="p-3 rounded-xl border border-border bg-card text-center">
                       <div className="text-xl mb-1">{m.flag}</div>
                       <div className="text-xs font-medium leading-tight">{m.market}</div>
-                      <div className="text-[10px] text-primary mt-0.5">{m.orders}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{m.status}</div>
                     </div>
                   ))}
                 </div>
@@ -383,8 +369,8 @@ export default function Home() {
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-8">
                 {ENABLE_FINANCE ? h.forSuppliers.sub : lang === "es"
-                  ? "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en más de 15 países, con logística para entregar."
-                  : "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers in 15+ countries, with logistics to deliver."}
+                  ? "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en mercados objetivo."
+                  : "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers across target markets."}
               </p>
               <div className="space-y-4">
                 {h.forSuppliers.features.map((f, i) => {
@@ -437,18 +423,20 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              {h.traction.stats.map((s, i) => {
-                const Icon = TRACTION_STAT_ICONS[i];
-                return (
-                  <div key={s.label} className="bg-primary-foreground/10 rounded-2xl p-6 border border-primary-foreground/10">
-                    <Icon className="w-6 h-6 text-primary-foreground/50 mb-3" />
-                    <div className="text-3xl font-bold mb-1">{s.value}</div>
-                    <div className="text-primary-foreground/60 text-sm">{s.label}</div>
-                  </div>
-                );
-              })}
-            </div>
+            {h.traction.stats.length > 0 && (
+              <div className="grid grid-cols-2 gap-4">
+                {h.traction.stats.map((s, i) => {
+                  const Icon = TRACTION_STAT_ICONS[i];
+                  return (
+                    <div key={s.label} className="bg-primary-foreground/10 rounded-2xl p-6 border border-primary-foreground/10">
+                      <Icon className="w-6 h-6 text-primary-foreground/50 mb-3" />
+                      <div className="text-3xl font-bold mb-1">{s.value}</div>
+                      <div className="text-primary-foreground/60 text-sm">{s.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </section>
