@@ -1,0 +1,39 @@
+Perform a frontend content sweep to remove or hide all finance-related public claims from fincava.com until the Finance Layer is formally launched.
+
+Scope:
+- Search all frontend files for finance-related terms:
+  finance, financing, embedded finance, trade finance, credit, loan, lending, advance, working capital, escrow, FX, factoring, letter of credit, LC, repayment, margin, spread, harvest loan, PO financing.
+- Include i18n files, public pages, dashboard routes, nav, metadata, SEO text, cards, feature lists, CTAs, comparison tables, investor pages, and route config.
+
+Required changes:
+1. Homepage:
+   - Remove claims that finance is built in or currently available.
+   - Replace with current-state language focused on verified sourcing, compliance documentation, RFQ workflow, buyer/supplier coordination, and traceability.
+
+2. Platform page:
+   - Remove Embedded Finance as an active layer.
+   - Do not claim Fincava offers escrow, FX, credit scoring, PO financing, producer loans, LC support, or payment release.
+   - Reframe finance as a future roadmap layer only if mentioned at all.
+
+3. Investors page:
+   - Hide or remove public-facing finance revenue claims including embedded finance spread, PO financing margins, harvest loan margins, FX spread, trade finance gap, and finance lock-in.
+   - Do not expose finance economics publicly until approved.
+
+4. Supplier dashboard:
+   - Hide or feature-flag the supplier finance route/page.
+   - Do not show “Trade Finance,” “working capital advances,” “credit score,” “advance limit,” “repayment history,” or financing workflow unless the finance feature flag is explicitly enabled.
+
+5. Navigation/routes:
+   - Ensure no public or authenticated nav item points users to finance features.
+   - If route remains for future development, protect it with a disabled feature flag and show no public claim.
+
+6. Spanish translations:
+   - Apply equivalent removals/replacements in Spanish copy.
+
+Validation:
+- Run grep/search for all finance-related terms after changes.
+- Confirm remaining matches are only internal code/schema/docs or clearly future-roadmap language.
+- Run typecheck/build.
+- Report every changed file, every removed claim, and any remaining finance references with justification.
+
+Do not alter database schema or backend finance tables. This is a frontend content and route-visibility cleanup only.
