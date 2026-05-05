@@ -3,6 +3,7 @@ import { motion, type Variants } from "framer-motion";
 import { CheckCircle2, Globe, Landmark, Package, ArrowRight, Zap, Shield, BarChart2, Cpu, Database, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ENABLE_FINANCE } from "@/lib/flags";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -79,11 +80,19 @@ const COMPARISON = [
 const TECH = [
   { icon: Cpu, label: "Agentic AI", desc: "AI agents route RFQs, match buyers, flag compliance risks, and generate trade documents automatically." },
   { icon: Database, label: "Live Data Layer", desc: "PostgreSQL-backed data platform tracking 100% of trade events — prices, volumes, routes, geographies." },
-  { icon: Network, label: "Modular API", desc: "Every layer exposes a composable API — Market Access, Finance, Distribution can be used independently." },
+  { icon: Network, label: "Modular API", desc: `Every layer exposes a composable API — Market Access${ENABLE_FINANCE ? ", Finance," : " and"} Distribution can be used independently.` },
   { icon: Shield, label: "Trust Infrastructure", desc: "Supplier trust scores, buyer verification, and escrow-based settlement protect every transaction." },
   { icon: BarChart2, label: "Market Intelligence", desc: "Live price benchmarks, demand signals, and regulatory alerts for every target market and product." },
   { icon: Zap, label: "Automation", desc: "Export docs, customs filings, LC generation, and payment release are triggered automatically on-chain of events." },
 ];
+
+const VISIBLE_LAYERS = ENABLE_FINANCE
+  ? LAYERS
+  : LAYERS.filter((l) => l.title !== "Embedded Finance (Launching Soon)");
+
+const VISIBLE_COMPARISON = ENABLE_FINANCE
+  ? COMPARISON
+  : COMPARISON.filter((r) => r.capability !== "Embedded trade finance");
 
 export default function Platform() {
   return (
@@ -98,11 +107,11 @@ export default function Platform() {
             transition={{ duration: 0.6 }}
             className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-6 leading-tight"
           >
-            Three Layers.<br />
+            {ENABLE_FINANCE ? "Three Layers." : "Two Layers."}<br />
             <span className="text-primary">One Operating System.</span>
           </motion.h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            Fincava is not a marketplace. It's the infrastructure layer that unifies Market Access, Embedded Finance, and Distribution into a single composable system for emerging market commerce.
+            Fincava is not a marketplace. It's the infrastructure layer that unifies Market Access{ENABLE_FINANCE ? ", Embedded Finance," : ""} and Distribution into a single composable system for emerging market commerce.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/register">
@@ -120,7 +129,7 @@ export default function Platform() {
       {/* Three Layers */}
       <section className="py-20 container mx-auto px-4">
         <div className="text-center mb-14">
-          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Three System Layers</h2>
+          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">{ENABLE_FINANCE ? "The Three System Layers" : "The Platform Layers"}</h2>
           <p className="text-muted-foreground max-w-xl mx-auto">Each layer solves a distinct infrastructure failure. Together, they eliminate the compounding inefficiencies that make emerging market trade so expensive.</p>
         </div>
         <motion.div
@@ -130,7 +139,7 @@ export default function Platform() {
           viewport={{ once: true }}
           className="space-y-8"
         >
-          {LAYERS.map((layer) => (
+          {VISIBLE_LAYERS.map((layer) => (
             <motion.div key={layer.title} variants={fadeUp} className={`rounded-2xl border p-8 ${layer.color.replace("text-", "").replace("bg-", "border-")}`}>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1">
@@ -183,7 +192,7 @@ export default function Platform() {
                 </tr>
               </thead>
               <tbody>
-                {COMPARISON.map((row, i) => (
+                {VISIBLE_COMPARISON.map((row, i) => (
                   <tr key={row.capability} className={i % 2 === 0 ? "bg-background/50" : ""}>
                     <td className="py-3 pr-6 text-sm">{row.capability}</td>
                     <td className="py-3 px-4 text-center">{row.fincava ? <CheckCircle2 className="w-5 h-5 text-primary mx-auto" /> : <span className="text-muted-foreground text-lg">—</span>}</td>
@@ -226,7 +235,7 @@ export default function Platform() {
       <section className="py-20 bg-primary text-primary-foreground text-center">
         <div className="container mx-auto px-4 max-w-2xl">
           <h2 className="text-3xl md:text-4xl font-serif font-bold mb-5">Ready to trade on infrastructure?</h2>
-          <p className="text-primary-foreground/80 mb-8 leading-relaxed">Join the buyers and producers already using Fincava to source, finance, and ship Colombian agricultural products globally.</p>
+          <p className="text-primary-foreground/80 mb-8 leading-relaxed">Join the buyers and producers already using Fincava to source{ENABLE_FINANCE ? ", finance," : ""} and ship Colombian agricultural products globally.</p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/register">
               <Button size="lg" variant="secondary">Create Account <ArrowRight className="w-4 h-4 ml-2" /></Button>
