@@ -81,9 +81,9 @@ const TECH = [
   { icon: Cpu, label: "Agentic AI", desc: "AI agents route RFQs, match buyers, flag compliance risks, and generate trade documents automatically." },
   { icon: Database, label: "Live Data Layer", desc: "PostgreSQL-backed data platform tracking 100% of trade events — prices, volumes, routes, geographies." },
   { icon: Network, label: "Modular API", desc: `Every layer exposes a composable API — Market Access${ENABLE_FINANCE ? ", Finance," : " and"} Distribution can be used independently.` },
-  { icon: Shield, label: "Trust Infrastructure", desc: "Supplier trust scores, buyer verification, and escrow-based settlement protect every transaction." },
+  { icon: Shield, label: "Trust Infrastructure", desc: `Supplier trust scores, buyer verification, and ${ENABLE_FINANCE ? "escrow-based settlement" : "compliance checks"} protect every transaction.` },
   { icon: BarChart2, label: "Market Intelligence", desc: "Live price benchmarks, demand signals, and regulatory alerts for every target market and product." },
-  { icon: Zap, label: "Automation", desc: "Export docs, customs filings, LC generation, and payment release are triggered automatically on-chain of events." },
+  { icon: Zap, label: "Automation", desc: `Export docs, customs filings,${ENABLE_FINANCE ? " LC generation," : ""} and payment release are triggered automatically on-chain of events.` },
 ];
 
 const VISIBLE_LAYERS = ENABLE_FINANCE

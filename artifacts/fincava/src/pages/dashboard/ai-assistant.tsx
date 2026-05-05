@@ -20,14 +20,14 @@ const STARTER_PROMPTS_BUYER_EN = [
   "How do I post my first RFQ?",
   "What does a verified supplier badge mean?",
   "Which incoterm should I choose for green coffee?",
-  "How do escrow payments work on Fincava?",
+  "How does shipment tracking work on Fincava?",
 ];
 
 const STARTER_PROMPTS_BUYER_ES = [
   "¿Cómo publico mi primera RFQ?",
   "¿Qué significa la insignia de proveedor verificado?",
   "¿Qué incoterm debo elegir para café verde?",
-  "¿Cómo funcionan los pagos en custodia (escrow)?",
+  "¿Cómo funciona el seguimiento de envíos en Fincava?",
 ];
 
 const STARTER_PROMPTS_SUPPLIER_EN = [
