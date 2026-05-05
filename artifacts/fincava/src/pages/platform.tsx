@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion, type Variants } from "framer-motion";
-import { CheckCircle2, Globe, Landmark, Package, ArrowRight, Zap, Shield, BarChart2, Cpu, Database, Network } from "lucide-react";
+import { CheckCircle2, Globe, Landmark, Package, ArrowRight, Zap, Shield, BarChart2, Cpu, Database, Network, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ENABLE_FINANCE } from "@/lib/flags";
@@ -34,18 +34,18 @@ const LAYERS = [
     badge: "Layer 02",
     color: "bg-amber-50 border-amber-200 text-amber-700",
     dot: "bg-amber-500",
-    icon: Landmark,
-    title: "Embedded Finance (Launching Soon)",
-    subtitle: "Trade finance infrastructure built directly into every transaction.",
+    icon: FileText,
+    title: "Transaction Coordination",
+    subtitle: "Structured workflows for turning buyer interest into clear, documented sourcing opportunities.",
     features: [
-      "Purchase order financing for verified buyers",
-      "Harvest and pre-shipment producer loans",
-      "Letter of credit (LC) issuance support",
-      "FX conversion at institutional rates",
-      "Escrow-based payment release on delivery confirmation",
-      "Credit scoring via on-platform trade history",
+      "RFQ response coordination",
+      "Product specification alignment",
+      "Order detail confirmation",
+      "Compliance document preparation",
+      "Buyer–supplier communication",
+      "Admin visibility into sourcing progress",
     ],
-    who: "Buyers needing payment terms, producers needing working capital",
+    who: "Buyers, suppliers, and Fincava operators",
   },
   {
     badge: "Layer 03",
@@ -53,14 +53,14 @@ const LAYERS = [
     dot: "bg-sky-500",
     icon: Package,
     title: "Distribution (Launching Soon)",
-    subtitle: "End-to-end logistics and compliance from farm gate to destination port.",
+    subtitle: "Planned partner-supported delivery infrastructure to connect Colombian producers with global import destinations.",
     features: [
-      "Cross-border freight booking (sea, air, multimodal)",
-      "Export documentation automation (phyto, CO, BL)",
-      "Cold-chain and temperature-controlled routing",
-      "Shipment tracking with event notifications",
-      "Customs pre-clearance coordination",
-      "Last-mile coordination in UAE, KSA, and Singapore",
+      "Partner freight coordination (planned)",
+      "Export documentation support",
+      "Cold-chain routing (partner-supported)",
+      "Shipment milestone visibility",
+      "Customs clearance guidance (partner-supported)",
+      "Delivery readiness support for key markets",
     ],
     who: "Suppliers and logistics coordinators",
   },
@@ -68,7 +68,7 @@ const LAYERS = [
 
 const COMPARISON = [
   { capability: "Producer verification", fincava: true, broker: false, traditional: false },
-  { capability: "Embedded trade finance", fincava: true, broker: false, traditional: false },
+  { capability: "Transaction coordination", fincava: true, broker: false, traditional: false },
   { capability: "Direct buyer-producer pricing", fincava: true, broker: false, traditional: false },
   { capability: "Real-time RFQ routing", fincava: true, broker: false, traditional: false },
   { capability: "Compliance intelligence", fincava: true, broker: false, traditional: true },
@@ -107,11 +107,13 @@ export default function Platform() {
             transition={{ duration: 0.6 }}
             className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-6 leading-tight"
           >
-            {ENABLE_FINANCE ? "Three Layers." : "Two Layers."}<br />
+            {ENABLE_FINANCE ? "Three Layers." : "Three Steps."}<br />
             <span className="text-primary">One Operating System.</span>
           </motion.h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            Fincava is not a marketplace. It's the infrastructure layer that unifies Market Access{ENABLE_FINANCE ? ", Embedded Finance," : ""} and Distribution into a single composable system for emerging market commerce.
+            {ENABLE_FINANCE
+              ? "Fincava is not a marketplace. It's the infrastructure layer that unifies Market Access, Embedded Finance, and Distribution into a single composable system for emerging market commerce."
+              : "Fincava is not a marketplace. It's the sourcing infrastructure that takes buyers and suppliers from verified discovery through transaction coordination to delivery readiness."}
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/register">
@@ -129,8 +131,8 @@ export default function Platform() {
       {/* Three Layers */}
       <section className="py-20 container mx-auto px-4">
         <div className="text-center mb-14">
-          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">{ENABLE_FINANCE ? "The Three System Layers" : "The Platform Layers"}</h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">Each layer solves a distinct infrastructure failure. Together, they eliminate the compounding inefficiencies that make emerging market trade so expensive.</p>
+          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">{ENABLE_FINANCE ? "The Three System Layers" : "The Platform Workflow"}</h2>
+          <p className="text-muted-foreground max-w-xl mx-auto">Each step reduces friction in the sourcing process. Together, they help buyers and suppliers move from discovery to order coordination and delivery readiness with greater transparency.</p>
         </div>
         <motion.div
           variants={stagger}

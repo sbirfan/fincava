@@ -1,0 +1,111 @@
+You are working on the FINCAVA frontend.
+
+Task:
+Fix the frontend copy and layout gaps created by removing finance-related content from the homepage “How It Works” section and the Platform page “Platform Layers” section.
+
+Context:
+The Finance tile/layer was removed because FINCAVA is not launching the Finance Layer yet. However, removing it left broken copy and visual gaps. Do not reintroduce finance claims, payment claims, lending claims, escrow claims, FX claims, credit claims, or “getting paid” language.
+
+Preflight:
+1. Search the frontend for:
+   - “Three layers”
+   - “One seamless trade”
+   - “getting paid”
+   - “Embedded Finance”
+   - “finance”
+   - “financing”
+   - “credit”
+   - “loan”
+   - “escrow”
+   - “FX”
+   - “factoring”
+   - “letter of credit”
+   - “LC”
+   - “working capital”
+2. Identify all homepage, platform page, i18n, and route/copy locations affected.
+3. Before editing, confirm whether these sections are hardcoded in page files or driven by translations.ts.
+
+Required homepage changes:
+Replace the “How It Works” header/copy:
+
+Current problematic copy:
+“How It Works”
+“Three layers. One seamless trade.”
+“Every trade on Fincava moves through three integrated layers: from finding each other to getting paid to receiving your goods.”
+
+Replace with:
+“How It Works”
+“From discovery to delivery, Fincava simplifies each step of sourcing Colombian agricultural products.”
+“Fincava helps buyers and suppliers move from verified discovery to transaction coordination and delivery readiness through a clear, structured sourcing workflow.”
+
+Replace the removed Finance tile with a new middle tile:
+
+Step 02
+Transaction Coordination
+
+Buyer copy:
+“Align on pricing, quantities, specifications, and documentation before shipment begins.”
+
+Supplier copy:
+“Manage buyer requests, confirm order details, and prepare the information needed for export readiness.”
+
+Capabilities:
+- Order confirmation workflow
+- Specification alignment
+- Document preparation support
+- Buyer–supplier communication
+
+Keep Step 01 as Market Access, but make sure it does not mention finance.
+Keep Step 03 as Distribution / Launching Soon, but make sure it does not imply FINCAVA currently owns logistics, shipment contracts, customs, or delivery execution.
+
+Required Platform page changes:
+Fix this section:
+
+Current problematic copy:
+“The Platform Layers”
+“Each layer solves a distinct infrastructure failure. Together, they eliminate the compounding inefficiencies that make emerging market trade so expensive.”
+
+Replace with:
+“The Platform Workflow”
+“Each step reduces friction in the sourcing process. Together, they help buyers and suppliers move from discovery to order coordination and delivery readiness with greater transparency.”
+
+Replace the removed finance layer tile with:
+
+Layer 02
+Transaction Coordination
+
+Subtitle:
+“Structured workflows for turning buyer interest into clear, documented sourcing opportunities.”
+
+Features:
+- RFQ response coordination
+- Product specification alignment
+- Order detail confirmation
+- Compliance document preparation
+- Buyer–supplier communication
+- Admin visibility into sourcing progress
+
+Used by:
+“Buyers, suppliers, and FINCAVA operators”
+
+Keep Market Access as Layer 01.
+Keep Distribution as Layer 03 / Launching Soon, but make the copy future-facing and non-committal:
+- Do not claim FINCAVA currently books freight.
+- Do not claim customs pre-clearance is included.
+- Do not claim real-time tracking currently exists unless implemented.
+- Use wording such as “planned,” “future,” “partner-supported,” or “delivery readiness.”
+
+Validation:
+1. Run frontend build/typecheck.
+2. Search again for finance-related terms listed in preflight.
+3. Confirm remaining finance terms, if any, are only in disabled/internal/future roadmap code and not visible public claims.
+4. Confirm homepage has three complete tiles with no layout gap.
+5. Confirm platform page has three complete tiles with no layout gap.
+6. Confirm English and Spanish copy are updated if this content is translated.
+7. Report:
+   - Files changed
+   - Exact sections changed
+   - Any remaining finance references and why they remain
+   - Build/typecheck result
+
+Do not modify backend schema, database tables, finance models, or API logic. This is a frontend content and layout cleanup only.

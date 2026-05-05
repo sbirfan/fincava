@@ -33,7 +33,7 @@ function SectionLabel({ children, light }: { children: React.ReactNode; light?: 
   );
 }
 
-const LAYER_ICONS = [Globe, Landmark, Truck];
+const LAYER_ICONS = [Globe, FileText, Truck];
 const BUYER_FEATURE_ICONS = [ShieldCheck, FileText, BarChart3, Globe];
 const SUPPLIER_FEATURE_ICONS = [Globe, Banknote, Truck, Star];
 const TRACTION_STAT_ICONS = [ShieldCheck, MapPin, Users, BarChart3];
@@ -218,7 +218,6 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {h.howItWorks.layers.map((l, i) => {
-              if (!ENABLE_FINANCE && i === 1) return null;
               const LayerIcon = LAYER_ICONS[i];
               const layerColors = [
                 { color: "from-primary/20 to-primary/5", border: "border-primary/30", badge: "bg-primary/20 text-primary", buyerTag: "text-primary" },

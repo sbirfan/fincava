@@ -67,8 +67,8 @@ const en = {
     },
     howItWorks: {
       label: "How It Works",
-      heading: "Three layers. One seamless trade.",
-      sub: "Every trade on Fincava moves through three integrated layers: from finding each other to getting paid to receiving your goods.",
+      heading: "From discovery to delivery.",
+      sub: "Fincava helps buyers and suppliers move from verified discovery to transaction coordination and delivery readiness through a clear, structured sourcing workflow.",
       layers: [
         {
           step: "Step 01",
@@ -79,17 +79,17 @@ const en = {
         },
         {
           step: "Step 02",
-          title: "Embedded Finance (Launching Soon)",
-          buyerValue: "Pay on milestones with escrow protection. FX handled. No surprise fees.",
-          supplierValue: "Access trade credit against your orders. Get financed before shipment arrives.",
-          capabilities: ["Milestone payment escrow", "Trade credit lines", "FX facilitation", "Invoice factoring"],
+          title: "Transaction Coordination",
+          buyerValue: "Align on pricing, quantities, specifications, and documentation before shipment begins.",
+          supplierValue: "Manage buyer requests, confirm order details, and prepare the information needed for export readiness.",
+          capabilities: ["Order confirmation workflow", "Specification alignment", "Document preparation support", "Buyer–supplier communication"],
         },
         {
           step: "Step 03",
           title: "Distribution (Launching Soon)",
-          buyerValue: "Real-time tracking from farm gate to your port. Customs pre-clearance included.",
-          supplierValue: "Logistics partners coordinated for you. Cold chain, port clearance, last-mile handled.",
-          capabilities: ["Shipment tracking", "Cold-chain coordination", "Customs pre-clearance", "Logistics intelligence"],
+          buyerValue: "Planned shipment visibility from Colombia to your destination port, coordinated through partner logistics networks.",
+          supplierValue: "Future partner-supported logistics coordination to help prepare your export for delivery readiness.",
+          capabilities: ["Shipment milestone visibility (planned)", "Cold-chain partner coordination", "Export document support", "Delivery readiness guidance"],
         },
       ],
       buyersTag: "Buyers",
@@ -714,8 +714,8 @@ const es: typeof en = {
     },
     howItWorks: {
       label: "Cómo Funciona",
-      heading: "Tres capas. Una operación perfecta.",
-      sub: "Cada operación en Fincava fluye a través de tres capas integradas: desde encontrarse hasta cobrar y recibir los bienes.",
+      heading: "Del descubrimiento a la entrega.",
+      sub: "Fincava ayuda a compradores y proveedores a avanzar desde el descubrimiento verificado hasta la coordinación de transacciones y la preparación para la entrega, a través de un flujo de abastecimiento claro y estructurado.",
       layers: [
         {
           step: "Paso 01",
@@ -726,17 +726,17 @@ const es: typeof en = {
         },
         {
           step: "Paso 02",
-          title: "Financiamiento Integrado",
-          buyerValue: "Paga por hitos con protección de escrow. Cambio de divisas incluido. Sin tarifas sorpresa.",
-          supplierValue: "Accede a crédito comercial contra tus pedidos. Finánciarte antes de que llegue el envío.",
-          capabilities: ["Escrow por hitos de pago", "Líneas de crédito comercial", "Facilitación de divisas", "Factoraje de facturas"],
+          title: "Coordinación de Transacciones",
+          buyerValue: "Alinea precios, cantidades, especificaciones y documentación antes de que comience el envío.",
+          supplierValue: "Gestiona solicitudes de compradores, confirma detalles del pedido y prepara la información necesaria para la preparación de exportación.",
+          capabilities: ["Flujo de confirmación de pedidos", "Alineación de especificaciones", "Soporte de preparación de documentos", "Comunicación comprador–proveedor"],
         },
         {
           step: "Paso 03",
           title: "Distribución (Próximamente)",
-          buyerValue: "Seguimiento en tiempo real desde la finca hasta tu puerto. Pre-despacho aduanero incluido.",
-          supplierValue: "Socios logísticos coordinados para ti. Cadena de frío, despacho aduanero y última milla cubiertos.",
-          capabilities: ["Seguimiento de envíos", "Coordinación de cadena de frío", "Pre-despacho aduanero", "Inteligencia logística"],
+          buyerValue: "Visibilidad planificada de envíos desde Colombia hasta tu puerto destino, coordinada a través de redes logísticas de socios.",
+          supplierValue: "Coordinación logística futura con socios para ayudar a preparar tu exportación hacia la disponibilidad de entrega.",
+          capabilities: ["Visibilidad de hitos de envío (planificado)", "Coordinación con socios de cadena de frío", "Soporte de documentos de exportación", "Orientación de preparación para entrega"],
         },
       ],
       buyersTag: "Compradores",
