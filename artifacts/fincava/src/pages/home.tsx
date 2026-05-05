@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ENABLE_FINANCE } from "@/lib/flags";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -48,7 +49,7 @@ const SUPPLIER_MARKETS = [
 
 export default function Home() {
   const { data: stats } = useGetPlatformStats();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const h = t.home;
 
   return (
@@ -94,7 +95,9 @@ export default function Home() {
             variants={fadeUp} initial="hidden" animate="visible" custom={2}
             className="text-xl md:text-2xl max-w-2xl mx-auto mb-12 text-white/60 font-light leading-relaxed"
           >
-            {h.hero.sub}
+            {ENABLE_FINANCE ? h.hero.sub : lang === "es"
+              ? "Fincava conecta productores agrícolas colombianos verificados con compradores globales, con documentación de cumplimiento y distribución incluidas."
+              : "Fincava connects verified Colombian agricultural producers with global buyers, with compliance documentation and distribution built in."}
           </motion.p>
 
           <motion.div
@@ -215,6 +218,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {h.howItWorks.layers.map((l, i) => {
+              if (!ENABLE_FINANCE && i === 1) return null;
               const LayerIcon = LAYER_ICONS[i];
               const layerColors = [
                 { color: "from-primary/20 to-primary/5", border: "border-primary/30", badge: "bg-primary/20 text-primary", buyerTag: "text-primary" },
@@ -357,14 +361,16 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <div className="p-4 rounded-xl bg-primary/8 border border-primary/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold">{h.forSuppliers.dashboard.financeTitle}</span>
-                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">{h.forSuppliers.dashboard.financeStatus}</span>
+                {ENABLE_FINANCE && (
+                  <div className="p-4 rounded-xl bg-primary/8 border border-primary/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold">{h.forSuppliers.dashboard.financeTitle}</span>
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">{h.forSuppliers.dashboard.financeStatus}</span>
+                    </div>
+                    <div className="text-2xl font-bold text-primary mb-1">$28,000</div>
+                    <div className="text-xs text-muted-foreground">{h.forSuppliers.dashboard.financeDesc}</div>
                   </div>
-                  <div className="text-2xl font-bold text-primary mb-1">$28,000</div>
-                  <div className="text-xs text-muted-foreground">{h.forSuppliers.dashboard.financeDesc}</div>
-                </div>
+                )}
               </div>
             </motion.div>
 
@@ -376,9 +382,14 @@ export default function Home() {
               <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
                 {h.forSuppliers.heading}
               </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed mb-8">{h.forSuppliers.sub}</p>
+              <p className="text-muted-foreground text-lg leading-relaxed mb-8">
+                {ENABLE_FINANCE ? h.forSuppliers.sub : lang === "es"
+                  ? "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en más de 15 países, con logística para entregar."
+                  : "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers in 15+ countries, with logistics to deliver."}
+              </p>
               <div className="space-y-4">
                 {h.forSuppliers.features.map((f, i) => {
+                  if (!ENABLE_FINANCE && i === 1) return null;
                   const Icon = SUPPLIER_FEATURE_ICONS[i];
                   return (
                     <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-background hover:border-primary/30 transition-colors">
@@ -525,14 +536,21 @@ export default function Home() {
                 <Sprout className="w-6 h-6 text-primary" />
               </div>
               <h3 className="text-2xl font-serif font-bold mb-3">{h.cta.supplierCard.title}</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">{h.cta.supplierCard.sub}</p>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">
+                {ENABLE_FINANCE ? h.cta.supplierCard.sub : lang === "es"
+                  ? "Conéctate directamente con compradores internacionales y exporta tus productos a más de 15 países, sin intermediarios."
+                  : "Connect directly with international buyers and export your products to 15+ countries, without intermediaries."}
+              </p>
               <ul className="space-y-2 mb-8">
-                {h.cta.supplierCard.features.map(f => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                    {f}
-                  </li>
-                ))}
+                {h.cta.supplierCard.features.map((f, i) => {
+                  if (!ENABLE_FINANCE && i === 1) return null;
+                  return (
+                    <li key={f} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                      {f}
+                    </li>
+                  );
+                })}
               </ul>
               <Link href="/register?role=supplier">
                 <Button className="w-full bg-primary hover:bg-primary/90 h-12">

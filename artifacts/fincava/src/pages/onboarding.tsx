@@ -6,6 +6,7 @@ import { StepProduction } from "@/components/onboarding/StepProduction";
 import { StepBusinessReadiness } from "@/components/onboarding/StepBusinessReadiness";
 import { ReviewSummary, type ReviewSection } from "@/components/onboarding/ReviewSummary";
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
+import { ENABLE_FINANCE } from "@/lib/flags";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -269,7 +270,7 @@ export default function OnboardingPage() {
         { label: lang === "es" ? "Registro INVIMA requerido" : "INVIMA Required",        value: displayChoice(form.invima_required) },
         { label: lang === "es" ? "Aprobación INVIMA" : "INVIMA Approval",                value: displayChoice(form.invima_approved) },
         { label: "ICA",                                                                   value: displayChoice(form.ica_registered) },
-        { label: lang === "es" ? "Capital Necesario (COP)" : "Capital Needed (COP)",     value: form.working_capital_needed },
+        ...(ENABLE_FINANCE ? [{ label: lang === "es" ? "Capital Necesario (COP)" : "Capital Needed (COP)", value: form.working_capital_needed }] : []),
         { label: lang === "es" ? "Obstáculo" : "Blocker",                               value: form.export_blocker },
       ],
     },

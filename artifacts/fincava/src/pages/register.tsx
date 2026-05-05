@@ -18,6 +18,7 @@ import { StepProduction } from "@/components/onboarding/StepProduction";
 import { StepBusinessReadiness } from "@/components/onboarding/StepBusinessReadiness";
 import { ReviewSummary, type ReviewSection } from "@/components/onboarding/ReviewSummary";
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
+import { ENABLE_FINANCE } from "@/lib/flags";
 
 type AccountData = {
   email: string;
@@ -256,7 +257,7 @@ export default function Register() {
         { label: rl.currentlyExporting, value: yesNo(supplierForm.currently_exporting) },
         { label: rl.hasRut, value: yesNo(supplierForm.has_rut) },
         { label: rl.hasBankAccount, value: yesNo(supplierForm.has_bank_account) },
-        { label: rl.capitalNeeded, value: supplierForm.working_capital_needed },
+        ...(ENABLE_FINANCE ? [{ label: rl.capitalNeeded, value: supplierForm.working_capital_needed }] : []),
         { label: rl.exportBlocker, value: supplierForm.export_blocker },
       ],
     },

@@ -1,3 +1,5 @@
+import { ENABLE_FINANCE } from "@/lib/flags";
+
 interface BusinessReadinessFields {
   currently_exporting: string;
   has_rut: string;
@@ -220,20 +222,22 @@ export function StepBusinessReadiness({ form, set, lang, inputClass, labelClass 
         />
       </div>
 
-      {/* Capital needed (COP) */}
-      <div>
-        <label className={labelClass}>
-          {lang === "es" ? "Capital de trabajo necesario (COP)" : "Working capital needed (COP)"}
-        </label>
-        <input
-          className={inputClass}
-          type="number"
-          min="0"
-          value={form.working_capital_needed}
-          onChange={(e) => set("working_capital_needed", e.target.value)}
-          placeholder={lang === "es" ? "Ej. 5000000" : "e.g. 5000000"}
-        />
-      </div>
+      {/* Capital needed (COP) — hidden until finance layer is live */}
+      {ENABLE_FINANCE && (
+        <div>
+          <label className={labelClass}>
+            {lang === "es" ? "Capital de trabajo necesario (COP)" : "Working capital needed (COP)"}
+          </label>
+          <input
+            className={inputClass}
+            type="number"
+            min="0"
+            value={form.working_capital_needed}
+            onChange={(e) => set("working_capital_needed", e.target.value)}
+            placeholder={lang === "es" ? "Ej. 5000000" : "e.g. 5000000"}
+          />
+        </div>
+      )}
 
       {/* Export blocker */}
       <div>

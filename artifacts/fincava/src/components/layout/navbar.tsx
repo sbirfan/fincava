@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ENABLE_FINANCE } from "@/lib/flags";
 
 export function Navbar() {
   const { isAuthenticated, user, logout } = useAuth();
@@ -23,7 +24,7 @@ export function Navbar() {
     { href: "/platform", label: t.nav.platform },
     { href: "/suppliers", label: t.nav.suppliers },
     { href: "/markets", label: t.nav.markets },
-    { href: "/investors", label: t.nav.investors },
+    ...(ENABLE_FINANCE ? [{ href: "/investors", label: t.nav.investors }] : []),
   ];
 
   const dashboardHref =

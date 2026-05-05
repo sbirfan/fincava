@@ -34,14 +34,14 @@ const STARTER_PROMPTS_SUPPLIER_EN = [
   "How do I add a new product listing?",
   "What documents do I need to export coffee?",
   "How do I improve my supplier score?",
-  "What trade finance options are available?",
+  "How do I respond to a buyer inquiry?",
 ];
 
 const STARTER_PROMPTS_SUPPLIER_ES = [
   "¿Cómo agrego un nuevo producto?",
   "¿Qué documentos necesito para exportar café?",
   "¿Cómo mejoro mi puntaje de proveedor?",
-  "¿Qué opciones de financiamiento comercial hay?",
+  "¿Cómo respondo a una consulta de un comprador?",
 ];
 
 export default function AiAssistant() {
@@ -60,7 +60,7 @@ export default function AiAssistant() {
   const t = lang === "es"
     ? {
         title: "Asistente IA",
-        subtitle: "Pregúntale a Fina sobre la plataforma, RFQs, exportación o financiamiento.",
+        subtitle: "Pregúntale a Fina sobre la plataforma, RFQs, exportación o logística.",
         greeting: `Hola${user?.firstName ? ", " + user.firstName : ""} 👋 Soy Fina, tu asistente de Fincava. ¿En qué puedo ayudarte hoy?`,
         placeholder: "Escribe tu pregunta…",
         thinking: "Fina está pensando…",
@@ -73,7 +73,7 @@ export default function AiAssistant() {
       }
     : {
         title: "AI Assistant",
-        subtitle: "Ask Fina about the platform, RFQs, exporting, or trade finance.",
+        subtitle: "Ask Fina about the platform, RFQs, exporting, or logistics.",
         greeting: `Hi${user?.firstName ? " " + user.firstName : ""} 👋 I'm Fina, your Fincava assistant. How can I help you today?`,
         placeholder: "Type your question…",
         thinking: "Fina is thinking…",

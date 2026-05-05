@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { Users, ShoppingCart, Landmark, TrendingUp, AlertTriangle, DollarSign } from "lucide-react";
 import { ChangePasswordCard } from "@/components/change-password-card";
 import { cn } from "@/lib/utils";
+import { ENABLE_FINANCE } from "@/lib/flags";
 
 function StatCard({
   icon: Icon,
@@ -111,27 +112,33 @@ export default function AdminDashboard() {
             sub="Total order value"
             accent="emerald"
           />
-          <StatCard
-            icon={Landmark}
-            label="Active Loans"
-            value={stats?.activeLoans ?? 0}
-            sub={`of ${stats?.loans ?? 0} total`}
-            accent="amber"
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="Capital Deployed"
-            value={fmt(stats?.totalLoanPrincipal ?? 0)}
-            sub="Principal outstanding"
-            accent="blue"
-          />
-          <StatCard
-            icon={AlertTriangle}
-            label="Defaults"
-            value={stats?.defaultedLoans ?? 0}
-            sub="Loans in default"
-            accent="red"
-          />
+          {ENABLE_FINANCE && (
+            <StatCard
+              icon={Landmark}
+              label="Active Loans"
+              value={stats?.activeLoans ?? 0}
+              sub={`of ${stats?.loans ?? 0} total`}
+              accent="amber"
+            />
+          )}
+          {ENABLE_FINANCE && (
+            <StatCard
+              icon={TrendingUp}
+              label="Capital Deployed"
+              value={fmt(stats?.totalLoanPrincipal ?? 0)}
+              sub="Principal outstanding"
+              accent="blue"
+            />
+          )}
+          {ENABLE_FINANCE && (
+            <StatCard
+              icon={AlertTriangle}
+              label="Defaults"
+              value={stats?.defaultedLoans ?? 0}
+              sub="Loans in default"
+              accent="red"
+            />
+          )}
         </div>
       )}
 
