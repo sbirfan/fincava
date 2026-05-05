@@ -37,6 +37,39 @@ router.get("/public-stories", async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
+// ── POST /api/admin/public-metrics/seed ──────────────────────────────────────
+// Admin: idempotent seed — inserts default metric slots, skips any that already exist.
+const DEFAULT_METRICS: (typeof publicMetricsTable.$inferInsert)[] = [
+  // home / hero_stats
+  { metricKey: "home.hero.verified_suppliers", page: "home", section: "hero_stats", label: "Verified Suppliers",          value: "",    sourceType: "live_db",            sortOrder: 1 },
+  { metricKey: "home.hero.total_products",     page: "home", section: "hero_stats", label: "Export Products",              value: "",    sourceType: "live_db",            sortOrder: 2 },
+  // home / traction
+  { metricKey: "home.traction.target_markets", page: "home", section: "traction",   label: "Target Markets",              value: "",    sourceType: "manual_verified",    sortOrder: 1 },
+  { metricKey: "home.traction.families",       page: "home", section: "traction",   label: "Farming Families Supported",  value: "",    sourceType: "manual_verified",    sortOrder: 2 },
+  { metricKey: "home.traction.avg_premium",    page: "home", section: "traction",   label: "Avg Price Premium vs C-Market",value: "",   sourceType: "external_research",  sortOrder: 3 },
+  // impact / numbers
+  { metricKey: "impact.numbers.farmers",       page: "impact", section: "numbers",  label: "Farmers Directly Supported",  value: "",    sourceType: "live_db",            sortOrder: 1 },
+  { metricKey: "impact.numbers.women_led",     page: "impact", section: "numbers",  label: "Women-Led Farms",             value: "",    sourceType: "live_db",            sortOrder: 2 },
+  { metricKey: "impact.numbers.organic",       page: "impact", section: "numbers",  label: "Organic Products",            value: "",    sourceType: "live_db",            sortOrder: 3 },
+  { metricKey: "impact.numbers.direct_trade",  page: "impact", section: "numbers",  label: "Direct Trade Products",       value: "",    sourceType: "live_db",            sortOrder: 4 },
+  // markets / overview
+  { metricKey: "markets.overview.destinations",page: "markets", section: "overview",label: "Export Destinations",         value: "",    sourceType: "manual_verified",    sortOrder: 1 },
+  { metricKey: "markets.overview.growth",      page: "markets", section: "overview",label: "Target Market Growth Rate",   value: "",    sourceType: "external_research",  sortOrder: 2 },
+];
+
+router.post("/admin/public-metrics/seed", ...adminOnly, async (_req, res): Promise<void> => {
+  let seeded = 0;
+  for (const row of DEFAULT_METRICS) {
+    const result = await db
+      .insert(publicMetricsTable)
+      .values({ ...row, updatedAt: new Date() })
+      .onConflictDoNothing()
+      .returning();
+    if (result.length > 0) seeded++;
+  }
+  res.json({ seeded, total: DEFAULT_METRICS.length, message: `${seeded} new metric(s) inserted. ${DEFAULT_METRICS.length - seeded} already existed.` });
+});
+
 // ── GET /api/admin/public-metrics ─────────────────────────────────────────────
 // Admin: returns ALL metrics (incl. hidden).
 router.get("/admin/public-metrics", ...adminOnly, async (req, res): Promise<void> => {
