@@ -18,31 +18,14 @@ interface ImpactData {
   tradeVolumeUSD: number;
 }
 
-// Placeholder profiles — not real individuals. Real producer stories will be added
-// when verified by the team and published through the admin content system.
-const FARMER_STORIES = [
-  {
-    name: "Specialty Coffee Producer",
-    region: "Huila",
-    product: "Specialty Coffee",
-    quote: "Direct trade relationships allow producers to invest in quality, plan ahead, and build a sustainable business for the next generation.",
-    photo: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=200",
-  },
-  {
-    name: "Cacao Farmer, Pacific Coast",
-    region: "Tumaco",
-    product: "Fine Cacao",
-    quote: "When buyers understand the origin of what they source, the relationship becomes a partnership — not just a transaction.",
-    photo: "https://images.unsplash.com/photo-1595701003538-e7e76b5eeea4?w=200",
-  },
-  {
-    name: "Smallholder Coffee Grower",
-    region: "Sierra Nevada",
-    product: "Specialty Coffee",
-    quote: "Access to verified international buyers changes what is possible on a small farm. Quality becomes worth investing in.",
-    photo: "https://images.unsplash.com/photo-1546961342-ea5f62d918e2?w=200",
-  },
-];
+interface PublicStory {
+  id: number;
+  name: string;
+  region: string | null;
+  product: string | null;
+  quote: string | null;
+  photoUrl: string | null;
+}
 
 const SDG_GOALS = [
   { number: 1, label: "No Poverty", icon: Heart, description: "Premiums fund year-round income stability for smallholder families" },
@@ -57,6 +40,11 @@ export default function Impact() {
   const { data, isLoading } = useQuery<ImpactData>({
     queryKey: ["/api/impact"],
     queryFn: () => fetch("/api/impact").then(r => r.json()),
+  });
+
+  const { data: publicStories = [] } = useQuery<PublicStory[]>({
+    queryKey: ["/api/public-stories"],
+    queryFn: () => fetch("/api/public-stories").then(r => r.json()),
   });
 
   return (
@@ -120,34 +108,44 @@ export default function Impact() {
         </div>
       </section>
 
-      {/* Farmer Voices */}
-      <section className="py-20 bg-card border-y">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Producers We Work With</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">The Fincava network connects buyers with smallholder farming communities across Colombia's key agricultural regions. Below is an illustration of the types of producers we work with.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {FARMER_STORIES.map(farmer => (
-              <Card key={farmer.name} className="overflow-hidden">
-                <div className="h-48 bg-muted relative overflow-hidden">
-                  <img src={farmer.photo} alt={`${farmer.product} producer, ${farmer.region}`} className="w-full h-full object-cover object-top" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-3 left-4 text-white">
-                    <p className="font-semibold">{farmer.name}</p>
-                    <p className="text-xs text-white/80">{farmer.region} · {farmer.product}</p>
+      {/* Farmer Voices — only rendered when admin has published at least one story */}
+      {publicStories.length > 0 && (
+        <section className="py-20 bg-card border-y">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Producers We Work With</h2>
+              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">The Fincava network connects buyers with smallholder farming communities across Colombia's key agricultural regions. Below is an illustration of the types of producers we work with.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {publicStories.map(story => (
+                <Card key={story.id} className="overflow-hidden">
+                  <div className="h-48 bg-muted relative overflow-hidden">
+                    {story.photoUrl && (
+                      <img src={story.photoUrl} alt={`${story.product ?? "Producer"}, ${story.region ?? "Colombia"}`} className="w-full h-full object-cover object-top" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute bottom-3 left-4 text-white">
+                      <p className="font-semibold">{story.name}</p>
+                      {(story.region || story.product) && (
+                        <p className="text-xs text-white/80">
+                          {[story.region, story.product].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <CardContent className="p-5">
-                  <blockquote className="text-muted-foreground italic text-sm leading-relaxed">
-                    "{farmer.quote}"
-                  </blockquote>
-                </CardContent>
-              </Card>
-            ))}
+                  <CardContent className="p-5">
+                    {story.quote && (
+                      <blockquote className="text-muted-foreground italic text-sm leading-relaxed">
+                        "{story.quote}"
+                      </blockquote>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Why Direct Trade */}
       <section className="py-20 bg-background">

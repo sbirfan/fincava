@@ -47,6 +47,32 @@ Fincava is built as a pnpm workspace monorepo utilizing TypeScript.
 - **Concurrency Control**: `AbortController` implemented for cancelling in-flight requests on filter changes.
 - **Frontend Data Handling**: All frontend fetch calls guard with `res.ok` before processing JSON.
 
+### Admin-Controlled Public Content (Phase 2 — complete)
+Two new DB tables and a full admin CRUD interface give the team control over every public-facing number and producer story without code changes.
+
+**Tables:**
+- `public_metrics` (11 cols): `metric_key` (unique), `page`, `section`, `label`, `value`, `source_type` (manual_verified | live_db | external_research), `source_note`, `last_verified_at`, `sort_order`, `is_visible`, `updated_at`.
+- `public_stories` (10 cols): `story_key` (unique), `page`, `section`, `name`, `region`, `product`, `quote`, `photo_url`, `is_visible`, `sort_order`, `updated_at`.
+
+**API routes** (`artifacts/api-server/src/routes/public-content.ts`):
+- `GET /api/public-metrics` — public, `?page` / `?section` filters, returns only `is_visible=true` rows.
+- `GET /api/public-stories` — public, returns only `is_visible=true` rows.
+- `GET /api/admin/public-metrics` — admin-only, returns all rows.
+- `PATCH /api/admin/public-metrics/:id` — update value, source, visibility, sort order.
+- `GET /api/admin/public-stories` — admin-only, returns all rows.
+- `POST /api/admin/public-stories` — create new story card.
+- `PATCH /api/admin/public-stories/:id` — update any field.
+- `DELETE /api/admin/public-stories/:id` — remove a story card.
+
+**Admin pages:**
+- `/admin/public-metrics` — table view grouped by page → section, inline editable value + source type/note, eye toggle for visibility.
+- `/admin/stories` — card grid with toggle, edit modal, delete confirmation, add new story.
+- Both linked in the admin sidebar nav.
+
+**Frontend wiring:**
+- `impact.tsx`: farmer voices section fetches from `/api/public-stories`. Section is completely hidden if 0 visible stories (no placeholder cards shown).
+- `home.tsx` traction section already conditionally renders only if `stats.length > 0`; public metrics will populate it once an admin publishes rows.
+
 ### Feature Specifications
 - **Unified Supplier Layer (Phase 1 complete)**: A four-phase system covering ingestion, field collection, AI scoring, and self-completion. Phase 1 is fully closed:
   - `GET /api/suppliers/:id` returns `profileCompleteness` object (`hasFarmData`, `hasEconomicsData`, `hasComplianceData`, `hasAiScore`, `isGraduated`).

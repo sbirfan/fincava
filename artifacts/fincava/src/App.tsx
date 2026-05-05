@@ -77,6 +77,8 @@ const AdminTeam = lazy(() => import("@/pages/admin/team"));
 const AdminIngestion = lazy(() => import("@/pages/admin/ingestion/index"));
 const AdminIngestionNew = lazy(() => import("@/pages/admin/ingestion/new"));
 const AdminIngestionDiscover = lazy(() => import("@/pages/admin/ingestion/discover"));
+const AdminPublicMetrics = lazy(() => import("@/pages/admin/public-metrics"));
+const AdminStories = lazy(() => import("@/pages/admin/stories"));
 const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
 
 // ── MVP Early-Access Banner ────────────────────────────────────────────────────
@@ -194,6 +196,8 @@ function Router() {
         <Route path="/admin/suppliers" component={() => <PrivateRoute component={AdminSuppliers} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/team" component={() => <PrivateRoute component={AdminTeam} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion" component={() => <PrivateRoute component={AdminIngestion} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/public-metrics" component={() => <PrivateRoute component={AdminPublicMetrics} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/stories" component={() => <PrivateRoute component={AdminStories} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion/new" component={() => <PrivateRoute component={AdminIngestionNew} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion/discover" component={() => <PrivateRoute component={AdminIngestionDiscover} roles={["ADMIN"]} layout={AdminLayout} />} />
 

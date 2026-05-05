@@ -19,6 +19,7 @@ import adminRouter from "./admin";
 import officersRouter from "./officers";
 import buyersRouter from "./buyers";
 import aiAssistantRouter from "./ai-assistant";
+import publicContentRouter from "./public-content";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(adminRouter);
 router.use(officersRouter);
 router.use(buyersRouter);
 router.use(aiAssistantRouter);
+router.use(publicContentRouter);
 
 export default router;
