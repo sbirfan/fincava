@@ -2438,6 +2438,161 @@ router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request,
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── GET /api/admin/origin-stories ─────────────────────────────────────────────
+// List all product-level origin stories with product + supplier context.
+router.get("/admin/origin-stories", ...adminOnly, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id:           originStoriesTable.id,
+      productId:    originStoriesTable.productId,
+      farmerName:   originStoriesTable.farmerName,
+      farmerPhoto:  originStoriesTable.farmerPhoto,
+      farmName:     originStoriesTable.farmName,
+      region:       originStoriesTable.region,
+      elevation:    originStoriesTable.elevation,
+      farmSizeHa:   originStoriesTable.farmSizeHa,
+      yearsFarming: originStoriesTable.yearsFarming,
+      story:        originStoriesTable.story,
+      challenges:   originStoriesTable.challenges,
+      impact:       originStoriesTable.impact,
+      images:       originStoriesTable.images,
+      videoUrl:     originStoriesTable.videoUrl,
+      published:    originStoriesTable.published,
+      createdAt:    originStoriesTable.createdAt,
+      productName:  productsTable.name,
+      supplierId:   suppliersTable.id,
+      supplierName: suppliersTable.nombreCompleto,
+    })
+    .from(originStoriesTable)
+    .innerJoin(productsTable, eq(productsTable.id, originStoriesTable.productId))
+    .leftJoin(suppliersTable, eq(suppliersTable.id, productsTable.supplierId))
+    .orderBy(desc(originStoriesTable.createdAt));
+
+  res.json(rows);
+});
+
+// ── GET /api/admin/products-simple ────────────────────────────────────────────
+// Lightweight product list for dropdowns — id, name, supplierId, supplierName.
+router.get("/admin/products-simple", ...adminOnly, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id:           productsTable.id,
+      name:         productsTable.name,
+      supplierId:   suppliersTable.id,
+      supplierName: suppliersTable.nombreCompleto,
+    })
+    .from(productsTable)
+    .leftJoin(suppliersTable, eq(suppliersTable.id, productsTable.supplierId))
+    .orderBy(productsTable.name);
+
+  res.json(rows);
+});
+
+const OriginStoryCreateBody = z.object({
+  productId:    z.number().int().positive(),
+  farmerName:   z.string().min(1),
+  farmerPhoto:  z.string().optional().or(z.literal("")),
+  farmName:     z.string().min(1),
+  region:       z.string().min(1),
+  elevation:    z.string().optional(),
+  farmSizeHa:   z.number().positive().optional(),
+  yearsFarming: z.number().int().positive().optional(),
+  story:        z.string().min(1),
+  challenges:   z.string().min(1),
+  impact:       z.string().min(1),
+  images:       z.array(z.string()).optional(),
+  videoUrl:     z.string().optional().or(z.literal("")),
+  published:    z.boolean().optional(),
+});
+
+const OriginStoryPatchBody = OriginStoryCreateBody.omit({ productId: true }).partial();
+
+// ── POST /api/admin/origin-stories ────────────────────────────────────────────
+router.post("/admin/origin-stories", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const parsed = OriginStoryCreateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  const d = parsed.data;
+
+  const [product] = await db.select({ id: productsTable.id }).from(productsTable)
+    .where(eq(productsTable.id, d.productId)).limit(1);
+  if (!product) { res.status(404).json({ error: "Product not found" }); return; }
+
+  const [story] = await db.insert(originStoriesTable).values({
+    productId:    d.productId,
+    farmerName:   d.farmerName,
+    farmerPhoto:  d.farmerPhoto || null,
+    farmName:     d.farmName,
+    region:       d.region,
+    elevation:    d.elevation ?? null,
+    farmSizeHa:   d.farmSizeHa ?? null,
+    yearsFarming: d.yearsFarming ?? null,
+    story:        d.story,
+    challenges:   d.challenges,
+    impact:       d.impact,
+    images:       d.images ?? [],
+    videoUrl:     d.videoUrl || null,
+    published:    d.published ?? false,
+  }).returning();
+
+  req.log.info({ storyId: story.id, productId: d.productId }, "admin: origin story created");
+  res.status(201).json(story);
+});
+
+// ── PATCH /api/admin/origin-stories/:id ───────────────────────────────────────
+router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params["id"] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const parsed = OriginStoryPatchBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  const d = parsed.data;
+
+  const [existing] = await db.select({ id: originStoriesTable.id }).from(originStoriesTable)
+    .where(eq(originStoriesTable.id, id)).limit(1);
+  if (!existing) { res.status(404).json({ error: "Story not found" }); return; }
+
+  const updateData: Partial<typeof originStoriesTable.$inferInsert> = {};
+  if (d.farmerName   !== undefined) updateData.farmerName   = d.farmerName;
+  if (d.farmerPhoto  !== undefined) updateData.farmerPhoto  = d.farmerPhoto || null;
+  if (d.farmName     !== undefined) updateData.farmName     = d.farmName;
+  if (d.region       !== undefined) updateData.region       = d.region;
+  if (d.elevation    !== undefined) updateData.elevation    = d.elevation ?? null;
+  if (d.farmSizeHa   !== undefined) updateData.farmSizeHa   = d.farmSizeHa ?? null;
+  if (d.yearsFarming !== undefined) updateData.yearsFarming = d.yearsFarming ?? null;
+  if (d.story        !== undefined) updateData.story        = d.story;
+  if (d.challenges   !== undefined) updateData.challenges   = d.challenges;
+  if (d.impact       !== undefined) updateData.impact       = d.impact;
+  if (d.images       !== undefined) updateData.images       = d.images ?? [];
+  if (d.videoUrl     !== undefined) updateData.videoUrl     = d.videoUrl || null;
+  if (d.published    !== undefined) updateData.published    = d.published;
+
+  const [updated] = await db.update(originStoriesTable).set(updateData)
+    .where(eq(originStoriesTable.id, id)).returning();
+
+  req.log.info({ storyId: id, published: d.published }, "admin: origin story updated");
+  res.json(updated);
+});
+
+// ── DELETE /api/admin/origin-stories/:id ──────────────────────────────────────
+router.delete("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params["id"] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select({ id: originStoriesTable.id }).from(originStoriesTable)
+    .where(eq(originStoriesTable.id, id)).limit(1);
+  if (!existing) { res.status(404).json({ error: "Story not found" }); return; }
+
+  await db.delete(originStoriesTable).where(eq(originStoriesTable.id, id));
+  req.log.info({ storyId: id }, "admin: origin story deleted");
+  res.status(204).send();
+});
+
 router.post("/admin/backup/run", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const backupSecret = process.env.BACKUP_SECRET_V2;
   const tokenHeader  = req.headers["x-backup-token"];

@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   BarChart3,
   BookOpen,
+  Leaf,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -37,6 +38,7 @@ const navigation = [
   { name: "Team", href: "/admin/team", icon: UsersRound },
   { name: "Public Metrics", href: "/admin/public-metrics", icon: BarChart3 },
   { name: "Producer Stories", href: "/admin/stories", icon: BookOpen },
+  { name: "Origin Stories", href: "/admin/origin-stories", icon: Leaf },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
