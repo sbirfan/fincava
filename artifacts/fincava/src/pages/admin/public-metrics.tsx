@@ -65,14 +65,18 @@ function SourceBadge({ type }: { type: PublicMetric["sourceType"] }) {
   );
 }
 
+type PatchCallbacks = { onSuccess?: () => void; onError?: (err: Error) => void };
+
 function MetricRow({
   metric,
   onPatch,
 }: {
   metric: PublicMetric;
-  onPatch: (id: number, patch: Partial<PublicMetric>) => void;
+  onPatch: (id: number, patch: Partial<PublicMetric>, callbacks?: PatchCallbacks) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     value: metric.value,
     sourceType: metric.sourceType,
@@ -80,12 +84,26 @@ function MetricRow({
   });
 
   const handleSave = () => {
-    onPatch(metric.id, {
-      value: draft.value,
-      sourceType: draft.sourceType,
-      sourceNote: draft.sourceNote || null,
-    });
-    setEditing(false);
+    setIsSaving(true);
+    setSaveError(null);
+    onPatch(
+      metric.id,
+      {
+        value: draft.value,
+        sourceType: draft.sourceType,
+        sourceNote: draft.sourceNote || null,
+      },
+      {
+        onSuccess: () => {
+          setIsSaving(false);
+          setEditing(false);
+        },
+        onError: () => {
+          setIsSaving(false);
+          setSaveError("Save failed — try again");
+        },
+      }
+    );
   };
 
   return (
@@ -161,26 +179,36 @@ function MetricRow({
 
       <td className="px-4 py-3">
         {editing ? (
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              className="text-xs px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
-            >
-              Save
-            </button>
-            <button
-              onClick={() => {
-                setEditing(false);
-                setDraft({ value: metric.value, sourceType: metric.sourceType, sourceNote: metric.sourceNote ?? "" });
-              }}
-              className="text-xs px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white/70 transition-colors"
-            >
-              Cancel
-            </button>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="text-xs px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(false);
+                  setSaveError(null);
+                  setDraft({ value: metric.value, sourceType: metric.sourceType, sourceNote: metric.sourceNote ?? "" });
+                }}
+                className="text-xs px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white/70 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+            {saveError && (
+              <p className="text-xs text-red-400 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3 shrink-0" />
+                {saveError}
+              </p>
+            )}
           </div>
         ) : (
           <button
-            onClick={() => setEditing(true)}
+            onClick={() => { setEditing(true); setSaveError(null); }}
             className="text-xs px-3 py-1 rounded bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
           >
             Edit
@@ -229,7 +257,7 @@ function SectionPanel({
   pageKey: string;
   section: { key: string; label: string; description: string };
   rows: PublicMetric[];
-  onPatch: (id: number, patch: Partial<PublicMetric>) => void;
+  onPatch: (id: number, patch: Partial<PublicMetric>, callbacks?: PatchCallbacks) => void;
   onSeed: () => void;
 }) {
   const visibleInSection = rows.filter((r) => r.isVisible).length;
@@ -331,7 +359,8 @@ export default function AdminPublicMetrics() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "public-metrics"] }),
   });
 
-  const handlePatch = (id: number, patch: Partial<PublicMetric>) => patchMutation.mutate({ id, patch });
+  const handlePatch = (id: number, patch: Partial<PublicMetric>, callbacks?: PatchCallbacks) =>
+    patchMutation.mutate({ id, patch }, callbacks);
   const handleSeed = () => seedMutation.mutate();
 
   // Build lookup: metricKey → metric row
