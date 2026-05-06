@@ -1,0 +1,74 @@
+Prioritized Code Review Findings
+Critical
+1. Private object storage is effectively public, and upload URL creation is unauthenticated
+Issue: POST /storage/uploads/request-url issues presigned upload URLs without requireAuth, role checks, content-type enforcement, or ACL creation, and GET /storage/objects/*path serves “private” object entities with the authentication/ACL checks left as commented example code. This allows anonymous users to obtain upload URLs and anyone who can guess or obtain an object path to read private files. 
+
+Why it matters: This is a direct data-exposure and storage-abuse risk. A malicious user can upload arbitrary objects and retrieve private object entities without ownership checks.
+
+2. Production startup seeds admin users with a hardcoded default password
+Issue: Two admin accounts are seeded with Admin@Fincava2026! whenever ADMIN_DEFAULT_PASSWORD is absent, and startup calls seedAdminAccounts() automatically after the server begins listening. 
+
+Why it matters: If this code reaches a deployed environment without ADMIN_DEFAULT_PASSWORD, anyone who knows or finds the default password can attempt access to privileged accounts. This is especially severe because the email addresses are also hardcoded. 
+
+High
+3. Cookie-based auth is vulnerable to CSRF because CORS is permissive and no CSRF token/origin guard exists
+Issue: The API enables credentials and defaults origin to true, which reflects arbitrary origins when CORS_ORIGIN is unset, while auth cookies are automatically sent by the client with credentials: "include". 
+
+ The auth cookie is httpOnly, but it is still browser-attached on cross-site requests when SameSite=None is used in Replit contexts. 
+
+Why it matters: Any state-changing endpoint using cookie auth, such as product creation, order creation, password change, profile edits, or object upload URL issuance, can be targeted by CSRF if a victim is authenticated.
+
+4. Supplier product endpoints only require authentication, not supplier role or supplier entity ownership
+Issue: Product management routes use only requireAuth and then fetch the caller’s company by userId; they do not verify that the caller is a supplier, that the company is an exporter/supplier company, or that a supplierId is linked. 
+
+ General registration creates a company for both buyer and supplier roles, so a buyer account can satisfy the “has company” check. 
+
+Why it matters: Buyers or other authenticated users with a company row may create and manage “supplier” products. This weakens marketplace data integrity and can be abused for spam or fraudulent listings.
+
+5. Buyer profile autosave can lose data under concurrent PATCH requests
+Issue: The buyer profile PATCH route loads the existing profile, computes completion state from that snapshot plus one field, then writes the edited field and recomputed progress without locking or checking for concurrent updates. 
+
+Why it matters: Autosave UIs often send multiple requests close together. If two fields are saved concurrently, request B may compute p2SectionsDone from a stale snapshot and overwrite progress computed by request A. This can produce inaccurate completion percentages, missed section completion, and missed matching triggers.
+
+6. Concurrent buyer matching runs can leave multiple “current” match sets or stale results
+Issue: Matching is triggered fire-and-forget from profile PATCH requests, and the matching service performs the expensive LLM call before opening the transaction that marks previous matches stale and inserts new current matches. 
+
+Why it matters: Two matching jobs can run at the same time for the same buyer profile. Each can read a different profile snapshot, both can mark the previous rows stale, and both can insert rows with isCurrent = true. This creates duplicate current match rows and can make the UI show mixed results.
+
+Medium
+7. Order creation is not atomic and can leave orphaned orders or partial item sets
+Issue: The order route validates products and computes totals, inserts the order, logs side effects, and then inserts order items in separate operations outside a transaction. 
+
+Why it matters: If any item insert fails after the order insert succeeds, the database can contain an order with no items or only some items. Product-not-found errors thrown inside the async map are also not converted to a client-safe 400/404 at the route level. 
+
+8. Supplier order listing performs a full order scan plus N+1 item queries
+Issue: /supplier/orders loads every order, loads supplier products, then loops through all orders and queries orderItemsTable once per order. 
+
+Why it matters: This will become a major performance bottleneck as orders grow. It also increases database load and response latency for suppliers.
+
+9. Supplier-created products are not linked to supplierId, so they are excluded from the public marketplace query
+Issue: The public product listing requires products.supplierId to join to suppliersTable and requires a graduated supplier status. 
+
+ However, supplier product creation inserts companyId but never sets supplierId. 
+
+Why it matters: Products created through the supplier product endpoint will not appear in the public marketplace even when active, because the listing query excludes products without a supplier link. This is an architecture/data-flow mismatch between company-based product creation and supplier-based publication.
+
+
+10. Reset and verification token hashes exist, but raw tokens are still stored
+Issue: Verification and reset token creation stores both the raw token and tokenHash; verification accepts either hash or raw token. 
+
+The schema also makes raw token non-null and unique while tokenHash is nullable. 
+
+Why it matters: If the database is leaked, raw unused password reset and email verification tokens can be used directly. Hashing is only protective if the raw token is not stored.
+
+
+Low
+11. Impact average can become invalid when stories exist but none have farmSizeHa
+Issue: The impact route divides by stories.filter(s => s.farmSizeHa).length whenever stories.length is nonzero. If all stories have farmSizeHa null/zero, the denominator is 0, producing Infinity/NaN semantics and an inaccurate API response. 
+
+Why it matters: This is a small edge-case data accuracy bug that can surface as null, invalid JSON behavior, or misleading analytics depending on serialization/runtime.
+
+12. Some failure logs may include third-party provider detail objects without sanitization
+Issue: Email delivery failures log provider detail objects in multiple auth paths. 
+
+Why it matters: Provider error payloads can include recipient addresses, message metadata, template details, or other operationally sensitive content. The code masks the email in structured fields, but detail can bypass that masking.
