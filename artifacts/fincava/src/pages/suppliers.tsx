@@ -149,7 +149,7 @@ export default function Suppliers() {
             </>
           ) : (
             <p className="text-muted-foreground">
-              Our first verified suppliers are being prepared. Check back soon.
+              Fincava is currently in beta. We are onboarding a limited group of suppliers and buyers to shape the platform and build the first trusted trade network. Early participants gain priority access and visibility as the network grows.
             </p>
           )}
         </div>
@@ -173,7 +173,7 @@ export default function Suppliers() {
                   <p className="text-sm text-muted-foreground">Try a different search term.</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Our first verified suppliers are being prepared. Check back soon.
+                    Fincava is currently in beta. We are onboarding a limited group of suppliers and buyers to shape the platform and build the first trusted trade network. Early participants gain priority access and visibility as the network grows.
                   </p>
                 )}
               </div>

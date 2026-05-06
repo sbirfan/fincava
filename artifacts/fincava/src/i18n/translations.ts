@@ -141,9 +141,9 @@ const en = {
       },
     },
     traction: {
-      label: "Early Access",
+      label: "Beta",
       heading: "Building Colombia's direct trade infrastructure.",
-      sub: "Fincava is in early access. We are onboarding verified Colombian producers and connecting them with global buyers across 15 target markets.",
+      sub: "Fincava is currently in beta. We are onboarding a limited group of suppliers and buyers to shape the platform and build the first trusted trade network. Early participants gain priority access and visibility as the network grows.",
       bullets: [
         "Verified producer profiles across coffee, cacao, avocado, and superfoods",
         "RFQ engine connecting buyers with verified Colombian producers",
