@@ -14,7 +14,7 @@ import {
   originStoriesTable,
   usersTable,
 } from "@workspace/db";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, verifyToken } from "../lib/auth";
 import {
   sendEmail,
   getAdminEmails,
@@ -46,6 +46,33 @@ const router: IRouter = Router();
 router.post("/suppliers/onboard", async (req, res): Promise<void> => {
   try {
     const rawBody: Record<string, any> = req.body;
+
+    // C-4: Check for update mode (supplierId present) at the earliest possible point
+    // before any field validation or processing. Update mode is admin-only.
+    const earlyUpdateId = rawBody.supplierId ? Number(rawBody.supplierId) : null;
+    if (earlyUpdateId) {
+      const cookieToken = (req as any).cookies?.fincava_auth as string | undefined;
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+      const rawToken = cookieToken ?? bearerToken;
+      if (!rawToken) {
+        res.status(401).json({ error: "Authentication required to update a supplier" });
+        return;
+      }
+      const tokenPayload = verifyToken(rawToken);
+      if (!tokenPayload) {
+        res.status(401).json({ error: "Invalid or expired token" });
+        return;
+      }
+      const [caller] = await db
+        .select({ role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.id, tokenPayload.userId));
+      if (!caller || caller.role !== "ADMIN") {
+        res.status(403).json({ error: "Admin access required to update a supplier" });
+        return;
+      }
+    }
 
     // T1: canonical input normalization — rawBody remains execution layer
     // typedInput is contract surface for T2 (scoring) and T3 (validation)
@@ -99,7 +126,9 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // ── UPDATE MODE: supplierId provided — complete an existing ingested supplier ──
     // When admin initiates onboarding for an already-ingested supplier, the payload
     // includes an explicit supplierId. We update rather than create.
-    const updateSupplierId = rawBody.supplierId ? Number(rawBody.supplierId) : null;
+    // Auth was already checked at the top of this handler (earlyUpdateId guard).
+    const updateSupplierId = earlyUpdateId;
+
     if (updateSupplierId) {
       const [existing] = await db
         .select({ id: suppliersTable.id, nombreCompleto: suppliersTable.nombreCompleto })
@@ -455,7 +484,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       }
     });
   } catch (err: any) {
-    console.error("Onboard error:", err);
+    logger.error({ err }, "Onboard error");
     if (err.code === "23505" || err.cause?.code === "23505") {
       res
         .status(409)
@@ -733,7 +762,7 @@ router.post(
       }
       res.json({ success: true, messageSid: sid });
     } catch (err: any) {
-      console.error("Manual WA send failed for supplier", supplierId, err);
+      logger.error({ err, supplierId }, "Manual WA send failed");
       res.status(500).json({ error: err.message || "Failed to send WhatsApp message" });
     }
   },

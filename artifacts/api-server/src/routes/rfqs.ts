@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, count } from "drizzle-orm";
 import {
   db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable, usersTable, productsTable
 } from "@workspace/db";
@@ -20,19 +20,38 @@ router.get("/rfqs", async (req, res): Promise<void> => {
   query = query.orderBy(desc(rfqsTable.createdAt)) as any;
 
   const rfqs = await query;
+  if (rfqs.length === 0) { res.json([]); return; }
 
-  const result = await Promise.all(rfqs.map(async (rfq) => {
-    const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, rfq.buyerId));
-    const responses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.rfqId, rfq.id));
+  const buyerIds = [...new Set(rfqs.map(r => r.buyerId))];
+  const rfqIds = rfqs.map(r => r.id);
+
+  const [profiles, responseCounts] = await Promise.all([
+    db.select({
+      userId: profilesTable.userId,
+      firstName: profilesTable.firstName,
+      lastName: profilesTable.lastName,
+      country: profilesTable.country,
+    }).from(profilesTable).where(inArray(profilesTable.userId, buyerIds)),
+    db.select({ rfqId: rfqResponsesTable.rfqId, cnt: count() })
+      .from(rfqResponsesTable)
+      .where(inArray(rfqResponsesTable.rfqId, rfqIds))
+      .groupBy(rfqResponsesTable.rfqId),
+  ]);
+
+  const profileByUserId = new Map(profiles.map(p => [p.userId, p]));
+  const countByRfqId = new Map(responseCounts.map(r => [r.rfqId, Number(r.cnt)]));
+
+  const result = rfqs.map(rfq => {
+    const profile = profileByUserId.get(rfq.buyerId);
     return {
       ...rfq,
       deadline: rfq.deadline.toISOString(),
       createdAt: rfq.createdAt.toISOString(),
       buyerName: profile ? `${profile.firstName} ${profile.lastName}` : "Buyer",
       buyerCountry: profile?.country ?? null,
-      responseCount: responses.length,
+      responseCount: countByRfqId.get(rfq.id) ?? 0,
     };
-  }));
+  });
 
   res.json(result);
 });
@@ -85,6 +104,11 @@ router.get("/rfqs/:id", async (req, res): Promise<void> => {
 
 router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
+  const userRole = (req as any).userRole as string;
+  if (userRole !== "BUYER" && userRole !== "ADMIN") {
+    res.status(403).json({ error: "Only buyer accounts can create RFQs" });
+    return;
+  }
   const { title, description, productCategory, quantityKg, targetPriceUSD, destination, destinationPort, incoterm, deadline } = req.body;
 
   if (!title || !description || !productCategory || !quantityKg || !destination || !deadline) {
@@ -110,6 +134,11 @@ router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
+  const userRole = (req as any).userRole as string;
+  if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
+    res.status(403).json({ error: "Only supplier accounts can respond to RFQs" });
+    return;
+  }
   const rfqId = parseInt(req.params.id as string);
   if (isNaN(rfqId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -252,14 +281,22 @@ router.get("/buyer/rfqs", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
   const rfqs = await db.select().from(rfqsTable).where(eq(rfqsTable.buyerId, userId)).orderBy(desc(rfqsTable.createdAt));
 
-  const result = await Promise.all(rfqs.map(async (rfq) => {
-    const responses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.rfqId, rfq.id));
-    return {
-      ...rfq,
-      deadline: rfq.deadline.toISOString(),
-      createdAt: rfq.createdAt.toISOString(),
-      responseCount: responses.length,
-    };
+  if (rfqs.length === 0) { res.json([]); return; }
+
+  const rfqIds = rfqs.map(r => r.id);
+  const responseCounts = await db
+    .select({ rfqId: rfqResponsesTable.rfqId, cnt: count() })
+    .from(rfqResponsesTable)
+    .where(inArray(rfqResponsesTable.rfqId, rfqIds))
+    .groupBy(rfqResponsesTable.rfqId);
+
+  const countByRfqId = new Map(responseCounts.map(r => [r.rfqId, Number(r.cnt)]));
+
+  const result = rfqs.map(rfq => ({
+    ...rfq,
+    deadline: rfq.deadline.toISOString(),
+    createdAt: rfq.createdAt.toISOString(),
+    responseCount: countByRfqId.get(rfq.id) ?? 0,
   }));
 
   res.json(result);

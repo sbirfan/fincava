@@ -56,11 +56,55 @@ async function buildOrderResponse(order: any) {
 
 router.get("/buyer/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
+  const page = Math.max(1, Number((req.query as any).page) || 1);
+  const pageSize = Math.min(50, Math.max(1, Number((req.query as any).pageSize) || 25));
+
   const orders = await db.select().from(ordersTable)
     .where(eq(ordersTable.buyerId, userId))
-    .orderBy(ordersTable.createdAt);
+    .orderBy(ordersTable.createdAt)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
 
-  const results = await Promise.all(orders.map(buildOrderResponse));
+  if (orders.length === 0) { res.json([]); return; }
+
+  const [allItems, [buyerProfile]] = await Promise.all([
+    db.select().from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map(o => o.id))),
+    db.select().from(profilesTable).where(eq(profilesTable.userId, userId)),
+  ]);
+
+  const buyerName = buyerProfile ? `${buyerProfile.firstName} ${buyerProfile.lastName}` : "Unknown";
+  const itemsByOrder = new Map<number, typeof allItems>();
+  for (const item of allItems) {
+    if (!itemsByOrder.has(item.orderId)) itemsByOrder.set(item.orderId, []);
+    itemsByOrder.get(item.orderId)!.push(item);
+  }
+
+  const results = orders.map(order => {
+    const items = itemsByOrder.get(order.id) ?? [];
+    return {
+      id: order.id,
+      buyerId: order.buyerId,
+      buyerName,
+      status: order.status,
+      totalUSD: order.totalUSD,
+      incoterm: order.incoterm,
+      destinationPort: order.destinationPort ?? null,
+      shippingMethod: order.shippingMethod ?? null,
+      notes: order.notes ?? null,
+      feePercentage: order.feePercentage ?? null,
+      feeAmountUSD: order.feeAmountUSD ?? null,
+      feeStatus: (() => {
+        const v = order.feeStatus ?? null;
+        if (v !== null && !isValidFeeStatus(v)) {
+          logger.warn({ orderId: order.id, feeStatus: v }, "Unexpected fee_status value read from DB");
+        }
+        return v;
+      })(),
+      itemCount: items.length,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+    };
+  });
   res.json(results);
 });
 
@@ -259,25 +303,82 @@ router.get("/buyer/orders/:id", requireAuth, async (req, res): Promise<void> => 
 
 router.get("/supplier/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
+  const page = Math.max(1, Number((req.query as any).page) || 1);
+  const pageSize = Math.min(50, Math.max(1, Number((req.query as any).pageSize) || 25));
+
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) {
-    res.json([]);
-    return;
+  if (!company) { res.json([]); return; }
+
+  // Efficient lookup: find supplier's products, then find orders via items — no full scan
+  const supplierProducts = await db
+    .select({ id: productsTable.id })
+    .from(productsTable)
+    .where(eq(productsTable.companyId, company.id));
+
+  if (supplierProducts.length === 0) { res.json([]); return; }
+
+  const productIds = supplierProducts.map(p => p.id);
+
+  // Distinct order IDs that contain at least one of the supplier's products
+  const orderIdRows = await db
+    .selectDistinct({ orderId: orderItemsTable.orderId })
+    .from(orderItemsTable)
+    .where(inArray(orderItemsTable.productId, productIds));
+
+  if (orderIdRows.length === 0) { res.json([]); return; }
+
+  const orderIds = orderIdRows.map(r => r.orderId);
+
+  const orders = await db
+    .select()
+    .from(ordersTable)
+    .where(inArray(ordersTable.id, orderIds))
+    .orderBy(ordersTable.createdAt)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
+  if (orders.length === 0) { res.json([]); return; }
+
+  // Batch fetch items + buyer profiles for these orders only
+  const [allItems, buyerProfiles] = await Promise.all([
+    db.select().from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map(o => o.id))),
+    db.select().from(profilesTable).where(inArray(profilesTable.userId, [...new Set(orders.map(o => o.buyerId))])),
+  ]);
+
+  const itemsByOrder = new Map<number, typeof allItems>();
+  for (const item of allItems) {
+    if (!itemsByOrder.has(item.orderId)) itemsByOrder.set(item.orderId, []);
+    itemsByOrder.get(item.orderId)!.push(item);
   }
+  const profileByUser = new Map(buyerProfiles.map(p => [p.userId, p]));
 
-  // Get orders that have items with supplier's products
-  const allOrders = await db.select().from(ordersTable).orderBy(ordersTable.createdAt);
-  const supplierProducts = await db.select().from(productsTable).where(eq(productsTable.companyId, company.id));
-  const productIds = new Set(supplierProducts.map(p => p.id));
-
-  const filteredOrders: any[] = [];
-  for (const order of allOrders) {
-    const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
-    const hasSupplierProduct = items.some(i => productIds.has(i.productId));
-    if (hasSupplierProduct) filteredOrders.push(order);
-  }
-
-  const results = await Promise.all(filteredOrders.map(buildOrderResponse));
+  const results = orders.map(order => {
+    const items = itemsByOrder.get(order.id) ?? [];
+    const buyerProfile = profileByUser.get(order.buyerId);
+    return {
+      id: order.id,
+      buyerId: order.buyerId,
+      buyerName: buyerProfile ? `${buyerProfile.firstName} ${buyerProfile.lastName}` : "Unknown",
+      status: order.status,
+      totalUSD: order.totalUSD,
+      incoterm: order.incoterm,
+      destinationPort: order.destinationPort ?? null,
+      shippingMethod: order.shippingMethod ?? null,
+      notes: order.notes ?? null,
+      feePercentage: order.feePercentage ?? null,
+      feeAmountUSD: order.feeAmountUSD ?? null,
+      feeStatus: (() => {
+        const v = order.feeStatus ?? null;
+        if (v !== null && !isValidFeeStatus(v)) {
+          logger.warn({ orderId: order.id, feeStatus: v }, "Unexpected fee_status value read from DB");
+        }
+        return v;
+      })(),
+      itemCount: items.length,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+    };
+  });
   res.json(results);
 });
 

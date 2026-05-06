@@ -7,7 +7,6 @@ interface AdminAccount {
   email: string;
   firstName: string;
   lastName: string;
-  password: string;
 }
 
 const ADMIN_ACCOUNTS: AdminAccount[] = [
@@ -15,17 +14,23 @@ const ADMIN_ACCOUNTS: AdminAccount[] = [
     email: "irfan@fincava.com",
     firstName: "Syed",
     lastName: "Irfan",
-    password: process.env["ADMIN_DEFAULT_PASSWORD"] ?? "Admin@Fincava2026!",
   },
   {
     email: "info@fincava.com",
     firstName: "Fincava",
     lastName: "Admin",
-    password: process.env["ADMIN_DEFAULT_PASSWORD"] ?? "Admin@Fincava2026!",
   },
 ];
 
 export async function seedAdminAccounts(): Promise<void> {
+  const defaultPassword = process.env["ADMIN_DEFAULT_PASSWORD"];
+  if (!defaultPassword) {
+    throw new Error(
+      "ADMIN_DEFAULT_PASSWORD environment variable is required. " +
+      "Refusing to seed admin accounts without it — set this variable before starting the server.",
+    );
+  }
+
   for (const account of ADMIN_ACCOUNTS) {
     const [existing] = await db
       .select({ id: usersTable.id })
@@ -41,7 +46,7 @@ export async function seedAdminAccounts(): Promise<void> {
       .insert(usersTable)
       .values({
         email: account.email,
-        passwordHash: await hashPassword(account.password),
+        passwordHash: await hashPassword(defaultPassword),
         role: "ADMIN",
       })
       .returning();

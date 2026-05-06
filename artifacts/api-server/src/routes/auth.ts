@@ -305,10 +305,7 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
     .from(passwordResetTokensTable)
     .where(
       and(
-        or(
-          eq(passwordResetTokensTable.tokenHash, tokenHash),
-          eq(passwordResetTokensTable.token, token),
-        ),
+        eq(passwordResetTokensTable.tokenHash, tokenHash),
         eq(passwordResetTokensTable.used, false),
         gt(passwordResetTokensTable.expiresAt, now),
       ),
@@ -330,10 +327,7 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
       .set({ used: true })
       .where(
         and(
-          or(
-            eq(passwordResetTokensTable.tokenHash, tokenHash),
-            eq(passwordResetTokensTable.token, token),
-          ),
+          eq(passwordResetTokensTable.tokenHash, tokenHash),
           eq(passwordResetTokensTable.used, false),
           gt(passwordResetTokensTable.expiresAt, now),
         ),
@@ -387,10 +381,7 @@ router.get("/auth/verify-email", async (req, res): Promise<void> => {
       .set({ used: true })
       .where(
         and(
-          or(
-            eq(emailVerificationTokensTable.tokenHash, tokenHash),
-            eq(emailVerificationTokensTable.token, token),
-          ),
+          eq(emailVerificationTokensTable.tokenHash, tokenHash),
           eq(emailVerificationTokensTable.used, false),
           gt(emailVerificationTokensTable.expiresAt, now),
         ),

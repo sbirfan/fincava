@@ -33,8 +33,10 @@ Fincava is built as a pnpm workspace monorepo utilizing TypeScript.
 - **API Codegen**: Orval generates API hooks and Zod schemas from an OpenAPI specification.
 - **Build System**: esbuild is used for bundling into CJS.
 - **Authentication**: JWTs are stored in httpOnly cookies (`fincava_auth`), with `requireAuth` middleware supporting both cookie and `Authorization: Bearer` header. Frontend uses `AuthContext` with `credentials: "include"`. bcrypt is used for password hashing with transparent legacy SHA-256 migration.
-- **Authorization**: Role-based access control (BUYER, SUPPLIER, ADMIN) with shared `requireAdmin` middleware.
-- **Security**: Helmet for HTTP security headers, restricted CORS, 1MB global JSON body limit.
+- **Authorization**: Role-based access control (BUYER, SUPPLIER, ADMIN) with shared `requireAdmin` middleware. SUPPLIER role enforced on all `/supplier/products` routes; BUYER role on `POST /rfqs`; SUPPLIER role on `POST /rfqs/:id/respond`. Supplier onboard update path (supplierId in body) requires ADMIN auth checked before field validation.
+- **Security**: Helmet for HTTP security headers; explicit allowedOrigins CORS (throws in production without `CORS_ORIGIN` env var); CSRF Origin-check middleware for POST/PUT/PATCH/DELETE; 1MB global JSON body limit. Password reset and email verification use hash-only token lookup (plaintext OR fallback removed). Storage upload URL requires auth + content-type allowlist; object serve requires auth + ACL ownership check with ADMIN bypass; POST `/storage/uploads/confirm` sets ACL after direct GCS upload.
+- **Query Safety**: supplier/orders uses selectDistinct + batch fetch (no full-table scan); buyer/orders and rfq listings use batched profile/count queries (no N+1). Order listing endpoints support `?page`/`?pageSize` pagination (max 50).
+- **Seed**: `ADMIN_DEFAULT_PASSWORD` env var required at startup; server throws (caught, logged) if missing so no hardcoded credentials are ever used.
 - **Error Handling**: Global Express error handler with pino logging and standardized JSON error responses.
 - **AI Integration**: Anthropic SDK for AI scoring, with model names configurable via environment variables.
 - **Object Storage**: Integration with Google Cloud Storage (GCS) for product images, using presigned URLs for direct client uploads and server-side serving.

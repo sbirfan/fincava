@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
+import { logger } from "../lib/logger";
 import { z } from "zod";
 
 const BooleanFilters = z.object({
@@ -286,8 +287,16 @@ router.get("/products/:id/similar", async (req, res): Promise<void> => {
 });
 
 // Supplier product management
+// H-8: All /supplier/products routes require SUPPLIER role.
+// NOTE: supplierId is not set on product insert because suppliersTable has no userId/companyId FK
+// in Phase 1. The bridge column (company_id → suppliers) is tracked as a separate arch gap.
 router.get("/supplier/products", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
+  const userRole = (req as any).userRole as string;
+  if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
+    res.status(403).json({ error: "Only supplier accounts can manage products" });
+    return;
+  }
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) {
     res.json([]);
@@ -312,6 +321,11 @@ const VALID_PRODUCT_CATEGORIES = ["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", 
 router.post("/supplier/products", requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).userId;
+    const userRole = (req as any).userRole as string;
+    if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
+      res.status(403).json({ error: "Only supplier accounts can manage products" });
+      return;
+    }
     const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
     if (!company) {
       res.status(400).json({ error: "Supplier company not found" });
@@ -356,13 +370,18 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
     const result = await buildProductResponse(product, company);
     res.status(201).json(result);
   } catch (err: any) {
-    console.error("create product error:", err);
+    logger.error({ err }, "Create product error");
     res.status(500).json({ error: "Failed to create product" });
   }
 });
 
 router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
+  const userRole = (req as any).userRole as string;
+  if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
+    res.status(403).json({ error: "Only supplier accounts can manage products" });
+    return;
+  }
   const params = UpdateProductParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -411,6 +430,11 @@ router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<vo
 
 router.delete("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
+  const userRole = (req as any).userRole as string;
+  if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
+    res.status(403).json({ error: "Only supplier accounts can manage products" });
+    return;
+  }
   const params = DeleteProductParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
