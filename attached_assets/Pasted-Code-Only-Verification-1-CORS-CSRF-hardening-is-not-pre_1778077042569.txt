@@ -1,0 +1,114 @@
+Code-Only Verification
+1. CORS / CSRF hardening is not present
+The API still configures credentialed CORS with:
+
+origin: process.env.CORS_ORIGIN ?? true,
+credentials: true,
+That means when CORS_ORIGIN is unset, arbitrary origins can still be reflected while cookies are allowed.
+
+There is also no CSRF/origin middleware before the API router is mounted; the app goes from parsers/rate limiters directly to app.use("/api", router).
+
+Status: ❌ Not fixed.
+
+2. Hardcoded admin seed password is still present
+The seed file still falls back to Admin@Fincava2026! when ADMIN_DEFAULT_PASSWORD is not set.
+
+The seed function still hashes and inserts that password when the admin accounts do not already exist.
+
+Status: ❌ Not fixed.
+
+3. Password reset and email verification still allow raw-token fallback
+Password reset pre-check still accepts either the hash or the plaintext token.
+
+Password reset transaction claim still accepts either the hash or the plaintext token.
+
+Email verification still accepts either the hash or the plaintext token.
+
+Status: ❌ Not fixed.
+
+4. Storage upload and private object serving are still unauthenticated
+POST /storage/uploads/request-url still has no requireAuth, no content-type allowlist enforcement, and no ownership registration before returning the upload URL.
+
+GET /storage/objects/*path still has the auth/ACL check commented out and streams the object afterward.
+
+Status: ❌ Not fixed.
+
+5. Supplier product routes still only require authentication, not supplier/admin role
+All supplier product management routes still use only requireAuth:
+
+GET /supplier/products.
+
+POST /supplier/products.
+
+PATCH /supplier/products/:id.
+
+DELETE /supplier/products/:id.
+
+The create route still logs with console.error, so the claimed structured logging cleanup is also not present there.
+
+Status: ❌ Not fixed.
+
+6. RFQ routes still lack buyer/supplier role enforcement
+POST /rfqs still only uses requireAuth, so any authenticated user can create an RFQ as buyerId.
+
+POST /rfqs/:id/respond still only uses requireAuth and checks for a company row, not supplier role.
+
+POST /rfqs/:id/award/:responseId still only uses requireAuth; it checks RFQ ownership, but because RFQ creation is not buyer-role-gated, a non-buyer account can still create and award its own RFQ.
+
+Status: ❌ Not fixed.
+
+7. Supplier onboarding update path is still public and validates before checking supplierId
+POST /suppliers/onboard is still declared without requireAuth or requireAdmin.
+
+The handler still validates required create-mode fields before extracting supplierId, so an update-mode request with missing fields still hits validation before any guard.
+
+The update-mode branch still proceeds after reading supplierId from the request body.
+
+Status: ❌ Not fixed.
+
+8. Order listing remains unbounded and N+1-heavy
+GET /buyer/orders still returns all buyer orders with no limit, offset, cursor, page, or pageSize.
+
+buildOrderResponse() still performs per-order DB reads for order items and buyer profile.
+
+GET /supplier/orders still fetches all orders, fetches supplier products, loops over every order, and queries items per order.
+
+Status: ❌ Not fixed.
+
+9. RFQ list endpoints remain unbounded and N+1-heavy
+Public GET /rfqs still fetches all RFQs and performs per-RFQ profile and response queries.
+
+GET /supplier/rfqs still fetches open RFQs without pagination.
+
+GET /buyer/rfqs still fetches all buyer RFQs and performs per-RFQ response queries.
+
+Status: ❌ Not fixed.
+
+10. console.error still remains in production route code
+console.error remains in product creation error handling.
+
+console.error remains in supplier onboarding error handling.
+
+console.error remains in manual WhatsApp send error handling.
+
+Status: ❌ Not fixed.
+
+Repo-Code Status Table
+Area	Replit claimed fixed	Actual code status
+CORS allowlist	Yes	❌ Not present
+CSRF/origin middleware	Yes	❌ Not present
+Hardcoded admin password removed	Yes	❌ Not present
+Hash-only reset/verify tokens	Yes	❌ Not present
+Storage upload auth	Yes	❌ Not present
+Storage private object ACL	Yes	❌ Not present
+Upload confirm endpoint	Yes	❌ Not found
+Supplier product role checks	Yes	❌ Not present
+RFQ role checks	Yes	❌ Not present
+Supplier onboard update admin guard	Yes	❌ Not present
+Order pagination/N+1 fix	Yes	❌ Not present
+RFQ N+1 fix	Yes	❌ Not present
+console.error cleanup	Yes	❌ Not present
+Conclusion
+Ignoring the document and checking only the repo code: the Batch 1 implementation is not in this synced checkout.
+
+The repo currently contains the review/report commit, but the actual source files still show the pre-fix vulnerable implementation.
