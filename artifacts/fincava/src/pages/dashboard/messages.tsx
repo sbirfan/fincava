@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Send, MessageSquare } from "lucide-react";
+import {
+  Send, MessageSquare, Languages, Eye, EyeOff,
+  LifeBuoy, X, AlertTriangle, Loader2, CheckCircle2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -26,16 +29,195 @@ interface Message {
   senderName: string;
   receiverId: number;
   content: string;
+  translatedContent: string | null;
+  detectedLang: string | null;
   read: boolean;
   createdAt: string;
 }
 
+// ── Disclaimer banner ─────────────────────────────────────────────────────────
+function TranslationBanner({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="mx-4 mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 flex items-start gap-3">
+      <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+      <div className="flex-1 text-xs text-amber-300/90 leading-relaxed">
+        <span className="font-semibold">Auto-translated</span> — This conversation is being shown in a translated language. Translation is powered by AI and may have limitations, especially for agricultural terminology.{" "}
+        <span className="text-amber-400/70">Original messages are available per message below.</span>
+      </div>
+      <button onClick={onDismiss} className="text-amber-400/60 hover:text-amber-300 shrink-0">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+// ── Individual message bubble ─────────────────────────────────────────────────
+function MessageBubble({
+  msg,
+  isMe,
+  showTranslated,
+}: {
+  msg: Message;
+  isMe: boolean;
+  showTranslated: boolean;
+}) {
+  const [seeOriginal, setSeeOriginal] = useState(false);
+
+  const displayText =
+    showTranslated && msg.translatedContent && !seeOriginal
+      ? msg.translatedContent
+      : msg.content;
+
+  const canToggle = showTranslated && !!msg.translatedContent;
+
+  return (
+    <div className={cn("flex", isMe ? "justify-end" : "justify-start")}>
+      <div className={cn("max-w-[70%] space-y-1", isMe ? "items-end flex flex-col" : "items-start flex flex-col")}>
+        <div
+          className={cn(
+            "px-4 py-2.5 rounded-2xl text-sm",
+            isMe
+              ? "bg-primary text-primary-foreground rounded-br-sm"
+              : "bg-muted text-foreground rounded-bl-sm"
+          )}
+        >
+          <p className="leading-relaxed">{displayText}</p>
+          <p className={cn("text-[10px] mt-1", isMe ? "text-primary-foreground/60" : "text-muted-foreground")}>
+            {format(new Date(msg.createdAt), "h:mm a")}
+            {showTranslated && msg.detectedLang && (
+              <span className="ml-1.5 opacity-60">· orig: {msg.detectedLang?.toUpperCase()}</span>
+            )}
+          </p>
+        </div>
+
+        {canToggle && (
+          <button
+            onClick={() => setSeeOriginal(v => !v)}
+            className={cn(
+              "flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors",
+              isMe ? "pr-1" : "pl-1"
+            )}
+          >
+            {seeOriginal ? <Eye className="h-2.5 w-2.5" /> : <EyeOff className="h-2.5 w-2.5" />}
+            {seeOriginal ? "Show translation" : "Read original"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Escalation modal ──────────────────────────────────────────────────────────
+function EscalateModal({
+  otherId,
+  otherName,
+  onClose,
+}: {
+  otherId: number;
+  otherName: string;
+  onClose: () => void;
+}) {
+  const [note, setNote] = useState("");
+  const [done, setDone] = useState(false);
+
+  const escalate = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/messages/${otherId}/escalate`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      if (!res.ok) throw new Error("Failed to send");
+      return res.json();
+    },
+    onSuccess: () => setDone(true),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        {done ? (
+          <div className="text-center space-y-3 py-4">
+            <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
+            <p className="font-semibold text-foreground">Request sent to Fincava</p>
+            <p className="text-sm text-muted-foreground">
+              Our team will review your conversation and reach out to both parties within 24 hours.
+            </p>
+            <Button onClick={onClose} className="mt-2">Close</Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-foreground flex items-center gap-2">
+                  <LifeBuoy className="h-4 w-4 text-primary" />
+                  Contact Fincava for help
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  A Fincava team member will read your conversation with <strong>{otherName}</strong> and help facilitate the discussion.
+                </p>
+              </div>
+              <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-300/80">
+              By submitting, a Fincava team member will be able to read the recent messages in this conversation to assist you.
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                What needs clarification?
+              </label>
+              <textarea
+                className="w-full h-28 bg-muted/40 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
+                placeholder="Describe what's unclear or confusing so we can help…"
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                maxLength={1000}
+              />
+              <p className="text-[10px] text-muted-foreground text-right">{note.length}/1000</p>
+            </div>
+
+            {escalate.isError && (
+              <p className="text-xs text-red-400">Failed to send. Please try again.</p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+              <Button
+                onClick={() => escalate.mutate()}
+                disabled={!note.trim() || escalate.isPending}
+                className="flex-1"
+              >
+                {escalate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send to Fincava"}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function BuyerMessages() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
+  const [showTranslated, setShowTranslated] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [escalateOpen, setEscalateOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Reset translation state when switching conversations
+  useEffect(() => {
+    setShowTranslated(false);
+    setBannerDismissed(false);
+  }, [selectedUserId]);
 
   const { data: conversations, isLoading: loadingConvs } = useQuery<Conversation[]>({
     queryKey: ["/api/messages/conversations"],
@@ -73,6 +255,22 @@ export default function BuyerMessages() {
     },
   });
 
+  const translate = useMutation({
+    mutationFn: async (targetLang: "en" | "es") => {
+      const res = await fetch(`/api/messages/${selectedUserId}/translate`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetLang }),
+      });
+      if (!res.ok) throw new Error("Translation failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/messages", selectedUserId] });
+    },
+  });
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -83,145 +281,210 @@ export default function BuyerMessages() {
     send.mutate(content);
   }
 
+  function handleToggleTranslation() {
+    const next = !showTranslated;
+    setShowTranslated(next);
+    setBannerDismissed(false);
+
+    if (next && messages) {
+      const needsTranslation = messages.some(m => !m.translatedContent);
+      if (needsTranslation) {
+        // Detect the viewer's target language from browser
+        const browserLang = navigator.language.toLowerCase().startsWith("es") ? "es" : "en";
+        translate.mutate(browserLang);
+      }
+    }
+  }
+
   const selectedConv = conversations?.find(c => c.userId === selectedUserId);
   const currentUserId = (user as any)?.id;
 
-  return (
-    <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
-      <div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight">Messages</h1>
-        <p className="text-muted-foreground mt-1">Live conversations with your suppliers.</p>
-      </div>
+  const hasAnyTranslation = messages?.some(m => m.translatedContent);
+  const translationPending = translate.isPending;
 
-      <Card className="flex-1 overflow-hidden flex border-border min-h-0">
-        {/* Conversation list */}
-        <div className="w-[280px] shrink-0 border-r flex flex-col bg-muted/10">
-          <div className="p-4 border-b font-semibold font-serif bg-card flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-primary" />
-            Conversations
-          </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            {loadingConvs ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full mb-2 rounded-lg" />
-              ))
-            ) : conversations && conversations.length > 0 ? (
-              conversations.map(conv => (
-                <button
-                  key={conv.userId}
-                  onClick={() => setSelectedUserId(conv.userId)}
-                  className={cn(
-                    "w-full text-left p-3 mb-1 rounded-lg transition-colors border",
-                    selectedUserId === conv.userId
-                      ? "bg-primary/10 border-primary/20 text-foreground"
-                      : "border-transparent hover:bg-muted"
-                  )}
-                >
-                  <div className="flex justify-between items-baseline mb-1">
-                    <span className="font-medium text-sm truncate pr-2">{conv.userName}</span>
-                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                      {format(new Date(conv.lastMessageAt), "MMM d")}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs text-muted-foreground truncate">{conv.lastMessage}</span>
-                    {conv.unreadCount > 0 && (
-                      <Badge className="ml-1 h-4 min-w-[16px] px-1 text-[10px] bg-primary shrink-0">
-                        {conv.unreadCount}
-                      </Badge>
+  return (
+    <>
+      {escalateOpen && selectedConv && (
+        <EscalateModal
+          otherId={selectedConv.userId}
+          otherName={selectedConv.userName}
+          onClose={() => setEscalateOpen(false)}
+        />
+      )}
+
+      <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
+        <div>
+          <h1 className="text-3xl font-serif font-bold tracking-tight">Messages</h1>
+          <p className="text-muted-foreground mt-1">Live conversations with your suppliers.</p>
+        </div>
+
+        <Card className="flex-1 overflow-hidden flex border-border min-h-0">
+          {/* Conversation list */}
+          <div className="w-[280px] shrink-0 border-r flex flex-col bg-muted/10">
+            <div className="p-4 border-b font-semibold font-serif bg-card flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-primary" />
+              Conversations
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {loadingConvs ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full mb-2 rounded-lg" />
+                ))
+              ) : conversations && conversations.length > 0 ? (
+                conversations.map(conv => (
+                  <button
+                    key={conv.userId}
+                    onClick={() => setSelectedUserId(conv.userId)}
+                    className={cn(
+                      "w-full text-left p-3 mb-1 rounded-lg transition-colors border",
+                      selectedUserId === conv.userId
+                        ? "bg-primary/10 border-primary/20 text-foreground"
+                        : "border-transparent hover:bg-muted"
                     )}
+                  >
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className="font-medium text-sm truncate pr-2">{conv.userName}</span>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                        {format(new Date(conv.lastMessageAt), "MMM d")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs text-muted-foreground truncate">{conv.lastMessage}</span>
+                      {conv.unreadCount > 0 && (
+                        <Badge className="ml-1 h-4 min-w-[16px] px-1 text-[10px] bg-primary shrink-0">
+                          {conv.unreadCount}
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="text-center p-6 text-muted-foreground text-sm mt-8">
+                  <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  No active conversations yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Message thread */}
+          <div className="flex-1 flex flex-col min-w-0 bg-card">
+            {selectedUserId ? (
+              <>
+                {/* Thread header */}
+                <div className="p-4 border-b bg-muted/5 flex items-center gap-3 flex-wrap">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold shrink-0">
+                    {selectedConv?.userName?.charAt(0) ?? "?"}
                   </div>
-                </button>
-              ))
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm">{selectedConv?.userName}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{selectedConv?.userRole?.toLowerCase()}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-auto">
+                    {/* Live indicator */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-xs text-muted-foreground">Live</span>
+                    </div>
+
+                    {/* Translation toggle */}
+                    <button
+                      onClick={handleToggleTranslation}
+                      disabled={translationPending}
+                      title={showTranslated ? "Show original messages" : "Auto-translate messages"}
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors",
+                        showTranslated
+                          ? "bg-blue-500/20 border-blue-500/30 text-blue-300"
+                          : "bg-muted border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      {translationPending
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Languages className="h-3 w-3" />
+                      }
+                      {showTranslated ? "Translated" : "Translate"}
+                    </button>
+
+                    {/* Need help button */}
+                    <button
+                      onClick={() => setEscalateOpen(true)}
+                      title="Contact Fincava for clarification"
+                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                    >
+                      <LifeBuoy className="h-3 w-3" />
+                      Need help?
+                    </button>
+                  </div>
+                </div>
+
+                {/* Translation disclaimer banner */}
+                {showTranslated && !bannerDismissed && (
+                  <TranslationBanner onDismiss={() => setBannerDismissed(true)} />
+                )}
+
+                {/* Message list */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {loadingMsgs ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className={cn("flex", i % 2 === 0 ? "justify-start" : "justify-end")}>
+                        <Skeleton className="h-10 w-48 rounded-2xl" />
+                      </div>
+                    ))
+                  ) : messages && messages.length > 0 ? (
+                    <>
+                      {showTranslated && translationPending && (
+                        <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Translating conversation…
+                        </div>
+                      )}
+                      {messages.map(msg => (
+                        <MessageBubble
+                          key={msg.id}
+                          msg={msg}
+                          isMe={msg.senderId === currentUserId}
+                          showTranslated={showTranslated && hasAnyTranslation === true}
+                        />
+                      ))}
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm py-12">
+                      No messages yet — send the first one.
+                    </div>
+                  )}
+                  <div ref={bottomRef} />
+                </div>
+
+                {/* Compose box */}
+                <div className="p-4 border-t bg-card">
+                  <form
+                    className="flex gap-2"
+                    onSubmit={e => { e.preventDefault(); handleSend(); }}
+                  >
+                    <Input
+                      placeholder="Type a message…"
+                      value={draft}
+                      onChange={e => setDraft(e.target.value)}
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button type="submit" size="icon" disabled={!draft.trim() || send.isPending} className="shrink-0">
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </form>
+                </div>
+              </>
             ) : (
-              <div className="text-center p-6 text-muted-foreground text-sm mt-8">
-                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                No active conversations yet.
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
+                <MessageSquare className="w-12 h-12 opacity-20" />
+                <p className="text-sm">Select a conversation to start messaging</p>
               </div>
             )}
           </div>
-        </div>
-
-        {/* Message thread */}
-        <div className="flex-1 flex flex-col min-w-0 bg-card">
-          {selectedUserId ? (
-            <>
-              <div className="p-4 border-b bg-muted/5 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold shrink-0">
-                  {selectedConv?.userName?.charAt(0) ?? "?"}
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">{selectedConv?.userName}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{selectedConv?.userRole?.toLowerCase()}</p>
-                </div>
-                <div className="ml-auto flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-xs text-muted-foreground">Live</span>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {loadingMsgs ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className={cn("flex", i % 2 === 0 ? "justify-start" : "justify-end")}>
-                      <Skeleton className="h-10 w-48 rounded-2xl" />
-                    </div>
-                  ))
-                ) : messages && messages.length > 0 ? (
-                  messages.map(msg => {
-                    const isMe = msg.senderId === currentUserId;
-                    return (
-                      <div key={msg.id} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
-                        <div
-                          className={cn(
-                            "max-w-[70%] px-4 py-2.5 rounded-2xl text-sm",
-                            isMe
-                              ? "bg-primary text-primary-foreground rounded-br-sm"
-                              : "bg-muted text-foreground rounded-bl-sm"
-                          )}
-                        >
-                          <p className="leading-relaxed">{msg.content}</p>
-                          <p className={cn("text-[10px] mt-1", isMe ? "text-primary-foreground/60" : "text-muted-foreground")}>
-                            {format(new Date(msg.createdAt), "h:mm a")}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm py-12">
-                    No messages yet — send the first one.
-                  </div>
-                )}
-                <div ref={bottomRef} />
-              </div>
-
-              <div className="p-4 border-t bg-card">
-                <form
-                  className="flex gap-2"
-                  onSubmit={e => { e.preventDefault(); handleSend(); }}
-                >
-                  <Input
-                    placeholder="Type a message…"
-                    value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    className="flex-1"
-                    autoFocus
-                  />
-                  <Button type="submit" size="icon" disabled={!draft.trim() || send.isPending} className="shrink-0">
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </form>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
-              <MessageSquare className="w-12 h-12 opacity-20" />
-              <p className="text-sm">Select a conversation to start messaging</p>
-            </div>
-          )}
-        </div>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 }

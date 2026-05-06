@@ -410,6 +410,49 @@ export function buyerRevisionRequestedEmail(opts: {
   return { html, text, subject };
 }
 
+// ── Conversation escalation template ─────────────────────────────────────────
+
+export function conversationEscalationEmail(opts: {
+  requesterName: string;
+  requesterRole: string;
+  otherPartyName: string;
+  note: string;
+  messages: { senderName: string; content: string; createdAt: string }[];
+  adminUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = `Clarification requested by ${esc(opts.requesterName)} — Fincava conversation`;
+  const msgRows = opts.messages.slice(-8).map(m =>
+    `<tr>
+      <td style="padding:6px 10px;color:#78716c;font-size:12px;white-space:nowrap;vertical-align:top;">${esc(m.senderName)}</td>
+      <td style="padding:6px 10px;font-size:13px;color:#1c1917;">${esc(m.content)}</td>
+      <td style="padding:6px 10px;color:#a8a29e;font-size:11px;white-space:nowrap;vertical-align:top;">${new Date(m.createdAt).toLocaleString()}</td>
+    </tr>`
+  ).join("");
+
+  const html = baseTemplate(`
+    <p>Hello Fincava team,</p>
+    <p><strong>${esc(opts.requesterName)}</strong> (${esc(opts.requesterRole)}) has requested clarification in their conversation with <strong>${esc(opts.otherPartyName)}</strong> and needs your assistance facilitating the discussion.</p>
+    <div style="background:#fffbeb;border-left:4px solid #d97706;padding:14px 18px;margin:0 0 20px;border-radius:0 6px 6px 0;font-family:system-ui,sans-serif;font-size:14px;color:#92400e;">
+      <p style="margin:0 0 4px;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">User note</p>
+      <p style="margin:0;line-height:1.6;">${esc(opts.note)}</p>
+    </div>
+    <p style="font-family:system-ui,sans-serif;font-size:13px;font-weight:600;color:#44403c;margin:0 0 8px;">Recent conversation (last 8 messages)</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 20px;font-family:system-ui,sans-serif;background:#f9f9f8;border-radius:6px;overflow:hidden;">
+      <thead><tr style="border-bottom:1px solid #e7e5e4;">
+        <th style="padding:6px 10px;text-align:left;font-size:11px;color:#78716c;font-weight:600;">From</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;color:#78716c;font-weight:600;">Message</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;color:#78716c;font-weight:600;">Time</th>
+      </tr></thead>
+      <tbody>${msgRows}</tbody>
+    </table>
+    <p><a href="${opts.adminUrl}" class="btn">Open conversation in admin</a></p>
+    <p class="note">Please reach out to both parties to facilitate the discussion. Reply to <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a> with any questions.</p>
+  `);
+  const textMsgs = opts.messages.slice(-8).map(m => `  [${m.senderName}]: ${m.content}`).join("\n");
+  const text = `Hello Fincava team,\n\n${opts.requesterName} (${opts.requesterRole}) needs help with their conversation with ${opts.otherPartyName}.\n\nUser note:\n${opts.note}\n\nRecent messages:\n${textMsgs}\n\nAdmin panel: ${opts.adminUrl}\n\n— Fincava Platform`;
+  return { html, text, subject };
+}
+
 // ── Inquiry & RFQ notification templates ─────────────────────────────────────
 
 export function newInquiryEmail(opts: {
