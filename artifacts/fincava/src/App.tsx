@@ -102,7 +102,7 @@ function MvpBanner() {
   return (
     <div className="relative z-50 bg-[#1B5E20] text-white text-sm px-4 py-2.5 flex items-center justify-center gap-3">
       <span className="text-center leading-snug">
-        <strong>Fincava is in early access.</strong> We are actively building — some features may be unstable or incomplete.
+        <strong>Fincava is currently in beta.</strong> We are onboarding a limited group of suppliers and buyers to shape the platform and build the first trusted trade network. Early participants gain priority access and visibility as the network grows.
       </span>
       <button
         onClick={dismiss}
