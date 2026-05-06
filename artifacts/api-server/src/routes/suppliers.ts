@@ -17,6 +17,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import {
   sendEmail,
+  getAdminEmails,
   supplierApplicationConfirmationEmail,
   supplierApplicationAdminAlertEmail,
 } from "../lib/email";
@@ -420,11 +421,15 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       supplierId: supplier.id,
       adminUrl,
     });
-    sendEmail({
-      to: "sbirfan@gmail.com",
-      subject: `New supplier application — ${nombreCompleto}`,
-      ...adminAlertContent,
-    }).catch((err) => logger.warn({ err, supplierId: supplier.id }, "Admin alert email failed"));
+    getAdminEmails()
+      .then((adminEmails) =>
+        sendEmail({
+          to: adminEmails,
+          subject: `New supplier application — ${nombreCompleto}`,
+          ...adminAlertContent,
+        })
+      )
+      .catch((err) => logger.warn({ err, supplierId: supplier.id }, "Admin alert email failed"));
 
     // ── Post-onboard pipeline (sequential, post-response) ────────────────────
     // scoreSupplier must complete before evaluateSupplier runs — evaluation

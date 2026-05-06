@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 let _resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -16,7 +18,7 @@ export type EmailResult =
   | { ok: false; reason: "no_api_key" | "resend_error" | "exception"; detail?: string };
 
 export async function sendEmail(opts: {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   text?: string;
@@ -44,6 +46,14 @@ export async function sendEmail(opts: {
     logger.error({ err, to: opts.to, subject: opts.subject }, "Unexpected error sending email");
     return { ok: false, reason: "exception", detail: err?.message ?? String(err) };
   }
+}
+
+export async function getAdminEmails(): Promise<string[]> {
+  const admins = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.role, "ADMIN"));
+  return admins.map((a) => a.email);
 }
 
 function esc(str: string | null | undefined): string {

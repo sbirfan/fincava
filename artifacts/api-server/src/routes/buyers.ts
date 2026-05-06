@@ -31,6 +31,7 @@ import { ENABLE_INTELLIGENCE_PUBLIC } from "../lib/flags";
 import { logger } from "../lib/logger";
 import {
   sendEmail,
+  getAdminEmails,
   buyerOnboardAdminAlertEmail,
   verificationEmail,
 } from "../lib/email";
@@ -234,8 +235,9 @@ router.post("/buyers/register", async (req, res): Promise<void> => {
         userId: result.user.id,
         adminUrl: `${getAppBaseUrl()}/admin/buyers`,
       });
+      const adminEmails = await getAdminEmails();
       await sendEmail({
-        to: "sbirfan@gmail.com",
+        to: adminEmails,
         subject: `New buyer registered (Phase 1): ${buyerName}`,
         html: emailContent.html,
         text: emailContent.text,
@@ -408,8 +410,9 @@ router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
           adminUrl: `${appBaseUrl}/admin/buyers`,
         });
 
+        const adminEmailsOnboard = await getAdminEmails();
         await sendEmail({
-          to: "sbirfan@gmail.com",
+          to: adminEmailsOnboard,
           subject: `New buyer onboarded: ${buyerName}`,
           html: emailContent.html,
           text: emailContent.text,
