@@ -44,7 +44,9 @@ router.get("/finance/credit", requireAuth, async (req, res): Promise<void> => {
   const { score, limit } = await getCreditScore(userId);
   const activeLoans = await db.select().from(loansTable)
     .where(and(eq(loansTable.buyerId, userId), eq(loansTable.status, "ACTIVE")));
-  const totalOwed = activeLoans.reduce((sum, l) => sum + l.totalRepaymentUSD, 0);
+  const totalOwed = Math.round(
+    activeLoans.reduce((sum, l) => sum + l.totalRepaymentUSD, 0) * 100
+  ) / 100;
   res.json({ score, limit, available: Math.max(0, limit - totalOwed), totalOwed });
 });
 
@@ -112,7 +114,9 @@ router.post("/finance/loan", requireAuth, requireVerifiedEmail, async (req, res)
     return;
   }
 
-  const feeUSD = principalUSD * (aprPercent / 100) * (termDays / 365);
+  const feeUSD = Math.round(
+    principalUSD * (aprPercent / 100) * (termDays / 365) * 100
+  ) / 100;
   const totalRepaymentUSD = principalUSD + feeUSD;
 
   const dueAt = new Date();

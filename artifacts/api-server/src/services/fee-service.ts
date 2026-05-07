@@ -61,7 +61,7 @@ export async function computeFee(
 
   const isWaived = Number(priorCount) < WAIVER_THRESHOLD;
 
-  const feeAmountUSD  = isWaived ? 0 : parseFloat((safeTotal * FEE_RATE).toFixed(2));
+  const feeAmountUSD  = isWaived ? 0 : Math.round(safeTotal * FEE_RATE * 100) / 100;
   const feePercentage = FEE_RATE * 100; // store as 4, not 0.04
 
   return {
