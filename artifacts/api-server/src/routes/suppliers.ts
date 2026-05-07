@@ -1163,7 +1163,10 @@ router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, 
 // ── GET /api/suppliers/:id/profile — public supplier profile ─────────────────
 // No authentication required. Returns a curated public profile with
 // `public_trust_score` computed from safe signals. Internal fields such as
-// `confidenceScore`, ingestion metadata, and admin notes are intentionally excluded.
+// `confidenceScore`, `status`, `sellableStatus`, ingestion metadata, and admin
+// notes are intentionally excluded.
+// Only SELLABLE or PUBLISHED suppliers are exposed — drafts and unpublished
+// records return 404 to prevent enumeration of the internal supplier pipeline.
 // Response is a flat PublicSupplierProfile object the frontend can read directly.
 router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
@@ -1184,7 +1187,6 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
       sourceUrl: suppliersTable.sourceUrl,
       country: suppliersTable.country,
       supplierType: suppliersTable.supplierType,
-      status: suppliersTable.status,
       sellableStatus: suppliersTable.sellableStatus,
       claimStatus: suppliersTable.claimStatus,
       createdAt: suppliersTable.createdAt,
@@ -1195,7 +1197,9 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     .where(eq(suppliersTable.id, supplierId))
     .limit(1);
 
-  if (!supplier) {
+  // Return 404 for any supplier that is not marketplace-approved.
+  // This prevents enumeration of ingested/draft suppliers and their internal data.
+  if (!supplier || (supplier.sellableStatus !== "SELLABLE" && supplier.sellableStatus !== "PUBLISHED")) {
     sendError(res, 404, "Supplier not found");
     return;
   }
@@ -1234,6 +1238,8 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
   // Derive product categories from linked products.
   const productCategories = [...new Set(supplierProducts.map((p) => p.category).filter(Boolean))];
 
+  // Internal lifecycle fields (status, sellableStatus) are intentionally omitted
+  // from the public response to avoid leaking pipeline metadata.
   res.json({
     id: supplier.id,
     name: supplier.nombreCompleto,
@@ -1241,8 +1247,6 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     country: supplier.country ?? "Colombia",
     description: supplier.description ?? null,
     type: supplier.supplierType ?? null,
-    status: supplier.status,
-    sellableStatus: supplier.sellableStatus,
     isCertified,
     verified: isVerified,
     memberSince: supplier.createdAt,
@@ -1269,12 +1273,20 @@ router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void>
   const userId = req.userId;
 
   const [user] = await db
-    .select({ email: usersTable.email })
+    .select({ email: usersTable.email, emailVerifiedAt: usersTable.emailVerifiedAt })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
     .limit(1);
 
   if (!user?.email) {
+    res.json({ found: false });
+    return;
+  }
+
+  // Only resolve supplier linkage for accounts that have verified email ownership.
+  // Without this gate an attacker who registered with someone else's email could
+  // call this endpoint to discover the matching supplierId before attempting a claim.
+  if (!user.emailVerifiedAt) {
     res.json({ found: false });
     return;
   }
@@ -1401,13 +1413,21 @@ router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void
   const userId = req.userId;
 
   const [user] = await db
-    .select({ email: usersTable.email })
+    .select({ email: usersTable.email, emailVerifiedAt: usersTable.emailVerifiedAt })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
     .limit(1);
 
   if (!user?.email) {
     sendError(res, 403, "Account has no email — cannot claim");
+    return;
+  }
+
+  // Require a verified email before allowing any supplier claim.
+  // This prevents an attacker from registering with someone else's email and
+  // immediately hijacking the claim flow without proving inbox ownership.
+  if (!user.emailVerifiedAt) {
+    sendError(res, 403, "Email address not verified — verify your email before claiming a supplier record");
     return;
   }
 

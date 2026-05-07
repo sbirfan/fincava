@@ -39,6 +39,7 @@ function ProfileCompletenessWidget() {
   const [data, setData] = useState<MyProfileResponse | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimDone, setClaimDone] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/suppliers/my-profile", { credentials: "include" })
@@ -49,12 +50,18 @@ function ProfileCompletenessWidget() {
 
   const handleClaim = async (supplierId: number) => {
     setClaiming(true);
+    setClaimError(null);
     try {
       const r = await fetch(`/api/suppliers/${supplierId}/claim`, {
         method: "PATCH",
         credentials: "include",
       });
-      if (r.ok) setClaimDone(true);
+      if (r.ok) {
+        setClaimDone(true);
+      } else {
+        const body = await r.json().catch(() => ({}));
+        setClaimError(body?.error ?? "Unable to claim profile. Please try again.");
+      }
     } finally {
       setClaiming(false);
     }
@@ -190,6 +197,9 @@ function ProfileCompletenessWidget() {
               <p className="text-xs text-amber-700 mt-0.5">
                 Claiming links your farmer record to your account and boosts your public trust score.
               </p>
+              {claimError && (
+                <p className="text-xs text-red-700 mt-1.5 font-medium">{claimError}</p>
+              )}
               <Button
                 size="sm"
                 variant="outline"
