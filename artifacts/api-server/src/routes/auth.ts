@@ -7,6 +7,7 @@ import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendEmail, passwordResetEmail, welcomeEmail, verificationEmail } from "../lib/email";
+import { enqueueEmail } from "../lib/email-queue";
 import { runMatching as runBuyerMatching } from "../services/buyer-matching-service";
 import { sendError } from "../lib/response";
 
@@ -84,12 +85,7 @@ async function sendVerificationEmail(userId: number, email: string, firstName: s
   await db.insert(emailVerificationTokensTable).values({ userId, token, tokenHash: hashToken(token), expiresAt });
   const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${token}`;
   const { html, text, subject } = verificationEmail({ firstName: firstName || "there", verifyUrl });
-  const result = await sendEmail({ to: email, subject, html, text });
-  if (result.ok) {
-    logger.info({ userId, email: maskEmail(email) }, "Verification email sent");
-  } else {
-    logger.error({ userId, email: maskEmail(email), reason: result.reason, detail: (result as any).detail }, "Verification email delivery failed");
-  }
+  enqueueEmail({ to: email, subject, html, text });
 }
 
 router.post("/auth/register", async (req, res): Promise<void> => {
@@ -277,12 +273,7 @@ router.post("/auth/forgot-password", passwordResetLimiter, async (req, res): Pro
   const resetUrl = `${getAppBaseUrl()}/reset-password?token=${token}`;
 
   const { html, text } = passwordResetEmail({ resetUrl, firstName: profile?.firstName ?? "there" });
-  const result = await sendEmail({ to: user.email, subject: "Reset your Fincava password", html, text });
-  if (result.ok) {
-    logger.info({ userId: user.id, email: maskEmail(email) }, "Password reset email sent");
-  } else {
-    logger.error({ userId: user.id, email: maskEmail(email), reason: result.reason, detail: (result as any).detail }, "Password reset email delivery failed");
-  }
+  enqueueEmail({ to: user.email, subject: "Reset your Fincava password", html, text });
 });
 
 // ── POST /api/auth/reset-password ────────────────────────────────────────────

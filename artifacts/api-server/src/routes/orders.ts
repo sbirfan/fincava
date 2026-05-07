@@ -8,7 +8,8 @@ import {
   UpdateOrderStatusBody,
 } from "@workspace/api-zod";
 import { requireAuth, requireVerifiedEmail } from "../lib/auth";
-import { sendEmail, orderStatusEmail, buyerIntentAdminAlertEmail } from "../lib/email";
+import { orderStatusEmail, buyerIntentAdminAlertEmail } from "../lib/email";
+import { enqueueEmail } from "../lib/email-queue";
 import { logger } from "../lib/logger";
 import { computeFee } from "../services/fee-service";
 import { logInteraction } from "../lib/interaction-logger";
@@ -170,7 +171,7 @@ router.post("/buyer/intent", requireAuth, requireVerifiedEmail, async (req, res)
         adminUrl: `${appBaseUrl}/admin`,
       });
 
-      await sendEmail({ to: "info@fincava.com", subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+      enqueueEmail({ to: "info@fincava.com", subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
     } catch (err) {
       logger.warn({ err, intentId: order.id }, "Buyer intent admin email failed");
     }
@@ -455,7 +456,7 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
       });
 
       if (emailContent) {
-        await sendEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+        enqueueEmail({ to: buyerUser.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
       }
     } catch (err) {
       logger.warn({ err, orderId: order.id }, "Order status email failed");

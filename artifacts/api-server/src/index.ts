@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminAccounts } from "./lib/seed";
+import { startEmailQueue } from "./lib/email-queue";
 import {
   SUPPLIER_ONBOARD_EVENT,
   registerOnce,
@@ -35,6 +36,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  startEmailQueue();
   logListenerCounts();
   seedAdminAccounts().catch((e) => logger.error({ err: e }, "Admin seed failed"));
 
