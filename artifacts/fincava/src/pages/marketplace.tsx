@@ -30,12 +30,16 @@ export default function Marketplace() {
     sort: sort,
     page,
     limit: PAGE_SIZE,
+    smallholder: filterSmallholder || undefined,
+    womenLed: filterWomenLed || undefined,
+    directTrade: filterDirectTrade || undefined,
+    organic: filterOrganic || undefined,
   });
 
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
+  // Server already applies impact filters; keep client-side pass as safety fallback.
   const products = (data?.products ?? []) as any[];
-
   const filteredProducts = products.filter(p => {
     if (filterSmallholder && !p.smallholder) return false;
     if (filterWomenLed && !p.womenLed) return false;

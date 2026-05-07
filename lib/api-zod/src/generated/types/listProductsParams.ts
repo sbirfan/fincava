@@ -17,6 +17,10 @@ export type ListProductsParams = {
   search?: string;
   sort?: string;
   featured?: boolean;
+  smallholder?: boolean;
+  womenLed?: boolean;
+  directTrade?: boolean;
+  organic?: boolean;
   /**
    * @nullable
    */

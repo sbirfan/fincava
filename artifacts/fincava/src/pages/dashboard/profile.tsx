@@ -650,18 +650,21 @@ export default function BuyerProfile() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Personal Information</CardTitle>
-          <CardDescription>Update your personal details.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            Personal Information
+            <Badge variant="secondary" className="text-xs font-normal">Read only</Badge>
+          </CardTitle>
+          <CardDescription>Your personal details on file. Contact support to update.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">First Name</label>
-              <Input defaultValue={user?.firstName} />
+              <Input defaultValue={user?.firstName} disabled />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Last Name</label>
-              <Input defaultValue={user?.lastName} />
+              <Input defaultValue={user?.lastName} disabled />
             </div>
           </div>
           <div className="space-y-2">
@@ -673,25 +676,26 @@ export default function BuyerProfile() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Country</label>
-            <Input defaultValue={user?.country || ""} />
+            <Input defaultValue={user?.country || ""} disabled />
           </div>
-          <Button className="mt-4">Save Changes</Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Company Details</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Company Details
+            <Badge variant="secondary" className="text-xs font-normal">Read only</Badge>
+          </CardTitle>
           <CardDescription>
-            Information about your purchasing organization.
+            Information about your purchasing organization. Contact support to update.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Company Name</label>
-            <Input defaultValue={user?.companyName || ""} />
+            <Input defaultValue={user?.companyName || ""} disabled />
           </div>
-          <Button className="mt-4">Save Company Details</Button>
         </CardContent>
       </Card>
 

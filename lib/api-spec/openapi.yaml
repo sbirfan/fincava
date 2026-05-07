@@ -232,6 +232,22 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: smallholder
+          in: query
+          schema:
+            type: boolean
+        - name: womenLed
+          in: query
+          schema:
+            type: boolean
+        - name: directTrade
+          in: query
+          schema:
+            type: boolean
+        - name: organic
+          in: query
+          schema:
+            type: boolean
         - name: supplierId
           in: query
           schema:
