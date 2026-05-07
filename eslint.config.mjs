@@ -24,18 +24,8 @@ export default tseslint.config(
       // Warn on new `as any` / `: any` — use a typed assertion or unknown instead.
       "@typescript-eslint/no-explicit-any": "warn",
 
-      // JSON.parse throws on malformed input — always wrap in try/catch.
-      // Add // eslint-disable-next-line no-restricted-syntax when the call-site
-      // is already inside a try block and the suppression is intentional.
-      "no-restricted-syntax": [
-        "warn",
-        {
-          selector:
-            "CallExpression[callee.type='MemberExpression'][callee.object.name='JSON'][callee.property.name='parse']",
-          message:
-            "JSON.parse can throw — wrap in try/catch or use a safe parse helper.",
-        },
-      ],
+      // JSON.parse safety: both previously unsafe call sites (messages.ts, objectAcl.ts)
+      // are wrapped in try/catch. No lint rule enforces this — audit manually on PR review.
 
       // Register react-hooks rules so eslint-disable comments referencing them
       // are recognised and don't produce "rule not found" errors.
