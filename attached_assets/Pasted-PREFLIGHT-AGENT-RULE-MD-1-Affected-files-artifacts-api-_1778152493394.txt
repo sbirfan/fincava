@@ -1,0 +1,47 @@
+PREFLIGHT (AGENT_RULE.MD §1):
+- Affected files:
+    artifacts/api-server/src/routes/messages.ts (~lines 92-105)
+    artifacts/api-server/src/routes/orders.ts (~lines 193-200)
+- Verify: inArray is already imported from drizzle-orm in both files
+  (messages.ts already uses it for the conversations fix — confirm)
+- Verify: profilesTable is imported in messages.ts
+- Verify: productsTable is imported in orders.ts
+- No schema changes required
+
+EXECUTION PLAN (AGENT_RULE.MD §2):
+Fix two remaining N+1 query patterns using batch loading.
+
+FIX 1 — messages.ts individual message list (~lines 92-105):
+Current: Promise.all(messages.map(async (msg) => {
+  const [profile] = await db.select().from(profilesTable).where(eq(...userId, msg.senderId));
+}))
+
+Replace with:
+  Step 1: Collect unique sender IDs:
+    const senderIds = [...new Set(messages.map(m => m.senderId))];
+  Step 2: Batch load profiles in ONE query:
+    const profileRows = senderIds.length
+      ? await db.select().from(profilesTable).where(inArray(profilesTable.userId, senderIds))
+      : [];
+    const profileMap = new Map(profileRows.map(p => [p.userId, p]));
+  Step 3: Build results without any DB calls:
+    const results = messages.map(msg => ({ ...msg, senderProfile: profileMap.get(msg.senderId) ?? null }));
+
+FIX 2 — orders.ts product fetch per item (~lines 193-200):
+Current: Promise.all(items.map(async (item) => {
+  const [product] = await db.select().from(productsTable).where(eq(...id, item.productId));
+}))
+
+Replace with:
+  Step 1: const productIds = [...new Set(items.map(i => i.productId))];
+  Step 2: const productRows = productIds.length
+    ? await db.select().from(productsTable).where(inArray(productsTable.id, productIds))
+    : [];
+    const productMap = new Map(productRows.map(p => [p.id, p]));
+  Step 3: Build itemsWithPrices using productMap.get(item.productId) instead of per-item query.
+  Keep all existing validation logic (product not found, supplierId null, etc.) — just
+  source the product from the map instead of a DB query.
+
+VALIDATION: Run tsc --noEmit. Confirm response shapes are unchanged.
+ROLLBACK: Revert the two refactored blocks.
+RISK: Medium — core message and order paths. Keep response shape identical.

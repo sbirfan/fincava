@@ -89,8 +89,14 @@ router.get("/messages/:userId", requireAuth, async (req, res): Promise<void> => 
     ))
     .orderBy(messagesTable.createdAt);
 
-  const results = await Promise.all(messages.map(async (msg) => {
-    const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, msg.senderId));
+  const senderIds = [...new Set(messages.map(m => m.senderId))];
+  const profileRows = senderIds.length
+    ? await db.select().from(profilesTable).where(inArray(profilesTable.userId, senderIds))
+    : [];
+  const profileMap = new Map(profileRows.map(p => [p.userId, p]));
+
+  const results = messages.map(msg => {
+    const profile = profileMap.get(msg.senderId);
     return {
       id: msg.id,
       senderId: msg.senderId,
@@ -102,7 +108,7 @@ router.get("/messages/:userId", requireAuth, async (req, res): Promise<void> => 
       read: msg.read,
       createdAt: msg.createdAt.toISOString(),
     };
-  }));
+  });
 
   await db.update(messagesTable)
     .set({ read: true })

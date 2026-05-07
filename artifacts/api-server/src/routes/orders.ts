@@ -188,10 +188,16 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
 
   const { incoterm, destinationPort, shippingMethod, notes, items } = parsed.data;
 
-  // Calculate total
+  // Calculate total — batch-load all products in one query to avoid N+1
+  const productIds = [...new Set(items.map(i => i.productId))];
+  const productRows = productIds.length
+    ? await db.select().from(productsTable).where(inArray(productsTable.id, productIds))
+    : [];
+  const productMap = new Map(productRows.map(p => [p.id, p]));
+
   let totalUSD = 0;
-  const itemsWithPrices = await Promise.all(items.map(async (item) => {
-    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, item.productId));
+  const itemsWithPrices = items.map((item) => {
+    const product = productMap.get(item.productId);
     if (!product) throw new Error(`Product ${item.productId} not found`);
     const itemTotal = item.quantityKg * product.pricePerKgUSD;
     totalUSD += itemTotal;
@@ -200,7 +206,7 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
         "Order attempted with product missing supplier_id");
     }
     return { productId: item.productId, quantityKg: item.quantityKg, pricePerKg: product.pricePerKgUSD, totalUSD: itemTotal, supplierId: product.supplierId ?? null };
-  }));
+  });
 
   // Compute platform fee before inserting so it lands in the first write.
   // computeFee counts prior non-CANCELLED orders to determine waiver status.
