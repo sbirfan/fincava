@@ -77,20 +77,30 @@ const mockApiClient = {
  * Simplified mock component for testing logic
  * Real component in: artifacts/fincava/src/pages/force-reset-password.tsx
  */
-const ForceResetPasswordComponent = ({ onSubmit = mockApiClient.auth.changePassword }: any) => {
+const ForceResetPasswordComponent = ({ onSubmit = mockApiClient.auth.changePassword }: any = {}) => {
   const navigate = mockUseNavigate();
   const { user } = mockUseAuth();
   const { toast } = mockUseToast();
 
-  const [formData, setFormData] = vi.fn(() => ({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  }));
+  let formData = { currentPassword: "", newPassword: "", confirmPassword: "" };
+  const setFormData = vi.fn((val: any) => {
+    formData = typeof val === "function" ? val(formData) : val;
+  });
 
-  const [showPassword, setShowPassword] = vi.fn(() => false);
-  const [isLoading, setIsLoading] = vi.fn(() => false);
-  const [errors, setErrors] = vi.fn(() => ({}));
+  let showPassword = false;
+  const setShowPassword = vi.fn((val: any) => {
+    showPassword = typeof val === "function" ? val(showPassword) : val;
+  });
+
+  let isLoading = false;
+  const setIsLoading = vi.fn((val: any) => {
+    isLoading = typeof val === "function" ? val(isLoading) : val;
+  });
+
+  let errors: Record<string, string> = {};
+  const setErrors = vi.fn((val: any) => {
+    errors = typeof val === "function" ? val(errors) : val;
+  });
 
   const validatePasswordStrength = (password: string) => {
     const errors: Record<string, boolean> = {};
@@ -569,7 +579,11 @@ describe("Force Reset Password Page (NEW)", () => {
           id: 1,
           email: "admin@test.com",
           role: "ADMIN",
+          firstName: "Admin",
+          lastName: "User",
         },
+        isLoading: false,
+        isAuthenticated: true,
       });
 
       mockApiClient.auth.changePassword.mockResolvedValue({ success: true });
@@ -588,7 +602,11 @@ describe("Force Reset Password Page (NEW)", () => {
           id: 2,
           email: "supplier@test.com",
           role: "SUPPLIER",
+          firstName: "Supplier",
+          lastName: "User",
         },
+        isLoading: false,
+        isAuthenticated: true,
       });
 
       mockApiClient.auth.changePassword.mockResolvedValue({ success: true });
@@ -606,7 +624,11 @@ describe("Force Reset Password Page (NEW)", () => {
           id: 3,
           email: "buyer@test.com",
           role: "BUYER",
+          firstName: "Buyer",
+          lastName: "User",
         },
+        isLoading: false,
+        isAuthenticated: true,
       });
 
       mockApiClient.auth.changePassword.mockResolvedValue({ success: true });

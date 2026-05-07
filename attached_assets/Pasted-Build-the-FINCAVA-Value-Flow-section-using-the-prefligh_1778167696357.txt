@@ -1,0 +1,222 @@
+Build the FINCAVA Value Flow section using the preflight findings.
+
+Framework:
+- React 18 + Vite
+- TypeScript strict mode
+- wouter routing
+- Tailwind CSS v4
+- shadcn/ui available
+- Existing i18n uses src/i18n/translations.ts with en.home and es.home
+- Home page is src/pages/home.tsx
+- Best insertion point: between Traction section and Dual CTA section
+
+Implementation:
+1. Create:
+   src/components/home/FincavaValueFlow.tsx
+
+2. Edit:
+   src/pages/home.tsx
+   src/i18n/translations.ts
+
+3. Add translation keys under:
+   en.home.valueFlow
+   es.home.valueFlow
+
+4. Use the existing i18n pattern:
+   const { t } = useLanguage()
+   const h = t.home
+   Pass h.valueFlow into the component.
+
+5. Insert the section between:
+   §7 Traction
+   and
+   §8 Dual CTA
+
+Design requirements:
+- Match current homepage style
+- Use Tailwind only
+- Use py-28, container mx-auto px-4, rounded-2xl, border-border, bg-card conventions
+- Use existing visual language
+- Use text-primary for FINCAVA / supplier trust accents
+- Use sky accents only where buyer-facing
+- Use framer-motion only if already imported in home.tsx and consistent with existing fadeUp/inView pattern
+- No new dependencies
+- No chart libraries
+- No SVG-only infographic
+- Must be responsive
+- Desktop: Suppliers → FINCAVA → Buyers
+- Mobile: stacked vertical flow
+- Add “How it works” 5-step strip
+- Add “Why this scales” investor/partner support block
+
+Business accuracy constraints:
+FINCAVA Phase I is a managed B2B sourcing concierge focused on Farm-to-buyer introduction and Specialty coffee RFQ.
+
+Do not claim:
+- payment processing
+- logistics execution
+- customs handling
+- shipment ownership
+- fulfillment
+- escrow
+- trade finance
+- guaranteed transactions
+- hospitality
+- experiences
+- full marketplace automation
+
+English content:
+
+valueFlow.eyebrow:
+Managed B2B Sourcing Concierge
+
+valueFlow.title:
+How FINCAVA Creates Value
+
+valueFlow.subtitle:
+FINCAVA structures supplier information, builds trust, and connects qualified Colombian coffee suppliers with serious buyers.
+
+valueFlow.suppliers.title:
+Suppliers
+
+valueFlow.suppliers.items:
+- Build a credible profile
+- Show capabilities clearly
+- Improve export readiness
+- Gain visibility with buyers
+
+valueFlow.fincava.title:
+FINCAVA
+
+valueFlow.fincava.supportLine:
+Technology-enabled trust. Human-led introductions.
+
+valueFlow.fincava.items:
+- Supplier intelligence profiles
+- Verification & trust signals
+- RFQ intake & routing
+- AI-assisted translation
+- Human-managed introductions
+
+valueFlow.buyers.title:
+Buyers
+
+valueFlow.buyers.items:
+- Discover verified suppliers
+- Submit sourcing requirements
+- Receive relevant introductions
+- Reduce sourcing friction
+- Communicate across languages
+
+valueFlow.processTitle:
+How it works
+
+valueFlow.processSteps:
+1. Suppliers are profiled and verified
+2. Buyers submit sourcing needs
+3. FINCAVA structures and routes RFQs
+4. Translation and trust signals reduce friction
+5. Qualified introductions are made
+
+valueFlow.scalabilityTitle:
+Why this scales
+
+valueFlow.scalabilitySubtitle:
+FINCAVA is building repeatable sourcing infrastructure, not just a supplier directory.
+
+valueFlow.scalabilityItems:
+- Structured supplier data
+- Trust infrastructure
+- Multilingual supplier-buyer bridge
+- Repeatable RFQ workflow
+
+Spanish content:
+
+valueFlow.eyebrow:
+Concierge de Abastecimiento B2B Gestionado
+
+valueFlow.title:
+Cómo FINCAVA Crea Valor
+
+valueFlow.subtitle:
+FINCAVA estructura la información de los proveedores, genera confianza y conecta proveedores colombianos de café calificados con compradores serios.
+
+valueFlow.suppliers.title:
+Proveedores
+
+valueFlow.suppliers.items:
+- Crear un perfil confiable
+- Mostrar capacidades con claridad
+- Mejorar preparación para exportación
+- Obtener visibilidad ante compradores
+
+valueFlow.fincava.title:
+FINCAVA
+
+valueFlow.fincava.supportLine:
+Confianza impulsada por tecnología. Introducciones lideradas por humanos.
+
+valueFlow.fincava.items:
+- Perfiles inteligentes de proveedores
+- Verificación y señales de confianza
+- Recepción y canalización de RFQ
+- Traducción asistida por IA
+- Introducciones gestionadas por humanos
+
+valueFlow.buyers.title:
+Compradores
+
+valueFlow.buyers.items:
+- Descubrir proveedores verificados
+- Enviar requisitos de compra
+- Recibir introducciones relevantes
+- Reducir fricción de abastecimiento
+- Comunicarse entre idiomas
+
+valueFlow.processTitle:
+Cómo funciona
+
+valueFlow.processSteps:
+1. Los proveedores son perfilados y verificados
+2. Los compradores envían sus necesidades de compra
+3. FINCAVA estructura y canaliza los RFQ
+4. La traducción y las señales de confianza reducen fricción
+5. Se realizan introducciones calificadas
+
+valueFlow.scalabilityTitle:
+Por qué escala
+
+valueFlow.scalabilitySubtitle:
+FINCAVA está construyendo infraestructura repetible de abastecimiento, no solo un directorio de proveedores.
+
+valueFlow.scalabilityItems:
+- Datos estructurados de proveedores
+- Infraestructura de confianza
+- Puente multilingüe entre proveedor y comprador
+- Flujo repetible de RFQ
+
+Component structure:
+- FincavaValueFlow should accept a content prop from h.valueFlow
+- Define local TypeScript types inside the component file if needed
+- Render:
+  1. eyebrow
+  2. title
+  3. subtitle
+  4. three flow cards
+  5. five-step process
+  6. scalability block
+
+QA:
+- Run typecheck/build available in package scripts
+- Fix only errors related to this implementation
+- Confirm English and Spanish keys match structurally
+- Confirm the home page compiles
+- Confirm mobile layout does not break with Spanish text
+
+Final report:
+- files created
+- files modified
+- exact insertion location
+- build/typecheck result
+- where copy can be edited later
+- any remaining risks

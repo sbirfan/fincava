@@ -47,7 +47,7 @@ vi.mock("resend", () => ({
  * with duplicate prevention and retry backoff
  */
 class MockEmailQueue {
-  private queue: any[] = [];
+  queue: any[] = [];
   private isProcessing = false; // ← NEW: Duplicate prevention guard
   private sentEmails = new Set<string>();
   private failedEmails = new Map<string, { count: number; lastError: string }>();

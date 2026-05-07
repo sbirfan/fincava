@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ENABLE_FINANCE } from "@/lib/flags";
+import { FincavaValueFlow } from "@/components/home/FincavaValueFlow";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -38,14 +39,6 @@ const BUYER_FEATURE_ICONS = [ShieldCheck, FileText, BarChart3, Globe];
 const SUPPLIER_FEATURE_ICONS = [Globe, Banknote, Truck, Star];
 const TRACTION_STAT_ICONS = [ShieldCheck, MapPin, Users, BarChart3];
 
-const SUPPLIER_MARKETS = [
-  { flag: "🇸🇦", market: "Saudi Arabia", status: "Target market" },
-  { flag: "🇯🇵", market: "Japan", status: "Target market" },
-  { flag: "🇰🇷", market: "South Korea", status: "Target market" },
-  { flag: "🇦🇪", market: "UAE", status: "Target market" },
-  { flag: "🇸🇬", market: "Singapore", status: "Target market" },
-  { flag: "🇳🇱", market: "Netherlands", status: "Target market" },
-];
 
 export default function Home() {
   const { data: stats } = useGetPlatformStats();
@@ -138,7 +131,7 @@ export default function Home() {
       {/* ─── 2. THE PROBLEM ───────────────────────────────────────────────── */}
       <section className="py-28 bg-background">
         <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto text-center mb-16">
+          <div className="max-w-4xl mx-auto text-center mb-16">
             <SectionLabel>{h.problem.label}</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-5">
               {h.problem.heading}
@@ -206,7 +199,7 @@ export default function Home() {
           }}
         />
         <div className="relative container mx-auto px-4">
-          <div className="max-w-2xl mx-auto text-center mb-20">
+          <div className="max-w-4xl mx-auto text-center mb-20">
             <SectionLabel light>{h.howItWorks.label}</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
               {h.howItWorks.heading}
@@ -258,186 +251,169 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── 4. FOR BUYERS ────────────────────────────────────────────────── */}
+      {/* ─── 4+5. FOR BUYERS + FOR SUPPLIERS (combined) ───────────────────── */}
       <section className="py-28 bg-background">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <motion.div variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}>
-              <SectionLabel>{h.forBuyers.label}</SectionLabel>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                {h.forBuyers.heading}
-              </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed mb-8">{h.forBuyers.sub}</p>
-              <div className="space-y-4">
+
+          {/* Shared header */}
+          <motion.div
+            variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+            className="text-center mb-14"
+          >
+            <SectionLabel>{h.combinedAudience.label}</SectionLabel>
+            <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-5">
+              {h.combinedAudience.heading}
+            </h2>
+            <p className="text-muted-foreground text-lg leading-relaxed max-w-2xl mx-auto">
+              {h.combinedAudience.sub}
+            </p>
+          </motion.div>
+
+          {/* Two-column cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* ── For Buyers ── */}
+            <motion.div
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="rounded-2xl border-2 border-sky-200 bg-sky-50 dark:bg-sky-950/20 dark:border-sky-800 p-8 flex flex-col"
+            >
+              <div className="mb-7">
+                <span className="inline-block text-xs font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-3">
+                  {h.forBuyers.label}
+                </span>
+                <h3 className="text-2xl font-serif font-bold leading-snug mb-3">{h.forBuyers.heading}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{h.forBuyers.sub}</p>
+              </div>
+
+              <div className="space-y-3 flex-1 mb-8">
                 {h.forBuyers.features.map((f, i) => {
                   const Icon = BUYER_FEATURE_ICONS[i];
                   return (
-                    <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <Icon className="w-5 h-5 text-primary" />
+                    <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-background hover:border-sky-300 dark:hover:border-sky-700 transition-colors">
+                      <div className="w-9 h-9 rounded-lg bg-sky-100 dark:bg-sky-900/50 flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                       </div>
                       <div>
-                        <div className="font-semibold mb-1 text-sm">{f.label}</div>
-                        <div className="text-sm text-muted-foreground leading-relaxed">{f.desc}</div>
+                        <div className="font-semibold text-sm mb-0.5">{f.label}</div>
+                        <div className="text-xs text-muted-foreground leading-relaxed">{f.desc}</div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <div className="flex gap-3 mt-8">
-                <Link href="/marketplace">
-                  <Button className="bg-primary hover:bg-primary/90">
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link href="/marketplace" className="flex-1">
+                  <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">
                     {h.forBuyers.browseBtn} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </Link>
-                <Link href="/rfqs">
-                  <Button variant="outline">{h.forBuyers.rfqBtn}</Button>
+                <Link href="/rfqs" className="flex-1">
+                  <Button variant="outline" className="w-full border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30">
+                    {h.forBuyers.rfqBtn}
+                  </Button>
                 </Link>
               </div>
             </motion.div>
 
-            {/* Buyer dashboard mockup */}
+            {/* ── For Suppliers ── */}
             <motion.div
               variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
-              className="relative"
+              className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-8 flex flex-col"
             >
-              <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold">{h.forBuyers.dashboard.title}</span>
-                  <span className="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium">{h.forBuyers.dashboard.live}</span>
-                </div>
-                {h.forBuyers.dashboard.orders.map(o => (
-                  <div key={o.product} className="flex items-center justify-between p-4 rounded-xl border border-border bg-background">
-                    <div>
-                      <div className="font-medium text-sm">{o.product}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                        <MapPin className="w-3 h-3" /> {o.origin} · {o.qty}
-                      </div>
-                    </div>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${o.statusColor}`}>{o.status}</span>
-                  </div>
-                ))}
+              <div className="mb-7">
+                <span className="inline-block text-xs font-semibold uppercase tracking-wider text-primary mb-3">
+                  {h.forSuppliers.label}
+                </span>
+                <h3 className="text-2xl font-serif font-bold leading-snug mb-3">{h.forSuppliers.heading}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {ENABLE_FINANCE ? h.forSuppliers.sub : lang === "es"
+                    ? "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en mercados objetivo."
+                    : "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers across target markets."}
+                </p>
               </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
 
-      {/* ─── 5. FOR SUPPLIERS ─────────────────────────────────────────────── */}
-      <section className="py-28 bg-card border-y border-border">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            {/* Supplier dashboard mockup */}
-            <motion.div
-              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
-              className="relative order-2 lg:order-1"
-            >
-              <div className="bg-background border border-border rounded-2xl p-6 space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold">{h.forSuppliers.dashboard.title}</span>
-                  <span className="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium">{h.forSuppliers.dashboard.liveOrders}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {SUPPLIER_MARKETS.map(m => (
-                    <div key={m.market} className="p-3 rounded-xl border border-border bg-card text-center">
-                      <div className="text-xl mb-1">{m.flag}</div>
-                      <div className="text-xs font-medium leading-tight">{m.market}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">{m.status}</div>
-                    </div>
-                  ))}
-                </div>
-                {ENABLE_FINANCE && (
-                  <div className="p-4 rounded-xl bg-primary/8 border border-primary/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold">{h.forSuppliers.dashboard.financeTitle}</span>
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">{h.forSuppliers.dashboard.financeStatus}</span>
-                    </div>
-                    <div className="text-2xl font-bold text-primary mb-1">$28,000</div>
-                    <div className="text-xs text-muted-foreground">{h.forSuppliers.dashboard.financeDesc}</div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-
-            <motion.div
-              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
-              className="order-1 lg:order-2"
-            >
-              <SectionLabel>{h.forSuppliers.label}</SectionLabel>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                {h.forSuppliers.heading}
-              </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                {ENABLE_FINANCE ? h.forSuppliers.sub : lang === "es"
-                  ? "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en mercados objetivo."
-                  : "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers across target markets."}
-              </p>
-              <div className="space-y-4">
+              <div className="space-y-3 flex-1 mb-8">
                 {h.forSuppliers.features.map((f, i) => {
                   if (!ENABLE_FINANCE && i === 1) return null;
                   const Icon = SUPPLIER_FEATURE_ICONS[i];
                   return (
-                    <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-background hover:border-primary/30 transition-colors">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <Icon className="w-5 h-5 text-primary" />
+                    <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-primary/20 bg-background hover:border-primary/40 transition-colors">
+                      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4 text-primary" />
                       </div>
                       <div>
-                        <div className="font-semibold mb-1 text-sm">{f.label}</div>
-                        <div className="text-sm text-muted-foreground leading-relaxed">{f.desc}</div>
+                        <div className="font-semibold text-sm mb-0.5">{f.label}</div>
+                        <div className="text-xs text-muted-foreground leading-relaxed">{f.desc}</div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <div className="flex gap-3 mt-8">
-                <Link href="/register?role=supplier">
-                  <Button className="bg-primary hover:bg-primary/90">
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link href="/register?role=supplier" className="flex-1">
+                  <Button className="w-full bg-primary hover:bg-primary/90">
                     {h.forSuppliers.applyBtn} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </Link>
-                <Link href="/suppliers">
-                  <Button variant="outline">{h.forSuppliers.suppliersBtn}</Button>
+                <Link href="/suppliers" className="flex-1">
+                  <Button variant="outline" className="w-full">
+                    {h.forSuppliers.suppliersBtn}
+                  </Button>
                 </Link>
               </div>
             </motion.div>
+
           </div>
         </div>
       </section>
 
       {/* ─── 6. TRACTION ──────────────────────────────────────────────────── */}
-      <section className="py-28 bg-primary text-primary-foreground">
+      <section className="py-14 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <SectionLabel light>{h.traction.label}</SectionLabel>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold leading-tight mb-6">
-                {h.traction.heading}
-              </h2>
-              <p className="text-primary-foreground/70 text-lg leading-relaxed mb-8">{h.traction.sub}</p>
-              <div className="space-y-3">
-                {h.traction.bullets.map(bullet => (
-                  <div key={bullet} className="flex items-start gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-primary-foreground/60 shrink-0 mt-0.5" />
-                    <span className="text-primary-foreground/80 text-sm leading-relaxed">{bullet}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {h.traction.stats.length > 0 && (
-              <div className="grid grid-cols-2 gap-4">
-                {h.traction.stats.map((s, i) => {
-                  const Icon = TRACTION_STAT_ICONS[i];
-                  return (
-                    <div key={s.label} className="bg-primary-foreground/10 rounded-2xl p-6 border border-primary-foreground/10">
-                      <Icon className="w-6 h-6 text-primary-foreground/50 mb-3" />
-                      <div className="text-3xl font-bold mb-1">{s.value}</div>
-                      <div className="text-primary-foreground/60 text-sm">{s.label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+
+          {/* BETA pill badge — left-aligned */}
+          <div className="mb-7">
+            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground/60 border border-primary-foreground/20 rounded-full px-3 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {h.traction.label}
+            </span>
           </div>
+
+          {/* Heading — center-aligned */}
+          <motion.h2
+            variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+            className="text-[40px] md:text-[48px] font-serif font-bold leading-[1.1] text-center mb-10 max-w-3xl mx-auto"
+          >
+            {h.traction.heading}
+          </motion.h2>
+
+          {/* Hairline divider */}
+          <div className="border-t border-primary-foreground/15 mb-10" />
+
+          {/* Two columns: 40% paragraph / 60% bullets 2×2 grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
+            <motion.p
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="lg:col-span-2 text-primary-foreground/75 text-[15px] leading-[1.75]"
+            >
+              {h.traction.sub}
+            </motion.p>
+
+            <motion.ul
+              variants={inView} initial="hidden" whileInView="visible" viewport={{ once: true }}
+              className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3"
+            >
+              {h.traction.bullets.map(bullet => (
+                <li key={bullet} className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-[3px]" />
+                  <span className="text-primary-foreground/80 text-sm leading-[1.6]">{bullet}</span>
+                </li>
+              ))}
+            </motion.ul>
+          </div>
+
         </div>
       </section>
 
@@ -481,7 +457,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── 8. DUAL CTA ──────────────────────────────────────────────────── */}
+      {/* ─── 8. VALUE FLOW ────────────────────────────────────────────────── */}
+      <FincavaValueFlow content={h.valueFlow} />
+
+      {/* ─── 9. DUAL CTA ──────────────────────────────────────────────────── */}
       <section className="py-28 bg-card border-t border-border">
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="text-center mb-14">
