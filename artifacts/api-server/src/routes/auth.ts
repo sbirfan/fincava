@@ -364,9 +364,11 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
   res.json({ success: true });
 });
 
-// ── GET /api/auth/verify-email ────────────────────────────────────────────────
-router.get("/auth/verify-email", async (req, res): Promise<void> => {
-  const token = typeof req.query["token"] === "string" ? req.query["token"] : "";
+// ── POST /api/auth/verify-email ───────────────────────────────────────────────
+// Token is sent in the request body to avoid exposure in server logs, browser
+// history, and Referer headers (was previously a GET with ?token= query param).
+router.post("/auth/verify-email", async (req, res): Promise<void> => {
+  const token = typeof req.body?.token === "string" ? req.body.token : "";
 
   if (!token) {
     res.status(400).json({ error: "Verification token is required" });

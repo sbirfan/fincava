@@ -27,8 +27,11 @@ export default function VerifyEmailPage() {
       return;
     }
 
-    fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
+    fetch("/api/auth/verify-email", {
+      method: "POST",
       credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
     })
       .then(async (res) => {
         const data = await res.json();
