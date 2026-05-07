@@ -97,7 +97,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     };
 
     if (process.env.NODE_ENV !== "production") {
-      req.log.debug(
+      logger.debug(
         { fullName: typedInput.fullName, phone: typedInput.phone, productType: typedInput.productType },
         "typedInput preview",
       );

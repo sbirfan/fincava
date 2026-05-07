@@ -1,0 +1,53 @@
+PREFLIGHT (AGENT_RULE.MD §1):
+- Affected files:
+    artifacts/fincava/src/pages/dashboard/profile.tsx
+    artifacts/fincava/src/pages/marketplace.tsx
+    artifacts/fincava/src/components/error-boundary.tsx
+    artifacts/fincava/src/main.tsx
+    artifacts/fincava/src/components/change-password-card.tsx
+- Verify: MIN_PASSWORD_LENGTH constant exists in src/lib/constants.ts (added in prior sprint)
+- Verify: marketplace fetch accepts query params for filtering (check the API route)
+- Verify: React Query is available for marketplace data fetching
+- No new dependencies required
+
+EXECUTION PLAN (AGENT_RULE.MD §2):
+
+FIX 1 — profile.tsx: Wire up non-functional "Save Changes" buttons (~lines 678, 694):
+The two "Save Changes" buttons use defaultValue inputs with no onClick handlers —
+clicking them does nothing. Either:
+  a) Convert the controlled inputs to use value/onChange state and add a PATCH call
+     to the appropriate /api/users/... or /api/buyers/profile endpoint on button click, OR
+  b) If editing is intentionally not yet supported, replace the buttons with a visible
+     "Read only" badge and remove the misleading button entirely.
+Follow whichever pattern matches the surrounding code style. Prefer option (a) if a
+PATCH endpoint already exists.
+
+FIX 2 — marketplace.tsx: Move filter params to API query string (~lines 39-45):
+Currently all products are fetched then filtered client-side. Pass the active filter
+flags as query parameters to the API endpoint (e.g. ?smallholder=true&organic=true).
+Update the fetch URL to include active filters. Keep the local filter array as a fallback
+if the API does not yet support these params — but attempt server-side first.
+If the backend /api/products endpoint does not yet accept these filter params, add a
+TODO comment and leave the client-side filter as-is; do not refactor the API in this task.
+
+FIX 3 — error-boundary.tsx + main.tsx: Replace console.error with structured logging:
+In error-boundary.tsx componentDidCatch:
+  Replace: console.error("ErrorBoundary caught an error:", error, info.componentStack)
+  With: if (process.env.NODE_ENV !== "production") { console.error(...) }
+  And add a comment: // TODO: pipe to error tracking service (Sentry etc.) in production
+
+In main.tsx unhandledrejection listener:
+  Same pattern — wrap the console.error in a NODE_ENV check.
+
+FIX 4 — change-password-card.tsx: Use MIN_PASSWORD_LENGTH constant:
+Import MIN_PASSWORD_LENGTH from src/lib/constants.ts.
+Replace the hardcoded .min(8, ...) in the Zod schema with .min(MIN_PASSWORD_LENGTH, ...).
+
+VALIDATION:
+- Run tsc --noEmit on fincava
+- Manual test: click Save Changes on profile page — confirm it calls the API or shows
+  the correct read-only state
+- Confirm marketplace loads and filters work
+ROLLBACK: Revert each file independently.
+RISK: Medium for FIX 1 (wires up a previously dead form submit).
+      Low for FIX 2, 3, 4.

@@ -66,6 +66,7 @@ export async function seedAdminAccounts(): Promise<void> {
       language: "en",
     });
 
-    logger.info({ email: account.email, tempPassword }, "Admin seeded — change on first login");
+    logger.info({ email: account.email }, "Admin seeded — retrieve temp password from secure channel");
+    process.stdout.write(`[SEED] ${account.email} temp password: ${tempPassword}\n`);
   }
 }

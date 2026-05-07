@@ -54,7 +54,7 @@ export async function computeTrustScore(companyId: number): Promise<number> {
       and(
         eq(productsTable.id, orderItemsTable.productId),
         eq(productsTable.companyId, companyId)
-      )!
+      )
     )
     .where(inArray(ordersTable.status, ["DELIVERED", "COMPLETED"]));
 

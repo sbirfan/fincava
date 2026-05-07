@@ -276,6 +276,10 @@ async function signObjectURL({
     );
   }
 
-  const { signed_url: signedURL } = await response.json() as { signed_url: string };
+  const body = await response.json() as Record<string, unknown>;
+  if (typeof body.signed_url !== "string" || !body.signed_url) {
+    throw new Error(`Sidecar returned unexpected response: ${JSON.stringify(body)}`);
+  }
+  const signedURL = body.signed_url;
   return signedURL;
 }
