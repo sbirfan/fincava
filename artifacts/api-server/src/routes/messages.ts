@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, or, and, desc, inArray } from "drizzle-orm";
+import { eq, or, and, desc, inArray, count } from "drizzle-orm";
 import { db, messagesTable, usersTable, profilesTable } from "@workspace/db";
 import { GetMessagesParams, SendMessageParams, SendMessageBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
@@ -29,29 +29,45 @@ router.get("/messages/conversations", requireAuth, async (req, res): Promise<voi
     }
   }
 
-  const conversations = await Promise.all(
-    Array.from(conversationMap.entries()).map(async ([otherId, lastMsg]) => {
-      const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, otherId));
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, otherId));
+  const otherUserIds = Array.from(conversationMap.keys());
+  if (otherUserIds.length === 0) {
+    res.json([]);
+    return;
+  }
 
-      const unreadMessages = await db.select().from(messagesTable)
-        .where(and(
-          eq(messagesTable.senderId, otherId),
-          eq(messagesTable.receiverId, userId),
-          eq(messagesTable.read, false),
-        ));
+  // Three parallel batch queries — one round-trip regardless of conversation count
+  const [profiles, users, unreadRows] = await Promise.all([
+    db.select().from(profilesTable).where(inArray(profilesTable.userId, otherUserIds)),
+    db.select().from(usersTable).where(inArray(usersTable.id, otherUserIds)),
+    db.select({ senderId: messagesTable.senderId, unreadCount: count() })
+      .from(messagesTable)
+      .where(and(
+        eq(messagesTable.receiverId, userId),
+        inArray(messagesTable.senderId, otherUserIds),
+        eq(messagesTable.read, false),
+      ))
+      .groupBy(messagesTable.senderId),
+  ]);
 
-      return {
-        userId: otherId,
-        userName: profile ? `${profile.firstName} ${profile.lastName}` : "Unknown",
-        userRole: user?.role ?? "BUYER",
-        userAvatarUrl: profile?.avatarUrl ?? null,
-        lastMessage: lastMsg.content,
-        lastMessageAt: lastMsg.createdAt.toISOString(),
-        unreadCount: unreadMessages.length,
-      };
-    })
-  );
+  // Build O(1) lookup maps
+  const profileMap = new Map(profiles.map(p => [p.userId, p]));
+  const userMap    = new Map(users.map(u => [u.id, u]));
+  const unreadMap  = new Map(unreadRows.map(r => [r.senderId, Number(r.unreadCount)]));
+
+  // Assemble response in memory — no DB calls inside loop
+  const conversations = Array.from(conversationMap.entries()).map(([otherId, lastMsg]) => {
+    const profile = profileMap.get(otherId);
+    const user    = userMap.get(otherId);
+    return {
+      userId:        otherId,
+      userName:      profile ? `${profile.firstName} ${profile.lastName}` : "Unknown",
+      userRole:      user?.role ?? "BUYER",
+      userAvatarUrl: profile?.avatarUrl ?? null,
+      lastMessage:   lastMsg.content,
+      lastMessageAt: lastMsg.createdAt.toISOString(),
+      unreadCount:   unreadMap.get(otherId) ?? 0,
+    };
+  });
 
   res.json(conversations);
 });
