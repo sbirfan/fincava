@@ -91,3 +91,6 @@ packages = ["dig"]
 
 [userenv.shared]
 FINCAVA_COMPANY_ID = "17"
+
+[userenv.production]
+CORS_ORIGIN = "https://fincava.com,https://fincava.replit.app"
