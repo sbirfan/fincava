@@ -1,4 +1,5 @@
 import { File } from "@google-cloud/storage";
+import { logger } from "./logger";
 
 const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
 
@@ -91,7 +92,12 @@ export async function getObjectAclPolicy(
   if (!aclPolicy) {
     return null;
   }
-  return JSON.parse(aclPolicy as string);
+  try {
+    return JSON.parse(aclPolicy as string);
+  } catch (err) {
+    logger.warn({ err, aclPolicy }, "ACL policy JSON parse failed — returning null");
+    return null;
+  }
 }
 
 export async function canAccessObject({

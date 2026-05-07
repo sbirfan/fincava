@@ -209,7 +209,11 @@ Return ONLY a JSON array (no markdown, no commentary) with exactly ${toTranslate
 
     const raw = (response.content[0] as any).text ?? "";
     const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    translations = JSON.parse(jsonStr);
+    try {
+      translations = JSON.parse(jsonStr);
+    } catch (parseErr) {
+      logger.warn({ parseErr, jsonStr }, "Translation JSON parse failed — continuing with empty translations");
+    }
   } catch (err) {
     logger.error({ err }, "Translation batch failed");
     sendError(res, 502, "Translation service unavailable. Please try again.");
