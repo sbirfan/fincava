@@ -1223,6 +1223,7 @@ export const RequestUploadUrlBody = zod.object({
 export const RequestUploadUrlResponse = zod.object({
   uploadURL: zod.string().url(),
   objectPath: zod.string(),
+  uploadToken: zod.string(),
 });
 
 /**

@@ -1,14 +1,43 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
-import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { ObjectStorageService, ObjectNotFoundError, ObjectAlreadyClaimedError } from "../lib/objectStorage";
 import { ObjectPermission, type ObjectAclPolicy } from "../lib/objectAcl";
 import { requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendError } from "../lib/response";
+
+const envSecret = process.env.UPLOAD_TOKEN_SECRET;
+if (!envSecret) {
+  logger.warn(
+    "UPLOAD_TOKEN_SECRET env var is not set — using a per-process random secret. " +
+    "Upload tokens will be invalidated on restart and will not work across multiple instances."
+  );
+}
+const UPLOAD_SIGNING_SECRET: Buffer = envSecret
+  ? Buffer.from(envSecret, "utf8")
+  : randomBytes(32);
+
+function signUploadToken(userId: string | number, objectPath: string): string {
+  return createHmac("sha256", UPLOAD_SIGNING_SECRET)
+    .update(`${userId}:${objectPath}`)
+    .digest("hex");
+}
+
+function verifyUploadToken(userId: string | number, objectPath: string, token: string): boolean {
+  try {
+    const expected = Buffer.from(signUploadToken(userId, objectPath), "hex");
+    const provided = Buffer.from(token, "hex");
+    if (expected.length !== provided.length) return false;
+    return timingSafeEqual(expected, provided);
+  } catch {
+    return false;
+  }
+}
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -49,11 +78,13 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const uploadToken = signUploadToken(req.userId!, objectPath);
 
     res.json(
       RequestUploadUrlResponse.parse({
         uploadURL,
         objectPath,
+        uploadToken,
         metadata: { name, size, contentType },
       }),
     );
@@ -72,10 +103,20 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
  */
 router.post("/storage/uploads/confirm", requireAuth, async (req: Request, res: Response) => {
   const userId = req.userId;
-  const { objectPath } = req.body;
+  const { objectPath, uploadToken } = req.body;
 
   if (!objectPath || typeof objectPath !== "string") {
     sendError(res, 400, "objectPath is required");
+    return;
+  }
+
+  if (!uploadToken || typeof uploadToken !== "string") {
+    sendError(res, 400, "uploadToken is required");
+    return;
+  }
+
+  if (!verifyUploadToken(userId!, objectPath, uploadToken)) {
+    sendError(res, 403, "Invalid upload token");
     return;
   }
 
@@ -87,6 +128,10 @@ router.post("/storage/uploads/confirm", requireAuth, async (req: Request, res: R
     await objectStorageService.trySetObjectEntityAclPolicy(objectPath, aclPolicy);
     res.json({ success: true, objectPath });
   } catch (error) {
+    if (error instanceof ObjectAlreadyClaimedError) {
+      sendError(res, 409, "Object already has an owner");
+      return;
+    }
     logger.error({ err: error, userId, objectPath }, "Error setting object ACL policy");
     sendError(res, 500, "Failed to confirm upload");
   }

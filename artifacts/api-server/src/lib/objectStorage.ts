@@ -37,6 +37,14 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
+export class ObjectAlreadyClaimedError extends Error {
+  constructor() {
+    super("Object already has an owner and cannot be re-claimed");
+    this.name = "ObjectAlreadyClaimedError";
+    Object.setPrototypeOf(this, ObjectAlreadyClaimedError.prototype);
+  }
+}
+
 export class ObjectStorageService {
   constructor() {}
 
@@ -185,6 +193,12 @@ export class ObjectStorageService {
     }
 
     const objectFile = await this.getObjectEntityFile(normalizedPath);
+
+    const existingAcl = await getObjectAclPolicy(objectFile);
+    if (existingAcl?.owner) {
+      throw new ObjectAlreadyClaimedError();
+    }
+
     await setObjectAclPolicy(objectFile, aclPolicy);
     return normalizedPath;
   }

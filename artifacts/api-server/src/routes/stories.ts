@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db, productsTable, originStoriesTable, suppliersTable, productPlaceholdersTable } from "@workspace/db";
 import { sendError } from "../lib/response";
 
@@ -70,7 +70,7 @@ router.get("/stories/:productId", async (req, res): Promise<void> => {
   }
 
   const [story] = await db.select().from(originStoriesTable)
-    .where(eq(originStoriesTable.productId, productId));
+    .where(and(eq(originStoriesTable.productId, productId), eq(originStoriesTable.published, true)));
 
   if (!story) {
     sendError(res, 404, "Story not found");

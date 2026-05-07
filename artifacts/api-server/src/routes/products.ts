@@ -225,7 +225,7 @@ router.get("/products/:id", async (req, res): Promise<void> => {
   });
 
   const [story] = await db.select().from(originStoriesTable)
-    .where(eq(originStoriesTable.productId, row.product.id));
+    .where(and(eq(originStoriesTable.productId, row.product.id), eq(originStoriesTable.published, true)));
 
   res.json({
     ...base,
