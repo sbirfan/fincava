@@ -46,7 +46,7 @@ const IS_REPLIT = !!process.env["REPLIT_DOMAINS"];
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: (IS_REPLIT ? "none" : "lax") as "none" | "lax",
-  secure: IS_REPLIT || process.env.NODE_ENV === "production",
+  secure: IS_REPLIT || process.env["NODE_ENV"] === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/",
 };
@@ -165,7 +165,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     } catch (err) {
       logger.warn({ err, userId: user.id }, "Verification email failed");
     }
-  });
+  }).catch(err => logger.error({ err }, "Post-registration email task failed"));
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {

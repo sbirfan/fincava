@@ -7,6 +7,9 @@ import { db, usersTable, profilesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 const BCRYPT_ROUNDS = parseInt(process.env["BCRYPT_ROUNDS"] ?? "12", 10);
+if (!Number.isFinite(BCRYPT_ROUNDS) || BCRYPT_ROUNDS < 10 || BCRYPT_ROUNDS > 20) {
+  throw new Error(`Invalid BCRYPT_ROUNDS value: "${process.env["BCRYPT_ROUNDS"]}". Must be 10-20.`);
+}
 const JWT_EXPIRY = (process.env["JWT_EXPIRY"] ?? "7d") as SignOptions["expiresIn"];
 
 // Validated at module load so a missing secret crashes at startup, not mid-request
@@ -160,7 +163,10 @@ export async function requireRole(role: "BUYER" | "SUPPLIER" | "ADMIN") {
 }
 
 export async function getUserWithProfile(userId: number) {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
-  return { user, profile };
+  const [row] = await db
+    .select({ user: usersTable, profile: profilesTable })
+    .from(usersTable)
+    .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+    .where(eq(usersTable.id, userId));
+  return { user: row?.user ?? null, profile: row?.profile ?? null };
 }

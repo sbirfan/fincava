@@ -1,0 +1,50 @@
+PREFLIGHT (AGENT_RULE.MD §1):
+- Affected files:
+    artifacts/api-server/src/lib/seed.ts (~line 69)
+    artifacts/api-server/src/lib/objectStorage.ts (~line 265)
+    artifacts/api-server/src/services/trust-score-service.ts (non-null assertion)
+    artifacts/api-server/src/routes/suppliers.ts (~line 100, req.log)
+    artifacts/api-server/src/lib/whatsapp.ts (~lines 14-19)
+- Verify: all files already import logger where needed
+- No schema changes, no new dependencies
+
+EXECUTION PLAN (AGENT_RULE.MD §2):
+
+FIX 1 — seed.ts: Do not log temp password in plaintext (~line 69):
+Current: logger.info({ email, tempPassword }, "Admin seeded ...")
+Fix: logger.info({ email }, "Admin seeded — retrieve temp password from secure channel");
+Then add a separate console.log (not logger — bypasses log shipping):
+  process.stdout.write(`[SEED] ${account.email} temp password: ${tempPassword}\n`);
+This ensures the password appears in the terminal during seeding but is not shipped
+to log aggregators via pino.
+
+FIX 2 — objectStorage.ts: Validate sidecar response before destructuring (~line 265):
+Current: const { signed_url: signedURL } = await response.json() as { signed_url: string };
+Fix:
+  const body = await response.json() as Record<string, unknown>;
+  if (typeof body.signed_url !== "string" || !body.signed_url) {
+    throw new Error(`Sidecar returned unexpected response: ${JSON.stringify(body)}`);
+  }
+  const signedURL = body.signed_url;
+
+FIX 3 — trust-score-service.ts: Remove unnecessary non-null assertion:
+Find the line with and(...)! (the ! after the closing parenthesis of an and() call).
+Remove the !. The and() function from drizzle-orm always returns a value; the assertion
+is incorrect and TypeScript may give a false sense of safety.
+
+FIX 4 — suppliers.ts: Replace req.log.debug with logger.debug (~line 100):
+Find req.log.debug(...) and replace with logger.debug(...).
+Confirm logger is already imported at the top of the file. If not, add the import.
+
+FIX 5 — whatsapp.ts: Validate Twilio env vars before creating client:
+In the getClient() function, before calling twilio(...), add:
+  const sid = process.env["TWILIO_ACCOUNT_SID"];
+  const token = process.env["TWILIO_AUTH_TOKEN"];
+  if (!sid || !token) {
+    throw new Error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set to send WhatsApp messages");
+  }
+  _client = twilio(sid, token);
+
+VALIDATION: Run tsc --noEmit across all affected packages.
+ROLLBACK: Revert each file independently — all fixes are isolated.
+RISK: Low — all fixes are in error/edge-case paths or startup code.
