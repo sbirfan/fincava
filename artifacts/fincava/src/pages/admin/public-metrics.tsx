@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Eye, EyeOff, CheckCircle2, Clock, Database, FlaskConical, Sprout, AlertCircle } from "lucide-react";
 
@@ -82,6 +82,16 @@ function MetricRow({
     sourceType: metric.sourceType,
     sourceNote: metric.sourceNote ?? "",
   });
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft({
+        value: metric.value,
+        sourceType: metric.sourceType,
+        sourceNote: metric.sourceNote ?? "",
+      });
+    }
+  }, [metric.value, metric.sourceType, metric.sourceNote, editing]);
 
   const handleSave = () => {
     setIsSaving(true);
