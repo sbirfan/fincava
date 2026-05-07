@@ -1265,7 +1265,11 @@ router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): P
     return;
   }
 
-  await db.update(usersTable).set({ passwordHash: await hashPassword(parsed.data.password) }).where(eq(usersTable.id, userId));
+  const passwordHash = await hashPassword(parsed.data.password);
+  await db.transaction(async (tx) => {
+    await tx.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+    await tx.update(usersTable).set({ tokenVersion: sql`${usersTable.tokenVersion} + 1` }).where(eq(usersTable.id, userId));
+  });
   res.json({ success: true });
 
   // Fire-and-forget: security notice to the user whose password was reset

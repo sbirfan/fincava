@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { db, usersTable, profilesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const BCRYPT_ROUNDS = parseInt(process.env["BCRYPT_ROUNDS"] ?? "12", 10);
 const JWT_EXPIRY = (process.env["JWT_EXPIRY"] ?? "7d") as SignOptions["expiresIn"];
@@ -72,18 +72,29 @@ export async function verifyPassword(
 
 // ── Token generation / verification ──────────────────────────────────────────
 
-export function generateToken(userId: number): string {
-  return jwt.sign({ userId }, getJwtSecret(), { expiresIn: JWT_EXPIRY });
+export function generateToken(userId: number, tokenVersion: number): string {
+  return jwt.sign({ userId, tokenVersion }, getJwtSecret(), { expiresIn: JWT_EXPIRY });
 }
 
-export function verifyToken(token: string): { userId: number } | null {
+export function verifyToken(token: string): { userId: number; tokenVersion: number } | null {
   try {
-    const payload = jwt.verify(token, getJwtSecret()) as { userId: number };
+    const payload = jwt.verify(token, getJwtSecret()) as { userId: number; tokenVersion?: number };
     if (!payload.userId) return null;
-    return { userId: payload.userId };
+    return { userId: payload.userId, tokenVersion: payload.tokenVersion ?? 0 };
   } catch {
     return null;
   }
+}
+
+/**
+ * Increment token_version for a user, invalidating all previously issued JWTs.
+ * Call this on every password change or reset.
+ */
+export async function bumpTokenVersion(userId: number): Promise<void> {
+  await db
+    .update(usersTable)
+    .set({ tokenVersion: sql`${usersTable.tokenVersion} + 1` })
+    .where(eq(usersTable.id, userId));
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
@@ -107,6 +118,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId));
   if (!user) {
     res.status(401).json({ error: "User not found" });
+    return;
+  }
+  // Reject tokens issued before a password change by comparing token versions.
+  // Tokens that pre-date the tokenVersion column have tokenVersion=0 in payload
+  // and will fail this check, forcing re-login — intentional for security.
+  if (payload.tokenVersion !== user.tokenVersion) {
+    res.status(401).json({ error: "Session invalidated. Please log in again." });
     return;
   }
   (req as any).userId = user.id;

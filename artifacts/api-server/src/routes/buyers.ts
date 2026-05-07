@@ -181,7 +181,7 @@ router.post("/buyers/register", async (req, res): Promise<void> => {
   });
 
   // ── Issue session cookie so user lands authenticated ────────────────────────
-  const sessionToken = generateToken(result.user.id);
+  const sessionToken = generateToken(result.user.id, result.user.tokenVersion);
   res.cookie("fincava_auth", sessionToken, COOKIE_OPTIONS);
 
   res.status(201).json({

@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gt, isNull, or } from "drizzle-orm";
+import { eq, and, gt, isNull, or, sql } from "drizzle-orm";
 import { randomBytes, createHash } from "crypto";
 import rateLimit from "express-rate-limit";
 import { db, usersTable, profilesTable, companiesTable, passwordResetTokensTable, emailVerificationTokensTable, buyerProfilesTable } from "@workspace/db";
 import { RegisterUserBody, LoginUserBody } from "@workspace/api-zod";
-import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile } from "../lib/auth";
+import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithProfile, bumpTokenVersion } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendEmail, passwordResetEmail, welcomeEmail, verificationEmail } from "../lib/email";
 import { enqueueEmail } from "../lib/email-queue";
@@ -141,7 +141,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return { user, profile, company };
   });
 
-  const token = generateToken(user.id);
+  const token = generateToken(user.id, user.tokenVersion);
   res.cookie("fincava_auth", token, COOKIE_OPTIONS);
   res.status(201).json({
     token,
@@ -199,7 +199,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, user.id));
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, user.id));
 
-  const token = generateToken(user.id);
+  const token = generateToken(user.id, user.tokenVersion);
   res.cookie("fincava_auth", token, COOKIE_OPTIONS);
   res.json({
     token,
@@ -240,7 +240,11 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
     return;
   }
 
-  await db.update(usersTable).set({ passwordHash: await hashPassword(newPassword) }).where(eq(usersTable.id, userId));
+  const passwordHash = await hashPassword(newPassword);
+  await db.transaction(async (tx) => {
+    await tx.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+    await tx.update(usersTable).set({ tokenVersion: sql`${usersTable.tokenVersion} + 1` }).where(eq(usersTable.id, userId));
+  });
   logger.info({ userId, email: maskEmail(user.email) }, "Password changed successfully");
   res.json({ success: true });
 });
@@ -342,6 +346,11 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
     await tx
       .update(usersTable)
       .set({ passwordHash })
+      .where(eq(usersTable.id, claimed.userId));
+
+    await tx
+      .update(usersTable)
+      .set({ tokenVersion: sql`${usersTable.tokenVersion} + 1` })
       .where(eq(usersTable.id, claimed.userId));
 
     return claimed;
