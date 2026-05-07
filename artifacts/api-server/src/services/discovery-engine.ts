@@ -4,10 +4,76 @@
 // Results are EPHEMERAL — nothing is written to the database.
 // Caller is responsible for routing selected leads into the T1 ingestion form.
 
+import dns from "dns";
+import http from "http";
+import https from "https";
 import { getAnthropicClient, DISCOVERY_MODEL } from "../lib/anthropic";
 import { DISCOVERY_PROMPT } from "../config/ingestion-prompts";
 import { logger } from "../lib/logger";
 import { z } from "zod";
+
+// ── Private IP / SSRF helpers ─────────────────────────────────────────────────
+
+/**
+ * Returns true if the given IP address (v4 or v6) falls within a private,
+ * loopback, link-local, or otherwise non-routable range.  Used after DNS
+ * resolution so that rebinding domains (e.g. 169-254-169-254.nip.io) are
+ * caught even though their *hostname* passes the string-based blocklist.
+ */
+function isPrivateIp(ip: string): boolean {
+  // IPv4
+  const v4 = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    if (a === 0) return true;                              // unspecified
+    if (a === 10) return true;                             // RFC1918 10.x
+    if (a === 127) return true;                            // loopback
+    if (a === 100 && b >= 64 && b <= 127) return true;    // CGNAT RFC6598
+    if (a === 169 && b === 254) return true;               // link-local / metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;     // RFC1918 172.16-31
+    if (a === 192 && b === 168) return true;               // RFC1918 192.168.x
+    if (a === 198 && (b === 18 || b === 19)) return true;  // benchmarking RFC2544
+    if (a === 240) return true;                            // reserved
+    return false;
+  }
+  // IPv6
+  const v6 = ip.toLowerCase().replace(/\[|\]/g, "");
+  if (v6 === "::1") return true;                          // loopback
+  if (v6 === "::" || v6 === "0:0:0:0:0:0:0:0") return true; // unspecified
+  if (v6.startsWith("fe80:")) return true;                // link-local
+  if (v6.startsWith("fc") || v6.startsWith("fd")) return true; // unique-local
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d)
+  const mapped = v6.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (mapped) return isPrivateIp(mapped[1]);
+  return false;
+}
+
+/**
+ * Custom lookup function passed directly to Node's http/https request options.
+ * Node calls this at actual socket-connect time (not pre-flight), which closes
+ * the TOCTOU window: the IP we validate IS the IP the socket connects to.
+ *
+ * If the resolved address is private/non-routable, we inject an ECONNREFUSED
+ * error so the request fails before any bytes leave the box.
+ * Fail-closed: DNS failure also results in an error.
+ */
+function safeLookupFn(
+  hostname: string,
+  options: dns.LookupOptions,
+  callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+): void {
+  dns.lookup(hostname, { ...options, all: false }, (err, address, family) => {
+    if (err) return callback(err, "", 0);
+    if (isPrivateIp(String(address))) {
+      const ssrfErr = Object.assign(
+        new Error(`SSRF_BLOCKED: ${hostname} resolves to private IP ${String(address)}`),
+        { code: "ECONNREFUSED" },
+      ) as NodeJS.ErrnoException;
+      return callback(ssrfErr, "", 0);
+    }
+    callback(null, String(address), Number(family));
+  });
+}
 
 // ── Hard limits — NOT configurable via env or API params ──────────────────────
 // MAX_DEPTH is conceptual: we always fetch only the homepage (depth = 1).
@@ -291,40 +357,184 @@ function buildCandidateUrls(website: string): string[] {
   }
 }
 
-async function fetchPageHtml(url: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LINK_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "Fincava-Discovery-Bot/1.0 (agro-export research; +https://fincava.com)",
-        Accept: "text/html,application/xhtml+xml",
-      },
-      // Follow redirects but cap at browser default (20); we validate final URL below
-      redirect: "follow",
-    });
+// Maximum redirect hops before aborting
+const MAX_REDIRECT_HOPS = 5;
+// Maximum bytes to buffer from the response body (64 KB)
+const MAX_BODY_BYTES = 65_536;
 
-    // Re-check the FINAL URL after redirects — this guards against redirect chains
-    // that land on social media, login-gated pages, or internal/SSRF targets.
-    if (isBlockedUrl(res.url)) {
-      logger.warn({ originalUrl: url, finalUrl: res.url }, "discovery-engine: redirect landed on blocked URL — skipping");
+/**
+ * Fetches the HTML of a page with two defence layers:
+ *
+ * 1. connect-time IP validation (safeLookupFn) — validated on every hop,
+ *    eliminates TOCTOU between our DNS check and the actual socket connect.
+ * 2. manual redirect handling — each hop's URL is re-checked through both the
+ *    string-based isSsrfRisk/isBlockedDomain guards AND the connect-time
+ *    safeLookupFn before a new connection is made.
+ *
+ * Uses Node's http/https modules directly so we can pass `lookup: safeLookupFn`
+ * in request options; built-in `fetch()` does not expose this hook.
+ */
+async function fetchPageHtml(url: string): Promise<string | null> {
+  let currentUrl = url;
+
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    // Too many redirects
+    if (hop === MAX_REDIRECT_HOPS) {
+      logger.warn({ url }, "discovery-engine: too many redirects — skipping");
       return null;
     }
 
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.includes("html")) return null;
-    // Read up to ~64 KB — enough for title/meta/headings
-    const text = await res.text();
-    return text.slice(0, 65_536);
-  } catch (err: unknown) {
-    const isAbort = err instanceof Error && err.name === "AbortError";
-    logger.warn({ url, isAbort }, "discovery-engine: link fetch failed");
-    return null;
-  } finally {
-    clearTimeout(timer);
+    // Parse URL — unparseable → abort
+    let parsed: URL;
+    try {
+      parsed = new URL(currentUrl);
+    } catch {
+      logger.warn({ url: currentUrl }, "discovery-engine: unparseable URL — skipping");
+      return null;
+    }
+
+    // String-based gate: blocked domain OR SSRF risk (IP literals, .local, etc.)
+    if (isBlockedUrl(currentUrl)) {
+      logger.warn({ url: currentUrl }, "discovery-engine: blocked URL — skipping");
+      return null;
+    }
+
+    // Only http / https
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      logger.warn({ url: currentUrl }, "discovery-engine: non-http URL — skipping");
+      return null;
+    }
+
+    const isHttps = parsed.protocol === "https:";
+    const port = parsed.port
+      ? parseInt(parsed.port, 10)
+      : isHttps ? 443 : 80;
+    const requester = isHttps ? https : http;
+
+    // Make one hop; safeLookupFn validates the resolved IP AT connect time.
+    type HopResult =
+      | { kind: "redirect"; location: string }
+      | { kind: "body"; html: string }
+      | { kind: "skip" };
+
+    const result = await new Promise<HopResult>((resolve) => {
+      let settled = false;
+      const done = (r: HopResult) => {
+        if (!settled) { settled = true; resolve(r); }
+      };
+
+      const timer = setTimeout(() => {
+        req.destroy(new Error("timeout"));
+        done({ kind: "skip" });
+      }, LINK_TIMEOUT_MS);
+
+      const req = requester.request(
+        {
+          hostname: parsed.hostname,
+          port,
+          path: (parsed.pathname || "/") + parsed.search,
+          method: "GET",
+          headers: {
+            "User-Agent": "Fincava-Discovery-Bot/1.0 (agro-export research; +https://fincava.com)",
+            Accept: "text/html,application/xhtml+xml",
+            Host: parsed.host,
+          },
+          // safeLookupFn is called by Node at actual socket-connect time,
+          // binding IP validation to the connection rather than a separate
+          // pre-flight call. This eliminates TOCTOU.
+          lookup: safeLookupFn,
+        },
+        (res) => {
+          clearTimeout(timer);
+          const status = res.statusCode ?? 0;
+
+          // Redirect — drain body and return Location for next hop
+          if (status >= 300 && status < 400) {
+            res.resume();
+            const location = res.headers["location"];
+            if (typeof location === "string" && location.length > 0) {
+              done({ kind: "redirect", location });
+            } else {
+              done({ kind: "skip" });
+            }
+            return;
+          }
+
+          // Non-200 or non-HTML → skip
+          if (status < 200 || status >= 300) {
+            res.resume();
+            done({ kind: "skip" });
+            return;
+          }
+          const ct = res.headers["content-type"] ?? "";
+          if (!ct.includes("html")) {
+            res.resume();
+            done({ kind: "skip" });
+            return;
+          }
+
+          // Collect up to MAX_BODY_BYTES then stop reading
+          const chunks: Buffer[] = [];
+          let totalBytes = 0;
+          let truncated = false;
+
+          res.on("data", (chunk: Buffer) => {
+            if (truncated) return;
+            totalBytes += chunk.length;
+            if (totalBytes > MAX_BODY_BYTES) {
+              truncated = true;
+              // Keep only as many bytes as we need from the last chunk
+              const overflow = totalBytes - MAX_BODY_BYTES;
+              chunks.push(chunk.subarray(0, chunk.length - overflow));
+              res.destroy(); // stop the stream; triggers 'close', not 'end'
+              done({ kind: "body", html: Buffer.concat(chunks).toString("utf8") });
+              return;
+            }
+            chunks.push(chunk);
+          });
+
+          res.on("end", () => {
+            if (!truncated) {
+              done({ kind: "body", html: Buffer.concat(chunks).toString("utf8") });
+            }
+          });
+
+          res.on("error", () => done({ kind: "skip" }));
+        },
+      );
+
+      req.on("error", (err: Error) => {
+        clearTimeout(timer);
+        const isSsrf = err.message.startsWith("SSRF_BLOCKED");
+        if (isSsrf) {
+          logger.warn({ url: currentUrl }, "discovery-engine: SSRF blocked at connect time — skipping");
+        } else {
+          logger.warn({ url: currentUrl, msg: err.message }, "discovery-engine: link fetch failed");
+        }
+        done({ kind: "skip" });
+      });
+
+      req.end();
+    });
+
+    if (result.kind === "skip") return null;
+
+    if (result.kind === "redirect") {
+      // Resolve relative redirect against the current URL, then loop
+      try {
+        currentUrl = new URL(result.location, currentUrl).toString();
+      } catch {
+        logger.warn({ location: result.location }, "discovery-engine: invalid redirect Location — skipping");
+        return null;
+      }
+      continue;
+    }
+
+    // result.kind === "body"
+    return result.html;
   }
+
+  return null;
 }
 
 interface PageInfo {
