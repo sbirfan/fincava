@@ -1,0 +1,41 @@
+PREFLIGHT (AGENT_RULE.MD §1):
+- Affected files:
+    artifacts/fincava/src/pages/register.tsx
+    artifacts/fincava/src/pages/onboarding.tsx
+- Verify: API.SUPPLIER_ONBOARD is defined in src/lib/api-routes.ts
+- Verify: apiFetch wrapper exists in src/lib/api-fetch.ts (adds credentials automatically)
+- Verify: useAuth() exposes a logout() function
+- Check that multi-step supplier form uses a local isSubmitting state variable
+
+EXECUTION PLAN (AGENT_RULE.MD §2):
+Apply three independent fixes to register.tsx and onboarding.tsx:
+
+FIX A — NaN from parseFloat on financial fields (BOTH FILES):
+In register.tsx (~lines 184, 186, 190) and onboarding.tsx (~lines 132, 134, 138):
+Replace all instances of:
+  someField: form.someField ? parseFloat(form.someField) : undefined,
+With the safe pattern:
+  someField: (() => { const n = Number(form.someField); return Number.isFinite(n) && n > 0 ? n : undefined; })(),
+Apply this to: farm_size_hectares, annual_volume_kg, working_capital_needed.
+
+FIX B — Missing credentials on /api/suppliers/onboard (BOTH FILES):
+In register.tsx (~line 171) and onboarding.tsx (~line 160), the fetch to SUPPLIER_ONBOARD
+is missing credentials: "include". Either:
+  - Replace the raw fetch with apiFetch() from src/lib/api-fetch.ts (preferred — it adds
+    credentials automatically), OR
+  - Add credentials: "include" manually if apiFetch isn't suitable here.
+
+FIX C — Double-submit on supplier multi-step Next buttons (register.tsx only):
+In the multi-step supplier form in register.tsx (~lines 410-466), the Back/Next buttons
+are not disabled during async submission. Find the local isSubmitting (or submitting) state
+variable used in this form. Add disabled={isSubmitting} to every Next and Submit button in
+steps 3, 4, and 5 of the supplier flow.
+
+Do not change any other logic, form validation, or submission flow.
+
+VALIDATION:
+- Run tsc --noEmit
+- Manual test: enter "abc" in farm size field — form should NOT submit / show validation
+- Manual test: click Next rapidly during submission — button should be disabled
+ROLLBACK: Revert the three sets of changes independently per file.
+RISK: Medium — touches core registration flow. Test the golden path after applying.

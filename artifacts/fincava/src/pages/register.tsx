@@ -20,6 +20,7 @@ import { ReviewSummary, type ReviewSection } from "@/components/onboarding/Revie
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
 import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import { API } from "@/lib/api-routes";
+import { apiFetch } from "@/lib/api-fetch";
 import { ENABLE_FINANCE } from "@/lib/flags";
 
 type AccountData = {
@@ -168,7 +169,7 @@ export default function Register() {
         ? supplierForm.other_product
         : supplierForm.primary_product;
 
-      const onboardRes = await fetch(API.SUPPLIER_ONBOARD, {
+      const onboardRes = await apiFetch(API.SUPPLIER_ONBOARD, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -181,13 +182,13 @@ export default function Register() {
           municipio: supplierForm.municipio,
           vereda: supplierForm.vereda || undefined,
           farm_name: supplierForm.farm_name,
-          farm_size_hectares: supplierForm.farm_size_hectares ? parseFloat(supplierForm.farm_size_hectares) : undefined,
+          farm_size_hectares: (() => { const n = Number(supplierForm.farm_size_hectares); return Number.isFinite(n) && n > 0 ? n : undefined; })(),
           primary_product: product || undefined,
-          annual_volume_kg: supplierForm.annual_volume_kg ? parseFloat(supplierForm.annual_volume_kg) : undefined,
+          annual_volume_kg: (() => { const n = Number(supplierForm.annual_volume_kg); return Number.isFinite(n) && n > 0 ? n : undefined; })(),
           harvest_months: supplierForm.harvest_months || undefined,
           organic_certified: supplierForm.organic_certified === "yes",
           currently_exporting: supplierForm.currently_exporting === "yes",
-          working_capital_needed: supplierForm.working_capital_needed ? parseFloat(supplierForm.working_capital_needed) : undefined,
+          working_capital_needed: (() => { const n = Number(supplierForm.working_capital_needed); return Number.isFinite(n) && n > 0 ? n : undefined; })(),
           export_blocker: supplierForm.export_blocker || undefined,
           has_rut: supplierForm.has_rut === "yes",
           has_bank_account: supplierForm.has_bank_account === "yes",
@@ -404,11 +405,12 @@ export default function Register() {
                   {tr.form.back}
                 </button>
                 <button
+                  disabled={isSubmitting}
                   onClick={() => {
                     if (!canAdvanceSupplier()) { toast({ variant: "destructive", title: lang === "es" ? "Por favor completa todos los campos requeridos." : "Please fill in all required fields." }); return; }
                     setStep(4);
                   }}
-                  className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+                  className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {tr.form.next}
                 </button>
@@ -431,11 +433,12 @@ export default function Register() {
                   {tr.form.back}
                 </button>
                 <button
+                  disabled={isSubmitting}
                   onClick={() => {
                     if (!canAdvanceSupplier()) { toast({ variant: "destructive", title: lang === "es" ? "Por favor selecciona un producto principal." : "Please select a primary product." }); return; }
                     setStep(5);
                   }}
-                  className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+                  className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {tr.form.next}
                 </button>
@@ -458,8 +461,9 @@ export default function Register() {
                   {tr.form.back}
                 </button>
                 <button
+                  disabled={isSubmitting}
                   onClick={() => setStep(6)}
-                  className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+                  className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {tr.form.next}
                 </button>

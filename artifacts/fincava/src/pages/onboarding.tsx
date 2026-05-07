@@ -7,6 +7,7 @@ import { StepProduction } from "@/components/onboarding/StepProduction";
 import { StepBusinessReadiness } from "@/components/onboarding/StepBusinessReadiness";
 import { ReviewSummary, type ReviewSection } from "@/components/onboarding/ReviewSummary";
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
+import { apiFetch } from "@/lib/api-fetch";
 import { ENABLE_FINANCE } from "@/lib/flags";
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -136,13 +137,13 @@ export default function OnboardingPage() {
         municipio: form.municipio,
         farm_name: form.farm_name,
         vereda: form.vereda,
-        farm_size_hectares: form.farm_size_hectares ? parseFloat(form.farm_size_hectares) : undefined,
+        farm_size_hectares: (() => { const n = Number(form.farm_size_hectares); return Number.isFinite(n) && n > 0 ? n : undefined; })(),
         primary_product: form.primary_product === "other" ? form.other_product : form.primary_product,
-        annual_volume_kg: form.annual_volume_kg ? parseFloat(form.annual_volume_kg) : undefined,
+        annual_volume_kg: (() => { const n = Number(form.annual_volume_kg); return Number.isFinite(n) && n > 0 ? n : undefined; })(),
         harvest_months: form.harvest_months || undefined,
         organic_certified: form.organic_certified === "yes",
         currently_exporting: form.currently_exporting === "yes",
-        working_capital_needed: form.working_capital_needed ? parseFloat(form.working_capital_needed) : undefined,
+        working_capital_needed: (() => { const n = Number(form.working_capital_needed); return Number.isFinite(n) && n > 0 ? n : undefined; })(),
         export_blocker: form.export_blocker || undefined,
         has_rut: form.has_rut || undefined,
         has_bank_account: form.has_bank_account || undefined,
@@ -157,7 +158,7 @@ export default function OnboardingPage() {
         visit_notes: form.visit_notes || undefined,
       };
 
-      const res = await fetch("/api/suppliers/onboard", {
+      const res = await apiFetch("/api/suppliers/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
