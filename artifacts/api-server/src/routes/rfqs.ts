@@ -103,8 +103,8 @@ router.get("/rfqs/:id", async (req, res): Promise<void> => {
 });
 
 router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const userRole = (req as any).userRole as string;
+  const userId = req.userId;
+  const userRole = req.userRole;
   if (userRole !== "BUYER" && userRole !== "ADMIN") {
     res.status(403).json({ error: "Only buyer accounts can create RFQs" });
     return;
@@ -133,8 +133,8 @@ router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const userRole = (req as any).userRole as string;
+  const userId = req.userId;
+  const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
     res.status(403).json({ error: "Only supplier accounts can respond to RFQs" });
     return;
@@ -198,7 +198,7 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
   const rfqId = parseInt(req.params.id as string);
   const responseId = parseInt(req.params.responseId as string);
   if (isNaN(rfqId) || isNaN(responseId)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -250,7 +250,7 @@ router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promis
 });
 
 router.get("/supplier/rfqs", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) { res.status(403).json({ error: "Supplier only" }); return; }
 
@@ -278,7 +278,7 @@ router.get("/supplier/rfqs", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/buyer/rfqs", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const rfqs = await db.select().from(rfqsTable).where(eq(rfqsTable.buyerId, userId)).orderBy(desc(rfqsTable.createdAt));
 
   if (rfqs.length === 0) { res.json([]); return; }

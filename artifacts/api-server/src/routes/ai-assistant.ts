@@ -33,7 +33,7 @@ const chatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
-    const userId = (req as any).userId;
+    const userId = req.userId;
     if (userId) return `u:${userId}`;
     return `ip:${ipKeyGenerator(req.ip ?? "")}`;
   },
@@ -119,7 +119,7 @@ GROUND RULES
 }
 
 router.post("/ai-assistant/chat", requireAuth, chatLimiter, async (req, res): Promise<void> => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
 
   const parsed = ChatBody.safeParse(req.body);
   if (!parsed.success) {

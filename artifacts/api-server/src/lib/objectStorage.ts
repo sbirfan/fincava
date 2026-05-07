@@ -252,7 +252,7 @@ async function signObjectURL({
         "Content-Type": "application/json",
       },
       body: JSON.stringify(request),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(8_000),
     }
   );
   if (!response.ok) {

@@ -12,7 +12,7 @@ const router: IRouter = Router();
 
 // ── GET /api/messages/conversations ─────────────────────────────────────────
 router.get("/messages/conversations", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
 
   const messages = await db.select().from(messagesTable)
     .where(or(
@@ -58,7 +58,7 @@ router.get("/messages/conversations", requireAuth, async (req, res): Promise<voi
 
 // ── GET /api/messages/:userId ────────────────────────────────────────────────
 router.get("/messages/:userId", requireAuth, async (req, res): Promise<void> => {
-  const currentUserId = (req as any).userId;
+  const currentUserId = req.userId;
   const params = GetMessagesParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -99,7 +99,7 @@ router.get("/messages/:userId", requireAuth, async (req, res): Promise<void> => 
 
 // ── POST /api/messages/:userId ───────────────────────────────────────────────
 router.post("/messages/:userId", requireAuth, async (req, res): Promise<void> => {
-  const currentUserId = (req as any).userId;
+  const currentUserId = req.userId;
   const params = SendMessageParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -140,7 +140,7 @@ router.post("/messages/:userId", requireAuth, async (req, res): Promise<void> =>
 const TranslateBody = z.object({ targetLang: z.enum(["en", "es"]) });
 
 router.post("/messages/:userId/translate", requireAuth, async (req, res): Promise<void> => {
-  const currentUserId = (req as any).userId;
+  const currentUserId = req.userId;
   const otherUserId = parseInt(req.params["userId"] as string, 10);
   if (isNaN(otherUserId)) { res.status(400).json({ error: "Invalid userId" }); return; }
 
@@ -216,7 +216,7 @@ Return ONLY a JSON array (no markdown, no commentary) with exactly ${toTranslate
 const EscalateBody = z.object({ note: z.string().min(1).max(1000) });
 
 router.post("/messages/:userId/escalate", requireAuth, async (req, res): Promise<void> => {
-  const currentUserId = (req as any).userId;
+  const currentUserId = req.userId;
   const otherUserId = parseInt(req.params["userId"] as string, 10);
   if (isNaN(otherUserId)) { res.status(400).json({ error: "Invalid userId" }); return; }
 

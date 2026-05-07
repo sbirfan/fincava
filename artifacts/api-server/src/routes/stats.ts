@@ -20,7 +20,7 @@ router.get("/stats/platform", async (_req, res): Promise<void> => {
 });
 
 router.get("/buyer/stats", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
 
   const [orderCount] = await db.select({ count: count() }).from(ordersTable).where(eq(ordersTable.buyerId, userId));
   const [activeOrders] = await db.select({ count: count() }).from(ordersTable)
@@ -68,7 +68,7 @@ router.get("/buyer/stats", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/supplier/stats", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
 
   if (!company) {

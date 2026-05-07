@@ -291,8 +291,8 @@ router.get("/products/:id/similar", async (req, res): Promise<void> => {
 // NOTE: supplierId is not set on product insert because suppliersTable has no userId/companyId FK
 // in Phase 1. The bridge column (company_id → suppliers) is tracked as a separate arch gap.
 router.get("/supplier/products", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const userRole = (req as any).userRole as string;
+  const userId = req.userId;
+  const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
     res.status(403).json({ error: "Only supplier accounts can manage products" });
     return;
@@ -320,8 +320,8 @@ const VALID_PRODUCT_CATEGORIES = ["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", 
 
 router.post("/supplier/products", requireAuth, async (req, res): Promise<void> => {
   try {
-    const userId = (req as any).userId;
-    const userRole = (req as any).userRole as string;
+    const userId = req.userId;
+    const userRole = req.userRole;
     if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
       res.status(403).json({ error: "Only supplier accounts can manage products" });
       return;
@@ -376,8 +376,8 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
 });
 
 router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const userRole = (req as any).userRole as string;
+  const userId = req.userId;
+  const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
     res.status(403).json({ error: "Only supplier accounts can manage products" });
     return;
@@ -429,8 +429,8 @@ router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<vo
 });
 
 router.delete("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
-  const userRole = (req as any).userRole as string;
+  const userId = req.userId;
+  const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
     res.status(403).json({ error: "Only supplier accounts can manage products" });
     return;

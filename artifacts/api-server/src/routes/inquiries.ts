@@ -42,7 +42,7 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
 
   // Override buyerEmail and buyerName from the authenticated session — do not trust body values.
   // email lives on usersTable; firstName/lastName live on profilesTable (two indexed point-lookups, no joins).
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
   const [sessionUser] = await db
     .select({ email: usersTable.email })
     .from(usersTable)
@@ -111,7 +111,7 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/buyer/inquiries", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const [user] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
@@ -124,7 +124,7 @@ router.get("/buyer/inquiries", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/supplier/inquiries", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) {
     res.json([]);
@@ -151,7 +151,7 @@ router.get("/supplier/inquiries", requireAuth, async (req, res): Promise<void> =
 });
 
 router.patch("/supplier/inquiries/:id", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
 
   const params = UpdateInquiryStatusParams.safeParse(req.params);
   if (!params.success) {

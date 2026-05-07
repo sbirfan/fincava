@@ -227,7 +227,7 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
     return;
   }
 
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) {
     res.status(404).json({ error: "User not found" });
@@ -249,7 +249,7 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
 });
 
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const { user, profile } = await getUserWithProfile(userId);
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   res.json(buildUserResponse(user, profile, company));
@@ -504,7 +504,7 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
 
 // ── POST /api/auth/resend-verification ───────────────────────────────────────
 router.post("/auth/resend-verification", passwordResetLimiter, requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
   if (!user) {

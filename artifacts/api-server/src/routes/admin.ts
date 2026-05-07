@@ -1352,7 +1352,7 @@ router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> 
   const userId = parseInt(req.params.id as string, 10);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
-  const requesterId = (req as any).userId;
+  const requesterId = req.userId;
   if (userId === requesterId) {
     res.status(400).json({ error: "You cannot delete your own account" });
     return;
@@ -1664,7 +1664,7 @@ router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<voi
   }
 
   // Audit trail — record who changed what (fire-and-forget).
-  const actorId = (req as any).userId as number | undefined;
+  const actorId = req.userId;
   logInteraction({
     eventType: "supplier_profile_updated",
     actorId: actorId ?? null,
@@ -1776,7 +1776,7 @@ router.post("/admin/team/:userId/roles", ...adminOnly, async (req, res): Promise
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-  const adminId = (req as any).userId;
+  const adminId = req.userId;
 
   await db
     .insert(staffRolesTable)
@@ -2038,7 +2038,7 @@ router.post("/admin/ingestion/batches", ...adminOnly, async (req: Request, res: 
     res.status(422).json({ error: "Invalid batch data", issues: body.error.issues });
     return;
   }
-  const adminId = (req as any).userId as number;
+  const adminId = req.userId;
   const batchUuid = randomUUID();
 
   const [batch] = await db
@@ -2092,7 +2092,7 @@ router.post("/admin/ingestion/enrich", ...adminOnly, async (req: Request, res: R
     res.status(422).json({ error: "Invalid enrichment request", issues: body.error.issues });
     return;
   }
-  const adminId = (req as any).userId as number;
+  const adminId = req.userId;
 
   let enriched;
   try {
@@ -2130,7 +2130,7 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
     res.status(422).json({ error: "Invalid supplier data", issues: body.error.issues });
     return;
   }
-  const adminId = (req as any).userId as number;
+  const adminId = req.userId;
   const { nombreCompleto, municipio, department, vereda, whatsappNumber, email, supplierType,
           customSupplierType, description, normalizedName, sourceUrl, country, categoryHint, batchId,
           overrideDuplicateId, overrideJustification } = body.data;
@@ -2256,7 +2256,7 @@ router.patch("/admin/ingestion/suppliers/:id/ingestion-status", ...adminOnly, as
     res.status(422).json({ error: "Invalid status", issues: body.error.issues });
     return;
   }
-  const adminId = (req as any).userId as number;
+  const adminId = req.userId;
 
   const updated = await setIngestionStatus(supplierId, body.data.ingestionStatus, adminId);
   if (!updated) {
@@ -2274,7 +2274,7 @@ router.post("/admin/ingestion/batches/:id/submit", ...adminOnly, async (req: Req
     res.status(400).json({ error: "Invalid batch id" });
     return;
   }
-  const adminId = (req as any).userId as number;
+  const adminId = req.userId;
 
   const [batch] = await db
     .update(supplierIngestionBatchesTable)
@@ -2307,7 +2307,7 @@ router.post("/admin/ingestion/discover", ...adminOnly, async (req: Request, res:
     return;
   }
 
-  const adminId = (req as any).userId as number;
+  const adminId = req.userId;
   const { category, region, maxResults, excludeTypes } = parsed.data;
 
   try {
@@ -2400,7 +2400,7 @@ router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request,
     return;
   }
 
-  const adminId = (req as any).userId as number;
+  const adminId = req.userId;
   const { leadIds } = parsed.data;
 
   const successIds: number[] = [];

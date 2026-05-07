@@ -55,7 +55,7 @@ async function buildOrderResponse(order: any) {
 }
 
 router.get("/buyer/orders", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const page = Math.max(1, Number((req.query as any).page) || 1);
   const pageSize = Math.min(50, Math.max(1, Number((req.query as any).pageSize) || 25));
 
@@ -109,7 +109,7 @@ router.get("/buyer/orders", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/buyer/intent", requireAuth, requireVerifiedEmail, async (req, res): Promise<void> => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
 
   const { supplierId, productId, estimatedQuantityKg, notes } = req.body ?? {};
   if (!supplierId || typeof supplierId !== "number") {
@@ -177,7 +177,7 @@ router.post("/buyer/intent", requireAuth, requireVerifiedEmail, async (req, res)
 });
 
 router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const parsed = CreateOrderBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -267,7 +267,7 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
 });
 
 router.get("/buyer/orders/:id", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const params = GetBuyerOrderParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -302,7 +302,7 @@ router.get("/buyer/orders/:id", requireAuth, async (req, res): Promise<void> => 
 });
 
 router.get("/supplier/orders", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const page = Math.max(1, Number((req.query as any).page) || 1);
   const pageSize = Math.min(50, Math.max(1, Number((req.query as any).pageSize) || 25));
 
@@ -383,7 +383,7 @@ router.get("/supplier/orders", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
 
   const params = UpdateOrderStatusParams.safeParse(req.params);
   if (!params.success) {

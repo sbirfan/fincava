@@ -7,7 +7,7 @@ import { requireAuth } from "../lib/auth";
 const router: IRouter = Router();
 
 router.patch("/users/profile", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
 
   const parsed = UpdateUserProfileBody.safeParse(req.body);
   if (!parsed.success) {

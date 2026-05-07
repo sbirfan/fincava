@@ -45,7 +45,7 @@ router.post("/products/:id/reviews", requireAuth, async (req, res): Promise<void
     return;
   }
 
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const parsed = CreateReviewBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

@@ -70,7 +70,7 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
  * ACL policy on the file so that only the owner (and admins) can read it.
  */
 router.post("/storage/uploads/confirm", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
   const { objectPath } = req.body;
 
   if (!objectPath || typeof objectPath !== "string") {
@@ -133,8 +133,8 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
  * Objects uploaded before confirm() was called have no ACL and are denied.
  */
 router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
-  const userRole = (req as any).userRole as string;
+  const userId = req.userId;
+  const userRole = req.userRole;
 
   try {
     const raw = req.params.path;

@@ -282,7 +282,7 @@ const BuyerOnboardBody = z.object({
 
 // ── POST /api/buyers/onboard ──────────────────────────────────────────────────
 router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
-  const userId: number = (req as any).userId;
+  const userId: number = req.userId;
 
   const parsed = BuyerOnboardBody.safeParse(req.body);
   if (!parsed.success) {
@@ -426,7 +426,7 @@ router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
 
 // ── GET /api/buyers/profile ───────────────────────────────────────────────────
 router.get("/buyers/profile", requireAuth, async (req, res): Promise<void> => {
-  const userId: number = (req as any).userId;
+  const userId: number = req.userId;
 
   const [profile] = await db
     .select()
@@ -541,7 +541,7 @@ router.patch(
   "/buyers/:id/profile",
   requireAuth,
   async (req, res): Promise<void> => {
-    const userId: number = (req as any).userId;
+    const userId: number = req.userId;
 
     const idParam = req.params.id;
     const id =
@@ -684,7 +684,7 @@ router.get(
   "/buyers/:id/matches",
   requireAuth,
   async (req, res): Promise<void> => {
-    const userId: number = (req as any).userId;
+    const userId: number = req.userId;
 
     const idParam = req.params.id;
     const id = typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
@@ -881,7 +881,7 @@ router.get(
 // Returns 404 if the buyer_profile row does not yet exist.
 // URL: singular /buyer (no :id) — identity derived from auth cookie.
 router.get("/buyer/onboarding", requireAuth, async (req, res): Promise<void> => {
-  const userId: number = (req as any).userId;
+  const userId: number = req.userId;
 
   const [profile] = await db
     .select({
@@ -1145,7 +1145,7 @@ const ExtendedOnboardingBody = z.object({
 });
 
 router.patch("/buyer/onboarding", requireAuth, async (req, res): Promise<void> => {
-  const userId: number = (req as any).userId;
+  const userId: number = req.userId;
 
   const parsed = ExtendedOnboardingBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1283,7 +1283,7 @@ router.patch(
   "/buyers/:id/marketing-preferences",
   requireAuth,
   async (req, res): Promise<void> => {
-    const userId: number = (req as any).userId;
+    const userId: number = req.userId;
     const idParam = req.params.id;
     const id = typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
     if (!Number.isInteger(id) || id <= 0) {

@@ -80,7 +80,6 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // RUT MAPPING NOTE: typedInput.rutDian maps to rawBody.has_rut (metadata-level signal only).
     // It does NOT reflect compliance_docs.rut_dian used by the eligibility gate.
     // This mismatch will be resolved in T4 (compliance alignment).
-    // TODO (T2): use typedInput to build scoring input contract
     const typedInput: Partial<SupplierOnboardingInput> = {
       fullName: rawBody.contact_name || rawBody.nombreCompleto,
       phone: rawBody.phone || rawBody.whatsappNumber,
@@ -1270,7 +1269,7 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
 // Returns profileCompleteness so the supplier dashboard can render the self-
 // completion widget without the user knowing their supplierId.
 router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
 
   const [user] = await db
     .select({ email: usersTable.email })
@@ -1327,7 +1326,7 @@ router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void>
 // Requires SUPPLIER role. Resolves via email match (same bridge as my-profile).
 // nextAction is a plain-English guidance string derived from sellableStatus.
 router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
 
   const [user] = await db
     .select({ email: usersTable.email, role: usersTable.role })
@@ -1402,7 +1401,7 @@ router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void
     return;
   }
 
-  const userId = (req as any).userId as number;
+  const userId = req.userId;
 
   const [user] = await db
     .select({ email: usersTable.email })
@@ -1721,7 +1720,7 @@ router.post(
       }
     });
 
-    logger.info({ admin: (req as any).userId, supplierId, correlationId }, "admin: manual score triggered");
+    logger.info({ admin: req.userId, supplierId, correlationId }, "admin: manual score triggered");
     res.json({ success: true, supplierId, correlationId, message: `Scoring pipeline started for ${existing.nombreCompleto}` });
   },
 );
@@ -1831,7 +1830,7 @@ router.patch(
     ];
 
     logger.info(
-      { admin: (req as any).userId, supplierId, fieldsUpdated },
+      { admin: req.userId, supplierId, fieldsUpdated },
       "admin compliance update",
     );
 

@@ -1,12 +1,13 @@
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import type { SignOptions } from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { db, usersTable, profilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
-const BCRYPT_ROUNDS = 12;
-const JWT_EXPIRY = "7d";
+const BCRYPT_ROUNDS = parseInt(process.env["BCRYPT_ROUNDS"] ?? "12", 10);
+const JWT_EXPIRY = (process.env["JWT_EXPIRY"] ?? "7d") as SignOptions["expiresIn"];
 
 // Validated at module load so a missing secret crashes at startup, not mid-request
 const JWT_SECRET = process.env["JWT_SECRET"];

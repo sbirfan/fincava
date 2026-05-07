@@ -56,6 +56,7 @@ app.use(
       // Dev mode with no CORS_ORIGIN configured: allow all origins.
       if (allowedOrigins.length === 0) { callback(null, true); return; }
       if (allowedOrigins.includes(origin)) { callback(null, true); return; }
+      logger.warn({ origin }, "CORS request rejected");
       callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
     credentials: true,

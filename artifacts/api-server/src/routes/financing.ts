@@ -39,7 +39,7 @@ async function getCreditScore(userId: number): Promise<{ score: number; limit: n
 }
 
 router.get("/finance/credit", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const { score, limit } = await getCreditScore(userId);
   const activeLoans = await db.select().from(loansTable)
     .where(and(eq(loansTable.buyerId, userId), eq(loansTable.status, "ACTIVE")));
@@ -48,7 +48,7 @@ router.get("/finance/credit", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/finance/loans", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const loans = await db.select().from(loansTable)
     .where(eq(loansTable.buyerId, userId))
     .orderBy(loansTable.createdAt);
@@ -91,7 +91,7 @@ router.get("/finance/loans", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/finance/loan", requireAuth, requireVerifiedEmail, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const { orderId, principalUSD, termDays = 30, aprPercent = 12 } = req.body;
 
   if (!principalUSD || principalUSD <= 0) {
@@ -144,7 +144,7 @@ router.post("/finance/loan", requireAuth, requireVerifiedEmail, async (req, res)
 });
 
 router.post("/finance/repay", requireAuth, async (req, res): Promise<void> => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const { loanId, amountUSD, note } = req.body;
 
   if (!loanId || !amountUSD || amountUSD <= 0) {
