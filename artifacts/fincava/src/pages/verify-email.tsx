@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
+import { API } from "@/lib/api-routes";
 
 export default function VerifyEmailPage() {
   const [, navigate] = useLocation();
@@ -26,7 +27,7 @@ export default function VerifyEmailPage() {
       return;
     }
 
-    fetch("/api/auth/verify-email", {
+    fetch(API.AUTH_VERIFY_EMAIL, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -103,7 +104,7 @@ export default function VerifyEmailPage() {
                     variant="outline"
                     className="w-full"
                     onClick={async () => {
-                      const res = await fetch("/api/auth/resend-verification", {
+                      const res = await fetch(API.AUTH_RESEND_VERIFICATION, {
                         method: "POST",
                         credentials: "include",
                       });

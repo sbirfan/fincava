@@ -11,6 +11,7 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppLayout } from "@/components/layout/app-layout";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 // Public — eagerly loaded (needed on first paint)
 import Home from "@/pages/home";
@@ -219,9 +220,11 @@ function App() {
         <LanguageProvider>
           <AuthProvider>
             <MvpBanner />
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
+            <ErrorBoundary>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+            </ErrorBoundary>
           </AuthProvider>
           <Toaster />
         </LanguageProvider>

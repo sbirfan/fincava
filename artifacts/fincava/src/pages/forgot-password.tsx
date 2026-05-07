@@ -10,6 +10,7 @@ import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2 } from "lucide-react";
+import { API } from "@/lib/api-routes";
 
 export default function ForgotPassword() {
   const [sent, setSent] = useState(false);
@@ -27,7 +28,7 @@ export default function ForgotPassword() {
   });
 
   async function onSubmit(values: z.infer<typeof schema>) {
-    const res = await fetch("/api/auth/forgot-password", {
+    const res = await fetch(API.AUTH_FORGOT_PASSWORD, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: values.email }),

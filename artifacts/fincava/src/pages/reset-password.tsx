@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
+import { API } from "@/lib/api-routes";
 import { Loader2, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 
 export default function ResetPassword() {
@@ -37,7 +38,7 @@ export default function ResetPassword() {
 
   async function onSubmit(values: z.infer<typeof schema>) {
     setErrorMsg("");
-    const res = await fetch("/api/auth/reset-password", {
+    const res = await fetch(API.AUTH_RESET_PASSWORD, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, password: values.password }),

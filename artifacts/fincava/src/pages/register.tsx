@@ -19,6 +19,7 @@ import { StepBusinessReadiness } from "@/components/onboarding/StepBusinessReadi
 import { ReviewSummary, type ReviewSection } from "@/components/onboarding/ReviewSummary";
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
 import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
+import { API } from "@/lib/api-routes";
 import { ENABLE_FINANCE } from "@/lib/flags";
 
 type AccountData = {
@@ -151,7 +152,7 @@ export default function Register() {
     try {
       const accountValues = form.getValues();
 
-      const regRes = await fetch("/api/auth/register", {
+      const regRes = await fetch(API.AUTH_REGISTER, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...accountValues, role }),
@@ -167,7 +168,7 @@ export default function Register() {
         ? supplierForm.other_product
         : supplierForm.primary_product;
 
-      const onboardRes = await fetch("/api/suppliers/onboard", {
+      const onboardRes = await fetch(API.SUPPLIER_ONBOARD, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
