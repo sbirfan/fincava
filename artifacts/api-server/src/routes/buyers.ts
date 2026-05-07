@@ -42,6 +42,7 @@ import {
   computeFieldsThatImproveMatch,
 } from "../services/buyer-matching-service";
 import { analyseGaps as analyseBuyerGaps } from "../services/buyer-gap-service";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -123,7 +124,7 @@ router.post("/buyers/register", async (req, res): Promise<void> => {
     .from(usersTable)
     .where(eq(usersTable.email, email));
   if (existing) {
-    res.status(409).json({ error: "Email already registered" });
+    sendError(res, 409, "Email already registered");
     return;
   }
 
@@ -307,12 +308,12 @@ router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
     .where(eq(usersTable.id, userId));
 
   if (!user) {
-    res.status(404).json({ error: "User not found" });
+    sendError(res, 404, "User not found");
     return;
   }
 
   if (user.role !== "BUYER") {
-    res.status(403).json({ error: "Only BUYER accounts can submit a buyer profile" });
+    sendError(res, 403, "Only BUYER accounts can submit a buyer profile");
     return;
   }
 
@@ -434,7 +435,7 @@ router.get("/buyers/profile", requireAuth, async (req, res): Promise<void> => {
     .where(eq(buyerProfilesTable.userId, userId));
 
   if (!profile) {
-    res.status(404).json({ error: "No buyer profile found" });
+    sendError(res, 404, "No buyer profile found");
     return;
   }
 
@@ -547,7 +548,7 @@ router.patch(
     const id =
       typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
     if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid buyer profile id" });
+      sendError(res, 400, "Invalid buyer profile id");
       return;
     }
 
@@ -581,11 +582,11 @@ router.patch(
       .where(eq(buyerProfilesTable.id, id));
 
     if (!existing) {
-      res.status(404).json({ error: "Buyer profile not found" });
+      sendError(res, 404, "Buyer profile not found");
       return;
     }
     if (existing.userId !== userId) {
-      res.status(403).json({ error: "Not your profile" });
+      sendError(res, 403, "Not your profile");
       return;
     }
 
@@ -689,7 +690,7 @@ router.get(
     const idParam = req.params.id;
     const id = typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
     if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid buyer profile id" });
+      sendError(res, 400, "Invalid buyer profile id");
       return;
     }
 
@@ -699,11 +700,11 @@ router.get(
       .where(eq(buyerProfilesTable.id, id));
 
     if (!profile) {
-      res.status(404).json({ error: "Buyer profile not found" });
+      sendError(res, 404, "Buyer profile not found");
       return;
     }
     if (profile.userId !== userId) {
-      res.status(403).json({ error: "Not your profile" });
+      sendError(res, 403, "Not your profile");
       return;
     }
 
@@ -931,7 +932,7 @@ router.get("/buyer/onboarding", requireAuth, async (req, res): Promise<void> => 
     .where(eq(buyerProfilesTable.userId, userId));
 
   if (!profile) {
-    res.status(404).json({ error: "No buyer profile found. Complete registration first." });
+    sendError(res, 404, "No buyer profile found. Complete registration first.");
     return;
   }
 
@@ -1160,9 +1161,7 @@ router.patch("/buyer/onboarding", requireAuth, async (req, res): Promise<void> =
     .where(eq(buyerProfilesTable.userId, userId));
 
   if (!existing) {
-    res.status(404).json({
-      error: "No buyer profile found. Complete /buyer-register first.",
-    });
+    sendError(res, 404, "No buyer profile found. Complete /buyer-register first.");
     return;
   }
 
@@ -1287,13 +1286,13 @@ router.patch(
     const idParam = req.params.id;
     const id = typeof idParam === "string" ? Number.parseInt(idParam, 10) : NaN;
     if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+      sendError(res, 400, "Invalid buyer profile id");
       return;
     }
 
     const parsed = MarketingPreferencesBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: parsed.error.flatten().fieldErrors });
+      res.status(400).json({ error: parsed.error.flatten().fieldErrors });
       return;
     }
 
@@ -1303,11 +1302,11 @@ router.patch(
       .where(eq(buyerProfilesTable.id, id));
 
     if (!existing) {
-      res.status(404).json({ success: false, error: "Buyer profile not found" });
+      sendError(res, 404, "Buyer profile not found");
       return;
     }
     if (existing.userId !== userId) {
-      res.status(403).json({ success: false, error: "Not your profile" });
+      sendError(res, 403, "Not your profile");
       return;
     }
 

@@ -26,6 +26,7 @@ import { FEE_STATUSES } from "../constants/fee-status";
 import { runBackup } from "../services/backup-service";
 import { processCampaign } from "../services/marketing-campaign-service";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
+import { sendError } from "../lib/response";
 
 // ── Local typed helpers (avoid `any` in route bodies) ─────────────────────────
 type AuthedRequest = Request & { userId: number };
@@ -320,7 +321,7 @@ router.get("/admin/buyers", ...adminOnly, async (req, res): Promise<void> => {
 router.get("/admin/buyers/:id", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
@@ -344,7 +345,7 @@ router.get("/admin/buyers/:id", ...adminOnly, async (req, res): Promise<void> =>
     .where(eq(buyerProfilesTable.id, profileId));
 
   if (!row) {
-    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    sendError(res, 404, "Buyer profile not found");
     return;
   }
 
@@ -387,7 +388,7 @@ router.get("/admin/buyers/:id", ...adminOnly, async (req, res): Promise<void> =>
 router.get("/admin/buyers/:id/matches", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
@@ -424,7 +425,7 @@ router.get("/admin/buyers/:id/matches", ...adminOnly, async (req, res): Promise<
 router.get("/admin/buyers/:id/gaps", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
@@ -446,13 +447,13 @@ const SuppressMatchBody = z.object({
 router.post("/admin/buyers/:id/suppress-match", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
   const parsed = SuppressMatchBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ success: false, error: parsed.error.flatten().fieldErrors });
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
     return;
   }
 
@@ -464,7 +465,7 @@ router.post("/admin/buyers/:id/suppress-match", ...adminOnly, async (req, res): 
     .where(and(eq(buyerMatchesTable.id, parsed.data.matchId), eq(buyerMatchesTable.buyerProfileId, profileId)));
 
   if (!match) {
-    res.status(404).json({ success: false, error: "Match not found for this buyer" });
+    sendError(res, 404, "Match not found for this buyer");
     return;
   }
 
@@ -508,7 +509,7 @@ router.post("/admin/buyers/:id/suppress-match", ...adminOnly, async (req, res): 
 router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<void> => {
   const gapId = parseInt(req.params.id as string, 10);
   if (isNaN(gapId)) {
-    res.status(400).json({ success: false, error: "Invalid gap id" });
+    sendError(res, 400, "Invalid gap id");
     return;
   }
 
@@ -518,22 +519,22 @@ router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<
     .where(eq(buyerGapBriefsTable.id, gapId));
 
   if (!brief) {
-    res.status(404).json({ success: false, error: "Gap brief not found" });
+    sendError(res, 404, "Gap brief not found");
     return;
   }
 
   if (brief.ingestionBatchId != null) {
-    res.status(409).json({ success: false, error: "Gap already escalated", data: { ingestionBatchId: brief.ingestionBatchId } });
+    res.status(409).json({ error: "Gap already escalated", data: { ingestionBatchId: brief.ingestionBatchId } });
     return;
   }
 
   if (!brief.isRealGap) {
-    res.status(400).json({ success: false, error: "Cannot escalate a non-real gap" });
+    sendError(res, 400, "Cannot escalate a non-real gap");
     return;
   }
 
   if (brief.priority !== "MEDIUM") {
-    res.status(400).json({ success: false, error: `Manual escalation only allowed for MEDIUM gaps (this gap is ${brief.priority})` });
+    sendError(res, 400, `Manual escalation only allowed for MEDIUM gaps (this gap is ${brief.priority})`);
     return;
   }
 
@@ -543,7 +544,7 @@ router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<
     .where(eq(buyerProfilesTable.id, brief.buyerProfileId));
 
   if (!profile) {
-    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    sendError(res, 404, "Buyer profile not found");
     return;
   }
 
@@ -557,7 +558,7 @@ router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<
     );
 
     if (batchId == null) {
-      res.status(500).json({ success: false, error: "Escalation failed — no batch created" });
+      sendError(res, 500, "Escalation failed — no batch created");
       return;
     }
 
@@ -582,7 +583,7 @@ router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<
     res.json({ success: true, data: { gapId, ingestionBatchId: batchId } });
   } catch (err: unknown) {
     logger.error({ err, gapId, adminId }, "Manual gap escalation failed");
-    res.status(500).json({ success: false, error: errorMessage(err) });
+    sendError(res, 500, errorMessage(err));
   }
 });
 
@@ -590,7 +591,7 @@ router.post("/admin/gaps/:id/escalate", ...adminOnly, async (req, res): Promise<
 router.get("/admin/buyers/:id/activity", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
@@ -608,7 +609,7 @@ router.get("/admin/buyers/:id/activity", ...adminOnly, async (req, res): Promise
 router.get("/admin/buyers/:id/onboarding", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
@@ -646,7 +647,7 @@ router.get("/admin/buyers/:id/onboarding", ...adminOnly, async (req, res): Promi
     .where(eq(buyerProfilesTable.id, profileId));
 
   if (!row) {
-    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    sendError(res, 404, "Buyer profile not found");
     return;
   }
 
@@ -684,13 +685,13 @@ const AdminOnboardingPatchBody = z.object({
 router.patch("/admin/buyers/:id/onboarding", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
   const body = AdminOnboardingPatchBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ success: false, error: "Invalid fields", issues: body.error.issues });
+    res.status(400).json({ error: "Invalid fields", issues: body.error.issues });
     return;
   }
 
@@ -700,7 +701,7 @@ router.patch("/admin/buyers/:id/onboarding", ...adminOnly, async (req, res): Pro
     .where(eq(buyerProfilesTable.id, profileId));
 
   if (!existing) {
-    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    sendError(res, 404, "Buyer profile not found");
     return;
   }
 
@@ -749,20 +750,20 @@ const ApprovalBody = z.object({
 router.patch("/admin/buyers/:id/approval", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
   const body = ApprovalBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ success: false, error: "Invalid approval request", issues: body.error.issues });
+    res.status(400).json({ error: "Invalid approval request", issues: body.error.issues });
     return;
   }
 
   const { status, revisionNote } = body.data;
 
   if (status === "REVISION_REQUESTED" && (!revisionNote || !revisionNote.trim())) {
-    res.status(400).json({ success: false, error: "revisionNote is required when status is REVISION_REQUESTED" });
+    sendError(res, 400, "revisionNote is required when status is REVISION_REQUESTED");
     return;
   }
 
@@ -772,7 +773,7 @@ router.patch("/admin/buyers/:id/approval", ...adminOnly, async (req, res): Promi
     .where(eq(buyerProfilesTable.id, profileId));
 
   if (!existing) {
-    res.status(404).json({ success: false, error: "Buyer profile not found" });
+    sendError(res, 404, "Buyer profile not found");
     return;
   }
 
@@ -827,7 +828,7 @@ router.patch("/admin/buyers/:id/approval", ...adminOnly, async (req, res): Promi
 router.post("/admin/buyers/:id/reset-score", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
@@ -840,7 +841,7 @@ router.post("/admin/buyers/:id/reset-score", ...adminOnly, async (req, res): Pro
       .where(eq(buyerProfilesTable.id, profileId));
 
     if (!existing) {
-      res.status(404).json({ success: false, error: "Buyer profile not found" });
+      sendError(res, 404, "Buyer profile not found");
       return;
     }
 
@@ -869,7 +870,7 @@ router.post("/admin/buyers/:id/reset-score", ...adminOnly, async (req, res): Pro
     res.json({ success: true, data: updated });
   } catch (err: unknown) {
     logger.error({ err, profileId, adminId }, "Buyer score reset failed");
-    res.status(500).json({ success: false, error: errorMessage(err) });
+    sendError(res, 500, errorMessage(err));
   }
 });
 
@@ -879,7 +880,7 @@ router.post("/admin/buyers/:id/reset-score", ...adminOnly, async (req, res): Pro
 router.post("/admin/buyers/:id/run-match", ...adminOnly, async (req, res): Promise<void> => {
   const profileId = parseInt(req.params.id as string, 10);
   if (isNaN(profileId)) {
-    res.status(400).json({ success: false, error: "Invalid buyer profile id" });
+    sendError(res, 400, "Invalid buyer profile id");
     return;
   }
 
@@ -901,11 +902,11 @@ router.post("/admin/buyers/:id/run-match", ...adminOnly, async (req, res): Promi
     res.json({ success: true, data: result });
   } catch (err: unknown) {
     if (err instanceof MatchingNotFoundError) {
-      res.status(404).json({ success: false, error: err.message });
+      sendError(res, 404, err.message);
       return;
     }
     logger.error({ err, profileId, adminId }, "Admin match-run failed");
-    res.status(500).json({ success: false, error: errorMessage(err) });
+    sendError(res, 500, errorMessage(err));
   }
 });
 
@@ -1055,7 +1056,7 @@ const MarketingSendBody = z.object({
 router.post("/admin/buyers/marketing-send", ...adminOnly, async (req, res): Promise<void> => {
   const parsed = MarketingSendBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ success: false, error: parsed.error.flatten().fieldErrors });
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
     return;
   }
 
@@ -1121,7 +1122,7 @@ router.post("/admin/buyers/marketing-send", ...adminOnly, async (req, res): Prom
 router.get("/admin/buyers/marketing-campaigns/:id", ...adminOnly, async (req, res): Promise<void> => {
   const campaignId = parseInt(req.params.id as string, 10);
   if (isNaN(campaignId)) {
-    res.status(400).json({ success: false, error: "Invalid campaign id" });
+    sendError(res, 400, "Invalid campaign id");
     return;
   }
 
@@ -1131,7 +1132,7 @@ router.get("/admin/buyers/marketing-campaigns/:id", ...adminOnly, async (req, re
     .where(eq(marketingCampaignsTable.id, campaignId));
 
   if (!campaign) {
-    res.status(404).json({ success: false, error: "Campaign not found" });
+    sendError(res, 404, "Campaign not found");
     return;
   }
 
@@ -1162,7 +1163,7 @@ router.get("/admin/buyers/marketing-campaigns/:id", ...adminOnly, async (req, re
 // ── PATCH /api/admin/users/:id ───────────────────────────────────────────────
 router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> => {
   const userId = parseInt(req.params.id as string, 10);
-  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  if (isNaN(userId)) { sendError(res, 400, "Invalid user id"); return; }
 
   const parsed = AdminUserEditBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1178,7 +1179,7 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
     .from(usersTable)
     .where(eq(usersTable.id, userId));
 
-  if (!currentUser) { res.status(404).json({ error: "User not found" }); return; }
+  if (!currentUser) { sendError(res, 404, "User not found"); return; }
 
   // Record whether a role change is happening before we apply the update
   const roleChanged = role !== undefined && role !== currentUser.role;
@@ -1256,7 +1257,7 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
 // ── POST /api/admin/users/:id/reset-password ─────────────────────────────────
 router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): Promise<void> => {
   const userId = parseInt(req.params.id as string, 10);
-  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  if (isNaN(userId)) { sendError(res, 400, "Invalid user id"); return; }
 
   const parsed = AdminResetPasswordBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1298,7 +1299,7 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
 
   const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
   if (existing) {
-    res.status(409).json({ error: "Email already registered" });
+    sendError(res, 409, "Email already registered");
     return;
   }
 
@@ -1350,11 +1351,11 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
 // ── DELETE /api/admin/users/:id ──────────────────────────────────────────────
 router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> => {
   const userId = parseInt(req.params.id as string, 10);
-  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  if (isNaN(userId)) { sendError(res, 400, "Invalid user id"); return; }
 
   const requesterId = req.userId;
   if (userId === requesterId) {
-    res.status(400).json({ error: "You cannot delete your own account" });
+    sendError(res, 400, "You cannot delete your own account");
     return;
   }
 
@@ -1367,10 +1368,7 @@ router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> 
   } catch (err: any) {
     const pgCode = err?.code ?? err?.cause?.code;
     if (pgCode === "23503") {
-      res.status(409).json({
-        error:
-          "Cannot delete user: they have associated orders, RFQs, messages, or other records. Deactivate the account instead.",
-      });
+      sendError(res, 409, "Cannot delete user: they have associated orders, RFQs, messages, or other records. Deactivate the account instead.");
     } else {
       throw err;
     }
@@ -1380,13 +1378,13 @@ router.delete("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> 
 // ── PATCH /api/admin/orders/:id/status ───────────────────────────────────────
 router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid order id"); return; }
 
   const parsed = AdminOrderStatusBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
 
   const [updated] = await db.update(ordersTable).set({ status: parsed.data.status as any }).where(eq(ordersTable.id, id)).returning();
-  if (!updated) { res.status(404).json({ error: "Order not found" }); return; }
+  if (!updated) { sendError(res, 404, "Order not found"); return; }
   res.json({ success: true, status: updated.status });
 
   // Fire-and-forget: notify buyer of order status change
@@ -1431,7 +1429,7 @@ const AdminOrderFeeStatusBody = z.object({
 
 router.patch("/admin/orders/:id/fee-status", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid order id"); return; }
 
   const parsed = AdminOrderFeeStatusBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
@@ -1442,7 +1440,7 @@ router.patch("/admin/orders/:id/fee-status", ...adminOnly, async (req, res): Pro
     .where(eq(ordersTable.id, id))
     .returning();
 
-  if (!updated) { res.status(404).json({ error: "Order not found" }); return; }
+  if (!updated) { sendError(res, 404, "Order not found"); return; }
 
   logInteraction({
     eventType:     "fee_status_updated",
@@ -1458,13 +1456,13 @@ router.patch("/admin/orders/:id/fee-status", ...adminOnly, async (req, res): Pro
 // ── PATCH /api/admin/loans/:id/status ────────────────────────────────────────
 router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid loan id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid loan id"); return; }
 
   const parsed = AdminLoanStatusBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
 
   const [updated] = await db.update(loansTable).set({ status: parsed.data.status as any }).where(eq(loansTable.id, id)).returning();
-  if (!updated) { res.status(404).json({ error: "Loan not found" }); return; }
+  if (!updated) { sendError(res, 404, "Loan not found"); return; }
   res.json({ success: true, status: updated.status });
 
   // Fire-and-forget: notify supplier(s) of loan status change via linked order
@@ -1522,7 +1520,7 @@ router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<
 // ── PATCH /api/admin/suppliers/:id/status ────────────────────────────────────
 router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid supplier id"); return; }
 
   const parsed = AdminSupplierStatusBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
@@ -1532,7 +1530,7 @@ router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Prom
     .set({ status: parsed.data.status as any })
     .where(eq(suppliersTable.id, id))
     .returning();
-  if (!updated) { res.status(404).json({ error: "Supplier not found" }); return; }
+  if (!updated) { sendError(res, 404, "Supplier not found"); return; }
 
   res.json({ success: true, status: updated.status });
 
@@ -1562,7 +1560,7 @@ router.patch("/admin/suppliers/:id/status", ...adminOnly, async (req, res): Prom
 // Status is intentionally NOT editable here — use /admin/suppliers/:id/status.
 router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid supplier id"); return; }
 
   const parsed = AdminSupplierEditBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1650,7 +1648,7 @@ router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<voi
     });
   } catch (err: any) {
     if (err?.message === "__SUPPLIER_NOT_FOUND__") {
-      res.status(404).json({ error: "Supplier not found" });
+      sendError(res, 404, "Supplier not found");
       return;
     }
     // Partial-unique whatsapp index rejecting a duplicate.
@@ -1765,7 +1763,7 @@ router.get("/admin/team/users", ...adminOnly, async (req, res): Promise<void> =>
 // ── POST /api/admin/team/:userId/roles ─────────────────────────────────────────
 router.post("/admin/team/:userId/roles", ...adminOnly, async (req, res): Promise<void> => {
   const userId = parseInt(req.params.userId as string, 10);
-  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  if (isNaN(userId)) { sendError(res, 400, "Invalid user id"); return; }
 
   const parsed = StaffRoleBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1774,7 +1772,7 @@ router.post("/admin/team/:userId/roles", ...adminOnly, async (req, res): Promise
   }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user) { sendError(res, 404, "User not found"); return; }
 
   const adminId = req.userId;
 
@@ -1791,9 +1789,9 @@ router.delete("/admin/team/:userId/roles/:role", ...adminOnly, async (req, res):
   const userId = parseInt(req.params.userId as string, 10);
   const role = req.params.role as string;
 
-  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  if (isNaN(userId)) { sendError(res, 400, "Invalid user id"); return; }
   if (!(STAFF_ROLE_VALUES as readonly string[]).includes(role)) {
-    res.status(400).json({ error: `Invalid role. Must be one of: ${STAFF_ROLE_VALUES.join(", ")}` });
+    sendError(res, 400, `Invalid role. Must be one of: ${STAFF_ROLE_VALUES.join(", ")}`);
     return;
   }
 
@@ -1807,7 +1805,7 @@ router.delete("/admin/team/:userId/roles/:role", ...adminOnly, async (req, res):
 // ── POST /api/admin/suppliers/:companyId/recompute-trust ─────────────────────
 router.post("/admin/suppliers/:companyId/recompute-trust", ...adminOnly, async (req, res): Promise<void> => {
   const companyId = parseInt(req.params.companyId as string, 10);
-  if (isNaN(companyId)) { res.status(400).json({ error: "Invalid company id" }); return; }
+  if (isNaN(companyId)) { sendError(res, 400, "Invalid company id"); return; }
 
   const score = await computeTrustScore(companyId);
   res.json({ companyId, score });
@@ -1822,7 +1820,7 @@ const AdminCreateProductBody = z.object({
 router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
   const supplierId = parseInt(req.params.id as string, 10);
   if (isNaN(supplierId)) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
 
@@ -1841,7 +1839,7 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
   if (!supplier) {
     logger.error({ event: "PRODUCT_CREATE_SUPPLIER_MISSING", supplierId },
       "Supplier not found during product creation");
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -1857,7 +1855,7 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
     if (isNaN(parsed)) {
       logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId,
         envCompanyId }, "Company resolution failed");
-      res.status(500).json({ error: "Configured FINCAVA_COMPANY_ID not found" });
+      sendError(res, 500, "Configured FINCAVA_COMPANY_ID not found");
       return;
     }
 
@@ -1870,7 +1868,7 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
     if (!envRow) {
       logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId,
         envCompanyId }, "Company resolution failed");
-      res.status(500).json({ error: "Configured FINCAVA_COMPANY_ID not found" });
+      sendError(res, 500, "Configured FINCAVA_COMPANY_ID not found");
       return;
     }
 
@@ -1888,14 +1886,14 @@ router.post("/admin/suppliers/:id/create-product", ...adminOnly, async (req: Req
     if (matchCount === 0) {
       logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
         "Company resolution failed");
-      res.status(500).json({ error: "FINCAVA company not found — cannot create product" });
+      sendError(res, 500, "FINCAVA company not found — cannot create product");
       return;
     }
 
     if (matchCount > 1) {
       logger.error({ event: "COMPANY_RESOLUTION_FAILED", supplierId, matchCount },
         "Company resolution failed");
-      res.status(500).json({ error: "Ambiguous company match — aborting product creation" });
+      sendError(res, 500, "Ambiguous company match — aborting product creation");
       return;
     }
 
@@ -1953,7 +1951,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseInt(req.params.id as string, 10);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 
@@ -1974,14 +1972,12 @@ router.post(
       .limit(1);
 
     if (!supplier) {
-      res.status(404).json({ error: "Supplier not found" });
+      sendError(res, 404, "Supplier not found");
       return;
     }
 
     if (!supplier.description?.trim()) {
-      res.status(422).json({
-        error: "A description is required before publishing to Origin Stories.",
-      });
+      sendError(res, 422, "A description is required before publishing to Origin Stories.");
       return;
     }
 
@@ -2011,7 +2007,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseInt(req.params.id as string, 10);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 
@@ -2145,7 +2141,7 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
     return;
   }
   if (dupResult.hasDuplicate && overrideDuplicateId && !overrideJustification?.trim()) {
-    res.status(422).json({ error: "overrideJustification is required when overriding a duplicate and must not be empty" });
+    sendError(res, 422, "overrideJustification is required when overriding a duplicate and must not be empty");
     return;
   }
 
@@ -2248,7 +2244,7 @@ async function setIngestionStatus(
 router.patch("/admin/ingestion/suppliers/:id/ingestion-status", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (!Number.isInteger(supplierId) || supplierId <= 0) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
   const body = IngestionStatusUpdateBody.safeParse(req.body);
@@ -2260,7 +2256,7 @@ router.patch("/admin/ingestion/suppliers/:id/ingestion-status", ...adminOnly, as
 
   const updated = await setIngestionStatus(supplierId, body.data.ingestionStatus, adminId);
   if (!updated) {
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -2271,7 +2267,7 @@ router.patch("/admin/ingestion/suppliers/:id/ingestion-status", ...adminOnly, as
 router.post("/admin/ingestion/batches/:id/submit", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
   const batchId = Number(req.params.id);
   if (!Number.isInteger(batchId) || batchId <= 0) {
-    res.status(400).json({ error: "Invalid batch id" });
+    sendError(res, 400, "Invalid batch id");
     return;
   }
   const adminId = req.userId;
@@ -2283,7 +2279,7 @@ router.post("/admin/ingestion/batches/:id/submit", ...adminOnly, async (req: Req
     .returning();
 
   if (!batch) {
-    res.status(404).json({ error: "Batch not found" });
+    sendError(res, 404, "Batch not found");
     return;
   }
 
@@ -2518,7 +2514,7 @@ router.post("/admin/origin-stories", ...adminOnly, async (req: Request, res: Res
 
   const [product] = await db.select({ id: productsTable.id }).from(productsTable)
     .where(eq(productsTable.id, d.productId)).limit(1);
-  if (!product) { res.status(404).json({ error: "Product not found" }); return; }
+  if (!product) { sendError(res, 404, "Product not found"); return; }
 
   const [story] = await db.insert(originStoriesTable).values({
     productId:    d.productId,
@@ -2544,7 +2540,7 @@ router.post("/admin/origin-stories", ...adminOnly, async (req: Request, res: Res
 // ── PATCH /api/admin/origin-stories/:id ───────────────────────────────────────
 router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params["id"] as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid id"); return; }
 
   const parsed = OriginStoryPatchBody.safeParse(req.body);
   if (!parsed.success) {
@@ -2555,7 +2551,7 @@ router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res
 
   const [existing] = await db.select({ id: originStoriesTable.id }).from(originStoriesTable)
     .where(eq(originStoriesTable.id, id)).limit(1);
-  if (!existing) { res.status(404).json({ error: "Story not found" }); return; }
+  if (!existing) { sendError(res, 404, "Story not found"); return; }
 
   const updateData: Partial<typeof originStoriesTable.$inferInsert> = {};
   if (d.farmerName   !== undefined) updateData.farmerName   = d.farmerName;
@@ -2582,11 +2578,11 @@ router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res
 // ── DELETE /api/admin/origin-stories/:id ──────────────────────────────────────
 router.delete("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params["id"] as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid id"); return; }
 
   const [existing] = await db.select({ id: originStoriesTable.id }).from(originStoriesTable)
     .where(eq(originStoriesTable.id, id)).limit(1);
-  if (!existing) { res.status(404).json({ error: "Story not found" }); return; }
+  if (!existing) { sendError(res, 404, "Story not found"); return; }
 
   await db.delete(originStoriesTable).where(eq(originStoriesTable.id, id));
   req.log.info({ storyId: id }, "admin: origin story deleted");
@@ -2604,7 +2600,7 @@ router.post("/admin/backup/run", async (req: Request, res: Response, next: NextF
       res.json({ success: true, file: result.filename, fileSizeBytes: result.fileSizeBytes });
     } catch (err) {
       logger.error({ err }, "Backup failed (cron path)");
-      res.status(500).json({ error: "Backup failed" });
+      sendError(res, 500, "Backup failed");
     }
     return;
   }
@@ -2617,7 +2613,7 @@ router.post("/admin/backup/run", async (req: Request, res: Response, next: NextF
         res.json({ success: true, file: result.filename, fileSizeBytes: result.fileSizeBytes });
       } catch (err) {
         logger.error({ err }, "Backup failed (admin path)");
-        res.status(500).json({ error: "Backup failed" });
+        sendError(res, 500, "Backup failed");
       }
     });
   });

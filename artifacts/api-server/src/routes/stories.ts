@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { desc, eq, sql } from "drizzle-orm";
 import { db, productsTable, originStoriesTable, suppliersTable, productPlaceholdersTable } from "@workspace/db";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -64,7 +65,7 @@ router.get("/origin-stories", async (_req, res): Promise<void> => {
 router.get("/stories/:productId", async (req, res): Promise<void> => {
   const productId = parseInt(req.params.productId, 10);
   if (isNaN(productId)) {
-    res.status(400).json({ error: "Invalid product ID" });
+    sendError(res, 400, "Invalid product ID");
     return;
   }
 
@@ -72,7 +73,7 @@ router.get("/stories/:productId", async (req, res): Promise<void> => {
     .where(eq(originStoriesTable.productId, productId));
 
   if (!story) {
-    res.status(404).json({ error: "Story not found" });
+    sendError(res, 404, "Story not found");
     return;
   }
 

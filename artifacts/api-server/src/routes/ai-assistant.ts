@@ -5,6 +5,7 @@ import { db, usersTable, profilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { getAnthropicClient } from "../lib/anthropic";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -123,7 +124,7 @@ router.post("/ai-assistant/chat", requireAuth, chatLimiter, async (req, res): Pr
 
   const parsed = ChatBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -139,7 +140,7 @@ router.post("/ai-assistant/chat", requireAuth, chatLimiter, async (req, res): Pr
     return -1;
   })();
   if (lastUserIdx === -1) {
-    res.status(400).json({ error: "Conversation must end with a user message." });
+    sendError(res, 400, "Conversation must end with a user message.");
     return;
   }
   const trimmed = incoming.slice(0, lastUserIdx + 1);
@@ -153,25 +154,23 @@ router.post("/ai-assistant/chat", requireAuth, chatLimiter, async (req, res): Pr
     expected = expected === "user" ? "assistant" : "user";
   }
   if (normalized.length === 0 || normalized[normalized.length - 1]!.role !== "user") {
-    res.status(400).json({ error: "Invalid conversation history." });
+    sendError(res, 400, "Invalid conversation history.");
     return;
   }
   const totalChars = normalized.reduce((n, m) => n + m.content.length, 0);
   if (totalChars > MAX_TOTAL_CHARS) {
-    res.status(400).json({ error: "Conversation is too long. Start a new chat." });
+    sendError(res, 400, "Conversation is too long. Start a new chat.");
     return;
   }
 
   if (!process.env["ANTHROPIC_API_KEY"]) {
-    res.status(503).json({
-      error: "AI assistant is not configured on this server.",
-    });
+    sendError(res, 503, "AI assistant is not configured on this server.");
     return;
   }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) {
-    res.status(401).json({ error: "User not found" });
+    sendError(res, 401, "User not found");
     return;
   }
   const [profile] = await db
@@ -212,9 +211,7 @@ router.post("/ai-assistant/chat", requireAuth, chatLimiter, async (req, res): Pr
     });
   } catch (err: any) {
     req.log.error({ err, userId }, "ai-assistant chat failed");
-    res.status(502).json({
-      error: "The AI assistant is temporarily unavailable. Please try again in a moment.",
-    });
+    sendError(res, 502, "The AI assistant is temporarily unavailable. Please try again in a moment.");
   }
 });
 

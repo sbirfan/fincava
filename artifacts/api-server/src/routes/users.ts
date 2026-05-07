@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { UpdateUserProfileBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -11,7 +12,7 @@ router.patch("/users/profile", requireAuth, async (req, res): Promise<void> => {
 
   const parsed = UpdateUserProfileBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 

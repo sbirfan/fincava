@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword, generateToken, requireAuth, getUserWithPr
 import { logger } from "../lib/logger";
 import { sendEmail, passwordResetEmail, welcomeEmail, verificationEmail } from "../lib/email";
 import { runMatching as runBuyerMatching } from "../services/buyer-matching-service";
+import { sendError } from "../lib/response";
 
 /** sha256 hex digest of a raw token — used for secure storage and lookup. */
 function hashToken(raw: string): string {
@@ -94,7 +95,7 @@ async function sendVerificationEmail(userId: number, email: string, firstName: s
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RegisterUserBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -103,7 +104,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
   if (existing) {
-    res.status(409).json({ error: "Email already registered" });
+    sendError(res, 409, "Email already registered");
     return;
   }
 
@@ -173,7 +174,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 router.post("/auth/login", async (req, res): Promise<void> => {
   const parsed = LoginUserBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -188,7 +189,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     } else {
       logger.warn({ email: maskEmail(email), ip: hashIp(req.ip) }, "Login failed: invalid credentials");
     }
-    res.status(401).json({ error: "Invalid email or password" });
+    sendError(res, 401, "Invalid email or password");
     return;
   }
 
@@ -219,18 +220,18 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
   const { currentPassword, newPassword } = req.body ?? {};
 
   if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    sendError(res, 400, "currentPassword and newPassword are required");
     return;
   }
   if (typeof newPassword !== "string" || newPassword.length < 8) {
-    res.status(400).json({ error: "New password must be at least 8 characters" });
+    sendError(res, 400, "New password must be at least 8 characters");
     return;
   }
 
   const userId = req.userId;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) {
-    res.status(404).json({ error: "User not found" });
+    sendError(res, 404, "User not found");
     return;
   }
 
@@ -239,7 +240,7 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
     if (result.errorCode === "LEGACY_SALT_MISSING") {
       logger.error({ userId, email: maskEmail(user.email) }, "Change-password blocked: LEGACY_HASH_SALT env var not set — legacy password verification unavailable");
     }
-    res.status(401).json({ error: "Current password is incorrect" });
+    sendError(res, 401, "Current password is incorrect");
     return;
   }
 
@@ -289,11 +290,11 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
   const { token, password } = req.body ?? {};
 
   if (!token || typeof token !== "string") {
-    res.status(400).json({ error: "Reset token is required" });
+    sendError(res, 400, "Reset token is required");
     return;
   }
   if (!password || typeof password !== "string" || password.length < 8) {
-    res.status(400).json({ error: "Password must be at least 8 characters" });
+    sendError(res, 400, "Password must be at least 8 characters");
     return;
   }
 
@@ -312,7 +313,7 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
     );
 
   if (!preCheck) {
-    res.status(400).json({ error: "This reset link is invalid or has expired." });
+    sendError(res, 400, "This reset link is invalid or has expired.");
     return;
   }
 
@@ -356,7 +357,7 @@ router.post("/auth/reset-password", passwordResetLimiter, async (req, res): Prom
   });
 
   if (!record) {
-    res.status(400).json({ error: "This reset link is invalid or has expired." });
+    sendError(res, 400, "This reset link is invalid or has expired.");
     return;
   }
 
@@ -371,7 +372,7 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
   const token = typeof req.body?.token === "string" ? req.body.token : "";
 
   if (!token) {
-    res.status(400).json({ error: "Verification token is required" });
+    sendError(res, 400, "Verification token is required");
     return;
   }
 
@@ -435,7 +436,7 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
   });
 
   if (!record) {
-    res.status(400).json({ error: "This verification link is invalid or has expired." });
+    sendError(res, 400, "This verification link is invalid or has expired.");
     return;
   }
 
@@ -508,12 +509,12 @@ router.post("/auth/resend-verification", passwordResetLimiter, requireAuth, asyn
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
   if (!user) {
-    res.status(404).json({ error: "User not found" });
+    sendError(res, 404, "User not found");
     return;
   }
 
   if (user.emailVerifiedAt) {
-    res.status(409).json({ error: "Email is already verified" });
+    sendError(res, 409, "Email is already verified");
     return;
   }
 

@@ -7,13 +7,14 @@ import {
   CreateReviewBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
 router.get("/products/:id/reviews", async (req, res): Promise<void> => {
   const params = ListProductReviewsParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
@@ -41,20 +42,20 @@ router.get("/products/:id/reviews", async (req, res): Promise<void> => {
 router.post("/products/:id/reviews", requireAuth, async (req, res): Promise<void> => {
   const params = CreateReviewParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
   const userId = req.userId;
   const parsed = CreateReviewBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, params.data.id));
   if (!product) {
-    res.status(404).json({ error: "Product not found" });
+    sendError(res, 404, "Product not found");
     return;
   }
 

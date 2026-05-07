@@ -7,6 +7,7 @@ import { getAnthropicClient, TRANSLATION_MODEL } from "../lib/anthropic";
 import { sendEmail, conversationEscalationEmail } from "../lib/email";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -77,7 +78,7 @@ router.get("/messages/:userId", requireAuth, async (req, res): Promise<void> => 
   const currentUserId = req.userId;
   const params = GetMessagesParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
@@ -118,13 +119,13 @@ router.post("/messages/:userId", requireAuth, async (req, res): Promise<void> =>
   const currentUserId = req.userId;
   const params = SendMessageParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
   const parsed = SendMessageBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -158,10 +159,10 @@ const TranslateBody = z.object({ targetLang: z.enum(["en", "es"]) });
 router.post("/messages/:userId/translate", requireAuth, async (req, res): Promise<void> => {
   const currentUserId = req.userId;
   const otherUserId = parseInt(req.params["userId"] as string, 10);
-  if (isNaN(otherUserId)) { res.status(400).json({ error: "Invalid userId" }); return; }
+  if (isNaN(otherUserId)) { sendError(res, 400, "Invalid userId"); return; }
 
   const parsed = TranslateBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "targetLang must be 'en' or 'es'" }); return; }
+  if (!parsed.success) { sendError(res, 400, "targetLang must be 'en' or 'es'"); return; }
   const { targetLang } = parsed.data;
 
   // Fetch full thread
@@ -211,7 +212,7 @@ Return ONLY a JSON array (no markdown, no commentary) with exactly ${toTranslate
     translations = JSON.parse(jsonStr);
   } catch (err) {
     logger.error({ err }, "Translation batch failed");
-    res.status(502).json({ error: "Translation service unavailable. Please try again." });
+    sendError(res, 502, "Translation service unavailable. Please try again.");
     return;
   }
 
@@ -234,10 +235,10 @@ const EscalateBody = z.object({ note: z.string().min(1).max(1000) });
 router.post("/messages/:userId/escalate", requireAuth, async (req, res): Promise<void> => {
   const currentUserId = req.userId;
   const otherUserId = parseInt(req.params["userId"] as string, 10);
-  if (isNaN(otherUserId)) { res.status(400).json({ error: "Invalid userId" }); return; }
+  if (isNaN(otherUserId)) { sendError(res, 400, "Invalid userId"); return; }
 
   const parsed = EscalateBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "note is required (max 1000 chars)" }); return; }
+  if (!parsed.success) { sendError(res, 400, "note is required (max 1000 chars)"); return; }
 
   // Fetch profiles for both parties
   const [myProfile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, currentUserId));
@@ -281,7 +282,7 @@ router.post("/messages/:userId/escalate", requireAuth, async (req, res): Promise
   const emailResult = await sendEmail({ to: adminEmail, subject, html, text });
 
   if (!emailResult.ok && emailResult.reason !== "no_api_key") {
-    res.status(502).json({ error: "Failed to send escalation. Please try again." });
+    sendError(res, 502, "Failed to send escalation. Please try again.");
     return;
   }
 

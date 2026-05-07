@@ -7,6 +7,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
 import { ENABLE_INTELLIGENCE_PUBLIC } from "../lib/flags";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -41,7 +42,7 @@ router.get("/analytics/trending", async (_req, res): Promise<void> => {
 
 router.post("/analytics/product/:id/view", async (req, res): Promise<void> => {
   const productId = parseInt(req.params.id);
-  if (isNaN(productId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
 
   const [existing] = await db.select().from(productAnalyticsTable).where(eq(productAnalyticsTable.productId, productId));
   if (existing) {
@@ -83,7 +84,7 @@ router.get("/trust/:companyId", async (req, res): Promise<void> => {
   const [trust] = await db.select().from(trustScoresTable).where(eq(trustScoresTable.companyId, companyId));
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, companyId));
 
-  if (!company) { res.status(404).json({ error: "Company not found" }); return; }
+  if (!company) { sendError(res, 404, "Company not found"); return; }
 
   const score = trust?.score ?? company.trustScore ?? 0;
   const tier = score >= 85 ? "PLATINUM" : score >= 70 ? "GOLD" : score >= 50 ? "SILVER" : "BASIC";

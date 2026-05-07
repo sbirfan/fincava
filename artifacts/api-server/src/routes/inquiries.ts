@@ -9,6 +9,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import { sendEmail, newInquiryEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -36,7 +37,7 @@ async function buildInquiryResponse(inquiry: any) {
 router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateInquiryBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -48,7 +49,7 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (!sessionUser) {
-    res.status(401).json({ error: "Session user not found" });
+    sendError(res, 401, "Session user not found");
     return;
   }
   const [sessionProfile] = await db
@@ -113,7 +114,7 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
 router.get("/buyer/inquiries", requireAuth, async (req, res): Promise<void> => {
   const userId = req.userId;
   const [user] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user) { sendError(res, 404, "User not found"); return; }
 
   const inquiries = await db.select().from(inquiriesTable)
     .where(eq(inquiriesTable.buyerEmail, user.email))
@@ -155,26 +156,26 @@ router.patch("/supplier/inquiries/:id", requireAuth, async (req, res): Promise<v
 
   const params = UpdateInquiryStatusParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
   const parsed = UpdateInquiryStatusBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
   // Ownership check: inquiry's product must belong to the authenticated supplier
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) { res.status(403).json({ error: "Only suppliers can update inquiries" }); return; }
+  if (!company) { sendError(res, 403, "Only suppliers can update inquiries"); return; }
 
   const [existingInquiry] = await db.select().from(inquiriesTable).where(eq(inquiriesTable.id, params.data.id));
-  if (!existingInquiry) { res.status(404).json({ error: "Inquiry not found" }); return; }
+  if (!existingInquiry) { sendError(res, 404, "Inquiry not found"); return; }
 
   const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, existingInquiry.productId));
   if (!product || product.companyId !== company.id) {
-    res.status(403).json({ error: "Not authorized to update this inquiry" }); return;
+    sendError(res, 403, "Not authorized to update this inquiry"); return;
   }
 
   const [inquiry] = await db.update(inquiriesTable)

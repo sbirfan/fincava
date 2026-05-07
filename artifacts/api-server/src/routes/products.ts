@@ -14,6 +14,7 @@ import { requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
 import { logger } from "../lib/logger";
 import { z } from "zod";
+import { sendError } from "../lib/response";
 
 const BooleanFilters = z.object({
   smallholder: z.coerce.boolean().optional(),
@@ -75,7 +76,7 @@ async function buildProductResponse(product: any, company: any) {
 router.get("/products", async (req, res): Promise<void> => {
   const parsed = ListProductsQueryParams.safeParse(req.query);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -91,7 +92,7 @@ router.get("/products", async (req, res): Promise<void> => {
 
   const boolParsed = BooleanFilters.safeParse(req.query);
   if (!boolParsed.success) {
-    res.status(400).json({ error: boolParsed.error.message });
+    sendError(res, 400, boolParsed.error.message);
     return;
   }
   const filterSmallholder = boolParsed.data.smallholder === true;
@@ -182,7 +183,7 @@ router.get("/products/featured", async (_req, res): Promise<void> => {
 router.get("/products/:id", async (req, res): Promise<void> => {
   const params = GetProductParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
@@ -195,7 +196,7 @@ router.get("/products/:id", async (req, res): Promise<void> => {
     .where(eq(productsTable.id, params.data.id));
 
   if (!row) {
-    res.status(404).json({ error: "Product not found" });
+    sendError(res, 404, "Product not found");
     return;
   }
 
@@ -257,13 +258,13 @@ router.get("/products/:id", async (req, res): Promise<void> => {
 router.get("/products/:id/similar", async (req, res): Promise<void> => {
   const params = GetSimilarProductsParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, params.data.id));
   if (!product) {
-    res.status(404).json({ error: "Product not found" });
+    sendError(res, 404, "Product not found");
     return;
   }
 
@@ -294,7 +295,7 @@ router.get("/supplier/products", requireAuth, async (req, res): Promise<void> =>
   const userId = req.userId;
   const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
-    res.status(403).json({ error: "Only supplier accounts can manage products" });
+    sendError(res, 403, "Only supplier accounts can manage products");
     return;
   }
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
@@ -323,25 +324,23 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
     const userId = req.userId;
     const userRole = req.userRole;
     if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
-      res.status(403).json({ error: "Only supplier accounts can manage products" });
+      sendError(res, 403, "Only supplier accounts can manage products");
       return;
     }
     const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
     if (!company) {
-      res.status(400).json({ error: "Supplier company not found" });
+      sendError(res, 400, "Supplier company not found");
       return;
     }
 
     const parsed = CreateProductBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      sendError(res, 400, parsed.error.message);
       return;
     }
 
     if (!(VALID_PRODUCT_CATEGORIES as readonly string[]).includes(parsed.data.category)) {
-      res.status(400).json({
-        error: `Invalid category. Must be one of: ${VALID_PRODUCT_CATEGORIES.join(", ")}`,
-      });
+      sendError(res, 400, `Invalid category. Must be one of: ${VALID_PRODUCT_CATEGORIES.join(", ")}`);
       return;
     }
 
@@ -371,7 +370,7 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
     res.status(201).json(result);
   } catch (err: any) {
     logger.error({ err }, "Create product error");
-    res.status(500).json({ error: "Failed to create product" });
+    sendError(res, 500, "Failed to create product");
   }
 });
 
@@ -379,31 +378,31 @@ router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<vo
   const userId = req.userId;
   const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
-    res.status(403).json({ error: "Only supplier accounts can manage products" });
+    sendError(res, 403, "Only supplier accounts can manage products");
     return;
   }
   const params = UpdateProductParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) {
-    res.status(400).json({ error: "Supplier company not found" });
+    sendError(res, 400, "Supplier company not found");
     return;
   }
 
   const [product] = await db.select().from(productsTable)
     .where(and(eq(productsTable.id, params.data.id), eq(productsTable.companyId, company.id)));
   if (!product) {
-    res.status(404).json({ error: "Product not found" });
+    sendError(res, 404, "Product not found");
     return;
   }
 
   const parsed = UpdateProductBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -432,25 +431,25 @@ router.delete("/supplier/products/:id", requireAuth, async (req, res): Promise<v
   const userId = req.userId;
   const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
-    res.status(403).json({ error: "Only supplier accounts can manage products" });
+    sendError(res, 403, "Only supplier accounts can manage products");
     return;
   }
   const params = DeleteProductParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) {
-    res.status(400).json({ error: "Supplier company not found" });
+    sendError(res, 400, "Supplier company not found");
     return;
   }
 
   const [product] = await db.select().from(productsTable)
     .where(and(eq(productsTable.id, params.data.id), eq(productsTable.companyId, company.id)));
   if (!product) {
-    res.status(404).json({ error: "Product not found" });
+    sendError(res, 404, "Product not found");
     return;
   }
 
@@ -471,7 +470,7 @@ router.get(
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 

@@ -15,11 +15,12 @@ import { logInteraction } from "../lib/interaction-logger";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
 import { isValidFeeStatus } from "../constants/fee-status";
 import { ENABLE_TRANSACTIONS } from "../lib/flags";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
 router.use(["/buyer/orders", "/supplier/orders"], (_req, res, next): void => {
-  if (!ENABLE_TRANSACTIONS) { res.status(404).json({ error: "Not found" }); return; }
+  if (!ENABLE_TRANSACTIONS) { sendError(res, 404, "Not found"); return; }
   next();
 });
 
@@ -113,15 +114,15 @@ router.post("/buyer/intent", requireAuth, requireVerifiedEmail, async (req, res)
 
   const { supplierId, productId, estimatedQuantityKg, notes } = req.body ?? {};
   if (!supplierId || typeof supplierId !== "number") {
-    res.status(400).json({ error: "supplierId (number) is required" }); return;
+    sendError(res, 400, "supplierId (number) is required"); return;
   }
   if (!estimatedQuantityKg || typeof estimatedQuantityKg !== "number" || estimatedQuantityKg <= 0) {
-    res.status(400).json({ error: "estimatedQuantityKg must be a positive number" }); return;
+    sendError(res, 400, "estimatedQuantityKg must be a positive number"); return;
   }
 
   const [supplier] = await db.select({ id: suppliersTable.id, nombreCompleto: suppliersTable.nombreCompleto })
     .from(suppliersTable).where(eq(suppliersTable.id, supplierId));
-  if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+  if (!supplier) { sendError(res, 404, "Supplier not found"); return; }
 
   const notesText = [
     `Estimated quantity: ${estimatedQuantityKg.toLocaleString()} kg`,
@@ -180,7 +181,7 @@ router.post("/buyer/orders", requireAuth, requireVerifiedEmail, async (req, res)
   const userId = req.userId;
   const parsed = CreateOrderBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
@@ -270,7 +271,7 @@ router.get("/buyer/orders/:id", requireAuth, async (req, res): Promise<void> => 
   const userId = req.userId;
   const params = GetBuyerOrderParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
@@ -278,7 +279,7 @@ router.get("/buyer/orders/:id", requireAuth, async (req, res): Promise<void> => 
     .where(and(eq(ordersTable.id, params.data.id), eq(ordersTable.buyerId, userId)));
 
   if (!order) {
-    res.status(404).json({ error: "Order not found" });
+    sendError(res, 404, "Order not found");
     return;
   }
 
@@ -387,31 +388,31 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
 
   const params = UpdateOrderStatusParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendError(res, 400, params.error.message);
     return;
   }
 
   const parsed = UpdateOrderStatusBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, 400, parsed.error.message);
     return;
   }
 
   // Ownership check: at least one item in the order must belong to this supplier
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) { res.status(403).json({ error: "Only suppliers can update order status" }); return; }
+  if (!company) { sendError(res, 403, "Only suppliers can update order status"); return; }
 
   const orderItems = await db.select({ productId: orderItemsTable.productId })
     .from(orderItemsTable)
     .where(eq(orderItemsTable.orderId, params.data.id));
-  if (orderItems.length === 0) { res.status(404).json({ error: "Order not found" }); return; }
+  if (orderItems.length === 0) { sendError(res, 404, "Order not found"); return; }
 
   const productIds = orderItems.map(i => i.productId);
   const supplierProducts = await db.select({ id: productsTable.id })
     .from(productsTable)
     .where(and(eq(productsTable.companyId, company.id), inArray(productsTable.id, productIds)));
   if (supplierProducts.length === 0) {
-    res.status(403).json({ error: "Not authorized to update this order" }); return;
+    sendError(res, 403, "Not authorized to update this order"); return;
   }
 
   const [order] = await db.update(ordersTable)
@@ -420,7 +421,7 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
     .returning();
 
   if (!order) {
-    res.status(404).json({ error: "Order not found" });
+    sendError(res, 404, "Order not found");
     return;
   }
 

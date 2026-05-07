@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db, publicMetricsTable, publicStoriesTable } from "@workspace/db";
 import { eq, and, asc } from "drizzle-orm";
 import { adminOnly } from "../middleware/admin";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -99,7 +100,7 @@ const PatchMetricBody = z.object({
 // ── PATCH /api/admin/public-metrics/:id ──────────────────────────────────────
 router.patch("/admin/public-metrics/:id", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid id"); return; }
 
   const parsed = PatchMetricBody.safeParse(req.body);
   if (!parsed.success) { res.status(422).json({ error: parsed.error.flatten() }); return; }
@@ -120,7 +121,7 @@ router.patch("/admin/public-metrics/:id", ...adminOnly, async (req, res): Promis
     .where(eq(publicMetricsTable.id, id))
     .returning();
 
-  if (!updated) { res.status(404).json({ error: "Metric not found" }); return; }
+  if (!updated) { sendError(res, 404, "Metric not found"); return; }
   res.json(updated);
 });
 
@@ -166,7 +167,7 @@ router.post("/admin/public-stories", ...adminOnly, async (req, res): Promise<voi
 // ── PATCH /api/admin/public-stories/:id ──────────────────────────────────────
 router.patch("/admin/public-stories/:id", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid id"); return; }
 
   const parsed = PatchStoryBody.safeParse(req.body);
   if (!parsed.success) { res.status(422).json({ error: parsed.error.flatten() }); return; }
@@ -177,21 +178,21 @@ router.patch("/admin/public-stories/:id", ...adminOnly, async (req, res): Promis
     .where(eq(publicStoriesTable.id, id))
     .returning();
 
-  if (!updated) { res.status(404).json({ error: "Story not found" }); return; }
+  if (!updated) { sendError(res, 404, "Story not found"); return; }
   res.json(updated);
 });
 
 // ── DELETE /api/admin/public-stories/:id ─────────────────────────────────────
 router.delete("/admin/public-stories/:id", ...adminOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid id"); return; }
 
   const [deleted] = await db
     .delete(publicStoriesTable)
     .where(eq(publicStoriesTable.id, id))
     .returning();
 
-  if (!deleted) { res.status(404).json({ error: "Story not found" }); return; }
+  if (!deleted) { sendError(res, 404, "Story not found"); return; }
   res.status(204).send();
 });
 

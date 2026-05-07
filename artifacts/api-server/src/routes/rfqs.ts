@@ -6,6 +6,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import { sendEmail, rfqResponseEmail, rfqAwardEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -58,10 +59,10 @@ router.get("/rfqs", async (req, res): Promise<void> => {
 
 router.get("/rfqs/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(id)) { sendError(res, 400, "Invalid id"); return; }
 
   const [rfq] = await db.select().from(rfqsTable).where(eq(rfqsTable.id, id));
-  if (!rfq) { res.status(404).json({ error: "RFQ not found" }); return; }
+  if (!rfq) { sendError(res, 404, "RFQ not found"); return; }
 
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, rfq.buyerId));
   const responses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.rfqId, id));
@@ -106,13 +107,13 @@ router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
   const userId = req.userId;
   const userRole = req.userRole;
   if (userRole !== "BUYER" && userRole !== "ADMIN") {
-    res.status(403).json({ error: "Only buyer accounts can create RFQs" });
+    sendError(res, 403, "Only buyer accounts can create RFQs");
     return;
   }
   const { title, description, productCategory, quantityKg, targetPriceUSD, destination, destinationPort, incoterm, deadline } = req.body;
 
   if (!title || !description || !productCategory || !quantityKg || !destination || !deadline) {
-    res.status(400).json({ error: "Missing required fields" }); return;
+    sendError(res, 400, "Missing required fields"); return;
   }
 
   const [rfq] = await db.insert(rfqsTable).values({
@@ -136,18 +137,18 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
   const userId = req.userId;
   const userRole = req.userRole;
   if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
-    res.status(403).json({ error: "Only supplier accounts can respond to RFQs" });
+    sendError(res, 403, "Only supplier accounts can respond to RFQs");
     return;
   }
   const rfqId = parseInt(req.params.id as string);
-  if (isNaN(rfqId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(rfqId)) { sendError(res, 400, "Invalid id"); return; }
 
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) { res.status(403).json({ error: "Only suppliers can respond to RFQs" }); return; }
+  if (!company) { sendError(res, 403, "Only suppliers can respond to RFQs"); return; }
 
   const { pricePerKgUSD, leadTimeDays, message } = req.body;
   if (!pricePerKgUSD || !leadTimeDays || !message) {
-    res.status(400).json({ error: "Missing required fields" }); return;
+    sendError(res, 400, "Missing required fields"); return;
   }
 
   const [response] = await db.insert(rfqResponsesTable).values({
@@ -201,12 +202,12 @@ router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promis
   const userId = req.userId;
   const rfqId = parseInt(req.params.id as string);
   const responseId = parseInt(req.params.responseId as string);
-  if (isNaN(rfqId) || isNaN(responseId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (isNaN(rfqId) || isNaN(responseId)) { sendError(res, 400, "Invalid id"); return; }
 
   const [rfq] = await db.select().from(rfqsTable).where(eq(rfqsTable.id, rfqId));
-  if (!rfq) { res.status(404).json({ error: "RFQ not found" }); return; }
-  if (rfq.buyerId !== userId) { res.status(403).json({ error: "Only the RFQ creator can award bids" }); return; }
-  if (rfq.status !== "OPEN") { res.status(409).json({ error: `RFQ is already ${rfq.status.toLowerCase()} — cannot award` }); return; }
+  if (!rfq) { sendError(res, 404, "RFQ not found"); return; }
+  if (rfq.buyerId !== userId) { sendError(res, 403, "Only the RFQ creator can award bids"); return; }
+  if (rfq.status !== "OPEN") { sendError(res, 409, `RFQ is already ${rfq.status.toLowerCase()} — cannot award`); return; }
 
   await db.update(rfqResponsesTable).set({ awarded: 1 }).where(eq(rfqResponsesTable.id, responseId));
   await db.update(rfqsTable).set({ status: "AWARDED" }).where(eq(rfqsTable.id, rfqId));
@@ -252,7 +253,7 @@ router.post("/rfqs/:id/award/:responseId", requireAuth, async (req, res): Promis
 router.get("/supplier/rfqs", requireAuth, async (req, res): Promise<void> => {
   const userId = req.userId;
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) { res.status(403).json({ error: "Supplier only" }); return; }
+  if (!company) { sendError(res, 403, "Supplier only"); return; }
 
   const [myResponses, myProducts] = await Promise.all([
     db.select({ rfqId: rfqResponsesTable.rfqId }).from(rfqResponsesTable).where(eq(rfqResponsesTable.companyId, company.id)),

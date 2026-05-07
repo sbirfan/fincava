@@ -5,11 +5,12 @@ import { requireAuth, requireVerifiedEmail } from "../lib/auth";
 import { sendEmail, loanRepaidBuyerEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { ENABLE_FINANCE } from "../lib/flags";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
 router.use("/finance", (_req, res, next): void => {
-  if (!ENABLE_FINANCE) { res.status(404).json({ error: "Not found" }); return; }
+  if (!ENABLE_FINANCE) { sendError(res, 404, "Not found"); return; }
   next();
 });
 
@@ -95,7 +96,7 @@ router.post("/finance/loan", requireAuth, requireVerifiedEmail, async (req, res)
   const { orderId, principalUSD, termDays = 30, aprPercent = 12 } = req.body;
 
   if (!principalUSD || principalUSD <= 0) {
-    res.status(400).json({ error: "Principal amount is required" });
+    sendError(res, 400, "Principal amount is required");
     return;
   }
 
@@ -107,7 +108,7 @@ router.post("/finance/loan", requireAuth, requireVerifiedEmail, async (req, res)
   const available = Math.max(0, limit - totalOwed);
 
   if (principalUSD > available) {
-    res.status(400).json({ error: `Insufficient credit. Available: $${available.toFixed(2)}` });
+    sendError(res, 400, `Insufficient credit. Available: $${available.toFixed(2)}`);
     return;
   }
 
@@ -148,7 +149,7 @@ router.post("/finance/repay", requireAuth, async (req, res): Promise<void> => {
   const { loanId, amountUSD, note } = req.body;
 
   if (!loanId || !amountUSD || amountUSD <= 0) {
-    res.status(400).json({ error: "loanId and amountUSD are required" });
+    sendError(res, 400, "loanId and amountUSD are required");
     return;
   }
 

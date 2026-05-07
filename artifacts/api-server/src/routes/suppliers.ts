@@ -39,6 +39,7 @@ import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 import { DOCUMENT_PROMPT } from "../config/scoring-prompts";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -56,12 +57,12 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
       const rawToken = cookieToken ?? bearerToken;
       if (!rawToken) {
-        res.status(401).json({ error: "Authentication required to update a supplier" });
+        sendError(res, 401, "Authentication required to update a supplier");
         return;
       }
       const tokenPayload = verifyToken(rawToken);
       if (!tokenPayload) {
-        res.status(401).json({ error: "Invalid or expired token" });
+        sendError(res, 401, "Invalid or expired token");
         return;
       }
       const [caller] = await db
@@ -69,7 +70,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         .from(usersTable)
         .where(eq(usersTable.id, tokenPayload.userId));
       if (!caller || caller.role !== "ADMIN") {
-        res.status(403).json({ error: "Admin access required to update a supplier" });
+        sendError(res, 403, "Admin access required to update a supplier");
         return;
       }
     }
@@ -111,9 +112,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     const registeredBy = rawBody.officer_name || rawBody.registeredBy || null;
 
     if (!nombreCompleto || !whatsappNumber || !municipio) {
-      res.status(400).json({
-        error: "Missing required fields: contact_name, phone, municipio",
-      });
+      sendError(res, 400, "Missing required fields: contact_name, phone, municipio");
       return;
     }
 
@@ -136,7 +135,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         .limit(1);
 
       if (!existing) {
-        res.status(404).json({ error: `Supplier ${updateSupplierId} not found` });
+        sendError(res, 404, `Supplier ${updateSupplierId} not found`);
         return;
       }
 
@@ -485,12 +484,10 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
   } catch (err: any) {
     logger.error({ err }, "Onboard error");
     if (err.code === "23505" || err.cause?.code === "23505") {
-      res
-        .status(409)
-        .json({ error: "This phone number is already registered" });
+      sendError(res, 409, "This phone number is already registered");
       return;
     }
-    res.status(500).json({ error: err.message || "Error saving profile" });
+    sendError(res, 500, err.message || "Error saving profile");
   }
 });
 
@@ -622,7 +619,7 @@ router.post(
         .from(suppliersTable)
         .where(eq(suppliersTable.id, supplierId));
       if (!supplier) {
-        res.status(404).json({ error: "Supplier not found" });
+        sendError(res, 404, "Supplier not found");
         return;
       }
 
@@ -673,7 +670,7 @@ router.post(
       res.json({ success: true, documentContent });
     } catch (err) {
       req.log.error({ err }, "Document generation error");
-      res.status(500).json({ error: "Document generation failed" });
+      sendError(res, 500, "Document generation failed");
     }
   },
 );
@@ -685,7 +682,7 @@ router.get(
   requireAdmin,
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
-    if (isNaN(supplierId)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+    if (isNaN(supplierId)) { sendError(res, 400, "Invalid supplier id"); return; }
 
     const [row] = await db
       .select({
@@ -703,7 +700,7 @@ router.get(
       .limit(1);
 
     if (!row?.documentContent) {
-      res.status(404).json({ error: "No document found for this supplier" });
+      sendError(res, 404, "No document found for this supplier");
       return;
     }
 
@@ -718,15 +715,15 @@ router.post(
   requireAdmin,
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
-    if (isNaN(supplierId)) { res.status(400).json({ error: "Invalid supplier id" }); return; }
+    if (isNaN(supplierId)) { sendError(res, 400, "Invalid supplier id"); return; }
 
     const [supplier] = await db
       .select()
       .from(suppliersTable)
       .where(eq(suppliersTable.id, supplierId));
-    if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+    if (!supplier) { sendError(res, 404, "Supplier not found"); return; }
     if (!supplier.whatsappNumber) {
-      res.status(422).json({ error: "Supplier has no WhatsApp number on record" });
+      sendError(res, 422, "Supplier has no WhatsApp number on record");
       return;
     }
 
@@ -762,7 +759,7 @@ router.post(
       res.json({ success: true, messageSid: sid });
     } catch (err: any) {
       logger.error({ err, supplierId }, "Manual WA send failed");
-      res.status(500).json({ error: err.message || "Failed to send WhatsApp message" });
+      sendError(res, 500, err.message || "Failed to send WhatsApp message");
     }
   },
 );
@@ -970,7 +967,7 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
 router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
 
@@ -992,7 +989,7 @@ router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
     .limit(1);
 
   if (!supplier) {
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -1093,7 +1090,7 @@ router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
 router.get("/suppliers/:id/evaluations", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
 
@@ -1104,7 +1101,7 @@ router.get("/suppliers/:id/evaluations", requireAuth, requireAdmin, async (req, 
     .limit(1);
 
   if (!existing) {
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -1130,7 +1127,7 @@ router.get("/suppliers/:id/evaluations", requireAuth, requireAdmin, async (req, 
 router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
 
@@ -1141,7 +1138,7 @@ router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, 
     .limit(1);
 
   if (!existing) {
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -1171,7 +1168,7 @@ router.get("/suppliers/:id/transitions", requireAuth, requireAdmin, async (req, 
 router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
 
@@ -1199,7 +1196,7 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     .limit(1);
 
   if (!supplier) {
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -1335,12 +1332,12 @@ router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
     .limit(1);
 
   if (!user) {
-    res.status(401).json({ error: "User not found" });
+    sendError(res, 401, "User not found");
     return;
   }
 
   if (user.role !== "SUPPLIER") {
-    res.status(403).json({ error: "Supplier accounts only" });
+    sendError(res, 403, "Supplier accounts only");
     return;
   }
 
@@ -1397,7 +1394,7 @@ router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
 router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
 
@@ -1410,7 +1407,7 @@ router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void
     .limit(1);
 
   if (!user?.email) {
-    res.status(403).json({ error: "Account has no email — cannot claim" });
+    sendError(res, 403, "Account has no email — cannot claim");
     return;
   }
 
@@ -1425,7 +1422,7 @@ router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void
     .limit(1);
 
   if (!supplier) {
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -1435,7 +1432,7 @@ router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void
   }
 
   if (!supplier.email || supplier.email.toLowerCase() !== user.email.toLowerCase()) {
-    res.status(403).json({ error: "Email does not match this supplier record" });
+    sendError(res, 403, "Email does not match this supplier record");
     return;
   }
 
@@ -1453,7 +1450,7 @@ router.patch("/suppliers/:id/claim", requireAuth, async (req, res): Promise<void
 router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const supplierId = Number(req.params.id);
   if (isNaN(supplierId)) {
-    res.status(400).json({ error: "Invalid supplier id" });
+    sendError(res, 400, "Invalid supplier id");
     return;
   }
 
@@ -1464,7 +1461,7 @@ router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promis
     .limit(1);
 
   if (!supplier) {
-    res.status(404).json({ error: "Supplier not found" });
+    sendError(res, 404, "Supplier not found");
     return;
   }
 
@@ -1507,7 +1504,7 @@ router.post(
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 
@@ -1515,21 +1512,19 @@ router.post(
 
     // Validate actor — SYSTEM is forbidden from this endpoint.
     if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
-      res.status(400).json({ error: "actor must be ADMIN or FOUNDER" });
+      sendError(res, 400, "actor must be ADMIN or FOUNDER");
       return;
     }
 
     // Validate justification — required for ADMIN and FOUNDER.
     if (!justification || justification.trim() === "") {
-      res.status(400).json({ error: "justification is required" });
+      sendError(res, 400, "justification is required");
       return;
     }
 
     // Validate toState.
     if (!toState || !(VALID_SELLABLE_STATES as readonly string[]).includes(toState)) {
-      res.status(400).json({
-        error: `toState must be one of: ${VALID_SELLABLE_STATES.join(", ")}`,
-      });
+      sendError(res, 400, `toState must be one of: ${VALID_SELLABLE_STATES.join(", ")}`);
       return;
     }
 
@@ -1543,15 +1538,15 @@ router.post(
       res.json({ transition: result.transition });
     } catch (err: any) {
       if (err instanceof NotFoundError) {
-        res.status(404).json({ error: err.message });
+        sendError(res, 404, err.message);
         return;
       }
       if (err instanceof TypeError) {
-        res.status(400).json({ error: err.message });
+        sendError(res, 400, err.message);
         return;
       }
       logger.error({ err, supplierId }, "admin transition failed");
-      res.status(500).json({ error: "Transition failed" });
+      sendError(res, 500, "Transition failed");
     }
   },
 );
@@ -1564,7 +1559,7 @@ router.post(
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 
@@ -1572,13 +1567,13 @@ router.post(
 
     // Validate actor — SYSTEM is forbidden from this endpoint.
     if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
-      res.status(400).json({ error: "actor must be ADMIN or FOUNDER" });
+      sendError(res, 400, "actor must be ADMIN or FOUNDER");
       return;
     }
 
     // Validate justification — required for publishing.
     if (!justification || justification.trim() === "") {
-      res.status(400).json({ error: "justification is required" });
+      sendError(res, 400, "justification is required");
       return;
     }
 
@@ -1590,12 +1585,12 @@ router.post(
       .limit(1);
 
     if (!supplier) {
-      res.status(404).json({ error: "Supplier not found" });
+      sendError(res, 404, "Supplier not found");
       return;
     }
 
     if (supplier.sellableStatus === "PUBLISHED") {
-      res.status(409).json({ error: "Supplier is already published" });
+      sendError(res, 409, "Supplier is already published");
       return;
     }
 
@@ -1608,15 +1603,15 @@ router.post(
       res.json({ transition: result.transition });
     } catch (err: any) {
       if (err instanceof NotFoundError) {
-        res.status(404).json({ error: err.message });
+        sendError(res, 404, err.message);
         return;
       }
       if (err instanceof TypeError) {
-        res.status(400).json({ error: err.message });
+        sendError(res, 400, err.message);
         return;
       }
       logger.error({ err, supplierId }, "admin publish failed");
-      res.status(500).json({ error: "Publish failed" });
+      sendError(res, 500, "Publish failed");
     }
   },
 );
@@ -1631,18 +1626,18 @@ router.post(
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 
     const { actor, justification } = req.body as Record<string, string>;
 
     if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
-      res.status(400).json({ error: "actor must be ADMIN or FOUNDER" });
+      sendError(res, 400, "actor must be ADMIN or FOUNDER");
       return;
     }
     if (!justification || justification.trim() === "") {
-      res.status(400).json({ error: "justification is required" });
+      sendError(res, 400, "justification is required");
       return;
     }
 
@@ -1653,11 +1648,11 @@ router.post(
       .limit(1);
 
     if (!supplier) {
-      res.status(404).json({ error: "Supplier not found" });
+      sendError(res, 404, "Supplier not found");
       return;
     }
     if (supplier.sellableStatus !== "PUBLISHED") {
-      res.status(409).json({ error: "Supplier must be PUBLISHED before unpublishing" });
+      sendError(res, 409, "Supplier must be PUBLISHED before unpublishing");
       return;
     }
 
@@ -1671,15 +1666,15 @@ router.post(
       res.json({ transition: result });
     } catch (err: any) {
       if (err instanceof NotFoundError) {
-        res.status(404).json({ error: err.message });
+        sendError(res, 404, err.message);
         return;
       }
       if (err instanceof TypeError) {
-        res.status(400).json({ error: err.message });
+        sendError(res, 400, err.message);
         return;
       }
       logger.error({ err, supplierId }, "admin unpublish failed");
-      res.status(500).json({ error: "Unpublish failed" });
+      sendError(res, 500, "Unpublish failed");
     }
   },
 );
@@ -1694,7 +1689,7 @@ router.post(
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 
@@ -1705,7 +1700,7 @@ router.post(
       .limit(1);
 
     if (!existing) {
-      res.status(404).json({ error: "Supplier not found" });
+      sendError(res, 404, "Supplier not found");
       return;
     }
 
@@ -1738,7 +1733,7 @@ router.patch(
   async (req, res): Promise<void> => {
     const supplierId = Number(req.params.id);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: "Invalid supplier id" });
+      sendError(res, 400, "Invalid supplier id");
       return;
     }
 
@@ -1765,10 +1760,7 @@ router.patch(
     const complianceFieldCount = Object.keys(compliancePatch).length;
 
     if (complianceFieldCount === 0 && consentGivenPatch === undefined) {
-      res.status(400).json({
-        error:
-          "No valid boolean fields provided. Accepted: rutDian, icaRegistro, fitosanitarioCert, dianExportador, consentGiven",
-      });
+      sendError(res, 400, "No valid boolean fields provided. Accepted: rutDian, icaRegistro, fitosanitarioCert, dianExportador, consentGiven");
       return;
     }
 
@@ -1780,7 +1772,7 @@ router.patch(
       .limit(1);
 
     if (!supplier) {
-      res.status(404).json({ error: "Supplier not found" });
+      sendError(res, 404, "Supplier not found");
       return;
     }
 
@@ -1793,9 +1785,7 @@ router.patch(
       .limit(1);
 
     if (!existing) {
-      res.status(404).json({
-        error: "Compliance record not found for this supplier — supplier may not have completed onboarding",
-      });
+      sendError(res, 404, "Compliance record not found for this supplier — supplier may not have completed onboarding");
       return;
     }
 

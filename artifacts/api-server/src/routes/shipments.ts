@@ -5,20 +5,21 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { ENABLE_LOGISTICS } from "../lib/flags";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
 router.use("/orders", (_req, res, next): void => {
-  if (!ENABLE_LOGISTICS) { res.status(404).json({ error: "Not found" }); return; }
+  if (!ENABLE_LOGISTICS) { sendError(res, 404, "Not found"); return; }
   next();
 });
 
 router.get("/orders/:id/shipment", requireAuth, async (req, res): Promise<void> => {
   const orderId = parseInt(req.params.id as string);
-  if (isNaN(orderId)) { res.status(400).json({ error: "Invalid order id" }); return; }
+  if (isNaN(orderId)) { sendError(res, 400, "Invalid order id"); return; }
 
   const [shipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.orderId, orderId));
-  if (!shipment) { res.status(404).json({ error: "No shipment found for this order" }); return; }
+  if (!shipment) { sendError(res, 404, "No shipment found for this order"); return; }
 
   res.json({
     ...shipment,
