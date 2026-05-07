@@ -10,7 +10,7 @@ import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
-router.get("/rfqs", async (req, res): Promise<void> => {
+router.get("/rfqs", requireAuth, async (req, res): Promise<void> => {
   const { status, category } = req.query as any;
   let query = db.select().from(rfqsTable).$dynamic();
 
@@ -57,17 +57,38 @@ router.get("/rfqs", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.get("/rfqs/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+router.get("/rfqs/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const userRole = req.userRole;
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { sendError(res, 400, "Invalid id"); return; }
 
   const [rfq] = await db.select().from(rfqsTable).where(eq(rfqsTable.id, id));
   if (!rfq) { sendError(res, 404, "RFQ not found"); return; }
 
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, rfq.buyerId));
-  const responses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.rfqId, id));
+  const allResponses = await db.select().from(rfqResponsesTable).where(eq(rfqResponsesTable.rfqId, id));
 
-  const responsesWithSupplier = await Promise.all(responses.map(async (r) => {
+  // Determine which responses this caller is authorized to see:
+  // - ADMIN or the RFQ owner (buyer) sees all responses with full detail
+  // - A SUPPLIER sees only their own response
+  // - Any other authenticated user sees no response details
+  const isOwner = rfq.buyerId === userId;
+  const isAdmin = userRole === "ADMIN";
+
+  let visibleResponses: typeof allResponses = [];
+  if (isAdmin || isOwner) {
+    visibleResponses = allResponses;
+  } else if (userRole === "SUPPLIER") {
+    // Find which company this supplier belongs to
+    const [company] = await db.select({ id: companiesTable.id })
+      .from(companiesTable).where(eq(companiesTable.userId, userId));
+    if (company) {
+      visibleResponses = allResponses.filter(r => r.companyId === company.id);
+    }
+  }
+
+  const responsesWithSupplier = await Promise.all(visibleResponses.map(async (r) => {
     const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, r.companyId));
     // ── Intelligence decoration (non-blocking) ────────────────────────────────
     // trustScoresTable is Layer II intelligence data. A read failure must not
@@ -99,6 +120,7 @@ router.get("/rfqs/:id", async (req, res): Promise<void> => {
     createdAt: rfq.createdAt.toISOString(),
     buyerName: profile ? `${profile.firstName} ${profile.lastName}` : "Buyer",
     buyerCountry: profile?.country ?? null,
+    responseCount: allResponses.length,
     responses: responsesWithSupplier,
   });
 });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,11 +41,22 @@ function daysUntil(dateStr: string) {
 
 export default function RFQs() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const [category, setCategory] = useState("all");
 
-  const { data: rfqs, isLoading } = useQuery<RFQ[]>({
+  const { data: rfqs, isLoading, error } = useQuery<RFQ[]>({
     queryKey: ["/api/rfqs", category],
-    queryFn: () => fetch(`/api/rfqs${category !== "all" ? `?category=${category}` : ""}`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/rfqs${category !== "all" ? `?category=${category}` : ""}`, {
+        credentials: "include",
+      });
+      if (res.status === 401) {
+        navigate("/login");
+        return [];
+      }
+      if (!res.ok) throw new Error("Failed to load RFQs");
+      return res.json();
+    },
   });
 
   const filtered = rfqs?.filter(r => r.status === "OPEN") ?? [];
@@ -103,6 +114,13 @@ export default function RFQs() {
       {isLoading ? (
         <div className="space-y-4">
           {[1,2,3].map(i => <Skeleton key={i} className="h-48 rounded-xl" />)}
+        </div>
+      ) : error ? (
+        <div className="text-center py-20 bg-card border rounded-xl border-dashed">
+          <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-xl font-medium mb-2">Unable to load RFQs</p>
+          <p className="text-muted-foreground">Please sign in to view sourcing requests.</p>
+          <Link href="/login"><Button className="mt-4">Sign In</Button></Link>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-card border rounded-xl border-dashed">

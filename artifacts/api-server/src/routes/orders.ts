@@ -399,7 +399,8 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
     return;
   }
 
-  // Ownership check: at least one item in the order must belong to this supplier
+  // Ownership check: supplier must own ALL items in the order, not just one.
+  // Partial participation does not grant authority over the whole order's state.
   const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
   if (!company) { sendError(res, 403, "Only suppliers can update order status"); return; }
 
@@ -408,12 +409,16 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
     .where(eq(orderItemsTable.orderId, params.data.id));
   if (orderItems.length === 0) { sendError(res, 404, "Order not found"); return; }
 
-  const productIds = orderItems.map(i => i.productId);
+  // Deduplicate product IDs so repeated line items don't skew the count check
+  const productIds = [...new Set(orderItems.map(i => i.productId))];
+
+  // All distinct products in the order must belong to this supplier's company
   const supplierProducts = await db.select({ id: productsTable.id })
     .from(productsTable)
     .where(and(eq(productsTable.companyId, company.id), inArray(productsTable.id, productIds)));
-  if (supplierProducts.length === 0) {
-    sendError(res, 403, "Not authorized to update this order"); return;
+
+  if (supplierProducts.length !== productIds.length) {
+    sendError(res, 403, "Not authorized to update this order — you do not own all items in it"); return;
   }
 
   const [order] = await db.update(ordersTable)

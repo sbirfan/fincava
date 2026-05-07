@@ -25,7 +25,15 @@ export default function RFQDetail() {
 
   const { data: rfq, isLoading } = useQuery({
     queryKey: [`/api/rfqs/${params.id}`],
-    queryFn: () => fetch(`/api/rfqs/${params.id}`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/rfqs/${params.id}`, { credentials: "include" });
+      if (res.status === 401) {
+        navigate("/login");
+        return null;
+      }
+      if (!res.ok) return null;
+      return res.json();
+    },
     enabled: !!params.id,
   });
 
@@ -69,6 +77,7 @@ export default function RFQDetail() {
   );
 
   const days = Math.max(0, Math.ceil((new Date(rfq.deadline).getTime() - Date.now()) / 86400000));
+  const isOwner = user?.id === rfq.buyerId;
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-5xl">
@@ -113,49 +122,57 @@ export default function RFQDetail() {
             </CardContent>
           </Card>
 
-          {/* Bids comparison table */}
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Bids Received ({rfq.responses?.length ?? 0})</CardTitle></CardHeader>
-            <CardContent>
-              {rfq.responses?.length === 0 ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No bids yet. Be the first to respond!</p>
-              ) : (
-                <div className="space-y-3">
-                  {rfq.responses?.map((r: any) => (
-                    <div key={r.id} className={`border rounded-lg p-4 ${r.awarded ? "border-primary bg-primary/5" : ""}`}>
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold">{r.supplierName}</span>
-                            {r.supplierVerified && <Badge variant="outline" className="text-xs text-primary border-primary/30">Verified</Badge>}
-                            <TrustBadge score={r.trustScore ?? 0} size="sm" />
+          {/* Bids section — only visible to the RFQ owner or a supplier viewing their own bid */}
+          {rfq.responses && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  {isOwner ? `Bids Received (${rfq.responseCount ?? rfq.responses.length})` : "Your Bid"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {rfq.responses.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center py-8">
+                    {isOwner ? "No bids yet. Suppliers will be able to respond once the RFQ is live." : "You have not submitted a bid yet."}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {rfq.responses.map((r: any) => (
+                      <div key={r.id} className={`border rounded-lg p-4 ${r.awarded ? "border-primary bg-primary/5" : ""}`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold">{r.supplierName}</span>
+                              {r.supplierVerified && <Badge variant="outline" className="text-xs text-primary border-primary/30">Verified</Badge>}
+                              <TrustBadge score={r.trustScore ?? 0} size="sm" />
+                            </div>
+                            <p className="text-xs text-muted-foreground">{r.supplierRegion}</p>
                           </div>
-                          <p className="text-xs text-muted-foreground">{r.supplierRegion}</p>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-primary">${r.pricePerKgUSD}</div>
+                            <div className="text-xs text-muted-foreground">per kg</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-primary">${r.pricePerKgUSD}</div>
-                          <div className="text-xs text-muted-foreground">per kg</div>
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{r.message}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-4 text-sm">
+                            <span className="text-muted-foreground">Lead time: <strong>{r.leadTimeDays}d</strong></span>
+                            {rfq.quantityKg && <span className="text-muted-foreground">Total: <strong>${(r.pricePerKgUSD * rfq.quantityKg).toLocaleString()}</strong></span>}
+                          </div>
+                          {isOwner && rfq.status === "OPEN" && !r.awarded && (
+                            <Button size="sm" onClick={() => awardBid.mutate(r.id)} disabled={awardBid.isPending}>
+                              <Award className="w-3 h-3 mr-1" /> Award Bid
+                            </Button>
+                          )}
+                          {r.awarded && <Badge className="bg-primary text-white">Awarded</Badge>}
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{r.message}</p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-4 text-sm">
-                          <span className="text-muted-foreground">Lead time: <strong>{r.leadTimeDays}d</strong></span>
-                          {rfq.quantityKg && <span className="text-muted-foreground">Total: <strong>${(r.pricePerKgUSD * rfq.quantityKg).toLocaleString()}</strong></span>}
-                        </div>
-                        {user?.id === rfq.buyerId && rfq.status === "OPEN" && !r.awarded && (
-                          <Button size="sm" onClick={() => awardBid.mutate(r.id)} disabled={awardBid.isPending}>
-                            <Award className="w-3 h-3 mr-1" /> Award Bid
-                          </Button>
-                        )}
-                        {r.awarded && <Badge className="bg-primary text-white">Awarded</Badge>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Bid form for suppliers */}
           {user?.role === "SUPPLIER" && rfq.status === "OPEN" && (

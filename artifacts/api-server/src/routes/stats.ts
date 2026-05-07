@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, count, sql } from "drizzle-orm";
 import { db, productsTable, companiesTable, ordersTable, inquiriesTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
+import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -21,12 +22,25 @@ router.get("/stats/platform", async (_req, res): Promise<void> => {
 
 router.get("/buyer/stats", requireAuth, async (req, res): Promise<void> => {
   const userId = req.userId;
+  const userRole = req.userRole;
+
+  if (userRole !== "BUYER" && userRole !== "ADMIN") {
+    sendError(res, 403, "Only buyer accounts can access buyer stats");
+    return;
+  }
+
+  const [user] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { sendError(res, 401, "User not found"); return; }
 
   const [orderCount] = await db.select({ count: count() }).from(ordersTable).where(eq(ordersTable.buyerId, userId));
   const [activeOrders] = await db.select({ count: count() }).from(ordersTable)
     .where(eq(ordersTable.buyerId, userId));
 
-  const inquiries = await db.select().from(inquiriesTable).limit(5);
+  // Scope inquiries to this buyer's email only — no cross-tenant data
+  const inquiries = await db.select().from(inquiriesTable)
+    .where(eq(inquiriesTable.buyerEmail, user.email))
+    .limit(5);
+
   const recentOrders = await db.select().from(ordersTable)
     .where(eq(ordersTable.buyerId, userId))
     .limit(5)
