@@ -1,0 +1,57 @@
+CRITICAL
+C1. Confirmed field mapping bug — variedadCafe overwritten with harvest_months in 3 places
+src/routes/suppliers.ts:177, :192, :313
+
+variedadCafe: rawBody.harvest_months || rawBody.farm?.variedadCafe || null,
+variedadCafe (coffee variety) is being silently overwritten with harvest_months data. These are completely different fields. Any supplier submitting harvest months data will corrupt their coffee variety field. This exists in three separate code paths (create, partial update, full update).
+
+C2. Unguarded JSON.parse on AI response — will crash on malformed output
+src/routes/messages.ts:195, src/services/scoring-service.ts:54
+
+translations = JSON.parse(jsonStr);       // messages.ts — no try/catch
+const parsed = JSON.parse(jsonStr);       // scoring-service.ts — no try/catch
+AI models occasionally return malformed JSON, truncated responses, or explanatory text instead of valid JSON. Neither call site has a try/catch. In messages.ts this will throw an unhandled exception mid-request. In scoring-service.ts this breaks scoring for that supplier silently.
+
+C3. Unvalidated signed_url deserialization from sidecar
+src/lib/objectStorage.ts:265
+
+const { signed_url: signedURL } = await response.json() as { signed_url: string };
+No validation that response.json() actually contains signed_url. If the sidecar returns an error object, signedURL is undefined and the next code that uses it will fail cryptically downstream rather than at this point with a clear error.
+
+HIGH
+H1. Registration email uniqueness — non-atomic check-then-insert
+src/routes/auth.ts:95
+The duplicate email check is a SELECT followed by a separate INSERT. Under concurrent registrations with the same email, both requests can pass the check before either inserts, resulting in two accounts with the same email. Use a UNIQUE constraint + catch the unique violation at the DB level rather than the application level.
+
+H2. useToast hook re-registers listener on every state change — memory leak
+src/hooks/use-toast.ts:182
+
+React.useEffect(() => {
+  listeners.push(setState)
+  return () => { ... }
+}, [state])
+state in the dependency array causes the effect to re-run on every toast update. Each run pushes a new listener without reliably removing the old one, growing the listener list unboundedly over the session. This is a memory leak.
+
+H3. N+1 query in buildProductResponse — called per order item
+src/routes/orders.ts:26-55
+buildProductResponse fetches the buyer profile from the DB inside a function that is called once per order. On a page that lists 20 orders, this is 20 redundant profile queries for the same buyer. Move the profile fetch outside the map loop.
+
+H4. parseFloat without NaN guard on financial fields
+src/pages/onboarding.tsx:132-138, src/pages/register.tsx:182-188
+
+farm_size_hectares: form.farm_size_hectares ? parseFloat(form.farm_size_hectares) : undefined,
+annual_volume_kg: form.annual_volume_kg ? parseFloat(form.annual_volume_kg) : undefined,
+working_capital_needed: form.working_capital_needed ? parseFloat(form.working_capital_needed) : undefined,
+parseFloat("abc") returns NaN, which is truthy in the ternary check, passes the ? guard, and gets sent to the API as a number field. Use Number(v) + isNaN() check, or better — add .refine(v => !isNaN(Number(v))) to the Zod schema.
+
+H5. parseInt without NaN guard on supplier-detail.tsx
+src/pages/supplier-detail.tsx:64
+
+const id = parseInt(params.id || "0", 10);
+Same issue fixed in product-detail.tsx (Prompt 5) — not fixed here. /supplier/abc silently uses 0 or NaN as the ID.
+
+H6. Fee calculation floating-point precision
+src/services/fee-service.ts:64
+
+parseFloat((safeTotal * FEE_RATE).toFixed(2))
+Floating-point arithmetic on financial values. toFixed(2) mitigates but doesn't eliminate rounding errors. For a marketplace handling real money, use integer arithmetic in cents or a decimal library.
