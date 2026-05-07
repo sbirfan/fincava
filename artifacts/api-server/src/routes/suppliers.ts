@@ -172,7 +172,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
           .update(farmsTable)
           .set({
             cultivoPrincipal: primaryProduct,
-            variedadCafe: rawBody.harvest_months || rawBody.farm?.variedadCafe || null,
+            variedadCafe: rawBody.variedad_cafe ?? rawBody.farm?.variedadCafe ?? null,
             hectareasProduccion: farmSize,
             edadPlantasAnos: rawBody.farm?.edadPlantasAnos ?? null,
             cosechasPorAno: rawBody.farm?.cosechasPorAno ?? null,
@@ -187,7 +187,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         await db.insert(farmsTable).values({
           supplierId: updateSupplierId,
           cultivoPrincipal: primaryProduct,
-          variedadCafe: rawBody.harvest_months || rawBody.farm?.variedadCafe || null,
+          variedadCafe: rawBody.variedad_cafe ?? rawBody.farm?.variedadCafe ?? null,
           hectareasProduccion: farmSize,
           edadPlantasAnos: rawBody.farm?.edadPlantasAnos ?? null,
           cosechasPorAno: rawBody.farm?.cosechasPorAno ?? null,
@@ -308,7 +308,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     await db.insert(farmsTable).values({
       supplierId: supplier.id,
       cultivoPrincipal: primaryProduct,
-      variedadCafe: rawBody.harvest_months || rawBody.farm?.variedadCafe || null,
+      variedadCafe: rawBody.variedad_cafe ?? rawBody.farm?.variedadCafe ?? null,
       hectareasProduccion: farmSize,
       edadPlantasAnos: rawBody.farm?.edadPlantasAnos ?? null,
       cosechasPorAno: rawBody.farm?.cosechasPorAno ?? null,
