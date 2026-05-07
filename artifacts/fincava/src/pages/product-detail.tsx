@@ -17,7 +17,7 @@ import { Star, ShieldCheck, MapPin, ChevronRight, Users, Handshake, Leaf, Drople
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { resolveImageUrl } from "@/lib/utils";
+import { resolveImageUrl, safeImageUrl } from "@/lib/utils";
 
 export default function ProductDetail() {
   const params = useParams();
@@ -218,8 +218,8 @@ export default function ProductDetail() {
             {/* Farmer Identity — replaces generic supplier line */}
             {story ? (
               <div className="flex items-center gap-3 mb-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                {story.farmerPhoto && (
-                  <img src={story.farmerPhoto} alt={story.farmerName} className="w-10 h-10 rounded-full object-cover object-top border-2 border-primary/20 shrink-0" />
+                {safeImageUrl(story.farmerPhoto) && (
+                  <img src={safeImageUrl(story.farmerPhoto)} alt={story.farmerName} className="w-10 h-10 rounded-full object-cover object-top border-2 border-primary/20 shrink-0" />
                 )}
                 <div className="min-w-0">
                   <p className="font-semibold text-sm truncate">{story.farmerName}</p>
@@ -329,8 +329,8 @@ export default function ProductDetail() {
           <div className="grid grid-cols-1 lg:grid-cols-5">
             {/* Farmer portrait */}
             <div className="lg:col-span-2 relative min-h-[300px] bg-muted">
-              {story.farmerPhoto ? (
-                <img src={story.farmerPhoto} alt={story.farmerName} className="w-full h-full object-cover object-top absolute inset-0" />
+              {safeImageUrl(story.farmerPhoto) ? (
+                <img src={safeImageUrl(story.farmerPhoto)} alt={story.farmerName} className="w-full h-full object-cover object-top absolute inset-0" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground">No photo</div>
               )}
@@ -476,8 +476,8 @@ export default function ProductDetail() {
           <TabsContent value="supplier">
             <div className="border rounded-lg p-8">
               <div className="flex items-center gap-4 mb-6">
-                {product.supplierLogoUrl ? (
-                  <img src={product.supplierLogoUrl} alt={product.supplierName} className="w-16 h-16 rounded-full object-cover border" />
+                {safeImageUrl(product.supplierLogoUrl) ? (
+                  <img src={safeImageUrl(product.supplierLogoUrl)} alt={product.supplierName} className="w-16 h-16 rounded-full object-cover border" />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
                     {product.supplierName.charAt(0)}

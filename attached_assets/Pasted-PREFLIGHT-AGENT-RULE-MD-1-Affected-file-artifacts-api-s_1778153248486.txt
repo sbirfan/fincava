@@ -1,0 +1,45 @@
+PREFLIGHT (AGENT_RULE.MD §1):
+- Affected file: artifacts/api-server/src/routes/auth.ts (and src/lib/auth.ts)
+- Verify: IS_REPLIT flag definition and where it is set
+- Verify: getUserWithProfile function location (src/lib/auth.ts or inline)
+- Verify: profilesTable and usersTable have a userId FK that supports LEFT JOIN
+- No new dependencies required
+
+EXECUTION PLAN (AGENT_RULE.MD §2):
+Apply four independent improvements to the auth module:
+
+FIX A — Outer catch on fire-and-forget email block (~line 152 in routes/auth.ts):
+The Promise.resolve().then(async () => { ... }) block that sends welcome/verification
+emails is missing an outer .catch(). Add:
+  Promise.resolve().then(async () => {
+    // ... existing code ...
+  }).catch(err => logger.error({ err }, "Post-registration email task failed"));
+
+FIX B — SameSite=None Secure alignment (~line 78 in routes/auth.ts):
+Ensure that when sameSite is "none", secure is always true:
+  sameSite: IS_REPLIT ? "none" : "lax",
+  secure: IS_REPLIT || process.env["NODE_ENV"] === "production",
+This prevents browsers from silently dropping the cookie on non-HTTPS origins.
+
+FIX C — getUserWithProfile: two queries → one JOIN (src/lib/auth.ts):
+Current pattern makes two sequential SELECT queries. Replace with a single
+LEFT JOIN query:
+  const [row] = await db
+    .select({ user: usersTable, profile: profilesTable })
+    .from(usersTable)
+    .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+    .where(eq(usersTable.id, userId));
+  return { user: row?.user ?? null, profile: row?.profile ?? null };
+Keep the function signature and return type identical.
+
+FIX D — BCRYPT_ROUNDS NaN guard (src/lib/auth.ts):
+After: const BCRYPT_ROUNDS = parseInt(process.env["BCRYPT_ROUNDS"] ?? "12", 10);
+Add:
+  if (!Number.isFinite(BCRYPT_ROUNDS) || BCRYPT_ROUNDS < 10 || BCRYPT_ROUNDS > 20) {
+    throw new Error(`Invalid BCRYPT_ROUNDS value: "${process.env["BCRYPT_ROUNDS"]}". Must be 10-20.`);
+  }
+This throws at startup rather than silently using NaN at runtime.
+
+VALIDATION: Run tsc --noEmit. Run the server and verify login works end-to-end.
+ROLLBACK: Revert each fix independently — they don't depend on each other.
+RISK: Medium (FIX C touches the /auth/me hot path — verify login and session restore work).

@@ -9,3 +9,9 @@ export function resolveImageUrl(path: string): string {
   if (path.startsWith("/objects/")) return `/api/storage${path}`;
   return path;
 }
+
+export function safeImageUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (/^(https?:\/\/|\/)/.test(url)) return url;
+  return undefined;
+}
