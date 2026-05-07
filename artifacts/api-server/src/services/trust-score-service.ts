@@ -1,10 +1,11 @@
-import { eq, count, sql } from "drizzle-orm";
+import { eq, count, inArray, and } from "drizzle-orm";
 import {
   db,
   companiesTable,
   trustScoresTable,
   productsTable,
   ordersTable,
+  orderItemsTable,
   usersTable,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -45,14 +46,17 @@ export async function computeTrustScore(companyId: number): Promise<number> {
     .select({ total: count() })
     .from(ordersTable)
     .innerJoin(
-      sql`order_items ON order_items.order_id = ${ordersTable.id}`,
-      sql`true`
+      orderItemsTable,
+      eq(orderItemsTable.orderId, ordersTable.id)
     )
     .innerJoin(
       productsTable,
-      sql`${productsTable.id} = order_items.product_id AND ${productsTable.companyId} = ${companyId}`
+      and(
+        eq(productsTable.id, orderItemsTable.productId),
+        eq(productsTable.companyId, companyId)
+      )!
     )
-    .where(sql`${ordersTable.status} IN ('DELIVERED', 'COMPLETED')`);
+    .where(inArray(ordersTable.status, ["DELIVERED", "COMPLETED"]));
 
   const completedOrders = Number(orderRow?.total ?? 0);
   // 5+ fulfilled orders = full score; scales linearly below
