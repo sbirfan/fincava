@@ -231,6 +231,10 @@ export default function SupplierDetail() {
   const products = profile.products;
   const isExportReady = profile.isExportReady;
   const heroImage = profile.originStory?.imageUrl ?? null;
+  const safeHeroImage =
+    heroImage && (/^\//.test(heroImage) || /^https?:\/\//.test(heroImage))
+      ? heroImage
+      : null;
   const locationLabel = profile.department
     ? `${profile.region ?? ""}, ${profile.department}`.replace(/^, /, "")
     : (profile.region ?? "Colombia");
@@ -258,12 +262,12 @@ export default function SupplierDetail() {
       <div
         className="h-56 md:h-80 border-b relative overflow-hidden bg-primary/10 mt-4"
         style={
-          heroImage
-            ? { backgroundImage: `url(${heroImage})`, backgroundSize: "cover", backgroundPosition: "center" }
+          safeHeroImage
+            ? { backgroundImage: `url(${safeHeroImage})`, backgroundSize: "cover", backgroundPosition: "center" }
             : undefined
         }
       >
-        {heroImage && (
+        {safeHeroImage && (
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         )}
       </div>
@@ -556,7 +560,7 @@ export default function SupplierDetail() {
                 <Button
                   className="flex-1"
                   onClick={submitIntent}
-                  disabled={intentSubmitting || !intentQuantityKg || parseFloat(intentQuantityKg) <= 0}
+                  disabled={intentSubmitting || (() => { const n = Number(intentQuantityKg); return !Number.isFinite(n) || n <= 0; })()}
                 >
                   {intentSubmitting ? (
                     <>
