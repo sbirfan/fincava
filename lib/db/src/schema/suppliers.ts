@@ -215,7 +215,7 @@ export const suppliersTable = pgTable(
     // re-evaluate index coverage before modifying.
     index("suppliers_sellable_status_idx")
       .on(t.sellableStatus)
-      .where(sql`sellable_status IN ('SELLABLE', 'PUBLISHED')`),
+      .where(sql`sellable_status = ANY (ARRAY['SELLABLE'::sellable_status, 'PUBLISHED'::sellable_status])`),
     check(
       "data_completeness_score_range",
       sql`data_completeness_score IS NULL OR (data_completeness_score >= 0 AND data_completeness_score <= 100)`,
