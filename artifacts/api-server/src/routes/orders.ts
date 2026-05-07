@@ -147,7 +147,7 @@ router.post("/buyer/intent", requireAuth, requireVerifiedEmail, async (req, res)
   });
 
   // Fire-and-forget: admin notification email
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const [buyerUser] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
       if (!buyerUser?.email) return;
@@ -441,7 +441,7 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
   res.json(result);
 
   // Fire-and-forget: notify buyer of order status change
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const appBaseUrl = process.env["FRONTEND_URL"]
         ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");

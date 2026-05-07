@@ -30,7 +30,7 @@ export function logInteraction(event: InteractionEvent): void {
   // setImmediate pushes the work past the current call stack so it can never
   // block the HTTP response path — even a synchronous throw won't reach the caller.
   setImmediate(() => {
-    (async () => {
+    void (async () => {
       try {
         await db.insert(interactionLogsTable).values({
           eventType:     event.eventType,

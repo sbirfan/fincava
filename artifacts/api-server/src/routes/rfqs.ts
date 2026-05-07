@@ -185,7 +185,7 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
   res.status(201).json({ ...response, createdAt: response.createdAt.toISOString() });
 
   // Fire-and-forget: notify buyer of new RFQ response
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const appBaseUrl = process.env["FRONTEND_URL"]
         ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");

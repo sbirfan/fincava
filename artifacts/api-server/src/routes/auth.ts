@@ -150,7 +150,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   });
 
   // Fire-and-forget: send welcome email + verification email to new registrant
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     const emailContent = welcomeEmail({
       firstName: firstName || "there",
       role: user.role,
@@ -462,7 +462,7 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
   // emailJustVerified gates both blocks — side effects run exactly once even
   // when the user holds multiple valid tokens from prior resend requests.
   if (record.role === "BUYER" && record.emailJustVerified) {
-    Promise.resolve().then(async () => {
+    void Promise.resolve().then(async () => {
       try {
         const [profile] = await db
           .select({ firstName: profilesTable.firstName })
@@ -492,7 +492,7 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
 
     // Phase 3: if the buyer pre-completed sections A+B before verifying email,
     // matching never fired through PATCH. Run it now (fire-and-forget).
-    Promise.resolve().then(async () => {
+    void Promise.resolve().then(async () => {
       try {
         const [bp] = await db
           .select({
@@ -536,7 +536,7 @@ router.post("/auth/resend-verification", passwordResetLimiter, requireAuth, asyn
   // Respond immediately, send email in background
   res.json({ message: "If your email is not yet verified, a new verification link has been sent." });
 
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
       await sendVerificationEmail(userId, user.email, profile?.firstName ?? "");

@@ -195,7 +195,7 @@ router.post("/buyers/register", async (req, res): Promise<void> => {
   });
 
   // ── Fire-and-forget: verification email ─────────────────────────────────────
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const verifyToken = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -221,7 +221,7 @@ router.post("/buyers/register", async (req, res): Promise<void> => {
   });
 
   // ── Fire-and-forget: admin alert ────────────────────────────────────────────
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const buyerName = `${data.firstName}${data.lastName ? " " + data.lastName : ""}`.trim();
       const emailContent = buyerOnboardAdminAlertEmail({
@@ -380,7 +380,7 @@ router.post("/buyers/onboard", requireAuth, async (req, res): Promise<void> => {
   // ── Fire-and-forget admin alert (new profiles only) ────────────────────────
   // Any failure here is caught, logged, and never propagated to the caller.
   if (isNewProfile) {
-    Promise.resolve().then(async () => {
+    void Promise.resolve().then(async () => {
       try {
         const appBaseUrl =
           process.env["FRONTEND_URL"] ??
@@ -679,7 +679,7 @@ router.patch(
 // touching the matches table or invoking Sonnet.
 router.use("/buyers/:id/matches", (req, res, next): void => {
   if (ENABLE_INTELLIGENCE_PUBLIC) { next(); return; }
-  requireAuth(req, res, () => requireAdmin(req, res, next));
+  void requireAuth(req, res, () => requireAdmin(req, res, next));
 });
 router.get(
   "/buyers/:id/matches",

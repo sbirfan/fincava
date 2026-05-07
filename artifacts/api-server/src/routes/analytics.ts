@@ -13,7 +13,7 @@ const router: IRouter = Router();
 
 router.use(["/analytics", "/compliance", "/trust", "/markets"], (req, res, next): void => {
   if (ENABLE_INTELLIGENCE_PUBLIC) { next(); return; }
-  requireAuth(req, res, () => requireAdmin(req, res, next));
+  void requireAuth(req, res, () => requireAdmin(req, res, next));
 });
 
 router.get("/analytics/trending", async (_req, res): Promise<void> => {

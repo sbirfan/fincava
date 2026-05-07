@@ -76,7 +76,7 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(result);
 
   // Fire-and-forget: notify supplier of new inquiry
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const appBaseUrl = process.env["FRONTEND_URL"]
         ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");

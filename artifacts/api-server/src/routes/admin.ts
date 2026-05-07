@@ -1227,7 +1227,7 @@ router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> =
 
   // Fire-and-forget: notify the affected user if their role was changed
   if (roleChanged && role) {
-    Promise.resolve().then(async () => {
+    void Promise.resolve().then(async () => {
       try {
         const recipientEmail = email ?? currentUser.email;
         if (!recipientEmail) return;
@@ -1273,7 +1273,7 @@ router.post("/admin/users/:id/reset-password", ...adminOnly, async (req, res): P
   res.json({ success: true });
 
   // Fire-and-forget: security notice to the user whose password was reset
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const [targetUser] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId));
       if (!targetUser?.email) return;
@@ -1336,7 +1336,7 @@ router.post("/admin/users", ...adminOnly, async (req, res): Promise<void> => {
   res.status(201).json({ success: true, id: user.id });
 
   // Fire-and-forget: tell the new user their account was created
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const appBaseUrl = process.env["FRONTEND_URL"]
         ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
@@ -1392,7 +1392,7 @@ router.patch("/admin/orders/:id/status", ...adminOnly, async (req, res): Promise
   res.json({ success: true, status: updated.status });
 
   // Fire-and-forget: notify buyer of order status change
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       const appBaseUrl = process.env["FRONTEND_URL"]
         ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
@@ -1470,7 +1470,7 @@ router.patch("/admin/loans/:id/status", ...adminOnly, async (req, res): Promise<
   res.json({ success: true, status: updated.status });
 
   // Fire-and-forget: notify supplier(s) of loan status change via linked order
-  Promise.resolve().then(async () => {
+  void Promise.resolve().then(async () => {
     try {
       if (!updated.orderId) {
         logger.info({ loanId: id }, "Loan status changed but no linked order — skipping supplier notification");
@@ -2610,7 +2610,7 @@ router.post("/admin/backup/run", async (req: Request, res: Response, next: NextF
   }
 
   // Admin JWT path — run adminOnly middleware chain then execute backup
-  adminOnly[0](req, res, () => {
+  void adminOnly[0](req, res, () => {
     adminOnly[1](req, res, async () => {
       try {
         const result = await runBackup();
