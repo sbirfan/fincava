@@ -1,10 +1,10 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
 import { objectStorageClient } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const BACKUP_PREFIX = "fincava_";
 const RETENTION_COUNT = 7;
@@ -21,8 +21,8 @@ export async function runBackup(): Promise<{ filename: string; fileSizeBytes: nu
   const filename = `${BACKUP_PREFIX}${timestamp}.dump`;
   const filePath = `/tmp/${filename}`;
 
-  // Step 1 — pg_dump to /tmp
-  await execAsync(`pg_dump -Fc "${dbUrl}" -f "${filePath}"`);
+  // Step 1 — pg_dump to /tmp (execFile avoids shell interpolation of DATABASE_URL)
+  await execFileAsync("pg_dump", ["-Fc", dbUrl, "-f", filePath]);
 
   // Step 2 — Read into buffer; warn if unusually large
   const fileBuffer = fs.readFileSync(filePath);
