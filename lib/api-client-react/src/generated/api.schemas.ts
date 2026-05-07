@@ -91,6 +91,7 @@ export interface UserWithProfile {
   createdAt: string;
   /** @nullable */
   emailVerifiedAt: string | null;
+  mustResetPassword: boolean;
 }
 
 export interface AuthResponse {

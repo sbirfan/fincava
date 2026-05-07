@@ -20,6 +20,7 @@ import Register from "@/pages/register";
 import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
 import VerifyEmail from "@/pages/verify-email";
+import ForceResetPassword from "@/pages/force-reset-password";
 import NotFound from "@/pages/not-found";
 
 // Public — lazy
@@ -152,6 +153,7 @@ function Router() {
         <Route path="/forgot-password" component={() => <AppLayout><ForgotPassword /></AppLayout>} />
         <Route path="/reset-password" component={() => <AppLayout><ResetPassword /></AppLayout>} />
         <Route path="/verify-email" component={() => <VerifyEmail />} />
+        <Route path="/force-reset-password" component={() => <ForceResetPassword />} />
         <Route path="/onboarding" component={() => <AppLayout><OnboardingPage /></AppLayout>} />
         <Route path="/officer/register" component={() => <AppLayout><OfficerRegisterPage /></AppLayout>} />
         <Route path="/buyer/onboarding" component={() => <PrivateRoute component={BuyerOnboardingPage} roles={["BUYER"]} />} />

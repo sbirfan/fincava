@@ -71,6 +71,7 @@ function buildUserResponse(user: any, profile: any, company: any) {
     emailVerifiedAt: user.emailVerifiedAt instanceof Date
       ? user.emailVerifiedAt.toISOString()
       : (user.emailVerifiedAt ?? null),
+    mustResetPassword: user.mustResetPassword ?? false,
   };
 }
 
@@ -241,10 +242,24 @@ router.put("/auth/change-password", requireAuth, async (req, res): Promise<void>
   }
 
   const passwordHash = await hashPassword(newPassword);
-  await db.transaction(async (tx) => {
-    await tx.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
-    await tx.update(usersTable).set({ tokenVersion: sql`${usersTable.tokenVersion} + 1` }).where(eq(usersTable.id, userId));
-  });
+  await db.update(usersTable)
+    .set({
+      passwordHash,
+      mustResetPassword: false,
+      tokenVersion: sql`${usersTable.tokenVersion} + 1`,
+    })
+    .where(eq(usersTable.id, userId));
+
+  // Re-issue cookie with new tokenVersion so the user stays logged in.
+  const [refreshed] = await db
+    .select({ tokenVersion: usersTable.tokenVersion })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (refreshed) {
+    const newToken = generateToken(userId, refreshed.tokenVersion);
+    res.cookie("fincava_auth", newToken, COOKIE_OPTIONS);
+  }
+
   logger.info({ userId, email: maskEmail(user.email) }, "Password changed successfully");
   res.json({ success: true });
 });

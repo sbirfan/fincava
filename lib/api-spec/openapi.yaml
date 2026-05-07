@@ -1041,6 +1041,8 @@ components:
           type: string
         emailVerifiedAt:
           type: ["string", "null"]
+        mustResetPassword:
+          type: boolean
       required:
         - id
         - email
@@ -1050,6 +1052,7 @@ components:
         - language
         - createdAt
         - emailVerifiedAt
+        - mustResetPassword
 
     UpdateProfileBody:
       type: object

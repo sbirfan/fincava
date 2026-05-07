@@ -46,6 +46,7 @@ export default function Login() {
     if (!isAuthenticated || !user) return;
     if (hasRedirected.current) return;
     hasRedirected.current = true;
+    if (user.mustResetPassword) { setLocation("/force-reset-password"); return; }
     if (user.role === "ADMIN") setLocation("/admin");
     else if (user.role === "SUPPLIER") setLocation("/supplier-dashboard");
     else setLocation("/dashboard");

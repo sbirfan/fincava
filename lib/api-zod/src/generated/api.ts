@@ -55,6 +55,7 @@ export const LoginUserResponse = zod.object({
     companyVerified: zod.boolean().nullish(),
     createdAt: zod.string(),
     emailVerifiedAt: zod.string().nullable(),
+    mustResetPassword: zod.boolean(),
   }),
   token: zod.string(),
 });
@@ -83,6 +84,7 @@ export const GetMeResponse = zod.object({
   companyVerified: zod.boolean().nullish(),
   createdAt: zod.string(),
   emailVerifiedAt: zod.string().nullable(),
+  mustResetPassword: zod.boolean(),
 });
 
 /**
@@ -992,6 +994,7 @@ export const UpdateUserProfileResponse = zod.object({
   companyVerified: zod.boolean().nullish(),
   createdAt: zod.string(),
   emailVerifiedAt: zod.string().nullable(),
+  mustResetPassword: zod.boolean(),
 });
 
 /**
@@ -1223,7 +1226,6 @@ export const RequestUploadUrlBody = zod.object({
 export const RequestUploadUrlResponse = zod.object({
   uploadURL: zod.string().url(),
   objectPath: zod.string(),
-  uploadToken: zod.string(),
 });
 
 /**

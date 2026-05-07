@@ -1,0 +1,47 @@
+PREFLIGHT (AGENT_RULE.MD §1):
+- Affected files:
+    artifacts/api-server/src/routes/auth.ts (login + /auth/me endpoints)
+    lib/db/src/schema/users.ts (mustResetPassword column — confirm it exists)
+    artifacts/fincava/src/pages/ (new forced-reset page needed)
+    artifacts/fincava/src/App.tsx (new route registration)
+    artifacts/fincava/src/components/private-route.tsx (redirect logic)
+- Verify: usersTable.mustResetPassword column exists in schema (added by migration 0012)
+- Verify: JWT payload structure — does it include enough to identify the user?
+- Verify: the existing reset-password page can be reused or adapted
+
+EXECUTION PLAN (AGENT_RULE.MD §2):
+Enforce the mustResetPassword flag end-to-end so seeded admins are forced to change
+their password before using the app.
+
+BACKEND — artifacts/api-server/src/routes/auth.ts:
+1. In the login endpoint: after verifying credentials, read mustResetPassword from the
+   user row. Include mustResetPassword: true/false in the JSON response body (alongside
+   the existing token and user fields).
+2. In the GET /auth/me endpoint: include mustResetPassword in the returned user object
+   so the frontend can react to it on every page load.
+
+FRONTEND:
+3. Create artifacts/fincava/src/pages/force-reset-password.tsx:
+   - A simple page with a "You must set a new password before continuing" heading
+   - A password form using the existing ChangePasswordCard component or the same Zod
+     schema as reset-password.tsx
+   - On success, redirect to the user's appropriate dashboard
+   - This page must be accessible WITHOUT going through PrivateRoute (it is
+     semi-authenticated — the user has a valid token but is restricted)
+
+4. In artifacts/fincava/src/App.tsx: register the /force-reset-password route.
+
+5. In the auth context or in PrivateRoute: after login and on /auth/me response,
+   if user.mustResetPassword === true, redirect to /force-reset-password instead
+   of the normal dashboard. This check should run on every protected route load.
+
+6. In the PATCH /users/change-password (or equivalent) endpoint: after successfully
+   changing the password, set mustResetPassword = false for that user in the DB.
+
+VALIDATION:
+- Run tsc --noEmit on both artifacts/api-server and artifacts/fincava
+- Manual test: log in with a seeded admin account → confirm redirect to /force-reset-password
+- Manual test: change password → confirm redirect to /admin dashboard
+ROLLBACK: Revert backend response additions; remove the new page and route; revert
+PrivateRoute changes.
+RISK: High — touches login flow. Test normal login for all roles after applying.

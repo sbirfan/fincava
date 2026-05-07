@@ -22,6 +22,7 @@ export function PrivateRoute({
 
   if (isLoading) return <PageLoader />;
   if (!isAuthenticated) return <Redirect to="/login" />;
+  if (user?.mustResetPassword) return <Redirect to="/force-reset-password" />;
   if (roles && user && !roles.includes(user.role)) return <Redirect to="/" />;
 
   return (
