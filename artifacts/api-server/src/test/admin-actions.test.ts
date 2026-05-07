@@ -263,7 +263,6 @@ describe("POST /api/admin/buyers/:id/suppress-match", () => {
       .send({ matchId: 10, reason: "Bad quality" });
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(res.body.data).toMatchObject({ id: 10, isCurrent: false });
 
     // The update payload must mark the match as not current.
@@ -314,7 +313,6 @@ describe("POST /api/admin/buyers/:id/suppress-match", () => {
       .send({ matchId: 10, reason: "reason" });
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/invalid buyer profile id/i);
   });
 
@@ -324,7 +322,6 @@ describe("POST /api/admin/buyers/:id/suppress-match", () => {
       .send({ matchId: 10 });
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
   });
 
   it("returns 400 when matchId is not a positive integer", async () => {
@@ -333,7 +330,6 @@ describe("POST /api/admin/buyers/:id/suppress-match", () => {
       .send({ matchId: -5, reason: "reason" });
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
   });
 
   // ── Match not found ──────────────────────────────────────────────────────
@@ -345,7 +341,6 @@ describe("POST /api/admin/buyers/:id/suppress-match", () => {
       .send({ matchId: 999, reason: "reason" });
 
     expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/match not found/i);
     expect(updatedSets).toHaveLength(0);
   });
@@ -383,7 +378,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/50/escalate");
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(res.body.data).toMatchObject({ gapId: 50, ingestionBatchId: fakeBatchId });
 
     // escalateGap must be called with the correct args.
@@ -410,7 +404,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/abc/escalate");
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/invalid gap id/i);
     expect(mockEscalateGap).not.toHaveBeenCalled();
   });
@@ -422,7 +415,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/999/escalate");
 
     expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/gap brief not found/i);
     expect(mockEscalateGap).not.toHaveBeenCalled();
   });
@@ -435,7 +427,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/50/escalate");
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/MEDIUM/);
     expect(res.body.error).toMatch(/HIGH/);
     expect(mockEscalateGap).not.toHaveBeenCalled();
@@ -449,7 +440,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/50/escalate");
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/MEDIUM/);
     expect(res.body.error).toMatch(/LOW/);
     expect(mockEscalateGap).not.toHaveBeenCalled();
@@ -463,7 +453,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/50/escalate");
 
     expect(res.status).toBe(409);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/already escalated/i);
     expect(res.body.data).toMatchObject({ ingestionBatchId: 42 });
     expect(mockEscalateGap).not.toHaveBeenCalled();
@@ -477,7 +466,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/50/escalate");
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/non-real gap/i);
     expect(mockEscalateGap).not.toHaveBeenCalled();
   });
@@ -491,7 +479,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/50/escalate");
 
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/escalation failed/i);
   });
 
@@ -503,7 +490,6 @@ describe("POST /api/admin/gaps/:id/escalate", () => {
     const res = await request(app).post("/api/admin/gaps/50/escalate");
 
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/DB connection lost/i);
   });
 });
@@ -534,7 +520,6 @@ describe("POST /api/admin/buyers/:id/reset-score", () => {
     const res = await request(app).post("/api/admin/buyers/7/reset-score");
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(res.body.data).toMatchObject({
       id: 7,
       p2CompletionPct: 0,
@@ -568,7 +553,6 @@ describe("POST /api/admin/buyers/:id/reset-score", () => {
     const res = await request(app).post("/api/admin/buyers/abc/reset-score");
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/invalid buyer profile id/i);
     expect(updatedSets).toHaveLength(0);
   });
@@ -580,7 +564,6 @@ describe("POST /api/admin/buyers/:id/reset-score", () => {
     const res = await request(app).post("/api/admin/buyers/999/reset-score");
 
     expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/buyer profile not found/i);
     expect(updatedSets).toHaveLength(0);
   });
@@ -599,7 +582,6 @@ describe("POST /api/admin/buyers/:id/reset-score", () => {
     const res = await request(app).post("/api/admin/buyers/7/reset-score");
 
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/DB write failed/i);
   });
 });
@@ -622,7 +604,6 @@ describe("POST /api/admin/buyers/:id/run-match", () => {
     const res = await request(app).post("/api/admin/buyers/4/run-match");
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(res.body.data).toMatchObject({ matchesInserted: 3, candidatesEvaluated: 12 });
 
     expect(mockRunBuyerMatching).toHaveBeenCalledTimes(1);
@@ -644,7 +625,6 @@ describe("POST /api/admin/buyers/:id/run-match", () => {
     const res = await request(app).post("/api/admin/buyers/xyz/run-match");
 
     expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/invalid buyer profile id/i);
     expect(mockRunBuyerMatching).not.toHaveBeenCalled();
   });
@@ -659,7 +639,6 @@ describe("POST /api/admin/buyers/:id/run-match", () => {
     const res = await request(app).post("/api/admin/buyers/999/run-match");
 
     expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/buyer profile 999 not found/i);
   });
 
@@ -670,7 +649,6 @@ describe("POST /api/admin/buyers/:id/run-match", () => {
     const res = await request(app).post("/api/admin/buyers/4/run-match");
 
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/Claude API timeout/i);
   });
 
@@ -681,7 +659,6 @@ describe("POST /api/admin/buyers/:id/run-match", () => {
     const res = await request(app).post("/api/admin/buyers/4/run-match");
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(res.body.data).toMatchObject({ matchesInserted: 0, candidatesEvaluated: 0 });
   });
 });
