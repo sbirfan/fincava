@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { db, usersTable, profilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "./auth";
@@ -23,8 +24,10 @@ const ADMIN_ACCOUNTS: AdminAccount[] = [
 ];
 
 export async function seedAdminAccounts(): Promise<void> {
-  const defaultPassword = process.env["ADMIN_DEFAULT_PASSWORD"];
-  if (!defaultPassword) {
+  // Guard: refuse to run without ADMIN_DEFAULT_PASSWORD set.
+  // The value itself is no longer used as the actual password —
+  // each admin receives a unique random credential logged below.
+  if (!process.env["ADMIN_DEFAULT_PASSWORD"]) {
     throw new Error(
       "ADMIN_DEFAULT_PASSWORD environment variable is required. " +
       "Refusing to seed admin accounts without it — set this variable before starting the server.",
@@ -42,12 +45,17 @@ export async function seedAdminAccounts(): Promise<void> {
       continue;
     }
 
+    // Generate a unique random initial password for each admin account.
+    // This ensures one leaked credential cannot compromise other admins.
+    const tempPassword = randomBytes(16).toString("hex");
+
     const [user] = await db
       .insert(usersTable)
       .values({
         email: account.email,
-        passwordHash: await hashPassword(defaultPassword),
+        passwordHash: await hashPassword(tempPassword),
         role: "ADMIN",
+        mustResetPassword: true,
       })
       .returning();
 
@@ -58,6 +66,6 @@ export async function seedAdminAccounts(): Promise<void> {
       language: "en",
     });
 
-    logger.info({ email: account.email }, "Admin account seeded");
+    logger.info({ email: account.email, tempPassword }, "Admin seeded — change on first login");
   }
 }

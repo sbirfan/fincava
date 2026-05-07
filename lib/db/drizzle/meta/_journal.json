@@ -78,6 +78,13 @@
       "when": 1777781488917,
       "tag": "0010_elite_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778000000000,
+      "tag": "0012_must_reset_password",
+      "breakpoints": true
     }
   ]
 }
