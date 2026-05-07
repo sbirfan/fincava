@@ -152,35 +152,49 @@ router.post("/finance/repay", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [loan] = await db.select().from(loansTable)
-    .where(and(eq(loansTable.id, loanId), eq(loansTable.buyerId, userId)));
+  // Wrap read-check-update in a transaction with FOR UPDATE so concurrent
+  // repayment requests on the same loan queue rather than race.
+  const txResult = await db.transaction(async (tx) => {
+    // Acquire an exclusive row lock before reading — any concurrent request
+    // for the same loanId blocks here until this transaction commits/rolls back.
+    const [loan] = await tx.select().from(loansTable)
+      .where(and(eq(loansTable.id, loanId), eq(loansTable.buyerId, userId)))
+      .for("update");
 
-  if (!loan) {
-    res.status(404).json({ error: "Loan not found" });
-    return;
-  }
+    if (!loan) {
+      return { ok: false as const, httpStatus: 404, message: "Loan not found" };
+    }
+    if (loan.status !== "ACTIVE") {
+      return { ok: false as const, httpStatus: 400, message: `Loan is already ${loan.status.toLowerCase()}` };
+    }
 
-  if (loan.status !== "ACTIVE") {
-    res.status(400).json({ error: `Loan is already ${loan.status.toLowerCase()}` });
-    return;
-  }
+    await tx.insert(repaymentsTable).values({
+      loanId,
+      amountUSD,
+      note: note ?? null,
+    });
 
-  await db.insert(repaymentsTable).values({
-    loanId,
-    amountUSD,
-    note: note ?? null,
+    const allRepayments = await tx.select().from(repaymentsTable)
+      .where(eq(repaymentsTable.loanId, loanId));
+    const totalPaid = allRepayments.reduce((sum, r) => sum + r.amountUSD, 0);
+
+    const fullyRepaid = totalPaid >= loan.totalRepaymentUSD;
+
+    if (fullyRepaid) {
+      await tx.update(loansTable)
+        .set({ status: "REPAID", updatedAt: new Date() })
+        .where(eq(loansTable.id, loanId));
+    }
+
+    return { ok: true as const, loan, totalPaid, fullyRepaid };
   });
 
-  const allRepayments = await db.select().from(repaymentsTable).where(eq(repaymentsTable.loanId, loanId));
-  const totalPaid = allRepayments.reduce((sum, r) => sum + r.amountUSD, 0);
-
-  const fullyRepaid = totalPaid >= loan.totalRepaymentUSD;
-
-  if (fullyRepaid) {
-    await db.update(loansTable)
-      .set({ status: "REPAID", updatedAt: new Date() })
-      .where(eq(loansTable.id, loanId));
+  if (!txResult.ok) {
+    res.status(txResult.httpStatus).json({ error: txResult.message });
+    return;
   }
+
+  const { loan, totalPaid, fullyRepaid } = txResult;
 
   const { score, limit } = await getCreditScore(userId);
 
