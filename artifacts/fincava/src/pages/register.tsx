@@ -83,7 +83,7 @@ export default function Register() {
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const registerMutation = useRegisterUser();
@@ -192,8 +192,13 @@ export default function Register() {
         }),
       });
       if (!onboardRes.ok) {
-        const err = await onboardRes.json().catch(() => ({}));
-        throw new Error(err.error || "Profile submission failed");
+        await logout();
+        toast({
+          variant: "destructive",
+          title: "Account created but setup failed. Please log in and try again.",
+        });
+        setLocation("/login");
+        return;
       }
 
       toast({ title: tr.toasts.welcome, description: tr.toasts.supplierCreated });
@@ -398,7 +403,7 @@ export default function Register() {
                 </button>
                 <button
                   onClick={() => {
-                    if (!canAdvanceSupplier()) { alert(lang === "es" ? "Por favor completa todos los campos requeridos." : "Please fill in all required fields."); return; }
+                    if (!canAdvanceSupplier()) { toast({ variant: "destructive", title: lang === "es" ? "Por favor completa todos los campos requeridos." : "Please fill in all required fields." }); return; }
                     setStep(4);
                   }}
                   className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
@@ -425,7 +430,7 @@ export default function Register() {
                 </button>
                 <button
                   onClick={() => {
-                    if (!canAdvanceSupplier()) { alert(lang === "es" ? "Por favor selecciona un producto principal." : "Please select a primary product."); return; }
+                    if (!canAdvanceSupplier()) { toast({ variant: "destructive", title: lang === "es" ? "Por favor selecciona un producto principal." : "Please select a primary product." }); return; }
                     setStep(5);
                   }}
                   className="flex-1 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"

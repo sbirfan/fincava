@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPassword() {
   const [sent, setSent] = useState(false);
   const { t } = useLanguage();
   const tr = t.forgotPassword;
+  const { toast } = useToast();
 
   const schema = z.object({
     email: z.string().email(tr.emailError),
@@ -25,11 +27,15 @@ export default function ForgotPassword() {
   });
 
   async function onSubmit(values: z.infer<typeof schema>) {
-    await fetch("/api/auth/forgot-password", {
+    const res = await fetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: values.email }),
     });
+    if (!res.ok) {
+      toast({ variant: "destructive", title: "Something went wrong. Please try again." });
+      return;
+    }
     setSent(true);
   }
 

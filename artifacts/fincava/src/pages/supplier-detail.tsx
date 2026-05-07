@@ -86,7 +86,7 @@ export default function SupplierDetail() {
   useEffect(() => {
     if (!id) return;
     setProfileLoading(true);
-    fetch(`/api/suppliers/marketplace/${id}`)
+    fetch(`/api/suppliers/marketplace/${id}`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setProfile(data ?? null))
       .catch(() => setProfile(null))

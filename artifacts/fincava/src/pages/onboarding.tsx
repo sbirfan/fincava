@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useToast } from "@/hooks/use-toast";
 import { StepFarmIdentity } from "@/components/onboarding/StepFarmIdentity";
 import { StepProduction } from "@/components/onboarding/StepProduction";
 import { StepBusinessReadiness } from "@/components/onboarding/StepBusinessReadiness";
@@ -54,6 +55,7 @@ const INITIAL: FormData = {
 
 export default function OnboardingPage() {
   const { lang } = useLanguage();
+  const { toast } = useToast();
   const [, setLocation] = useLocation();
   const searchString = useSearch();
   const [step, setStep] = useState<Step>(1);
@@ -87,7 +89,10 @@ export default function OnboardingPage() {
     if (isNaN(id)) return;
     setPrefillLoading(true);
     fetch(`/api/suppliers/${id}`, { credentials: "include" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("prefill_failed");
+        return r.json();
+      })
       .then((data) => {
         const s = data.supplier;
         if (!s) return;
@@ -103,7 +108,9 @@ export default function OnboardingPage() {
           municipio:   s.municipio || "",
         }));
       })
-      .catch(() => {})
+      .catch(() => {
+        toast({ variant: "destructive", title: "Could not load saved data." });
+      })
       .finally(() => setPrefillLoading(false));
   }, [searchString]);
 

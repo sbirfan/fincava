@@ -40,7 +40,7 @@ export default function Suppliers() {
 
   useEffect(() => {
     setIsLoading(true);
-    fetch("/api/suppliers/marketplace?include_onboarding=true")
+    fetch("/api/suppliers/marketplace?include_onboarding=true", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
         const list: MarketplaceSupplier[] = (data.suppliers ?? []).map((s: any) => ({

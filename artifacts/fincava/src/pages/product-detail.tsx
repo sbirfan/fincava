@@ -1,4 +1,5 @@
 import { useParams, Link, useLocation } from "wouter";
+import NotFound from "./not-found";
 import { useState } from "react";
 import { ENABLE_TRANSACTIONS } from "@/lib/flags";
 import { useGetProduct, useGetSimilarProducts, getGetProductQueryKey, getGetSimilarProductsQueryKey } from "@workspace/api-client-react";
@@ -20,7 +21,7 @@ import { resolveImageUrl } from "@/lib/utils";
 
 export default function ProductDetail() {
   const params = useParams();
-  const id = parseInt(params.id || "0", 10);
+  const id = Number(params.id);
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -90,6 +91,8 @@ export default function ProductDetail() {
   const { data: similarProducts } = useGetSimilarProducts(id, {
     query: { enabled: !!id, queryKey: getGetSimilarProductsQueryKey(id) }
   });
+
+  if (!Number.isFinite(id) || id <= 0) return <NotFound />;
 
   const p = product as any;
 
