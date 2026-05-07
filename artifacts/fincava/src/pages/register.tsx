@@ -18,6 +18,7 @@ import { StepProduction } from "@/components/onboarding/StepProduction";
 import { StepBusinessReadiness } from "@/components/onboarding/StepBusinessReadiness";
 import { ReviewSummary, type ReviewSection } from "@/components/onboarding/ReviewSummary";
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
+import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import { ENABLE_FINANCE } from "@/lib/flags";
 
 type AccountData = {
@@ -90,7 +91,7 @@ export default function Register() {
 
   const accountSchema = useMemo(() => z.object({
     email: z.string().email(tr.errors.invalidEmail),
-    password: z.string().min(6, tr.errors.passwordMin),
+    password: z.string().min(MIN_PASSWORD_LENGTH, tr.errors.passwordMin),
     firstName: z.string().min(2, tr.errors.firstNameRequired),
     lastName: z.string().min(2, tr.errors.lastNameRequired),
     companyName: z.string().min(2, tr.errors.companyRequired),

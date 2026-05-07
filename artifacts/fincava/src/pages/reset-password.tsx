@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import { Loader2, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 
 export default function ResetPassword() {
@@ -22,7 +23,7 @@ export default function ResetPassword() {
   const token = new URLSearchParams(window.location.search).get("token") ?? "";
 
   const schema = useMemo(() => z.object({
-    password: z.string().min(8, tr.errors.minLength),
+    password: z.string().min(MIN_PASSWORD_LENGTH, tr.errors.minLength),
     confirm: z.string(),
   }).refine((d) => d.password === d.confirm, {
     message: tr.errors.noMatch,

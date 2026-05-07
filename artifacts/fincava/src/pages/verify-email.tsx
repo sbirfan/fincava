@@ -17,10 +17,9 @@ export default function VerifyEmailPage() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
+  const token = new URLSearchParams(window.location.search).get("token");
 
+  useEffect(() => {
     if (!token) {
       setStatus("error");
       setMessage(tr.noToken);
@@ -48,7 +47,7 @@ export default function VerifyEmailPage() {
         setStatus("error");
         setMessage(tr.genericError);
       });
-  }, [queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const dashboardPath = user?.role === "SUPPLIER" ? "/supplier-dashboard" : "/dashboard";
 

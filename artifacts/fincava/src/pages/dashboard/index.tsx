@@ -14,7 +14,7 @@ function CompletionBanner() {
   const { t } = useLanguage();
   const tr = t.buyerOnboarding;
   const { data, isError } = useQuery<{ profile: { p2CompletionPct: number } | null }>({
-    queryKey: ["buyer-onboarding-pct"],
+    queryKey: ["buyer", "onboarding-pct"],
     queryFn: async () => {
       const res = await fetch("/api/buyer/onboarding", { credentials: "include" });
       if (!res.ok) return { profile: null };
@@ -59,7 +59,7 @@ function TeaserMatchBanner() {
       matchingRunCount: number;
     };
   }>({
-    queryKey: ["buyer-profile"],
+    queryKey: ["buyer", "profile"],
     queryFn: async () => {
       const res = await fetch("/api/buyers/profile", { credentials: "include" });
       if (!res.ok) throw new Error(`Failed to load profile (${res.status})`);
@@ -78,7 +78,7 @@ function TeaserMatchBanner() {
     state: string;
     matching_run_count: number;
   }>({
-    queryKey: ["buyer-matches-preview", profileId],
+    queryKey: ["buyer", "matches-preview", profileId],
     enabled: !!profileId && inTeaserState,
     queryFn: async () => {
       const res = await fetch(`/api/buyers/${profileId}/matches?preview=true`, {

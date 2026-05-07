@@ -285,7 +285,7 @@ export default function BuyerProfile() {
     isLoading: profileLoading,
     isError: profileError,
   } = useQuery<{ profile: P2Profile }>({
-    queryKey: ["buyer-onboarding"],
+    queryKey: ["buyer", "onboarding"],
     queryFn: async () => {
       const res = await fetch("/api/buyer/onboarding", { credentials: "include" });
       if (!res.ok) throw new Error(`${res.status}`);
@@ -383,8 +383,8 @@ export default function BuyerProfile() {
       if (!res.ok) throw new Error(json?.error ?? `Save failed (${res.status})`);
       const newDone: string[] = json.profile?.p2SectionsDone ?? json.sectionsDone ?? sectionsDone;
       setSectionsDone(newDone);
-      queryClient.invalidateQueries({ queryKey: ["buyer-onboarding-pct"] });
-      queryClient.invalidateQueries({ queryKey: ["buyer-onboarding"] });
+      queryClient.invalidateQueries({ queryKey: ["buyer", "onboarding-pct"] });
+      queryClient.invalidateQueries({ queryKey: ["buyer", "onboarding"] });
       setSS(section, "saved");
       clearTimeout(fadeTimersRef.current[section]);
       fadeTimersRef.current[section] = setTimeout(() => {
@@ -952,7 +952,7 @@ function MarketingPreferencesCard({
       }
       setSavedAt(Date.now());
       toast({ title: "Marketing preferences saved" });
-      queryClient.invalidateQueries({ queryKey: ["buyer-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["buyer", "profile"] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Save failed";
       setError(msg);

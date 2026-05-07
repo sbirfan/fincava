@@ -394,7 +394,7 @@ function MatchResultsPanel({ data }: { data: MatchesResponse }) {
 
 export default function BuyerMatchesPage() {
   const { data: profileResp, isLoading: profileLoading } = useQuery<BuyerProfileResponse>({
-    queryKey: ["buyer-profile"],
+    queryKey: ["buyer", "profile"],
     queryFn: async () => {
       const res = await fetch("/api/buyers/profile", { credentials: "include" });
       if (!res.ok) throw new Error(`Failed to load profile (${res.status})`);
@@ -409,7 +409,7 @@ export default function BuyerMatchesPage() {
     isLoading: matchesLoading,
     error: matchesError,
   } = useQuery<MatchesResponse>({
-    queryKey: ["buyer-matches", profileId],
+    queryKey: ["buyer", "matches", profileId],
     enabled: !!profileId,
     refetchInterval: (query) => {
       const d = query.state.data;

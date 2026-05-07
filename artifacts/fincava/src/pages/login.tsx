@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -40,8 +40,12 @@ export default function Login() {
     form.clearErrors();
   }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const hasRedirected = useRef(false);
+
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    if (hasRedirected.current) return;
+    hasRedirected.current = true;
     if (user.role === "ADMIN") setLocation("/admin");
     else if (user.role === "SUPPLIER") setLocation("/supplier-dashboard");
     else setLocation("/dashboard");
