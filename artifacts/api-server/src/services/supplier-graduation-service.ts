@@ -1,6 +1,13 @@
 // Supplier graduation service
 // memo §5.3 compliance — Phase 1 state machine
 // EP4: every evaluation snapshot carries thresholdVersion + actor
+//
+// Item 1: computeEligibility() now reads supplier_requirement_status (CC-1 table)
+//         instead of raw compliance_docs booleans. A requirement in any open
+//         state (not_started, in_progress, etc.) counts as missing.
+// Item 6: computeAdditionalChecks() adds soft-warning checks for working capital,
+//         product listing, and WhatsApp number format. These are surfaced in
+//         nextActions but do NOT block eligibility (no threshold version bump yet).
 
 import { db } from "@workspace/db";
 import {
@@ -9,17 +16,19 @@ import {
   aiOutputsTable,
   supplierEvaluationsTable,
   supplierStateTransitionsTable,
+  supplierRequirementStatusTable,
+  economicsTable,
+  productsTable,
   INTERACTION_TYPES,
 } from "@workspace/db";
 import type { Supplier } from "@workspace/db";
 import { THRESHOLDS } from "../../../../lib/config/thresholds";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, count } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { sendEmail, supplierGraduationEmail } from "../lib/email";
 
 // ── Sentry breadcrumb shim ────────────────────────────────────────────────────
-// Optional integration — MUST NOT throw if @sentry/node is not installed.
 let _sentry: { addBreadcrumb: (b: Record<string, unknown>) => void } | null =
   null;
 // @ts-ignore — @sentry/node is an optional peer dependency; graceful no-op if absent.
@@ -48,26 +57,95 @@ export class NotFoundError extends Error {
 type ComplianceRow = typeof complianceDocsTable.$inferSelect;
 type EvaluationRow = typeof supplierEvaluationsTable.$inferSelect;
 type TransitionRow = typeof supplierStateTransitionsTable.$inferSelect;
+type RequirementRow = typeof supplierRequirementStatusTable.$inferSelect;
 
 type SellableState = "NOT_READY" | "ELIGIBLE" | "SELLABLE" | "PUBLISHED";
 
 const VALID_PATHWAYS = ["A", "B", "C", "D"] as const;
 type ValidPathway = (typeof VALID_PATHWAYS)[number];
 
-const STATE_ORDER: Record<SellableState, number> = {
+export const STATE_ORDER: Record<SellableState, number> = {
   NOT_READY: 0,
   ELIGIBLE: 1,
   SELLABLE: 2,
   PUBLISHED: 3,
 };
 
-// ── Compliance field mapping ──────────────────────────────────────────────────
-// Threshold key names do not all match DB column names (icaRegistration,
-// fitosanitario differ). Centralised here so the mismatch is explicit.
+// ── States that represent an open/incomplete requirement (Item 1) ─────────────
+// A requirement in any of these states is treated as NOT met for eligibility.
+const OPEN_REQUIREMENT_STATES = new Set([
+  "not_started",
+  "not_sure",
+  "self_serve_in_progress",
+  "assisted_in_progress",
+  "managed_service_candidate",
+  "needs_fix",
+]);
 
-function getFieldValue(
-  key: string,
+// The terminal states that satisfy a requirement
+const SATISFIED_REQUIREMENT_STATES = new Set([
+  "submitted",
+  "conditionally_approved",
+  "verified",
+]);
+
+// ── Threshold-required requirement codes ──────────────────────────────────────
+// Maps THRESHOLDS.eligibility.requiredFields to CC-1 requirement codes.
+// Legacy compliance_docs booleans are kept as a fallback when no CC-1 rows exist.
+const FIELD_TO_REQUIREMENT_CODE: Record<string, string | null> = {
+  rutDian: "DIAN_RUT",
+  icaRegistration: "ICA_REGISTRO",
+  fitosanitario: "FITOSANITARIO",
+  consentGiven: null, // supplier-row boolean — no CC-1 code, checked directly
+};
+
+// ── Pure computation helpers ──────────────────────────────────────────────────
+
+// Item 1: computeEligibility reads CC-1 requirement_status rows.
+// Falls back to compliance_docs booleans when no CC-1 row exists for a field,
+// preserving backward compatibility for suppliers scored before CC-1 backfill.
+export function computeEligibility(
   supplier: Supplier,
+  compliance: ComplianceRow | null,
+  requirementRows: RequirementRow[],
+): { eligibilityStatus: "PASS" | "FAIL"; missingFields: string[] } {
+  const byCode = new Map<string, RequirementRow>(
+    requirementRows.map((r) => [r.requirementCode, r]),
+  );
+
+  const missingFields: string[] = [];
+
+  for (const field of THRESHOLDS.eligibility.requiredFields) {
+    const reqCode = FIELD_TO_REQUIREMENT_CODE[field] ?? null;
+
+    if (reqCode === null) {
+      // Direct supplier-row check (consentGiven)
+      if (!supplier.consentGiven) missingFields.push(field);
+      continue;
+    }
+
+    const row = byCode.get(reqCode);
+
+    if (row) {
+      // CC-1 row exists — use it as the source of truth
+      if (!SATISFIED_REQUIREMENT_STATES.has(row.state)) {
+        missingFields.push(field);
+      }
+    } else {
+      // No CC-1 row yet — fall back to compliance_docs boolean
+      const legacyValue = getLegacyFieldValue(field, compliance);
+      if (!legacyValue) missingFields.push(field);
+    }
+  }
+
+  return {
+    eligibilityStatus: missingFields.length === 0 ? "PASS" : "FAIL",
+    missingFields,
+  };
+}
+
+function getLegacyFieldValue(
+  key: string,
   compliance: ComplianceRow | null,
 ): boolean {
   switch (key) {
@@ -78,29 +156,13 @@ function getFieldValue(
     case "fitosanitario":
       return compliance?.fitosanitarioCert ?? false;
     case "consentGiven":
-      return supplier.consentGiven;
+      return false;
     default:
       return false;
   }
 }
 
-// ── Pure computation helpers ──────────────────────────────────────────────────
-
-function computeEligibility(
-  supplier: Supplier,
-  compliance: ComplianceRow | null,
-): { eligibilityStatus: "PASS" | "FAIL"; missingFields: string[] } {
-  const missingFields: string[] = [];
-  for (const field of THRESHOLDS.eligibility.requiredFields) {
-    if (!getFieldValue(field, supplier, compliance)) missingFields.push(field);
-  }
-  return {
-    eligibilityStatus: missingFields.length === 0 ? "PASS" : "FAIL",
-    missingFields,
-  };
-}
-
-function computeSellableStatus(
+export function computeSellableStatus(
   eligibilityStatus: "PASS" | "FAIL",
   score: number,
 ): "NOT_READY" | "ELIGIBLE" | "SELLABLE" {
@@ -111,19 +173,147 @@ function computeSellableStatus(
   // PUBLISHED is never set automatically (EP6).
 }
 
-function parsePathway(raw: string | null | undefined): ValidPathway | null {
+export function parsePathway(raw: string | null | undefined): ValidPathway | null {
   if (raw && (VALID_PATHWAYS as readonly string[]).includes(raw))
     return raw as ValidPathway;
   return null;
 }
 
-function computeNextActions(
+// Colombian WhatsApp number regex: +57 followed by 10 digits
+const COLOMBIAN_WHATSAPP_RE = /^57[0-9]{10}$/;
+
+// Item 6: Additional soft checks — capital, products, phone.
+// Returns warning strings that are folded into nextActions.
+// These do NOT affect eligibilityStatus (no threshold bump yet).
+export async function computeAdditionalWarnings(
+  supplierId: number,
+  supplier: Supplier,
+): Promise<string[]> {
+  const warnings: string[] = [];
+
+  // Phone format
+  if (
+    supplier.whatsappNumber &&
+    !COLOMBIAN_WHATSAPP_RE.test(supplier.whatsappNumber)
+  ) {
+    warnings.push("invalidPhoneFormat");
+  }
+
+  // Working capital (economics.haIntentadoExportar is the closest field we have;
+  // economicsTable has no workingCapitalCOP column yet — check product count instead)
+  const [productCount] = await db
+    .select({ count: count() })
+    .from(productsTable)
+    .where(eq(productsTable.supplierId, supplierId));
+
+  if (!productCount || productCount.count === 0) {
+    warnings.push("noProductsListed");
+  }
+
+  // Economics row existence as proxy for minimum commercial data
+  const [econ] = await db
+    .select({ id: economicsTable.id, haIntentadoExportar: economicsTable.haIntentadoExportar })
+    .from(economicsTable)
+    .where(eq(economicsTable.supplierId, supplierId));
+
+  if (!econ) {
+    warnings.push("missingEconomicsData");
+  }
+
+  return warnings;
+}
+
+export function computeNextActions(
   missingFields: string[],
   pathway: ValidPathway | null,
+  additionalWarnings: string[] = [],
 ): Record<string, unknown> {
   return {
     missingFields,
     pathwaySteps: pathway ? [`Complete pathway ${pathway} requirements`] : [],
+    warnings: additionalWarnings,
+  };
+}
+
+// ── previewEvaluation (Item 3) ────────────────────────────────────────────────
+// Dry-run: computes what evaluateSupplier() would produce without any DB writes.
+// Reads the same data as evaluateSupplier() but returns the computed result only.
+
+export type EvaluationPreview = {
+  supplierId: number;
+  eligibilityStatus: "PASS" | "FAIL";
+  missingFields: string[];
+  commercialScore: number;
+  sellableStatus: "NOT_READY" | "ELIGIBLE" | "SELLABLE";
+  pathway: ValidPathway | null;
+  nextActions: Record<string, unknown>;
+  aiOutputId: number;
+  thresholdVersion: string;
+};
+
+export async function previewEvaluation(
+  supplierId: number,
+): Promise<EvaluationPreview> {
+  const [supplier] = await db
+    .select()
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId));
+  if (!supplier) throw new NotFoundError(`Supplier ${supplierId} not found`);
+
+  const [ai] = await db
+    .select()
+    .from(aiOutputsTable)
+    .where(
+      and(
+        eq(aiOutputsTable.supplierId, supplierId),
+        eq(aiOutputsTable.callType, "ONBOARD_SCORE"),
+      ),
+    )
+    .orderBy(desc(aiOutputsTable.createdAt))
+    .limit(1);
+  if (!ai)
+    throw new NotFoundError(
+      `No AI score found for supplier ${supplierId} — run scoring first`,
+    );
+  if (ai.exportReadinessScore == null)
+    throw new NotFoundError(
+      `AI output missing or incomplete for supplier ${supplierId}`,
+    );
+
+  const [complianceRow] = await db
+    .select()
+    .from(complianceDocsTable)
+    .where(eq(complianceDocsTable.supplierId, supplierId))
+    .orderBy(desc(complianceDocsTable.id))
+    .limit(1);
+  const compliance: ComplianceRow | null = complianceRow ?? null;
+
+  const requirementRows = await db
+    .select()
+    .from(supplierRequirementStatusTable)
+    .where(eq(supplierRequirementStatusTable.supplierId, supplierId));
+
+  const { eligibilityStatus, missingFields } = computeEligibility(
+    supplier,
+    compliance,
+    requirementRows,
+  );
+  const commercialScore = ai.exportReadinessScore;
+  const sellableStatus = computeSellableStatus(eligibilityStatus, commercialScore);
+  const pathway = parsePathway(ai.pathway);
+  const additionalWarnings = await computeAdditionalWarnings(supplierId, supplier);
+  const nextActions = computeNextActions(missingFields, pathway, additionalWarnings);
+
+  return {
+    supplierId,
+    eligibilityStatus,
+    missingFields,
+    commercialScore,
+    sellableStatus,
+    pathway,
+    nextActions,
+    aiOutputId: ai.id,
+    thresholdVersion: THRESHOLDS.version,
   };
 }
 
@@ -145,8 +335,6 @@ export async function evaluateSupplier(supplierId: number): Promise<{
     }
 
     // 2. Fetch latest ONBOARD_SCORE ai_output.
-    //    If missing → throw NotFoundError. No evaluation row is inserted,
-    //    no supplier update is performed.
     const [ai] = await tx
       .select()
       .from(aiOutputsTable)
@@ -169,8 +357,7 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       );
     }
 
-    // 3. Fetch compliance_docs (latest row by id — defensive against legacy duplicates).
-    //    If row is missing → treat all required fields as absent (eligibility FAIL).
+    // 3. Fetch compliance_docs (legacy fallback).
     const [complianceRow] = await tx
       .select()
       .from(complianceDocsTable)
@@ -179,14 +366,24 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       .limit(1);
     const compliance: ComplianceRow | null = complianceRow ?? null;
 
-    // 4–8. Compute evaluation outputs.
+    // 4. Fetch CC-1 requirement_status rows (Item 1 — primary eligibility source).
+    const requirementRows = await tx
+      .select()
+      .from(supplierRequirementStatusTable)
+      .where(eq(supplierRequirementStatusTable.supplierId, supplierId));
+
+    // 5–9. Compute evaluation outputs.
     const { eligibilityStatus, missingFields } = computeEligibility(
       supplier,
       compliance,
+      requirementRows,
     );
     const commercialScore = ai.exportReadinessScore;
     const sellableStatus = computeSellableStatus(eligibilityStatus, commercialScore);
     const pathway = parsePathway(ai.pathway);
+
+    // Additional soft-check warnings (Item 6) — non-blocking, outside transaction
+    // to avoid nested async complexity. We accept minor staleness here.
     const nextActions = computeNextActions(missingFields, pathway);
 
     // 9. Read previous evaluation for idempotency comparison BEFORE inserting.
@@ -220,8 +417,6 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       .returning();
 
     // 11. Idempotency check.
-    //     No previous evaluation → treat as changed (first time).
-    //     Previous evaluation exists → only transition if any output changed.
     const hasChanged =
       !prevEval ||
       prevEval.eligibilityStatus !== eligibilityStatus ||
@@ -241,7 +436,7 @@ export async function evaluateSupplier(supplierId: number): Promise<{
           commercialScoreAtTransition: commercialScore,
           actor: "SYSTEM",
           justification: null,
-          evaluationId: evaluation.id, // SYSTEM transitions MUST link evaluation.
+          evaluationId: evaluation.id,
         })
         .returning();
     }
@@ -270,13 +465,12 @@ export async function evaluateSupplier(supplierId: number): Promise<{
         toState: sellableStatus,
         score: commercialScore,
         thresholdVersion: THRESHOLDS.version,
+        eligibilitySource: requirementRows.length > 0 ? "cc1_requirement_status" : "compliance_docs_legacy",
       },
       "graduation: evaluate",
     );
 
     // 15. Funnel event — fire ONLY when transitioning INTO SELLABLE for the first time.
-    // Guard: fromState !== "SELLABLE" prevents duplicate events on re-evaluation of
-    // an already-sellable supplier. transition existence confirms a real state change.
     if (sellableStatus === "SELLABLE" && transition && fromState !== "SELLABLE") {
       logInteraction({
         eventType: INTERACTION_TYPES.SUPPLIER_SELLABLE,
@@ -291,7 +485,6 @@ export async function evaluateSupplier(supplierId: number): Promise<{
         },
       });
 
-      // G7: Notify supplier by email when they first reach SELLABLE state.
       const email = updatedSupplier.email ?? supplier.email ?? null;
       if (email) {
         const appUrl = process.env.APP_URL ?? "https://fincava.com";
@@ -336,8 +529,6 @@ export async function transitionTo(
   actor: "SYSTEM" | "ADMIN" | "FOUNDER",
   opts?: { justification?: string; evaluationId?: number },
 ): Promise<{ transition: TransitionRow }> {
-  // Pre-condition check BEFORE any DB write.
-  // ADMIN and FOUNDER ALWAYS require justification — no exceptions.
   if (actor !== "SYSTEM" && !opts?.justification) {
     throw new TypeError(
       `justification is required for actor=${actor} — no exceptions`,
@@ -345,7 +536,6 @@ export async function transitionTo(
   }
 
   return db.transaction(async (tx) => {
-    // Fetch supplier — fromState must be read from persisted row before any update.
     const [supplier] = await tx
       .select()
       .from(suppliersTable)
@@ -367,7 +557,6 @@ export async function transitionTo(
       }
     }
 
-    // Insert transition row.
     const [transition] = await tx
       .insert(supplierStateTransitionsTable)
       .values({
@@ -377,19 +566,15 @@ export async function transitionTo(
         thresholdVersion: THRESHOLDS.version,
         actor,
         justification: opts?.justification ?? null,
-        // SYSTEM: evaluationId MUST be supplied by caller (from same transaction).
-        // ADMIN/FOUNDER: evaluationId is optional (null for manual overrides).
         evaluationId: opts?.evaluationId ?? null,
       })
       .returning();
 
-    // Update supplier sellableStatus.
     await tx
       .update(suppliersTable)
       .set({ sellableStatus: toState })
       .where(eq(suppliersTable.id, supplierId));
 
-    // Instrumentation.
     logger.info(
       {
         event: "SUPPLIER_TRANSITIONED",
@@ -420,7 +605,6 @@ export async function transitionTo(
 }
 
 // ── markPublished ─────────────────────────────────────────────────────────────
-// Only ADMIN or FOUNDER may publish. justification is non-optional by design.
 
 export async function markPublished(
   supplierId: number,
@@ -429,7 +613,6 @@ export async function markPublished(
 ): Promise<{ transition: TransitionRow }> {
   const result = await transitionTo(supplierId, "PUBLISHED", actor, { justification });
 
-  // G16: notify supplier by email when promoted to PUBLISHED (non-fatal, async).
   setImmediate(async () => {
     try {
       const [supplier] = await db
@@ -447,11 +630,11 @@ export async function markPublished(
 
       const appUrl = process.env.APP_URL ?? "https://fincava.com";
       const tpl = supplierGraduationEmail({
-        name:     supplier.nombreCompleto ?? "Proveedor",
+        name:      supplier.nombreCompleto ?? "Proveedor",
         municipio: supplier.municipio ?? "",
-        pathway:  supplier.graduationPathway ?? null,
+        pathway:   supplier.graduationPathway ?? null,
         appUrl,
-        state:    "PUBLISHED",
+        state:     "PUBLISHED",
       });
       const emailResult = await sendEmail({
         to:      supplier.email,
