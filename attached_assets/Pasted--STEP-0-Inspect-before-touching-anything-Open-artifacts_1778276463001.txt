@@ -1,0 +1,82 @@
+
+---
+
+```
+STEP 0 — Inspect before touching anything
+
+Open: artifacts/api-server/src/services/discovery-engine.ts
+Read lines 152–175 and confirm that:
+  a) discoverLeads() destructures category, region, maxResults, excludeTypes from input at line 153
+  b) userMessage is built at approximately lines 165–170 by direct string interpolation:
+       const userMessage = `Product category: ${category}\nRegion: ${region}\n...`;
+  c) There is NO existing sanitization function applied to category or region before interpolation.
+
+If any of these differ, stop and tell me what you see.
+
+---
+
+STEP 1 — Add sanitizePromptInput helper
+
+Immediately BEFORE the line:
+  export async function discoverLeads(input: DiscoveryInput): Promise<CandidateLead[]> {
+
+Insert the following helper function (add one blank line above and below):
+
+  /**
+   * Strips characters that carry structural meaning in LLM prompt context
+   * (newlines, carriage returns, backticks) before interpolating user input.
+   * Length is already capped by Zod (max 100 chars) upstream.
+   */
+  function sanitizePromptInput(value: string): string {
+    return value
+      .replace(/[\n\r`]/g, " ")  // newlines and backticks → space
+      .replace(/\s{2,}/g, " ")   // collapse multiple spaces
+      .trim()
+      .slice(0, 100);             // hard length cap as a belt-and-suspenders guard
+  }
+
+---
+
+STEP 2 — Apply sanitizer inside discoverLeads()
+
+Inside the discoverLeads() function body, immediately AFTER this line:
+  const { category, region, maxResults, excludeTypes = [] } = input;
+
+Add the following two lines:
+  const safeCategory = sanitizePromptInput(category);
+  const safeRegion = sanitizePromptInput(region);
+
+---
+
+STEP 3 — Update userMessage to use sanitized values
+
+Find the userMessage template literal (approximately lines 165–170). It currently reads:
+
+  const userMessage = `Product category: ${category}
+Region: ${region}
+Max results: ${maxResults}
+${excludeTypes.length > 0 ? `Excluded entity types: ${excludeTypes.join(", ")}` : ""}
+
+Generate up to ${maxResults} Colombian agricultural supplier leads for the category "${category}" in the "${region}" region of Colombia.`;
+
+Replace ALL four occurrences of ${category} and ${region} in that template literal with ${safeCategory} and ${safeRegion} respectively, so it reads:
+
+  const userMessage = `Product category: ${safeCategory}
+Region: ${safeRegion}
+Max results: ${maxResults}
+${excludeTypes.length > 0 ? `Excluded entity types: ${excludeTypes.join(", ")}` : ""}
+
+Generate up to ${maxResults} Colombian agricultural supplier leads for the category "${safeCategory}" in the "${safeRegion}" region of Colombia.`;
+
+Do NOT change anything else in the function.
+
+---
+
+STEP 4 — Verify
+
+1. Run TypeScript check: pnpm --filter @workspace/api-server typecheck
+2. Confirm zero type errors.
+3. Confirm sanitizePromptInput is defined before discoverLeads, not inside it.
+4. Confirm safeCategory and safeRegion (not category/region) appear in the userMessage template.
+
+Report: paste the updated userMessage block and confirm typecheck passes.

@@ -11,6 +11,7 @@ import { getAnthropicClient, DISCOVERY_MODEL } from "../lib/anthropic";
 import { DISCOVERY_PROMPT } from "../config/ingestion-prompts";
 import { logger } from "../lib/logger";
 import { z } from "zod";
+import pLimit from "p-limit";
 
 // ── Private IP / SSRF helpers ─────────────────────────────────────────────────
 
@@ -149,8 +150,23 @@ export interface DiscoveryInput {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+/**
+ * Strips characters that carry structural meaning in LLM prompt context
+ * (newlines, carriage returns, backticks) before interpolating user input.
+ * Length is already capped by Zod (max 100 chars) upstream.
+ */
+function sanitizePromptInput(value: string): string {
+  return value
+    .replace(/[\n\r`]/g, " ")  // newlines and backticks → space
+    .replace(/\s{2,}/g, " ")   // collapse multiple spaces
+    .trim()
+    .slice(0, 100);             // hard length cap as a belt-and-suspenders guard
+}
+
 export async function discoverLeads(input: DiscoveryInput): Promise<CandidateLead[]> {
   const { category, region, maxResults, excludeTypes = [] } = input;
+  const safeCategory = sanitizePromptInput(category);
+  const safeRegion = sanitizePromptInput(region);
   const client = getAnthropicClient();
 
   // Build the exclusion clause — one numbered rule per excluded type.
@@ -162,12 +178,12 @@ export async function discoverLeads(input: DiscoveryInput): Promise<CandidateLea
     ? exclusionLines.join("\n") + "\n"
     : "";
 
-  const userMessage = `Product category: ${category}
-Region: ${region}
+  const userMessage = `Product category: ${safeCategory}
+Region: ${safeRegion}
 Max results: ${maxResults}
 ${excludeTypes.length > 0 ? `Excluded entity types: ${excludeTypes.join(", ")}` : ""}
 
-Generate up to ${maxResults} Colombian agricultural supplier leads for the category "${category}" in the "${region}" region of Colombia.`;
+Generate up to ${maxResults} Colombian agricultural supplier leads for the category "${safeCategory}" in the "${safeRegion}" region of Colombia.`;
 
   const systemPrompt = DISCOVERY_PROMPT
     .replace(/\{max_results\}/g, String(maxResults))
@@ -231,85 +247,99 @@ Generate up to ${maxResults} Colombian agricultural supplier leads for the categ
 }
 
 // ── T3: Link expansion ────────────────────────────────────────────────────────
-// Flat loop, no recursion. Stops as soon as MAX_TOTAL_LINKS is reached.
+// Parallel outer loop (concurrency 3), sequential inner URL-candidate loop
+// (first-success-wins per lead). Stops as soon as MAX_TOTAL_LINKS is reached.
 // Fetches each lead's homepage and uses text content to refine categoryHint.
 // Failures are silent — the original lead is returned unchanged on any error.
 //
-// Latency note: worst-case ~50 s (MAX_TOTAL_LINKS × LINK_TIMEOUT_MS).
-// All links are fetched sequentially in the request path; consider moving to
-// background processing if P99 latency becomes unacceptable in production.
+// Latency note: worst-case ~17 s (ceil(MAX_TOTAL_LINKS/3) × LINK_TIMEOUT_MS).
 
 async function expandLeadsWithLinks(
   leads: CandidateLead[],
   depth: number = 0,
 ): Promise<CandidateLead[]> {
-  // Enforce MAX_DEPTH: this function must never be called recursively.
-  // depth is always 0 on external calls; a defensive guard ensures correctness.
   if (depth >= MAX_DEPTH) {
     logger.warn({ depth }, "discovery-engine: MAX_DEPTH reached — returning leads unexpanded");
     return leads;
   }
 
+  // Shared counter — safe in Node.js single-threaded event loop.
+  // Incremented only at await boundaries; no true concurrency on this variable.
   let linksFollowed = 0;
-  const enhanced: CandidateLead[] = [];
 
-  for (const lead of leads) {
-    // Safety cap — stop traversal immediately when global limit is reached
-    if (linksFollowed >= MAX_TOTAL_LINKS) {
-      enhanced.push(lead);
-      continue;
-    }
+  // Concurrency cap: 3 simultaneous outbound HTTP fetches.
+  // Reduces worst-case latency from ~50 s (sequential) to ~10 s (3-parallel × 5 s × ceil(10/3) rounds).
+  const limit = pLimit(3);
 
-    if (!lead.website) {
-      enhanced.push(lead);
-      continue;
-    }
+  const results = await Promise.all(
+    leads.map((lead) =>
+      limit(async (): Promise<CandidateLead> => {
+        // Check global link cap before starting this lead
+        if (linksFollowed >= MAX_TOTAL_LINKS) {
+          return lead;
+        }
 
-    // Build candidate URL list for this lead (homepage variants only)
-    const candidateUrls = buildCandidateUrls(lead.website).slice(0, MAX_LINKS_PER_RESULT);
-    let fetched = false;
+        if (!lead.website) {
+          return lead;
+        }
 
-    for (const url of candidateUrls) {
-      if (linksFollowed >= MAX_TOTAL_LINKS) break;
-      if (isBlockedUrl(url)) {
-        logger.info({ url }, "discovery-engine: link expansion skipped — blocked domain");
-        continue;
-      }
+        const candidateUrls = buildCandidateUrls(lead.website).slice(0, MAX_LINKS_PER_RESULT);
 
-      const html = await fetchPageHtml(url);
-      linksFollowed++;
+        for (const url of candidateUrls) {
+          // Re-check cap inside inner loop (another lead may have consumed it)
+          if (linksFollowed >= MAX_TOTAL_LINKS) break;
 
-      if (!html) continue;
+          if (isBlockedUrl(url)) {
+            logger.info({ url }, "discovery-engine: link expansion skipped — blocked domain");
+            continue;
+          }
 
-      const info = extractPageInfo(html);
-      const refinedHint = refineCategory(lead.categoryHint, info);
+          linksFollowed++;
+          const html = await fetchPageHtml(url);
 
-      enhanced.push({ ...lead, categoryHint: refinedHint });
-      fetched = true;
-      break;
-    }
+          if (!html) continue;
 
-    if (!fetched) {
-      enhanced.push(lead);
-    }
-  }
+          const info = extractPageInfo(html);
+          const refinedHint = refineCategory(lead.categoryHint, info);
+          return { ...lead, categoryHint: refinedHint };
+        }
 
-  // Always log expansion result — linksFollowed = 0 means no qualifying URLs were found
+        return lead;
+      }),
+    ),
+  );
+
   logger.info(
-    { linksFollowed },
+    { linksFollowed, concurrency: 3 },
     "discovery-engine: DISCOVERY_EXPANSION_USED",
   );
 
-  return enhanced;
+  return results;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function extractJsonArray(text: string): string {
+  // 1. Prefer fenced code block — most reliable when Claude follows format instructions
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenced?.[1]) return fenced[1].trim();
+  if (fenced?.[1]) {
+    const inner = fenced[1].trim();
+    if (inner.startsWith("[")) return inner;
+  }
+
+  // 2. Anchor on [{  — skips any incidental primitive arrays Claude may emit
+  //    before the actual leads array (e.g. ["coffee","cocoa"] in preamble text).
+  //    Match from the first [{ to the last }] to capture the full object array.
+  const objArrayStart = text.indexOf("[{");
+  const objArrayEnd = text.lastIndexOf("}]");
+  if (objArrayStart !== -1 && objArrayEnd !== -1 && objArrayEnd > objArrayStart) {
+    return text.slice(objArrayStart, objArrayEnd + 2);
+  }
+
+  // 3. Fallback: any [...] (original behaviour — handles edge cases like empty array [])
   const arr = text.match(/\[[\s\S]*\]/);
   if (arr) return arr[0];
+
   return text.trim();
 }
 

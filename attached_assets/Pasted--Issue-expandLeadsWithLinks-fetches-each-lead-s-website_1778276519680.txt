@@ -1,0 +1,163 @@
+**Issue:** `expandLeadsWithLinks` fetches each lead's website sequentially in the HTTP request path. With `MAX_TOTAL_LINKS=10` and `LINK_TIMEOUT_MS=5000`, worst-case wall time is **50 seconds**, blocking the Express thread for all other requests. This must be fixed before `ENABLE_INTELLIGENCE_PUBLIC=true`.
+
+**Approach:** Add `p-limit` (concurrency 3), process leads in parallel at the outer loop, keep the inner URL-candidate loop sequential (first-success-wins per lead), preserve the `MAX_TOTAL_LINKS` global cap using an atomic-safe counter (safe in Node.js single-threaded event loop).
+
+**Risk:** Medium — restructures the async loop. The logic is equivalent; the concurrency is new. TypeScript check + manual inspection of linksFollowed accounting required.
+
+---
+
+```
+STEP 0 — Inspect before touching anything
+
+1. Open: artifacts/api-server/package.json
+   Confirm p-limit is NOT listed in dependencies. (Expected: absent.)
+
+2. Open: artifacts/api-server/src/services/discovery-engine.ts
+   Read lines 233–304 and confirm expandLeadsWithLinks looks like:
+
+     async function expandLeadsWithLinks(
+       leads: CandidateLead[],
+       depth: number = 0,
+     ): Promise<CandidateLead[]> {
+       if (depth >= MAX_DEPTH) { ... return leads; }
+
+       let linksFollowed = 0;
+       const enhanced: CandidateLead[] = [];
+
+       for (const lead of leads) {
+         if (linksFollowed >= MAX_TOTAL_LINKS) { enhanced.push(lead); continue; }
+         if (!lead.website) { enhanced.push(lead); continue; }
+         const candidateUrls = buildCandidateUrls(lead.website).slice(0, MAX_LINKS_PER_RESULT);
+         let fetched = false;
+         for (const url of candidateUrls) {
+           if (linksFollowed >= MAX_TOTAL_LINKS) break;
+           if (isBlockedUrl(url)) { ... continue; }
+           const html = await fetchPageHtml(url);
+           linksFollowed++;
+           if (!html) continue;
+           const info = extractPageInfo(html);
+           const refinedHint = refineCategory(lead.categoryHint, info);
+           enhanced.push({ ...lead, categoryHint: refinedHint });
+           fetched = true;
+           break;
+         }
+         if (!fetched) { enhanced.push(lead); }
+       }
+
+       logger.info({ linksFollowed }, "discovery-engine: DISCOVERY_EXPANSION_USED");
+       return enhanced;
+     }
+
+   If the structure differs materially, stop and tell me what it looks like.
+
+3. Check the top of the file (lines 1–13) and confirm the existing imports.
+
+---
+
+STEP 1 — Install p-limit
+
+Run in the Replit shell:
+  cd artifacts/api-server && pnpm add p-limit
+
+Verify: p-limit appears in artifacts/api-server/package.json under dependencies.
+
+---
+
+STEP 2 — Add p-limit import
+
+At the TOP of artifacts/api-server/src/services/discovery-engine.ts, after the existing imports
+(after line 13: import { z } from "zod";), add:
+
+  import pLimit from "p-limit";
+
+---
+
+STEP 3 — Replace expandLeadsWithLinks
+
+Replace the ENTIRE expandLeadsWithLinks function (lines ~242–304) with the following.
+The function signature and external behaviour are identical; only the internal
+async execution model changes (parallel outer loop, sequential inner URL candidates).
+
+  async function expandLeadsWithLinks(
+    leads: CandidateLead[],
+    depth: number = 0,
+  ): Promise<CandidateLead[]> {
+    if (depth >= MAX_DEPTH) {
+      logger.warn({ depth }, "discovery-engine: MAX_DEPTH reached — returning leads unexpanded");
+      return leads;
+    }
+
+    // Shared counter — safe in Node.js single-threaded event loop.
+    // Incremented only at await boundaries; no true concurrency on this variable.
+    let linksFollowed = 0;
+
+    // Concurrency cap: 3 simultaneous outbound HTTP fetches.
+    // Reduces worst-case latency from ~50 s (sequential) to ~10 s (3-parallel × 5 s × ceil(10/3) rounds).
+    const limit = pLimit(3);
+
+    const results = await Promise.all(
+      leads.map((lead) =>
+        limit(async (): Promise<CandidateLead> => {
+          // Check global link cap before starting this lead
+          if (linksFollowed >= MAX_TOTAL_LINKS) {
+            return lead;
+          }
+
+          if (!lead.website) {
+            return lead;
+          }
+
+          const candidateUrls = buildCandidateUrls(lead.website).slice(0, MAX_LINKS_PER_RESULT);
+
+          for (const url of candidateUrls) {
+            // Re-check cap inside inner loop (another lead may have consumed it)
+            if (linksFollowed >= MAX_TOTAL_LINKS) break;
+
+            if (isBlockedUrl(url)) {
+              logger.info({ url }, "discovery-engine: link expansion skipped — blocked domain");
+              continue;
+            }
+
+            linksFollowed++;
+            const html = await fetchPageHtml(url);
+
+            if (!html) continue;
+
+            const info = extractPageInfo(html);
+            const refinedHint = refineCategory(lead.categoryHint, info);
+            return { ...lead, categoryHint: refinedHint };
+          }
+
+          return lead;
+        }),
+      ),
+    );
+
+    logger.info(
+      { linksFollowed, concurrency: 3 },
+      "discovery-engine: DISCOVERY_EXPANSION_USED",
+    );
+
+    return results;
+  }
+
+---
+
+STEP 4 — Verify
+
+1. Run TypeScript check: pnpm --filter @workspace/api-server typecheck
+   Expected: zero errors.
+
+2. Manually confirm:
+   a) p-limit import appears at the top of discovery-engine.ts
+   b) expandLeadsWithLinks now uses Promise.all + limit() wrapper
+   c) linksFollowed is still incremented before fetchPageHtml (not after)
+      — this is important: we decrement the global budget BEFORE the fetch,
+        so the cap works correctly even with concurrent leads racing
+   d) The function still returns Promise<CandidateLead[]>
+   e) logger.info at the end logs { linksFollowed, concurrency: 3 }
+
+3. Spot-check: grep for "for (const lead of leads)" in discovery-engine.ts
+   — it should NO LONGER exist inside expandLeadsWithLinks.
+
+Report: paste the full updated expandLeadsWithLinks function and confirm typecheck passes.

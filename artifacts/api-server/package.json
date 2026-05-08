@@ -26,6 +26,7 @@
     "google-auth-library": "^10.6.2",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "p-limit": "^7.3.0",
     "pino": "^9",
     "pino-http": "^10",
     "resend": "^6.12.2",

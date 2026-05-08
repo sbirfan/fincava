@@ -1,0 +1,62 @@
+**Issue:** `extractJsonArray` uses `\[[\s\S]*\]` which grabs the first `[` in the response. If Claude puts an incidental array (e.g., a list of category names) before the leads array, the wrong array is parsed and Zod validation silently returns 0 leads.
+
+**Risk:** Low regression risk — purely additive logic improvement. No API changes.
+
+---
+
+```
+STEP 0 — Inspect before touching anything
+
+Open: artifacts/api-server/src/services/discovery-engine.ts
+Read lines 308–314 and confirm the extractJsonArray function looks exactly like this:
+
+  function extractJsonArray(text: string): string {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced?.[1]) return fenced[1].trim();
+    const arr = text.match(/\[[\s\S]*\]/);
+    if (arr) return arr[0];
+    return text.trim();
+  }
+
+If the function body differs materially, stop and tell me what it looks like instead.
+
+---
+
+STEP 1 — Replace extractJsonArray (lines 308–314)
+
+Replace the entire extractJsonArray function with the following.
+Do NOT change anything else in the file.
+
+  function extractJsonArray(text: string): string {
+    // 1. Prefer fenced code block — most reliable when Claude follows format instructions
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced?.[1]) {
+      const inner = fenced[1].trim();
+      if (inner.startsWith("[")) return inner;
+    }
+
+    // 2. Anchor on [{  — skips any incidental primitive arrays Claude may emit
+    //    before the actual leads array (e.g. ["coffee","cocoa"] in preamble text).
+    //    Match from the first [{ to the last }] to capture the full object array.
+    const objArrayStart = text.indexOf("[{");
+    const objArrayEnd = text.lastIndexOf("}]");
+    if (objArrayStart !== -1 && objArrayEnd !== -1 && objArrayEnd > objArrayStart) {
+      return text.slice(objArrayStart, objArrayEnd + 2);
+    }
+
+    // 3. Fallback: any [...] (original behaviour — handles edge cases like empty array [])
+    const arr = text.match(/\[[\s\S]*\]/);
+    if (arr) return arr[0];
+
+    return text.trim();
+  }
+
+---
+
+STEP 2 — Verify
+
+1. Run TypeScript check: pnpm --filter @workspace/api-server typecheck
+2. Confirm zero type errors.
+3. Do NOT run the server or make any other changes.
+
+Report: confirm the new function is in place and typecheck passes.
