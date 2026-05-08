@@ -161,6 +161,8 @@ const ReviewBody = z.object({
   internalNote: z.string().max(2000).optional(),
   reasonCode: z.string().max(100).optional(),
   documentId: z.number().int().positive().optional(),
+  // Optional expiry date (ISO string) — only meaningful for verified/conditionally_approved
+  expiresAt: z.string().datetime({ offset: true }).optional(),
 });
 
 router.post(
@@ -178,7 +180,7 @@ router.post(
       sendError(res, 400, parsed.error.issues[0]?.message ?? "Invalid body");
       return;
     }
-    const { decision, visibleNote, internalNote, reasonCode, documentId } = parsed.data;
+    const { decision, visibleNote, internalNote, reasonCode, documentId, expiresAt } = parsed.data;
 
     // Check row exists
     const [requirement] = await db
@@ -204,6 +206,7 @@ router.post(
     }
 
     const reviewerId = requesterIdOf(req);
+    const now = new Date();
 
     // Write append-only review record
     await db.insert(adminComplianceReviewsTable).values({
@@ -217,22 +220,66 @@ router.post(
       reviewerId,
     });
 
+    // Compute verifiedAt and expiresAt updates:
+    // - verifiedAt: set on first verification (verified / conditionally_approved), preserved thereafter
+    // - expiresAt:  set when admin provides an explicit expiry; also cleared on rejection
+    const isVerifyingDecision = targetState === "verified" || targetState === "conditionally_approved";
+    const isRejectingDecision = targetState === "rejected";
+
+    const reqStatusUpdates: Record<string, unknown> = {
+      state: targetState,
+      adminRequired: decision === "escalated" ? true : requirement.adminRequired,
+      updatedAt: now,
+    };
+
+    if (isVerifyingDecision) {
+      // Only stamp verifiedAt on the first verification (don't overwrite historical stamp)
+      if (!requirement.verifiedAt) {
+        reqStatusUpdates.verifiedAt = now;
+      }
+      if (expiresAt !== undefined) {
+        reqStatusUpdates.expiresAt = new Date(expiresAt);
+      }
+    }
+
+    if (isRejectingDecision) {
+      // Rejected requirements have no valid expiry
+      reqStatusUpdates.expiresAt = null;
+    }
+
     // Advance requirement state
     await db
       .update(supplierRequirementStatusTable)
-      .set({
-        state: targetState,
-        adminRequired: decision === "escalated" ? true : requirement.adminRequired,
-        updatedAt: new Date(),
-      })
+      .set(reqStatusUpdates)
       .where(eq(supplierRequirementStatusTable.id, requirementId));
 
     logger.info(
-      { reviewerId, requirementId, supplierId: requirement.supplierId, decision, targetState },
-      "admin compliance review submitted (CC-1C)",
+      {
+        reviewerId,
+        requirementId,
+        supplierId: requirement.supplierId,
+        decision,
+        targetState,
+        verifiedAt: reqStatusUpdates.verifiedAt ?? requirement.verifiedAt ?? null,
+        expiresAt: reqStatusUpdates.expiresAt ?? requirement.expiresAt ?? null,
+      },
+      "admin compliance review submitted (CC-1C/CC-4)",
     );
 
-    res.json({ ok: true, requirementId, decision, newState: targetState });
+    res.json({
+      ok: true,
+      requirementId,
+      decision,
+      newState: targetState,
+      verifiedAt: (reqStatusUpdates.verifiedAt as Date | undefined)?.toISOString()
+        ?? requirement.verifiedAt?.toISOString()
+        ?? null,
+      expiresAt: isRejectingDecision
+        ? null
+        : (reqStatusUpdates.expiresAt as Date | undefined)?.toISOString()
+          ?? requirement.expiresAt?.toISOString()
+          ?? null,
+    });
   },
 );
 

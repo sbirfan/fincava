@@ -18,6 +18,7 @@ import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { resolveImageUrl, safeImageUrl } from "@/lib/utils";
+import { ComplianceBadges } from "@/components/compliance-widget";
 
 export default function ProductDetail() {
   const params = useParams();
@@ -493,6 +494,12 @@ export default function ProductDetail() {
               </div>
               {product.supplierDescription && (
                 <p className="text-muted-foreground mb-6">{product.supplierDescription}</p>
+              )}
+              {/* CC-4: show verified compliance badges when the product is linked to a farmer supplier */}
+              {p.supplierId && (
+                <div className="mb-6">
+                  <ComplianceBadges supplierId={p.supplierId} className="flex-wrap" />
+                </div>
               )}
               <Link href={`/supplier/${product.companyId}`}>
                 <Button variant="outline">View Full Supplier Profile</Button>
