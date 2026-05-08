@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { ClipboardCheck, ChevronRight, CheckCircle2, AlertTriangle, Clock, XCircle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -44,8 +44,14 @@ interface Review {
   reviewedAt: string;
 }
 
+interface SupplierRecord {
+  id: number;
+  nombreCompleto: string;
+  sellableStatus: string | null;
+}
+
 interface SupplierDetail {
-  supplier: Record<string, unknown>;
+  supplier: SupplierRecord;
   requirements: Requirement[];
   documents: Document[];
   reviews: Review[];
@@ -116,25 +122,50 @@ export default function AdminComplianceQueue() {
 
   const [visibilityMap, setVisibilityMap] = useState<Record<string, boolean>>({});
 
-  // Fetch queue on mount and page change
-  useState(() => {
+  // Ref holds the AbortController for any in-flight loadDetail call so that
+  // clicking a different supplier cancels the previous fetch before starting a new one.
+  const detailAbortRef = useRef<AbortController | null>(null);
+
+  // Fetch queue on mount and whenever page changes.
+  // Uses AbortController so navigating away or changing the page cancels stale requests.
+  useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/admin/compliance-queue?page=${page}&pageSize=30`, { credentials: "include" })
+    fetch(`/api/admin/compliance-queue?page=${page}&pageSize=30`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load queue");
         return r.json();
       })
       .then((data) => setItems(data.items ?? []))
-      .catch(() => toast({ title: "Error", description: "Could not load compliance queue", variant: "destructive" }))
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          toast({ title: "Error", description: "Could not load compliance queue", variant: "destructive" });
+        }
+      })
       .finally(() => setLoading(false));
-  });
+    return () => controller.abort();
+  }, [page]);
 
   const loadDetail = (supplierId: number) => {
+    // Cancel any previous in-flight detail fetch before starting a new one
+    detailAbortRef.current?.abort();
+    const controller = new AbortController();
+    detailAbortRef.current = controller;
+
     setDetailLoading(true);
     setVisibilityMap({});
     Promise.all([
-      fetch(`/api/admin/compliance-queue/${supplierId}`, { credentials: "include" }),
-      fetch(`/api/suppliers/${supplierId}/compliance-signals`),
+      fetch(`/api/admin/compliance-queue/${supplierId}`, {
+        credentials: "include",
+        signal: controller.signal,
+      }),
+      fetch(`/api/suppliers/${supplierId}/compliance-signals`, {
+        credentials: "include",
+        signal: controller.signal,
+      }),
     ])
       .then(async ([detailRes, signalsRes]) => {
         if (!detailRes.ok) throw new Error("Failed to load supplier detail");
@@ -142,14 +173,18 @@ export default function AdminComplianceQueue() {
           detailRes.json(),
           signalsRes.ok ? signalsRes.json() : { signals: [] },
         ]);
-        setSelectedSupplier(detail);
+        setSelectedSupplier(detail as SupplierDetail);
         const map: Record<string, boolean> = {};
-        for (const sig of signalsData.signals ?? []) {
+        for (const sig of (signalsData.signals ?? []) as Array<{ requirementCode: string }>) {
           map[sig.requirementCode] = true;
         }
         setVisibilityMap(map);
       })
-      .catch(() => toast({ title: "Error", description: "Could not load supplier detail", variant: "destructive" }))
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          toast({ title: "Error", description: "Could not load supplier detail", variant: "destructive" });
+        }
+      })
       .finally(() => setDetailLoading(false));
   };
 
@@ -191,14 +226,13 @@ export default function AdminComplianceQueue() {
     setReviewState(null);
     // Refresh detail
     if (selectedSupplier) {
-      const s = selectedSupplier.supplier as any;
-      loadDetail(s.id);
+      loadDetail(selectedSupplier.supplier.id);
     }
   };
 
   // Detail panel
   if (selectedSupplier) {
-    const s = selectedSupplier.supplier as any;
+    const s = selectedSupplier.supplier;
     return (
       <div>
         <div className="flex items-center gap-3 mb-6">
@@ -236,7 +270,7 @@ export default function AdminComplianceQueue() {
                 </div>
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <button
-                    onClick={(e) => { e.stopPropagation(); toggleVisibility(s.id as number, req.requirementCode); }}
+                    onClick={(e) => { e.stopPropagation(); toggleVisibility(s.id, req.requirementCode); }}
                     title={visibilityMap[req.requirementCode] ? "Visible to buyers — click to hide" : "Hidden from buyers — click to show"}
                     className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors ${
                       visibilityMap[req.requirementCode]

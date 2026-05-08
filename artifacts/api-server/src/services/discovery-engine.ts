@@ -12,6 +12,8 @@ import { DISCOVERY_PROMPT } from "../config/ingestion-prompts";
 import { logger } from "../lib/logger";
 import { z } from "zod";
 import pLimit from "p-limit";
+import { db, suppliersTable } from "@workspace/db";
+import { or, like } from "drizzle-orm";
 
 // ── Private IP / SSRF helpers ─────────────────────────────────────────────────
 
@@ -122,6 +124,12 @@ const CandidateLeadSchema = z.object({
 
 export type CandidateLead = z.infer<typeof CandidateLeadSchema>;
 
+/** Deduplication status of a discovered lead against existing suppliersTable rows. */
+export type ExistingStatus = "new" | "in_evaluation" | "already_onboarded" | "rejected";
+
+/** A validated lead with a deduplication annotation (I2). */
+export type AnnotatedLead = CandidateLead & { existingStatus: ExistingStatus };
+
 const CandidateLeadArraySchema = z.array(CandidateLeadSchema);
 
 // ── Entity-type → human-readable exclusion rule ───────────────────────────────
@@ -148,6 +156,13 @@ export interface DiscoveryInput {
   excludeTypes?: string[];
 }
 
+// ── Discovery cache (I5) ──────────────────────────────────────────────────────
+// Keyed by sanitized (category|region|sortedExcludeTypes|maxResults).
+// Prevents two concurrent admin sessions producing identical lead sets and
+// firing duplicate Claude + HTTP-crawl costs for the same query parameters.
+const discoveryCache = new Map<string, { leads: AnnotatedLead[]; ts: number }>();
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -163,10 +178,19 @@ function sanitizePromptInput(value: string): string {
     .slice(0, 100);             // hard length cap as a belt-and-suspenders guard
 }
 
-export async function discoverLeads(input: DiscoveryInput): Promise<CandidateLead[]> {
+export async function discoverLeads(input: DiscoveryInput): Promise<AnnotatedLead[]> {
   const { category, region, maxResults, excludeTypes = [] } = input;
   const safeCategory = sanitizePromptInput(category);
   const safeRegion = sanitizePromptInput(region);
+
+  // ── I5: Short-circuit on cache hit ────────────────────────────────────────
+  const cacheKey = `${safeCategory}|${safeRegion}|${[...excludeTypes].sort().join(",")}|${maxResults}`;
+  const cached = discoveryCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    logger.info({ cacheKey, count: cached.leads.length }, "discovery-engine: DISCOVERY_CACHE_HIT");
+    return cached.leads;
+  }
+
   const client = getAnthropicClient();
 
   // Build the exclusion clause — one numbered rule per excluded type.
@@ -243,7 +267,85 @@ Generate up to ${maxResults} Colombian agricultural supplier leads for the categ
   // ── T3: 1-level link expansion (transparent to caller) ────────────────────
   const expandedLeads = await expandLeadsWithLinks(leads);
 
-  return expandedLeads;
+  // ── I2: Annotate with dedup status against existing supplier records ───────
+  const annotatedLeads = await annotateWithExistingStatus(expandedLeads);
+
+  // ── I5: Store result for concurrent / repeat requests ─────────────────────
+  discoveryCache.set(cacheKey, { leads: annotatedLeads, ts: Date.now() });
+
+  return annotatedLeads;
+}
+
+// ── I2: Dedup annotation against existing supplier records ────────────────────
+// Matches each lead's website domain against suppliersTable.sourceUrl using a
+// single batch LIKE query — no N+1. Leads without a website are always "new".
+async function annotateWithExistingStatus(leads: CandidateLead[]): Promise<AnnotatedLead[]> {
+  const leadsWithSite = leads.filter(
+    (l): l is CandidateLead & { website: string } => l.website != null,
+  );
+
+  if (leadsWithSite.length === 0) {
+    return leads.map((l) => ({ ...l, existingStatus: "new" as ExistingStatus }));
+  }
+
+  // One LIKE condition per lead website hostname
+  const conditions = leadsWithSite.flatMap((l) => {
+    try {
+      const { hostname } = new URL(l.website);
+      return [like(suppliersTable.sourceUrl, `%${hostname}%`)];
+    } catch {
+      return [];
+    }
+  });
+
+  // hostname → { sellableStatus, status } for matched rows
+  const matchMap = new Map<string, { sellableStatus: string | null; status: string }>();
+
+  if (conditions.length > 0) {
+    const rows = await db
+      .select({
+        sourceUrl: suppliersTable.sourceUrl,
+        sellableStatus: suppliersTable.sellableStatus,
+        status: suppliersTable.status,
+      })
+      .from(suppliersTable)
+      .where(or(...conditions));
+
+    for (const row of rows) {
+      if (!row.sourceUrl) continue;
+      try {
+        const { hostname } = new URL(row.sourceUrl);
+        matchMap.set(hostname, { sellableStatus: row.sellableStatus, status: row.status });
+      } catch {
+        // malformed sourceUrl — skip
+      }
+    }
+  }
+
+  return leads.map((lead): AnnotatedLead => {
+    let existingStatus: ExistingStatus = "new";
+    if (lead.website) {
+      try {
+        const { hostname } = new URL(lead.website);
+        const match = matchMap.get(hostname);
+        if (match) {
+          if (match.status === "INACTIVE") {
+            existingStatus = "rejected";
+          } else if (
+            match.sellableStatus != null &&
+            ["ELIGIBLE", "SELLABLE", "PUBLISHED"].includes(match.sellableStatus)
+          ) {
+            existingStatus = "already_onboarded";
+          } else {
+            existingStatus = "in_evaluation";
+          }
+        }
+      } catch {
+        // malformed lead website URL — treat as new
+      }
+    }
+    return { ...lead, existingStatus };
+  });
 }
 
 // ── T3: Link expansion ────────────────────────────────────────────────────────
@@ -587,32 +689,83 @@ function extractPageInfo(html: string): PageInfo {
   return { title, description, headings };
 }
 
-// Agricultural keyword taxonomy for category refinement
+// Agricultural keyword taxonomy for category refinement.
+// Each key is a keyword to match (case-insensitive); the value is the canonical category label.
+// Ordered from most-specific to least-specific so score-based selection handles ties predictably.
+// Extended with ProColombia Colombian export categories (I6).
 const AGRO_KEYWORDS: Record<string, string> = {
+  // ── Coffee ────────────────────────────────────────────────────────────────
   café: "Specialty Coffee",
   coffee: "Specialty Coffee",
+  "specialty coffee": "Specialty Coffee",
+  "café especial": "Specialty Coffee",
+  // ── Cacao / Chocolate ─────────────────────────────────────────────────────
   cacao: "Cacao / Chocolate",
   cocoa: "Cacao / Chocolate",
   chocolate: "Cacao / Chocolate",
+  // ── Avocado ───────────────────────────────────────────────────────────────
   aguacate: "Avocado",
   avocado: "Avocado",
+  hass: "Avocado",
+  // ── Bananas / Plantains ───────────────────────────────────────────────────
   banano: "Bananas / Plantains",
   banana: "Bananas / Plantains",
   plátano: "Bananas / Plantains",
   plantain: "Bananas / Plantains",
+  // ── Panela / Sugarcane ────────────────────────────────────────────────────
   panela: "Panela / Sugarcane",
   caña: "Panela / Sugarcane",
+  "raw cane sugar": "Panela / Sugarcane",
+  "azúcar de caña": "Panela / Sugarcane",
+  // ── Palm Oil ──────────────────────────────────────────────────────────────
   "palm oil": "Palm Oil",
   palma: "Palm Oil",
+  "aceite de palma": "Palm Oil",
+  // ── Exotic Fruits (Colombian ProColombia categories) ──────────────────────
+  uchuva: "Exotic Fruits",
+  "cape gooseberry": "Exotic Fruits",
+  granadilla: "Exotic Fruits",
+  "passion fruit": "Exotic Fruits",
+  maracuyá: "Exotic Fruits",
+  gulupa: "Exotic Fruits",
+  "dragon fruit": "Exotic Fruits",
+  pitaya: "Exotic Fruits",
+  guanábana: "Exotic Fruits",
+  soursop: "Exotic Fruits",
+  borojó: "Exotic Fruits",
+  lulo: "Exotic Fruits",
+  tomate: "Exotic Fruits",
+  "tree tomato": "Exotic Fruits",
+  "feijoa": "Exotic Fruits",
+  // ── Superfoods ────────────────────────────────────────────────────────────
+  maca: "Superfoods",
+  moringa: "Superfoods",
+  spirulina: "Superfoods",
+  quinoa: "Superfoods",
+  // ── Hearts of Palm ────────────────────────────────────────────────────────
+  "palmito": "Hearts of Palm",
+  "hearts of palm": "Hearts of Palm",
+  "palm heart": "Hearts of Palm",
+  // ── Fruits & Berries (general) ────────────────────────────────────────────
   mora: "Fruits & Berries",
   fresa: "Fruits & Berries",
   berry: "Fruits & Berries",
+  blueberry: "Fruits & Berries",
+  arándano: "Fruits & Berries",
+  // ── Flowers ───────────────────────────────────────────────────────────────
   flores: "Flowers",
   flower: "Flowers",
   rose: "Flowers",
   carnation: "Flowers",
+  clavel: "Flowers",
+  // ── Rice ──────────────────────────────────────────────────────────────────
   arroz: "Rice",
   rice: "Rice",
+  // ── Herbs & Spices ────────────────────────────────────────────────────────
+  hierbas: "Herbs & Spices",
+  herbs: "Herbs & Spices",
+  spices: "Herbs & Spices",
+  especias: "Herbs & Spices",
 };
 
 function refineCategory(existing: string, info: PageInfo): string {
@@ -624,14 +777,26 @@ function refineCategory(existing: string, info: PageInfo): string {
     .join(" ")
     .toLowerCase();
 
-  for (const [keyword, refined] of Object.entries(AGRO_KEYWORDS)) {
+  // Score-based selection: count how many keywords for each category label
+  // match the corpus, then pick the label with the highest score.
+  // This avoids the first-keyword-wins ordering dependency (I6).
+  const scores = new Map<string, number>();
+  for (const [keyword, label] of Object.entries(AGRO_KEYWORDS)) {
     if (corpus.includes(keyword)) {
-      // Only replace if the refined value is more specific than existing
-      if (refined.toLowerCase() !== existing.toLowerCase()) {
-        return refined;
-      }
+      scores.set(label, (scores.get(label) ?? 0) + 1);
     }
   }
 
-  return existing;
+  if (scores.size === 0) return existing;
+
+  let bestLabel = existing;
+  let bestScore = 0;
+  for (const [label, score] of scores) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestLabel = label;
+    }
+  }
+
+  return bestLabel;
 }
