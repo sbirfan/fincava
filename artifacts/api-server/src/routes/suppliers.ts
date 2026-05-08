@@ -13,6 +13,7 @@ import {
   productsTable,
   originStoriesTable,
   usersTable,
+  supplierRequirementStatusTable,
 } from "@workspace/db";
 import { requireAuth, verifyToken } from "../lib/auth";
 import {
@@ -1364,6 +1365,7 @@ router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
 
   const [supplier] = await db
     .select({
+      id:                suppliersTable.id,
       sellableStatus:    suppliersTable.sellableStatus,
       graduationPathway: suppliersTable.graduationPathway,
       lastEvaluatedAt:   suppliersTable.lastEvaluatedAt,
@@ -1379,6 +1381,20 @@ router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
     });
     return;
   }
+
+  const requirements = await db
+    .select({
+      requirementCode: supplierRequirementStatusTable.requirementCode,
+      agency:          supplierRequirementStatusTable.agency,
+      state:           supplierRequirementStatusTable.state,
+      selectedMode:    supplierRequirementStatusTable.selectedMode,
+      visibleNote:     supplierRequirementStatusTable.visibleNote,
+      verifiedAt:      supplierRequirementStatusTable.verifiedAt,
+      expiresAt:       supplierRequirementStatusTable.expiresAt,
+      updatedAt:       supplierRequirementStatusTable.updatedAt,
+    })
+    .from(supplierRequirementStatusTable)
+    .where(eq(supplierRequirementStatusTable.supplierId, supplier.id));
 
   function deriveNextAction(status: string | null): string {
     switch (status) {
@@ -1398,6 +1414,16 @@ router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
     lastEvaluatedAt:   supplier.lastEvaluatedAt?.toISOString() ?? null,
     isGraduated:       supplier.sellableStatus != null && supplier.sellableStatus !== "NOT_READY",
     nextAction:        deriveNextAction(supplier.sellableStatus),
+    requirements:      requirements.map((r) => ({
+      requirementCode: r.requirementCode,
+      agency:          r.agency,
+      state:           r.state,
+      selectedMode:    r.selectedMode ?? null,
+      visibleNote:     r.visibleNote ?? null,
+      verifiedAt:      r.verifiedAt?.toISOString() ?? null,
+      expiresAt:       r.expiresAt?.toISOString() ?? null,
+      updatedAt:       r.updatedAt.toISOString(),
+    })),
   });
 });
 

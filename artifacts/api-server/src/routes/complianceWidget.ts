@@ -108,6 +108,9 @@ router.get(
         state: supplierRequirementStatusTable.state,
         selectedMode: supplierRequirementStatusTable.selectedMode,
         visibleNote: supplierRequirementStatusTable.visibleNote,
+        verifiedAt: supplierRequirementStatusTable.verifiedAt,
+        expiresAt: supplierRequirementStatusTable.expiresAt,
+        updatedAt: supplierRequirementStatusTable.updatedAt,
       })
       .from(supplierRequirementStatusTable)
       .where(eq(supplierRequirementStatusTable.supplierId, supplier.id));
