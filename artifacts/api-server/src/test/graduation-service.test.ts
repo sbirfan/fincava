@@ -85,6 +85,8 @@ const makeReqRow = (
   confidenceScore: null,
   visibleNote: null,
   internalNote: null,
+  verifiedAt: null,
+  expiresAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 });
@@ -241,8 +243,9 @@ describe("STATE_ORDER", () => {
     expect(STATE_ORDER["SELLABLE"]).toBeLessThan(STATE_ORDER["PUBLISHED"]);
   });
 
-  it("has 4 states", () => {
-    expect(Object.keys(STATE_ORDER)).toHaveLength(4);
+  it("has 5 states (includes INACTIVE suspension state)", () => {
+    expect(Object.keys(STATE_ORDER)).toHaveLength(5);
+    expect(STATE_ORDER["INACTIVE"]).toBe(-1);
   });
 
   it("uses monotonically increasing integers", () => {

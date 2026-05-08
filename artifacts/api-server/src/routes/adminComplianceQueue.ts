@@ -17,7 +17,7 @@ import { adminOnly } from "../middleware/admin";
 import { sendError } from "../lib/response";
 import { parsePagination } from "../schemas";
 import { logger } from "../lib/logger";
-import { and, eq, desc, asc, count, inArray, sql } from "drizzle-orm";
+import { and, eq, desc, asc, count, inArray, isNotNull, lte, notInArray, sql } from "drizzle-orm";
 
 type AuthedRequest = Request & { userId: number };
 const requesterIdOf = (req: Request): number => (req as AuthedRequest).userId;
@@ -233,6 +233,100 @@ router.post(
     );
 
     res.json({ ok: true, requirementId, decision, newState: targetState });
+  },
+);
+
+// ── GET /api/admin/compliance/expiring ────────────────────────────────────────
+// Returns requirement rows where expiresAt is set and falls within ?days (default 30).
+// Excludes already-rejected requirements. Ordered by soonest expiry first.
+router.get(
+  "/admin/compliance/expiring",
+  ...adminOnly,
+  async (req: Request, res: Response): Promise<void> => {
+    const daysRaw = parseInt(String(req.query.days ?? "30"), 10);
+    const days = isNaN(daysRaw) || daysRaw < 1 ? 30 : Math.min(daysRaw, 365);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
+
+    const expiring = await db
+      .select({
+        id: supplierRequirementStatusTable.id,
+        supplierId: supplierRequirementStatusTable.supplierId,
+        nombreCompleto: suppliersTable.nombreCompleto,
+        requirementCode: supplierRequirementStatusTable.requirementCode,
+        agency: supplierRequirementStatusTable.agency,
+        state: supplierRequirementStatusTable.state,
+        verifiedAt: supplierRequirementStatusTable.verifiedAt,
+        expiresAt: supplierRequirementStatusTable.expiresAt,
+      })
+      .from(supplierRequirementStatusTable)
+      .innerJoin(suppliersTable, eq(suppliersTable.id, supplierRequirementStatusTable.supplierId))
+      .where(
+        and(
+          isNotNull(supplierRequirementStatusTable.expiresAt),
+          lte(supplierRequirementStatusTable.expiresAt, cutoff),
+          notInArray(supplierRequirementStatusTable.state, ["rejected"]),
+        ),
+      )
+      .orderBy(asc(supplierRequirementStatusTable.expiresAt));
+
+    res.json({ cutoffDays: days, cutoffDate: cutoff.toISOString(), count: expiring.length, expiring });
+  },
+);
+
+// ── GET /api/admin/compliance/report ──────────────────────────────────────────
+// Aggregate compliance report: suppliers by status, requirements by state, suppliers by pathway.
+// All queries are read-only and run concurrently.
+router.get(
+  "/admin/compliance/report",
+  ...adminOnly,
+  async (_req: Request, res: Response): Promise<void> => {
+    const [suppliersByStatus, requirementsByState, suppliersByPathway] = await Promise.all([
+      db
+        .select({
+          sellableStatus: suppliersTable.sellableStatus,
+          count: count(),
+        })
+        .from(suppliersTable)
+        .groupBy(suppliersTable.sellableStatus)
+        .orderBy(suppliersTable.sellableStatus),
+
+      db
+        .select({
+          requirementCode: supplierRequirementStatusTable.requirementCode,
+          agency: supplierRequirementStatusTable.agency,
+          state: supplierRequirementStatusTable.state,
+          count: count(),
+        })
+        .from(supplierRequirementStatusTable)
+        .groupBy(
+          supplierRequirementStatusTable.requirementCode,
+          supplierRequirementStatusTable.agency,
+          supplierRequirementStatusTable.state,
+        )
+        .orderBy(
+          asc(supplierRequirementStatusTable.requirementCode),
+          asc(supplierRequirementStatusTable.state),
+        ),
+
+      db
+        .select({
+          graduationPathway: suppliersTable.graduationPathway,
+          count: count(),
+        })
+        .from(suppliersTable)
+        .where(isNotNull(suppliersTable.graduationPathway))
+        .groupBy(suppliersTable.graduationPathway)
+        .orderBy(suppliersTable.graduationPathway),
+    ]);
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      suppliersByStatus,
+      requirementsByState,
+      suppliersByPathway,
+    });
   },
 );
 

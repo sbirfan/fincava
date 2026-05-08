@@ -232,16 +232,43 @@ export function supplierGraduationEmail(opts: {
   }
 
   const subject = "¡Felicidades! Su perfil de Fincava está listo para compradores";
+
+  const pathwayBody =
+    opts.pathway === "B"
+      ? "Hemos evaluado su información y su perfil ha alcanzado el nivel <strong>SELLABLE</strong>. Ha sido asignado al <strong>Plan de Preparación de 30 días</strong> — nuestro equipo le contactará para coordinar los pasos pendientes de documentación y exportación."
+      : opts.pathway === "C"
+        ? "Hemos evaluado su información y su perfil ha alcanzado el nivel <strong>SELLABLE</strong> con un plan de desarrollo extendido. Ha sido asignado al <strong>Plan de 90 días</strong> con apoyo de nuestro equipo de desarrollo de negocios (BD). Le contactaremos próximamente."
+        : "Hemos evaluado su información y su perfil ha alcanzado el nivel <strong>SELLABLE</strong> — ya está listo para ser conectado con compradores internacionales a través de Fincava.";
+
   const html = baseTemplate(`
     <p>Estimado/a ${esc(opts.name)},</p>
     <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">¡Su perfil ha sido aprobado para el marketplace! ✓</h2>
-    <p>Hemos evaluado su información y su perfil ha alcanzado el nivel <strong>SELLABLE</strong> — ya está listo para ser conectado con compradores internacionales a través de Fincava.</p>
-    <p><strong>Municipio:</strong> ${esc(opts.municipio)}${opts.pathway ? `<br /><strong>Camino de exportación:</strong> ${esc(opts.pathway)}` : ""}</p>
+    <p>${pathwayBody}</p>
+    <p><strong>Municipio:</strong> ${esc(opts.municipio)}${opts.pathway ? `<br /><strong>Camino de exportación:</strong> Camino ${esc(opts.pathway)}` : ""}</p>
     <p>En los próximos días nuestro equipo revisará su perfil para publicarlo oficialmente en el marketplace. Le notificaremos en cuanto esté en línea.</p>
     <p><a href="${opts.appUrl}/supplier-dashboard" class="btn">Ver mi perfil</a></p>
     <p class="note">Si tiene alguna pregunta, contáctenos en <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
   `);
   const text = `Estimado/a ${opts.name},\n\nSu perfil ha sido aprobado para el marketplace de Fincava (SELLABLE). Nuestro equipo lo publicará pronto.\n\nVer mi perfil: ${opts.appUrl}/supplier-dashboard\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+export function supplierSuspensionEmail(opts: {
+  name: string;
+  justification?: string | null;
+  appUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = "Su cuenta de Fincava ha sido suspendida temporalmente";
+  const html = baseTemplate(`
+    <p>Estimado/a ${esc(opts.name)},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#92400e;">Cuenta suspendida temporalmente</h2>
+    <p>Su cuenta de proveedor en Fincava ha sido <strong>suspendida temporalmente</strong>. Esto puede deberse a una revisión de cumplimiento o a un asunto que requiere atención.</p>
+    ${opts.justification ? `<div style="background:#fffbeb;border-left:4px solid #d97706;padding:14px 18px;margin:0 0 20px;border-radius:0 6px 6px 0;font-size:14px;color:#92400e;"><p style="margin:0;font-weight:600;">Motivo:</p><p style="margin:4px 0 0;">${esc(opts.justification)}</p></div>` : ""}
+    <p>Para comprender el motivo de la suspensión o para apelar esta decisión, por favor contacte a nuestro equipo lo antes posible.</p>
+    <p><a href="mailto:info@fincava.com" class="btn">Contactar soporte</a></p>
+    <p class="note">Si cree que esto es un error, escríbanos a <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+  `);
+  const text = `Estimado/a ${opts.name},\n\nSu cuenta de proveedor en Fincava ha sido suspendida temporalmente.${opts.justification ? `\n\nMotivo: ${opts.justification}` : ""}\n\nPara resolver esta situación, contacte a nuestro equipo: info@fincava.com\n\n— Equipo Fincava`;
   return { html, text, subject };
 }
 

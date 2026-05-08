@@ -79,6 +79,7 @@ export const sellableStatusEnum = pgEnum("sellable_status", [
   "ELIGIBLE",
   "SELLABLE",
   "PUBLISHED",
+  "INACTIVE",
 ]);
 
 export const graduationPathwayEnum = pgEnum("graduation_pathway", [

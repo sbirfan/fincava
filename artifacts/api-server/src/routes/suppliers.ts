@@ -20,6 +20,7 @@ import {
   getAdminEmails,
   supplierApplicationConfirmationEmail,
   supplierApplicationAdminAlertEmail,
+  supplierSuspensionEmail,
 } from "../lib/email";
 import { requireAdmin } from "../middleware/admin";
 import { computePublicTrustScore } from "../services/confidence-scorer";
@@ -1385,6 +1386,7 @@ router.get("/supplier/status", requireAuth, async (req, res): Promise<void> => {
       case "ELIGIBLE":   return "Farm data verified — awaiting commercial scoring to become SELLABLE.";
       case "SELLABLE":   return "Commercially scored and ready — contact support to publish to the marketplace.";
       case "PUBLISHED":  return "Your profile is export ready and live on the marketplace.";
+      case "INACTIVE":   return "Your account has been temporarily suspended. Contact support at info@fincava.com to resolve.";
       default:           return "Complete your farm profile to begin the graduation process.";
     }
   }
@@ -1514,7 +1516,7 @@ router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promis
 });
 
 // ── POST /api/admin/suppliers/:id/transition ─────────────────────────────────
-const VALID_SELLABLE_STATES = ["NOT_READY", "ELIGIBLE", "SELLABLE", "PUBLISHED"] as const;
+const VALID_SELLABLE_STATES = ["NOT_READY", "ELIGIBLE", "SELLABLE", "PUBLISHED", "INACTIVE"] as const;
 const VALID_ADMIN_ACTORS    = ["ADMIN", "FOUNDER"] as const;
 
 router.post(
@@ -1695,6 +1697,96 @@ router.post(
       }
       logger.error({ err, supplierId }, "admin unpublish failed");
       sendError(res, 500, "Unpublish failed");
+    }
+  },
+);
+
+// ── POST /api/admin/suppliers/:id/suspend ────────────────────────────────────
+// Transitions a supplier to INACTIVE (suspended).
+// Only ADMIN or FOUNDER can suspend. Suspension is reversible via the existing
+// POST /admin/suppliers/:id/transition endpoint (restore to ELIGIBLE or SELLABLE).
+router.post(
+  "/admin/suppliers/:id/suspend",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = Number(req.params.id);
+    if (isNaN(supplierId)) {
+      sendError(res, 400, "Invalid supplier id");
+      return;
+    }
+
+    const { actor, justification } = req.body as Record<string, string>;
+
+    if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
+      sendError(res, 400, "actor must be ADMIN or FOUNDER");
+      return;
+    }
+
+    if (!justification || justification.trim() === "") {
+      sendError(res, 400, "justification is required for suspension");
+      return;
+    }
+
+    const [supplier] = await db
+      .select({ id: suppliersTable.id, sellableStatus: suppliersTable.sellableStatus })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, supplierId))
+      .limit(1);
+
+    if (!supplier) {
+      sendError(res, 404, "Supplier not found");
+      return;
+    }
+
+    if (supplier.sellableStatus === "INACTIVE") {
+      sendError(res, 409, "Supplier is already suspended (INACTIVE)");
+      return;
+    }
+
+    try {
+      const result = await transitionTo(
+        supplierId,
+        "INACTIVE",
+        actor as "ADMIN" | "FOUNDER",
+        { justification },
+      );
+
+      setImmediate(async () => {
+        try {
+          const [s] = await db
+            .select({ email: suppliersTable.email, nombreCompleto: suppliersTable.nombreCompleto })
+            .from(suppliersTable)
+            .where(eq(suppliersTable.id, supplierId))
+            .limit(1);
+
+          if (!s?.email) return;
+
+          const appUrl = process.env["APP_URL"] ?? "https://fincava.com";
+          const tpl = supplierSuspensionEmail({
+            name: s.nombreCompleto ?? "Proveedor",
+            justification,
+            appUrl,
+          });
+          await sendEmail({ to: s.email, subject: tpl.subject, html: tpl.html, text: tpl.text });
+          logger.info({ supplierId }, "suspension: email sent");
+        } catch (err) {
+          logger.warn({ err, supplierId }, "suspension: email failed (non-fatal)");
+        }
+      });
+
+      res.json({ transition: result.transition });
+    } catch (err: any) {
+      if (err instanceof NotFoundError) {
+        sendError(res, 404, err.message);
+        return;
+      }
+      if (err instanceof TypeError) {
+        sendError(res, 400, err.message);
+        return;
+      }
+      logger.error({ err, supplierId }, "admin suspend failed");
+      sendError(res, 500, "Suspension failed");
     }
   },
 );

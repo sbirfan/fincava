@@ -59,12 +59,13 @@ type EvaluationRow = typeof supplierEvaluationsTable.$inferSelect;
 type TransitionRow = typeof supplierStateTransitionsTable.$inferSelect;
 type RequirementRow = typeof supplierRequirementStatusTable.$inferSelect;
 
-type SellableState = "NOT_READY" | "ELIGIBLE" | "SELLABLE" | "PUBLISHED";
+type SellableState = "NOT_READY" | "ELIGIBLE" | "SELLABLE" | "PUBLISHED" | "INACTIVE";
 
 const VALID_PATHWAYS = ["A", "B", "C", "D"] as const;
 type ValidPathway = (typeof VALID_PATHWAYS)[number];
 
 export const STATE_ORDER: Record<SellableState, number> = {
+  INACTIVE: -1,
   NOT_READY: 0,
   ELIGIBLE: 1,
   SELLABLE: 2,
@@ -332,6 +333,14 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       .where(eq(suppliersTable.id, supplierId));
     if (!supplier) {
       throw new NotFoundError(`Supplier ${supplierId} not found`);
+    }
+
+    // Guard: suspended suppliers must be restored before re-evaluation.
+    // Admin uses POST /admin/suppliers/:id/transition to restore → ELIGIBLE or SELLABLE.
+    if (supplier.sellableStatus === "INACTIVE") {
+      throw new NotFoundError(
+        `Supplier ${supplierId} is suspended (INACTIVE) — restore via admin transition before re-evaluating`,
+      );
     }
 
     // 2. Fetch latest ONBOARD_SCORE ai_output.

@@ -39,6 +39,8 @@ export const supplierRequirementStatusTable = pgTable(
     confidenceScore: integer("confidence_score"),
     visibleNote: text("visible_note"),
     internalNote: text("internal_note"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
