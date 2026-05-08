@@ -25,6 +25,7 @@ import {
 import {
   generateComplianceDocument,
   getLatestComplianceDocument,
+  generateInvestorSummary,
 } from "../services/document-generator";
 
 type AuthedRequest = Request & { userId: number };
@@ -139,6 +140,11 @@ router.post(
 
 // ── POST /admin/suppliers/:id/compliance-document ─────────────────────────────
 // Item 5: Generate and store a compliance document via Claude Sonnet.
+// Layer D: supports ?mode=investor for an English investor-grade summary.
+
+const ComplianceDocumentBody = z.object({
+  mode: z.enum(["standard", "investor"]).optional().default("standard"),
+});
 
 router.post(
   "/admin/suppliers/:id/compliance-document",
@@ -150,25 +156,43 @@ router.post(
       return;
     }
 
+    const bodyParsed = ComplianceDocumentBody.safeParse(req.body);
+    const mode = bodyParsed.success ? bodyParsed.data.mode : "standard";
+
     try {
-      const doc = await generateComplianceDocument(supplierId);
-      res.json({
-        id: doc.id,
-        supplierId: doc.supplierId,
-        documentContent: doc.documentContent,
-        gapSummary: {
-          totalGaps: doc.gapSummary.totalGaps,
-          criticalGaps: doc.gapSummary.criticalGaps,
-          highGaps: doc.gapSummary.highGaps,
-          mediumGaps: doc.gapSummary.mediumGaps,
-          overallTimeline: doc.gapSummary.overallTimeline,
-          estimatedTotalCostCOP: doc.gapSummary.estimatedTotalCostCOP,
-        },
-        generatedAt: doc.generatedAt,
-        aiModel: doc.aiModel,
-      });
+      if (mode === "investor") {
+        // Layer D: investor-grade English summary
+        const doc = await generateInvestorSummary(supplierId);
+        res.json({
+          id: doc.id,
+          supplierId: doc.supplierId,
+          mode: "investor",
+          documentContent: doc.documentContent,
+          generatedAt: doc.generatedAt,
+          aiModel: doc.aiModel,
+        });
+      } else {
+        // Standard Spanish gap document (existing behaviour)
+        const doc = await generateComplianceDocument(supplierId);
+        res.json({
+          id: doc.id,
+          supplierId: doc.supplierId,
+          mode: "standard",
+          documentContent: doc.documentContent,
+          gapSummary: {
+            totalGaps: doc.gapSummary.totalGaps,
+            criticalGaps: doc.gapSummary.criticalGaps,
+            highGaps: doc.gapSummary.highGaps,
+            mediumGaps: doc.gapSummary.mediumGaps,
+            overallTimeline: doc.gapSummary.overallTimeline,
+            estimatedTotalCostCOP: doc.gapSummary.estimatedTotalCostCOP,
+          },
+          generatedAt: doc.generatedAt,
+          aiModel: doc.aiModel,
+        });
+      }
     } catch (err) {
-      logger.error({ supplierId, err }, "compliance-evaluator: document generation failed");
+      logger.error({ supplierId, mode, err }, "compliance-evaluator: document generation failed");
       sendError(res, 500, "Document generation failed");
     }
   },

@@ -95,6 +95,9 @@ export const complianceDocumentsV2Table = pgTable("compliance_documents_v2", {
   uploadedBy: text("uploaded_by").notNull().default("officer"),
   reviewStatus: text("review_status").notNull().default("pending"),
   // pending | accepted | needs_fix | rejected
+  // ── Layer A: Document pre-screening results ────────────────────────────────
+  prescreeningResult: jsonb("prescreening_result"),
+  prescreenedAt: timestamp("prescreened_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

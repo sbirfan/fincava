@@ -7,11 +7,12 @@
 //   POST /admin/suppliers/:id/compliance-document  → generateComplianceDocument()
 //   GET  /admin/suppliers/:id/compliance-document  → getLatestComplianceDocument()
 
-import { db, aiOutputsTable, suppliersTable } from "@workspace/db";
+import { db, aiOutputsTable, suppliersTable, supplierRequirementStatusTable, adminComplianceReviewsTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { getAnthropicClient, DOCUMENT_MODEL } from "../lib/anthropic";
 import { analyzeGaps, type GapAnalysisResult } from "./gap-analysis-service";
 import { logger } from "../lib/logger";
+import { INVESTOR_SUMMARY_PROMPT } from "../config/ai-prompts/investor-summary-prompt";
 
 export type GeneratedDocument = {
   id: number;
@@ -120,6 +121,138 @@ export async function getLatestComplianceDocument(
     documentContent: row.documentContent,
     generatedAt: row.createdAt,
     aiModel: row.aiModel ?? DOCUMENT_MODEL,
+  };
+}
+
+// ── generateInvestorSummary — Layer D ─────────────────────────────────────────
+
+export type GeneratedInvestorSummary = {
+  id: number;
+  supplierId: number;
+  documentContent: string;
+  generatedAt: Date;
+  aiModel: string;
+};
+
+export async function generateInvestorSummary(
+  supplierId: number,
+): Promise<GeneratedInvestorSummary> {
+  const [supplier] = await db
+    .select()
+    .from(suppliersTable)
+    .where(eq(suppliersTable.id, supplierId))
+    .limit(1);
+
+  if (!supplier) {
+    throw new Error(`Supplier ${supplierId} not found`);
+  }
+
+  // All requirement rows
+  const requirements = await db
+    .select()
+    .from(supplierRequirementStatusTable)
+    .where(eq(supplierRequirementStatusTable.supplierId, supplierId));
+
+  // Last review per requirement (most recent first)
+  const reviews = await db
+    .select()
+    .from(adminComplianceReviewsTable)
+    .where(eq(adminComplianceReviewsTable.supplierId, supplierId))
+    .orderBy(desc(adminComplianceReviewsTable.reviewedAt));
+
+  // Latest ONBOARD_SCORE for scoring context
+  const [latestScore] = await db
+    .select()
+    .from(aiOutputsTable)
+    .where(
+      and(
+        eq(aiOutputsTable.supplierId, supplierId),
+        eq(aiOutputsTable.callType, "ONBOARD_SCORE"),
+      ),
+    )
+    .orderBy(desc(aiOutputsTable.createdAt))
+    .limit(1);
+
+  const context = {
+    supplier: {
+      id: supplier.id,
+      nombreCompleto: supplier.nombreCompleto,
+      municipio: supplier.municipio,
+      department: supplier.department,
+      supplierType: supplier.supplierType,
+      eligibilityStatus: supplier.eligibilityStatus,
+      sellableStatus: supplier.sellableStatus,
+      graduationPathway: supplier.graduationPathway,
+      commercialScore: supplier.commercialScore,
+      lastEvaluatedAt: supplier.lastEvaluatedAt?.toISOString() ?? null,
+      country: supplier.country,
+    },
+    requirements: requirements.map((r) => ({
+      requirementCode: r.requirementCode,
+      agency: r.agency,
+      state: r.state,
+      verifiedAt: r.verifiedAt?.toISOString() ?? null,
+      expiresAt: r.expiresAt?.toISOString() ?? null,
+      updatedAt: r.updatedAt.toISOString(),
+    })),
+    recentReviews: reviews.slice(0, 20).map((rv) => ({
+      requirementCode: rv.requirementCode,
+      decision: rv.decision,
+      reasonCode: rv.reasonCode,
+      visibleNote: rv.visibleNote,
+      reviewedAt: rv.reviewedAt.toISOString(),
+    })),
+    aiScoring: latestScore
+      ? {
+          exportReadinessScore: latestScore.exportReadinessScore,
+          pathway: latestScore.pathway,
+          complianceGaps: latestScore.complianceGaps,
+          scoredAt: latestScore.createdAt.toISOString(),
+          aiModel: latestScore.aiModel,
+        }
+      : null,
+    generatedAt: new Date().toISOString(),
+    aiModel: DOCUMENT_MODEL,
+  };
+
+  logger.info(
+    { supplierId, requirementsCount: requirements.length },
+    "document-generator: calling Claude Sonnet for investor summary (Layer D)",
+  );
+
+  const client = getAnthropicClient();
+  const start = Date.now();
+  const message = await client.messages.create({
+    model: DOCUMENT_MODEL,
+    max_tokens: 3000,
+    system: INVESTOR_SUMMARY_PROMPT,
+    messages: [{ role: "user", content: JSON.stringify(context) }],
+  });
+  const duration = Date.now() - start;
+
+  const documentContent = (message.content[0] as { type: string; text: string }).text ?? "";
+  if (!documentContent || documentContent.trim().length < 100) {
+    throw new Error("document-generator: Claude returned an empty investor summary");
+  }
+
+  logger.info({ supplierId, duration }, "document-generator: investor summary Claude latency (Layer D)");
+
+  const [row] = await db
+    .insert(aiOutputsTable)
+    .values({
+      supplierId,
+      aiModel: DOCUMENT_MODEL,
+      callType: "INVESTOR_SUMMARY",
+      documentContent,
+    })
+    .returning();
+
+  return {
+    id: row.id,
+    supplierId,
+    documentContent,
+    generatedAt: row.createdAt,
+    aiModel: DOCUMENT_MODEL,
   };
 }
 

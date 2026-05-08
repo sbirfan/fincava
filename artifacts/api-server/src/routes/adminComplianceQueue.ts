@@ -6,7 +6,7 @@
 
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { db } from "@workspace/db";
+import { db, aiOutputsTable } from "@workspace/db";
 import {
   suppliersTable,
   supplierRequirementStatusTable,
@@ -17,7 +17,9 @@ import { adminOnly } from "../middleware/admin";
 import { sendError } from "../lib/response";
 import { parsePagination } from "../schemas";
 import { logger } from "../lib/logger";
-import { and, eq, desc, asc, count, inArray, isNotNull, lte, notInArray, sql } from "drizzle-orm";
+import { and, eq, desc, asc, count, inArray, isNotNull, lte, notInArray, sql, gt } from "drizzle-orm";
+import { evaluateRiskPatterns, type RequirementSnapshot, type SupplierContext } from "../services/risk-pattern-service";
+import { scoreSupplier } from "../services/scoring-service";
 
 type AuthedRequest = Request & { userId: number };
 const requesterIdOf = (req: Request): number => (req as AuthedRequest).userId;
@@ -59,6 +61,7 @@ const ALLOWED_TRANSITIONS: Record<string, Set<string>> = {
 // ── GET /api/admin/compliance-queue ──────────────────────────────────────────
 // Returns suppliers ranked by pending compliance requirements (most gaps first).
 // Suppliers with no requirement rows are excluded — they have not been scored.
+// Layer C: each item is enriched with riskFlags from the risk-pattern-service.
 router.get(
   "/admin/compliance-queue",
   ...adminOnly,
@@ -74,6 +77,8 @@ router.get(
         department: suppliersTable.department,
         sellableStatus: suppliersTable.sellableStatus,
         supplierType: suppliersTable.supplierType,
+        commercialScore: suppliersTable.commercialScore,
+        eligibilityStatus: suppliersTable.eligibilityStatus,
         totalRequirements: count(supplierRequirementStatusTable.id),
         pendingCount: sql<number>`
           COUNT(*) FILTER (WHERE ${supplierRequirementStatusTable.state} IN (
@@ -94,6 +99,8 @@ router.get(
         suppliersTable.department,
         suppliersTable.sellableStatus,
         suppliersTable.supplierType,
+        suppliersTable.commercialScore,
+        suppliersTable.eligibilityStatus,
       )
       .orderBy(
         desc(sql`COUNT(*) FILTER (WHERE ${supplierRequirementStatusTable.state} IN (
@@ -105,7 +112,43 @@ router.get(
       .limit(limit)
       .offset(offset);
 
-    res.json({ page, pageSize: limit, items: ranked });
+    // Layer C: batch-fetch all requirement rows for this page of suppliers,
+    // then evaluate risk patterns per supplier inline.
+    const supplierIds = ranked.map((r) => r.supplierId);
+    let requirementRows: { supplierId: number; requirementCode: string; state: string; agency: string; updatedAt: Date }[] = [];
+    if (supplierIds.length > 0) {
+      requirementRows = await db
+        .select({
+          supplierId: supplierRequirementStatusTable.supplierId,
+          requirementCode: supplierRequirementStatusTable.requirementCode,
+          state: supplierRequirementStatusTable.state,
+          agency: supplierRequirementStatusTable.agency,
+          updatedAt: supplierRequirementStatusTable.updatedAt,
+        })
+        .from(supplierRequirementStatusTable)
+        .where(inArray(supplierRequirementStatusTable.supplierId, supplierIds));
+    }
+
+    const reqBySupplier = new Map<number, RequirementSnapshot[]>();
+    for (const row of requirementRows) {
+      const list = reqBySupplier.get(row.supplierId) ?? [];
+      list.push(row);
+      reqBySupplier.set(row.supplierId, list);
+    }
+
+    const items = ranked.map((r) => {
+      const supplierContext: SupplierContext = {
+        commercialScore: r.commercialScore ?? null,
+        eligibilityStatus: r.eligibilityStatus ?? null,
+      };
+      const riskFlags = evaluateRiskPatterns(
+        reqBySupplier.get(r.supplierId) ?? [],
+        supplierContext,
+      );
+      return { ...r, riskFlags };
+    });
+
+    res.json({ page, pageSize: limit, items });
   },
 );
 
@@ -149,7 +192,20 @@ router.get(
       .where(eq(adminComplianceReviewsTable.supplierId, supplierId))
       .orderBy(desc(adminComplianceReviewsTable.reviewedAt));
 
-    res.json({ supplier, requirements, documents, reviews });
+    // Layer C: inject riskFlags into the detail response
+    const requirementSnapshots: RequirementSnapshot[] = requirements.map((r) => ({
+      requirementCode: r.requirementCode,
+      state: r.state,
+      agency: r.agency,
+      updatedAt: r.updatedAt,
+    }));
+    const supplierContext: SupplierContext = {
+      commercialScore: supplier.commercialScore ?? null,
+      eligibilityStatus: supplier.eligibilityStatus ?? null,
+    };
+    const riskFlags = evaluateRiskPatterns(requirementSnapshots, supplierContext);
+
+    res.json({ supplier, requirements, documents, reviews, riskFlags });
   },
 );
 
@@ -252,6 +308,48 @@ router.post(
       .update(supplierRequirementStatusTable)
       .set(reqStatusUpdates)
       .where(eq(supplierRequirementStatusTable.id, requirementId));
+
+    // OD-5: Event-driven re-score when a requirement moves to 'verified'.
+    // 5-minute debounce guard prevents a scoring storm when an admin verifies
+    // multiple requirements in quick succession.
+    if (targetState === "verified") {
+      const supplierIdToRescore = requirement.supplierId;
+      setImmediate(async () => {
+        try {
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+          const [recentScore] = await db
+            .select({ id: aiOutputsTable.id })
+            .from(aiOutputsTable)
+            .where(
+              and(
+                eq(aiOutputsTable.supplierId, supplierIdToRescore),
+                eq(aiOutputsTable.callType, "ONBOARD_SCORE"),
+                gt(aiOutputsTable.createdAt, fiveMinutesAgo),
+              ),
+            )
+            .limit(1);
+
+          if (recentScore) {
+            logger.info(
+              { supplierId: supplierIdToRescore },
+              "compliance-review: skipping auto-rescore — scored within last 5 min (OD-5)",
+            );
+            return;
+          }
+
+          logger.info(
+            { supplierId: supplierIdToRescore, requirementId },
+            "compliance-review: triggering auto-rescore after verified transition (OD-5)",
+          );
+          await scoreSupplier(supplierIdToRescore);
+        } catch (rescoreErr) {
+          logger.warn(
+            { supplierId: supplierIdToRescore, err: rescoreErr },
+            "compliance-review: auto-rescore failed (non-fatal, OD-5)",
+          );
+        }
+      });
+    }
 
     logger.info(
       {

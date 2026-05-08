@@ -5,6 +5,7 @@ export const DOCUMENT_MODEL = process.env["ANTHROPIC_DOCUMENT_MODEL"] ?? "claude
 export const ENRICHMENT_MODEL = process.env["ANTHROPIC_ENRICHMENT_MODEL"] ?? "claude-sonnet-4-6";
 export const DISCOVERY_MODEL = process.env["ANTHROPIC_DISCOVERY_MODEL"] ?? "claude-haiku-4-5";
 export const TRANSLATION_MODEL = process.env["ANTHROPIC_TRANSLATION_MODEL"] ?? "claude-haiku-4-5";
+export const PRESCREENING_MODEL = process.env["ANTHROPIC_PRESCREENING_MODEL"] ?? DOCUMENT_MODEL;
 
 let _client: Anthropic | null = null;
 

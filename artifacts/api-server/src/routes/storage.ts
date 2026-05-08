@@ -10,6 +10,9 @@ import { ObjectPermission, type ObjectAclPolicy } from "../lib/objectAcl";
 import { requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendError } from "../lib/response";
+import { db, complianceDocumentsV2Table } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { prescreenDocument } from "../services/document-prescreening-service";
 
 const envSecret = process.env.UPLOAD_TOKEN_SECRET;
 if (!envSecret) {
@@ -127,6 +130,25 @@ router.post("/storage/uploads/confirm", requireAuth, async (req: Request, res: R
     };
     await objectStorageService.trySetObjectEntityAclPolicy(objectPath, aclPolicy);
     res.json({ success: true, objectPath });
+
+    // ── Layer A: Fire document pre-screening asynchronously ──────────────────
+    // Look up the compliance_documents_v2 row whose fileUrl matches the confirmed
+    // objectPath. Non-fatal: if no row is found, prescreening is simply skipped.
+    setImmediate(async () => {
+      try {
+        const [docRow] = await db
+          .select({ id: complianceDocumentsV2Table.id })
+          .from(complianceDocumentsV2Table)
+          .where(eq(complianceDocumentsV2Table.fileUrl, objectPath))
+          .limit(1);
+
+        if (docRow) {
+          await prescreenDocument(docRow.id);
+        }
+      } catch (prescreenErr) {
+        logger.warn({ err: prescreenErr, objectPath }, "storage/confirm: prescreening dispatch failed (non-fatal)");
+      }
+    });
   } catch (error) {
     if (error instanceof ObjectAlreadyClaimedError) {
       sendError(res, 409, "Object already has an owner");
