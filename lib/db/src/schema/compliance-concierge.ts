@@ -157,28 +157,37 @@ export const buyerVisibilitySignalsTable = pgTable(
 
 // ── 6. supplier_export_mode ───────────────────────────────────────────────────
 // Supplier's export mode declaration (direct / intermediary / not_sure).
-export const supplierExportModeTable = pgTable("supplier_export_mode", {
-  id: serial("id").primaryKey(),
-  supplierId: integer("supplier_id")
-    .notNull()
-    .references(() => suppliersTable.id, { onDelete: "cascade" }),
-  productCategory: text("product_category").notNull().default("coffee"),
-  mode: text("mode").notNull(),
-  // direct | intermediary | not_sure
-  confidence: text("confidence").notNull().default("self_declared"),
-  // self_declared | admin_confirmed | admin_overridden
-  verifiedBy: integer("verified_by").references(() => usersTable.id),
-  partnerName: text("partner_name"),
-  partnerRole: text("partner_role"),
-  evidenceStatus: text("evidence_status").default("none"),
-  // none | uploaded | verified
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const supplierExportModeTable = pgTable(
+  "supplier_export_mode",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplier_id")
+      .notNull()
+      .references(() => suppliersTable.id, { onDelete: "cascade" }),
+    productCategory: text("product_category").notNull().default("coffee"),
+    mode: text("mode").notNull(),
+    // direct | intermediary | not_sure
+    confidence: text("confidence").notNull().default("self_declared"),
+    // self_declared | admin_confirmed | admin_overridden
+    verifiedBy: integer("verified_by").references(() => usersTable.id),
+    partnerName: text("partner_name"),
+    partnerRole: text("partner_role"),
+    evidenceStatus: text("evidence_status").default("none"),
+    // none | uploaded | verified
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("supplier_export_mode_supplier_category_uidx").on(
+      t.supplierId,
+      t.productCategory,
+    ),
+  ],
+);
 
 // ── 7. managed_service_cases ──────────────────────────────────────────────────
 // Managed service cases — officer does compliance work for supplier.

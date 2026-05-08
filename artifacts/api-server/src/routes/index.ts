@@ -25,6 +25,7 @@ import officerComplianceRouter from "./officerCompliance";
 import complianceWidgetRouter from "./complianceWidget";
 import complianceEvaluatorRouter from "./complianceEvaluator";
 import adminManagedCasesRouter from "./adminManagedCases";
+import supplierExportModeRouter from "./supplierExportMode";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(officerComplianceRouter);
 router.use(complianceWidgetRouter);
 router.use(complianceEvaluatorRouter);
 router.use(adminManagedCasesRouter);
+router.use(supplierExportModeRouter);
 
 export default router;

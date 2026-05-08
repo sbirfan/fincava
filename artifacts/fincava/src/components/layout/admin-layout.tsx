@@ -22,6 +22,7 @@ import {
   BookOpen,
   Leaf,
   ClipboardCheck,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -34,6 +35,7 @@ const navigation = [
   { name: "Buyer Gaps", href: "/admin/buyer-gaps", icon: AlertTriangle },
   { name: "Suppliers", href: "/admin/suppliers", icon: Sprout },
   { name: "Compliance Queue", href: "/admin/compliance-queue", icon: ClipboardCheck },
+  { name: "Managed Cases", href: "/admin/managed-cases", icon: Briefcase },
   { name: "Ingestion", href: "/admin/ingestion", icon: DatabaseZap },
   { name: "Field Visits", href: "/officer/dashboard", icon: MapPin },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },

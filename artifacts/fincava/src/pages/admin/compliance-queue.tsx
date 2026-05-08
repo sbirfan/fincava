@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ClipboardCheck, ChevronRight, CheckCircle2, AlertTriangle, Clock, XCircle } from "lucide-react";
+import { ClipboardCheck, ChevronRight, CheckCircle2, AlertTriangle, Clock, XCircle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface QueueItem {
@@ -114,6 +114,8 @@ export default function AdminComplianceQueue() {
     submitting: boolean;
   } | null>(null);
 
+  const [visibilityMap, setVisibilityMap] = useState<Record<string, boolean>>({});
+
   // Fetch queue on mount and page change
   useState(() => {
     setLoading(true);
@@ -129,14 +131,40 @@ export default function AdminComplianceQueue() {
 
   const loadDetail = (supplierId: number) => {
     setDetailLoading(true);
-    fetch(`/api/admin/compliance-queue/${supplierId}`, { credentials: "include" })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load supplier detail");
-        return r.json();
+    setVisibilityMap({});
+    Promise.all([
+      fetch(`/api/admin/compliance-queue/${supplierId}`, { credentials: "include" }),
+      fetch(`/api/suppliers/${supplierId}/compliance-signals`),
+    ])
+      .then(async ([detailRes, signalsRes]) => {
+        if (!detailRes.ok) throw new Error("Failed to load supplier detail");
+        const [detail, signalsData] = await Promise.all([
+          detailRes.json(),
+          signalsRes.ok ? signalsRes.json() : { signals: [] },
+        ]);
+        setSelectedSupplier(detail);
+        const map: Record<string, boolean> = {};
+        for (const sig of signalsData.signals ?? []) {
+          map[sig.requirementCode] = true;
+        }
+        setVisibilityMap(map);
       })
-      .then((data) => setSelectedSupplier(data))
       .catch(() => toast({ title: "Error", description: "Could not load supplier detail", variant: "destructive" }))
       .finally(() => setDetailLoading(false));
+  };
+
+  const toggleVisibility = async (supplierId: number, reqCode: string) => {
+    const newVal = !(visibilityMap[reqCode] ?? false);
+    setVisibilityMap((m) => ({ ...m, [reqCode]: newVal }));
+    await fetch("/api/admin/compliance/visibility", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ supplierId, requirementCode: reqCode, visible: newVal }),
+    }).catch(() => {
+      setVisibilityMap((m) => ({ ...m, [reqCode]: !newVal }));
+      toast({ title: "Error", description: "Could not update visibility", variant: "destructive" });
+    });
   };
 
   const submitReview = async () => {
@@ -206,20 +234,36 @@ export default function AdminComplianceQueue() {
                     <p className="text-sm text-white/50 mt-2">{req.visibleNote}</p>
                   )}
                 </div>
-                <button
-                  onClick={() =>
-                    setReviewState({
-                      requirementId: req.id,
-                      decision: "verified",
-                      visibleNote: "",
-                      internalNote: "",
-                      submitting: false,
-                    })
-                  }
-                  className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors"
-                >
-                  Review
-                </button>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleVisibility(s.id as number, req.requirementCode); }}
+                    title={visibilityMap[req.requirementCode] ? "Visible to buyers — click to hide" : "Hidden from buyers — click to show"}
+                    className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors ${
+                      visibilityMap[req.requirementCode]
+                        ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                        : "bg-white/10 text-white/40 hover:bg-white/15"
+                    }`}
+                  >
+                    {visibilityMap[req.requirementCode]
+                      ? <Eye className="h-3 w-3" />
+                      : <EyeOff className="h-3 w-3" />}
+                    {visibilityMap[req.requirementCode] ? "Buyer visible" : "Hidden"}
+                  </button>
+                  <button
+                    onClick={() =>
+                      setReviewState({
+                        requirementId: req.id,
+                        decision: "verified",
+                        visibleNote: "",
+                        internalNote: "",
+                        submitting: false,
+                      })
+                    }
+                    className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors"
+                  >
+                    Review
+                  </button>
+                </div>
               </div>
 
               {/* Documents for this requirement */}

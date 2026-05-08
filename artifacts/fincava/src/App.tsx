@@ -83,6 +83,7 @@ const AdminPublicMetrics = lazy(() => import("@/pages/admin/public-metrics"));
 const AdminStories = lazy(() => import("@/pages/admin/stories"));
 const AdminOriginStories = lazy(() => import("@/pages/admin/origin-stories"));
 const AdminComplianceQueue = lazy(() => import("@/pages/admin/compliance-queue"));
+const AdminManagedCases = lazy(() => import("@/pages/admin/managed-cases"));
 const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
 const OfficerCompliance = lazy(() => import("@/pages/officer/compliance"));
 
@@ -208,6 +209,7 @@ function Router() {
         <Route path="/admin/ingestion/new" component={() => <PrivateRoute component={AdminIngestionNew} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion/discover" component={() => <PrivateRoute component={AdminIngestionDiscover} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/compliance-queue" component={() => <PrivateRoute component={AdminComplianceQueue} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/managed-cases" component={() => <PrivateRoute component={AdminManagedCases} roles={["ADMIN"]} layout={AdminLayout} />} />
 
         {/* Field officer tool — accessible to ADMINs; extend to FIELD_OFFICER role when officer accounts are added */}
         <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN"]} />} />
