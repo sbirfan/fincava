@@ -82,7 +82,9 @@ const AdminIngestionDiscover = lazy(() => import("@/pages/admin/ingestion/discov
 const AdminPublicMetrics = lazy(() => import("@/pages/admin/public-metrics"));
 const AdminStories = lazy(() => import("@/pages/admin/stories"));
 const AdminOriginStories = lazy(() => import("@/pages/admin/origin-stories"));
+const AdminComplianceQueue = lazy(() => import("@/pages/admin/compliance-queue"));
 const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
+const OfficerCompliance = lazy(() => import("@/pages/officer/compliance"));
 
 // ── MVP Early-Access Banner ────────────────────────────────────────────────────
 const BANNER_KEY = "fincava_mvp_banner_dismissed";
@@ -205,9 +207,11 @@ function Router() {
         <Route path="/admin/origin-stories" component={() => <PrivateRoute component={AdminOriginStories} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion/new" component={() => <PrivateRoute component={AdminIngestionNew} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/ingestion/discover" component={() => <PrivateRoute component={AdminIngestionDiscover} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/compliance-queue" component={() => <PrivateRoute component={AdminComplianceQueue} roles={["ADMIN"]} layout={AdminLayout} />} />
 
         {/* Field officer tool — accessible to ADMINs; extend to FIELD_OFFICER role when officer accounts are added */}
         <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN"]} />} />
+        <Route path="/officer/compliance" component={() => <PrivateRoute component={OfficerCompliance} roles={["ADMIN"]} />} />
 
         <Route component={() => <AppLayout><NotFound /></AppLayout>} />
       </Switch>

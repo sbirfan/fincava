@@ -28,6 +28,7 @@ import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ComplianceBadges } from "@/components/compliance-widget";
 
 interface MarketplaceSupplierDetail {
   id: number;
@@ -348,6 +349,9 @@ export default function SupplierDetail() {
                 </p>
               </div>
             )}
+
+            {/* CC-1E: compliance badges — hidden when none are verified */}
+            <ComplianceBadges supplierId={profile.id} className="flex-wrap" />
 
             <div className="bg-card border rounded-lg p-6 space-y-4">
               <h3 className="font-bold text-lg font-serif">Farm Details</h3>

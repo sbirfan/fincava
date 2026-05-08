@@ -1,0 +1,418 @@
+# REPLIT AGENT PROMPT: CC SERIES IMPLEMENTATION STATUS CHECK
+
+**Purpose**: Verify CC series implementation status in Replit repository  
+**Scope**: Check database schema, API routes, and frontend components  
+**Expected Output**: Detailed status report with exact file locations and findings  
+**Priority**: HIGH - Blocking decision for CC series execution  
+
+---
+
+## TASK DESCRIPTION
+
+You are a code auditor. Inspect the FinCava-Hub repository in Replit to verify whether the CC (Compliance Concierge) series has been implemented.
+
+**Report exactly what you find** - not what should exist, but what actually exists in the codebase.
+
+---
+
+## INSPECTION CHECKLIST
+
+### PART 1: DATABASE SCHEMA CHECK (CC-1B)
+
+**File Path**: `lib/db/src/schema/`
+
+Check these files and report findings:
+
+```
+□ compliance-concierge.ts exists?
+  If YES: Copy first 50 lines
+  If NO: Confirm not present
+
+□ lib/db/src/schema/index.ts exports compliance-concierge?
+  Grep for: export.*compliance
+  Report: Found/Not Found + exact line
+
+□ Check if these tables are defined anywhere:
+  - supplier_requirement_status
+  - compliance_enablement_flows
+  - requirement_document_uploads
+  - compliance_case_assignments
+  - managed_service_cases
+  - buyer_visibility_signals
+  - managed_service_definitions
+  
+  For each:
+    Search: grep -r "supplier_requirement_status" lib/db/src/
+    Report: Found in [file] at line X / Not found
+```
+
+**Report Format**:
+```
+SCHEMA CHECK RESULTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+compliance-concierge.ts:              [EXISTS/NOT FOUND]
+Exported in index.ts:                 [YES/NO]
+supplier_requirement_status table:    [FOUND/NOT FOUND]
+compliance_enablement_flows table:    [FOUND/NOT FOUND]
+requirement_document_uploads table:   [FOUND/NOT FOUND]
+compliance_case_assignments table:    [FOUND/NOT FOUND]
+managed_service_cases table:          [FOUND/NOT FOUND]
+buyer_visibility_signals table:       [FOUND/NOT FOUND]
+managed_service_definitions table:    [FOUND/NOT FOUND]
+
+Tables Created: 0/7
+Status: ❌ NOT IMPLEMENTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+### PART 2: API ROUTES CHECK (CC-1C, CC-1D, CC-1E)
+
+**File Path**: `artifacts/api-server/src/routes/`
+
+Check for CC series routes:
+
+```
+□ adminComplianceQueue.ts exists?
+  If YES: List all route handlers (GET, POST, etc.)
+  If NO: Confirm not present
+
+□ supplierCompliance.ts exists?
+  If YES: List all route handlers
+  If NO: Confirm not present
+
+□ Search for compliance routes in existing files:
+  grep -r "compliance-queue\|/admin/compliance\|supplier/compliance" artifacts/api-server/src/routes/
+  
+  Report any matches with:
+    - File name
+    - Exact URL path
+    - HTTP method
+
+□ Check routes/index.ts for CC series route registrations:
+  grep -i "adminComplianceQueue\|supplierCompliance\|compliance" artifacts/api-server/src/routes/index.ts
+  Report: Found/Not found + exact line
+```
+
+**Report Format**:
+```
+API ROUTES CHECK RESULTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+adminComplianceQueue.ts:              [EXISTS/NOT FOUND]
+supplierCompliance.ts:                [EXISTS/NOT FOUND]
+
+Routes Found in Existing Files:
+  /admin/compliance-queue:            [FOUND/NOT FOUND]
+  /api/compliance/:                   [FOUND/NOT FOUND]
+  
+Routes Registered in index.ts:
+  adminComplianceQueue:               [YES/NO]
+  supplierCompliance:                 [YES/NO]
+
+Total CC Routes Implemented: 0/11
+Status: ❌ NOT IMPLEMENTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+### PART 3: REACT COMPONENTS CHECK (CC-1D, CC-1E)
+
+**File Path**: `artifacts/fincava/src/`
+
+Check for CC series components:
+
+```
+□ ComplianceStatusWidget.tsx exists?
+  Path: artifacts/fincava/src/components/supplier/ComplianceStatusWidget.tsx
+  Report: EXISTS/NOT FOUND
+
+□ AdminComplianceQueue component exists?
+  Search: find artifacts/fincava/src -name "*ComplianceQueue*" -o -name "*compliance*queue*"
+  Report: Found at [path] / Not found
+
+□ DIAN RUT intake pages exist?
+  Search: find artifacts/fincava/src/pages -name "*compliance*" -o -name "*dian*"
+  Report: Found files / Not found
+
+□ General compliance component search:
+  grep -r "ComplianceStatus\|ComplianceQueue\|ComplianceConcierge" artifacts/fincava/src/
+  Report: Found [count] files / Not found
+```
+
+**Report Format**:
+```
+REACT COMPONENTS CHECK RESULTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ComplianceStatusWidget.tsx:           [EXISTS/NOT FOUND]
+AdminComplianceQueue component:       [EXISTS/NOT FOUND]
+DIAN RUT intake pages:                [EXISTS/NOT FOUND]
+Other compliance components:          [Count] found / None found
+
+Components Created: 0/3
+Status: ❌ NOT IMPLEMENTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+### PART 4: SERVICES & ENHANCEMENTS CHECK (CC-1A)
+
+**File Path**: `artifacts/api-server/src/services/`
+
+Check for CC-1A enhancement:
+
+```
+□ scoring-service.ts exists?
+  Path: artifacts/api-server/src/services/scoring-service.ts
+  Report: EXISTS/NOT FOUND
+
+□ Does scoring-service.ts parse complianceGaps?
+  Search: grep -n "complianceGaps\|compliance_docs\|complianceDocs" artifacts/api-server/src/services/scoring-service.ts
+  
+  Report:
+    - Line numbers where found
+    - Context (3 lines around match)
+    - Whether it writes back to compliance_docs booleans
+
+□ Check for compliance-related service files:
+  find artifacts/api-server/src/services -name "*compliance*"
+  Report: Found [files] / Not found
+
+□ Check for compliance-engine directory:
+  ls -la artifacts/api-server/src/services/compliance-engine
+  Report: EXISTS/NOT FOUND
+```
+
+**Report Format**:
+```
+SERVICES & ENHANCEMENT CHECK RESULTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+scoring-service.ts exists:            [YES/NO]
+Parse complianceGaps:                 [YES/NO at line X] / [NOT FOUND]
+Write-back to compliance_docs:        [YES/NO] / [UNKNOWN]
+compliance-engine directory:          [EXISTS/NOT FOUND]
+
+CC-1A Status: ❌ NOT ENHANCED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+### PART 5: GIT HISTORY CHECK
+
+**Check for any CC series commits**:
+
+```
+□ Search git log for CC-related commits:
+  git log --oneline --all | grep -i "cc-1\|compliance.concierge\|compliance.queue\|requirement.status"
+  
+  Report:
+    - Commit hashes found / None found
+    - Commit messages
+
+□ Check for branches related to CC series:
+  git branch -a | grep -i "cc\|compliance"
+  
+  Report:
+    - Branch names / No CC branches found
+
+□ Check current branch status:
+  git status
+  
+  Report:
+    - Current branch
+    - Any uncommitted CC-related files
+```
+
+**Report Format**:
+```
+GIT HISTORY CHECK RESULTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CC-related commits found:             [NONE / COUNT + hashes]
+CC-related branches:                  [NONE / branch names]
+Current branch:                       [branch name]
+Uncommitted changes:                  [NONE / files listed]
+
+Status: ✅ Main branch clean / ❌ CC work in progress
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## FINAL SUMMARY REPORT
+
+After completing all 5 parts, create a final summary:
+
+```
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                ║
+║                     CC SERIES IMPLEMENTATION STATUS REPORT                     ║
+║                                                                                ║
+║                        Repository: sbirfan/FinCava-Hub                         ║
+║                        Branch: [current branch]                                ║
+║                        Date: [today's date]                                    ║
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+
+IMPLEMENTATION SUMMARY:
+═════════════════════════════════════════════════════════════════════════════════
+
+CC-1B (Database Schema):
+  Expected:    7 new tables
+  Found:       0/7 tables
+  Status:      ❌ NOT IMPLEMENTED
+
+CC-1C (Admin Compliance Queue):
+  Expected:    3 routes + React component
+  Found:       0 routes, 0 components
+  Status:      ❌ NOT IMPLEMENTED
+
+CC-1D (Officer DIAN RUT Management):
+  Expected:    8 routes + 5-screen flow
+  Found:       0 routes, 0 pages
+  Status:      ❌ NOT IMPLEMENTED
+
+CC-1E (Compliance Status Widget):
+  Expected:    1 route + React widget
+  Found:       0 routes, 0 components
+  Status:      ❌ NOT IMPLEMENTED
+
+CC-1A (AI Enhancement):
+  Expected:    Modify scoring-service.ts
+  Found:       scoring-service.ts exists but [does/does not] parse complianceGaps
+  Status:      ❌ NOT ENHANCED / ⚠️  PARTIAL / ✅ COMPLETE
+
+Git Status:
+  Status:      [✅ CLEAN] / [⚠️  IN PROGRESS] / [❌ CONFLICTS]
+  Description: [Current branch] is [up to date/has uncommitted changes]
+
+
+TOTALS:
+═════════════════════════════════════════════════════════════════════════════════
+
+Database Tables:       0/7 created (0%)
+API Routes:           0/11 created (0%)
+React Components:     0/3 created (0%)
+Enhancements:         0/1 done (0%)
+
+OVERALL STATUS:       ❌ 0% COMPLETE - NOT STARTED
+
+Next Step: Answer 3 blockers (B1, B2, B3) then begin CC-1B paste
+
+
+BLOCKERS STATUS:
+═════════════════════════════════════════════════════════════════════════════════
+
+B1: Is CC-1A built?
+    Finding: [scoring-service.ts does/does not have complianceGaps logic]
+    
+B2: Where is product_category stored?
+    Finding: [Search suppliers.ts, economics table for product_category]
+    Location: [table name].[column name]
+    
+B3: What is req.user shape?
+    Finding: [Check auth middleware for actual pattern]
+    Pattern: [(req as any).userId] / [req.user.supplierId] / [other]
+
+
+DETAILED FINDINGS:
+═════════════════════════════════════════════════════════════════════════════════
+
+[Include specific file paths, line numbers, and exact findings for each section]
+
+
+RECOMMENDATIONS:
+═════════════════════════════════════════════════════════════════════════════════
+
+1. ✅ PROCEED with CC series execution
+   All infrastructure ready, zero conflicts, blockers resolvable
+
+2. Answer 3 blockers before starting CC-1B paste:
+   - B1: Check scoring-service.ts for complianceGaps
+   - B2: Find product_category storage location
+   - B3: Confirm req.user auth pattern
+
+3. Timeline: Start May 9, complete by May 11
+
+═════════════════════════════════════════════════════════════════════════════════
+
+Report Generated: [date and time]
+Repository State: ✅ CLEAN & READY FOR DEVELOPMENT
+```
+
+---
+
+## EXACT COMMANDS TO RUN
+
+Run these in Replit terminal to gather findings:
+
+```bash
+# Schema check
+ls -la lib/db/src/schema/compliance-concierge.ts 2>&1
+grep -n "export.*compliance" lib/db/src/schema/index.ts 2>&1
+grep -r "supplier_requirement_status" lib/db/src/schema/ 2>&1
+
+# Routes check
+ls -la artifacts/api-server/src/routes/adminComplianceQueue.ts 2>&1
+ls -la artifacts/api-server/src/routes/supplierCompliance.ts 2>&1
+grep -r "compliance-queue\|/compliance/" artifacts/api-server/src/routes/ 2>&1
+
+# Components check
+find artifacts/fincava/src -name "*Compliance*" -o -name "*compliance*" 2>&1
+grep -r "ComplianceStatus\|ComplianceQueue" artifacts/fincava/src/ 2>&1
+
+# Services check
+grep -n "complianceGaps" artifacts/api-server/src/services/scoring-service.ts 2>&1
+ls -la artifacts/api-server/src/services/compliance-engine/ 2>&1
+
+# Git check
+git log --oneline | grep -i "cc\|compliance" | head -10 2>&1
+git branch -a | grep -i "cc" 2>&1
+git status 2>&1
+```
+
+---
+
+## DELIVERY FORMAT
+
+After running all checks, provide:
+
+1. **Executive Summary** (2-3 sentences)
+   - Current status
+   - Whether to proceed
+   - Next action
+
+2. **Detailed Findings** (for each part)
+   - What was found
+   - What was expected
+   - Gap analysis
+
+3. **Blocker Answers**
+   - B1 answer with evidence
+   - B2 answer with evidence
+   - B3 answer with evidence
+
+4. **Recommendation**
+   - Proceed/Hold
+   - Timeline impact
+   - Next steps
+
+---
+
+**End of Prompt**
+
+This Replit Agent should provide definitive, fact-based answers to:
+- ✅ What CC series code exists in the repository?
+- ✅ What is the 0% implementation status?
+- ✅ What are the blockers preventing execution?
+- ✅ Can we proceed with CC-1B paste tomorrow?
+
+---
+
+**Note**: After receiving this report, Irfan can make informed decision about whether to:
+1. Answer blockers and proceed with CC-1B
+2. Fix any partial implementations first
+3. Resolve any conflicts before starting

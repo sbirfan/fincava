@@ -61,6 +61,10 @@ export default function OfficerDashboard() {
     setLocation(`/onboarding?${params}`);
   }
 
+  function startCompliance(supplier: SupplierResult) {
+    setLocation(`/officer/compliance?supplierId=${supplier.id}`);
+  }
+
   function registerNewSupplier() {
     const params = new URLSearchParams({ officerName, officerCode });
     setLocation(`/onboarding?${params}`);

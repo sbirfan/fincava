@@ -1,0 +1,114 @@
+// scripts/src/backfill-requirement-status.ts
+//
+// ONE-TIME migration script — run before Phase 3 ships.
+//
+// Purpose:
+//   Suppliers scored before CC-1A shipped have compliance_docs rows but no
+//   supplier_requirement_status rows. Phase 3 will gate eligibility on
+//   supplier_requirement_status.state = 'verified'. Without this backfill,
+//   pre-CC-1A suppliers appear to have zero requirements and could pass
+//   eligibility incorrectly.
+//
+// Safety:
+//   - Uses onConflictDoNothing — officer progress is NEVER overwritten.
+//   - Only inserts rows where compliance_docs boolean is FALSE (gap exists).
+//   - Read-only until the INSERT block — safe to run in --dry-run mode first.
+//   - Idempotent — safe to run multiple times.
+//
+// Run:
+//   pnpm --filter @workspace/scripts exec tsx ./src/backfill-requirement-status.ts
+//   pnpm --filter @workspace/scripts exec tsx ./src/backfill-requirement-status.ts --dry-run
+//
+// Verify after run:
+//   SELECT COUNT(*) FROM supplier_requirement_status;
+//   SELECT COUNT(*) FROM compliance_docs WHERE rut_dian = false;
+//   -- Both should be equal (one row per false boolean per supplier)
+
+import { db } from "@workspace/db";
+import { complianceDocsTable, suppliersTable } from "@workspace/db";
+import { supplierRequirementStatus } from "@workspace/db";
+import { eq, isNotNull } from "drizzle-orm";
+
+const DRY_RUN = process.argv.includes("--dry-run");
+
+// Maps compliance_docs boolean column → requirement code + agency
+// A boolean value of FALSE means the gap exists (supplier is NOT compliant)
+const GAP_MAP = [
+  { column: "rutDian"           as const, code: "DIAN_RUT",        agency: "DIAN" },
+  { column: "icaRegistro"       as const, code: "ICA_REGISTRO",    agency: "ICA"  },
+  { column: "fitosanitarioCert" as const, code: "FITOSANITARIO",   agency: "ICA"  },
+  { column: "dianExportador"    as const, code: "DIAN_EXPORTADOR", agency: "DIAN" },
+] as const;
+
+async function backfill() {
+  console.log(`\n🔍 Backfill: compliance_docs → supplier_requirement_status`);
+  console.log(`   Mode: ${DRY_RUN ? "DRY RUN (no writes)" : "LIVE"}\n`);
+
+  // Fetch all compliance_docs rows joined to suppliers
+  const allDocs = await db
+    .select({
+      supplierId:        complianceDocsTable.supplierId,
+      rutDian:           complianceDocsTable.rutDian,
+      icaRegistro:       complianceDocsTable.icaRegistro,
+      fitosanitarioCert: complianceDocsTable.fitosanitarioCert,
+      dianExportador:    complianceDocsTable.dianExportador,
+    })
+    .from(complianceDocsTable)
+    .innerJoin(suppliersTable, eq(complianceDocsTable.supplierId, suppliersTable.id));
+
+  console.log(`   Found ${allDocs.length} compliance_docs rows to process.\n`);
+
+  let inserted = 0;
+  let skipped  = 0;
+
+  for (const doc of allDocs) {
+    for (const { column, code, agency } of GAP_MAP) {
+      // Only seed a requirement row if the boolean is FALSE (gap exists)
+      // If boolean is TRUE, supplier is already compliant — no gap to track
+      if (doc[column] === false) {
+        if (DRY_RUN) {
+          console.log(`   [DRY RUN] Would insert: supplierId=${doc.supplierId} code=${code} state=not_started`);
+          inserted++;
+        } else {
+          const result = await db
+            .insert(supplierRequirementStatus)
+            .values({
+              supplierId:      doc.supplierId,
+              requirementCode: code,
+              agency,
+              state:           "not_started",
+            })
+            .onConflictDoNothing(); // never overwrite officer progress
+
+          // onConflictDoNothing returns rowCount 0 if row already existed
+          if (result.rowCount && result.rowCount > 0) {
+            inserted++;
+          } else {
+            skipped++;
+          }
+        }
+      }
+    }
+  }
+
+  console.log(`\n✅ Backfill complete.`);
+  console.log(`   Rows inserted: ${inserted}`);
+  console.log(`   Rows skipped (already existed): ${skipped}`);
+  console.log(`   Total suppliers processed: ${allDocs.length}\n`);
+
+  if (DRY_RUN) {
+    console.log(`   Re-run without --dry-run to apply changes.\n`);
+  } else {
+    console.log(`   Verification queries to run in Neon:`);
+    console.log(`   SELECT COUNT(*) FROM supplier_requirement_status;`);
+    console.log(`   SELECT COUNT(*) FROM compliance_docs WHERE rut_dian = false;`);
+    console.log(`   -- Both counts should match.\n`);
+  }
+}
+
+backfill()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error("Backfill failed:", err);
+    process.exit(1);
+  });

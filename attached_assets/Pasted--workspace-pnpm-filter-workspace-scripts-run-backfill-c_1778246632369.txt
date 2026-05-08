@@ -1,0 +1,71 @@
+~/workspace$ pnpm --filter @workspace/scripts run backfill:cc-requirements
+
+> @workspace/scripts@0.0.0 backfill:cc-requirements /home/runner/workspace/scripts
+> tsx ./src/backfill-cc-requirements.ts
+
+
+Backfill: compliance_docs → supplier_requirement_status
+Mode: LIVE
+
+
+── Phase A: compliance_docs → supplier_requirement_status ──────────
+   Found 1 compliance_docs rows to process.
+   Rows inserted: 4
+   Rows skipped (already existed): 0
+
+── Phase B: ai_outputs gaps → supplier_requirement_status ─────────
+   Found 1 suppliers with AI score but no CC rows.
+   supplierId=25: no gap codes found — skipping
+   Rows inserted: 0
+   Rows skipped (already existed): 0
+
+── Summary ─────────────────────────────────────────────────────────
+   Total rows inserted:              4
+   Total rows skipped (existed):     0
+
+   Verification queries:
+   SELECT supplier_id, requirement_code, state
+   FROM supplier_requirement_status ORDER BY supplier_id;
+
+   SELECT COUNT(*) FROM supplier_requirement_status;
+   SELECT COUNT(*) FROM compliance_docs
+     WHERE rut_dian = false OR ica_registro = false
+        OR fitosanitario_cert = false OR dian_exportador = false;
+   -- Phase A count should be >= second query (Phase B adds more).
+flag provided but not defined: -x
+Usage: grep [-clFivnhqre] [FILE]...
+
+  -F    Match using fixed strings (shorthand)
+  -c    Just show counts
+  -count
+        Just show counts
+  -e string
+        Pattern to match (shorthand)
+  -files-with-matches
+        list only files
+  -fixed-strings
+        Match using fixed strings
+  -h    Suppress file name prefixes on output (shorthand)
+  -i    case-insensitive matching (shorthand)
+  -ignore-case
+        case-insensitive matching
+  -invert-match
+        Print only non-matching lines
+  -l    list only files (shorthand)
+  -line-number
+        Show line numbers
+  -n    Show line numbers (shorthand)
+  -no-filename
+        Suppress file name prefixes on output
+  -q    Don't print matches; exit on first match (shorthand)
+  -quiet
+        Don't print matches; exit on first match
+  -r    recursive
+  -recursive
+        recursive
+  -regexp string
+        Pattern to match
+  -s    Don't print matches; exit on first match (shorthand)
+  -silent
+        Don't print matches; exit on first match
+  -v    Print only non-matching lines (shorthand)

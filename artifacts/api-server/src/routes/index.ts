@@ -20,6 +20,9 @@ import officersRouter from "./officers";
 import buyersRouter from "./buyers";
 import aiAssistantRouter from "./ai-assistant";
 import publicContentRouter from "./public-content";
+import adminComplianceQueueRouter from "./adminComplianceQueue";
+import officerComplianceRouter from "./officerCompliance";
+import complianceWidgetRouter from "./complianceWidget";
 
 const router: IRouter = Router();
 
@@ -44,5 +47,8 @@ router.use(officersRouter);
 router.use(buyersRouter);
 router.use(aiAssistantRouter);
 router.use(publicContentRouter);
+router.use(adminComplianceQueueRouter);
+router.use(officerComplianceRouter);
+router.use(complianceWidgetRouter);
 
 export default router;

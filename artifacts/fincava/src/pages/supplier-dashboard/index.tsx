@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, MessageSquare, ShoppingCart, DollarSign, CheckCircle2, Circle, ChevronRight, Leaf, ShieldCheck } from "lucide-react";
+import { ComplianceProgressWidget } from "@/components/compliance-widget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
@@ -314,6 +315,9 @@ export default function SupplierDashboard() {
       {/* Profile completeness widget — visible only when the logged-in supplier
           has a matching supplier record (email match). Renders nothing otherwise. */}
       <ProfileCompletenessWidget />
+
+      {/* Compliance readiness widget — shows CC requirement progress; hides when empty */}
+      <ComplianceProgressWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>

@@ -8,6 +8,7 @@
     "export:docs": "tsx ./src/export-docs.ts",
     "fix:email-case": "tsx ./src/fix-email-case.ts",
     "seed:compliance": "tsx ./src/seed-compliance.ts",
+    "backfill:cc-requirements": "tsx ./src/backfill-cc-requirements.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

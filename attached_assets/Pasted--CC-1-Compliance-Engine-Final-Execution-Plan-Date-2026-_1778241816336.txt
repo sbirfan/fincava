@@ -1,0 +1,1464 @@
+# CC-1 Compliance Engine — Final Execution Plan
+**Date:** 2026-05-04  
+**Status:** Definitive — supersedes all prior CC-1x versioned files.  
+**Scope:** CC-1B through CC-1E + CC-1A (enhancement). Each section is a complete Replit paste.
+
+---
+
+## Confirmed System Facts (Read Before Pasting Anything)
+
+These are verified against the live Replit codebase. Treat them as invariants.
+
+| Fact | Confirmed Value |
+|------|----------------|
+| Auth pattern | `(req as any).userId` and `(req as any).userRole` — no `req.user` object |
+| Admin middleware | `adminOnly = [requireAuth, requireAdmin]` from `middleware/admin.ts` |
+| DB import | `import { db } from '@workspace/db'` |
+| Schema import | `import { suppliersTable, ... } from '@workspace/db'` |
+| Migration | `pnpm --filter @workspace/db push` — NO DDL in index.ts ever |
+| New schema file | `lib/db/src/schema/compliance-concierge.ts` → exported in `lib/db/src/schema/index.ts` |
+| Email | `sendEmail({ to, subject, html, text })` fire-and-forget: `.catch(err => logger.error({ err }, '...'))` |
+| Logger | `import { logger } from '../lib/logger'` — no `console.*` |
+| File uploads | `objectStorage.ts` exists. Presigned URL via `POST /api/storage/uploads/request-url`. No multer. |
+| Supplier name column | `nombre_completo` / `nombreCompleto` on `suppliersTable` |
+| Graduation state column | `sellable_status` / `sellableStatus` on `suppliersTable` |
+| AI score column | `commercial_score` / `commercialScore` on `supplierEvaluationsTable` |
+| supplierType enum | 6 values: FARMER, COOPERATIVE, EXPORTER, PROCESSOR, DISTRIBUTOR, OTHER |
+| i18n path | `artifacts/fincava/src/i18n/translations.ts` |
+| Route registration | New routers go in `artifacts/api-server/src/routes/index.ts` |
+| Supplier portal | **Phase 2 only.** All Phase I compliance UI is admin/officer-facing. |
+| CC-1A status | NOT BUILT — AI complianceGaps are never parsed back to complianceDocsTable booleans |
+| CC-1 tables | None exist yet — compliance-concierge.ts not in schema index |
+
+---
+
+## Execution Order
+
+```
+Paste 1: CC-1B — Schema (7 new tables + seed)
+Paste 2: CC-1C — Admin Compliance Queue + Review Routes
+Paste 3: CC-1D — Officer Compliance Management (DIAN RUT intake + document upload)
+Paste 4: CC-1E — Admin Compliance Status Panel (supplier detail view)
+Paste 5: CC-1A — AI Write-back Hook (enhancement — run last)
+```
+
+Each paste is independent: complete one fully before starting the next.
+
+---
+
+---
+
+# PASTE 1 — CC-1B: Schema (Run First)
+
+## Prerequisite
+No prerequisite. CC-1 has not been started. No compliance-concierge tables exist in Neon.
+
+---
+
+## STEP 0 — Codebase Inspection (Mandatory Before Any File Changes)
+
+Run these checks and report the results. Do not create files until Step 0 is complete.
+
+```
+1. Open artifacts/api-server/src/index.ts
+   → Confirm there is NO DDL, fs.readFileSync, or sql.raw in this file
+   → List the top-level imports and confirm the pipeline event handler is present
+
+2. Open lib/db/src/schema/index.ts
+   → Copy the full list of export lines so we know the exact export pattern
+   → Confirm there is no compliance-concierge export yet
+
+3. Open lib/db/src/schema/suppliers.ts
+   → Confirm suppliersTable is the export name (not suppliers)
+   → Confirm complianceDocsTable export name
+   → List all supplierType enum values
+
+4. Open artifacts/api-server/src/lib/objectStorage.ts
+   → Confirm ObjectStorageService class exists
+   → Copy the method signatures for generating presigned upload URLs
+   → Confirm POST /api/storage/uploads/request-url exists in routes/storage.ts
+
+5. Open artifacts/api-server/src/lib/email.ts
+   → Copy the sendEmail function signature
+   → List the existing template functions (names only)
+
+6. Open artifacts/api-server/src/lib/logger.ts
+   → Copy the import pattern used in other route files
+```
+
+Report all answers. Then continue.
+
+---
+
+## STEP 1 — Create Drizzle Schema File
+
+**File:** `lib/db/src/schema/compliance-concierge.ts`
+
+Create this file. Do NOT append to any existing schema file.
+
+```typescript
+// CC-1 Compliance Concierge — Additive Layer
+// Architecture invariant: no existing table is altered.
+// CC-ARCH-1: all tables below are new.
+
+import {
+  pgTable, serial, integer, text, boolean, timestamp, jsonb, uniqueIndex
+} from 'drizzle-orm/pg-core';
+import { suppliersTable } from './suppliers';
+
+// Tracks each supplier's progress through each compliance requirement
+export const supplierRequirementStatus = pgTable(
+  'supplier_requirement_status',
+  {
+    id:               serial('id').primaryKey(),
+    supplierId:       integer('supplier_id').notNull().references(() => suppliersTable.id, { onDelete: 'cascade' }),
+    requirementCode:  text('requirement_code').notNull(),
+    // Phase I codes: 'DIAN_RUT' | 'ICA_CONTEXT' | 'FNC_COFFEE'
+    agency:           text('agency').notNull(),
+    // 'DIAN' | 'ICA' | 'FNC'
+    state:            text('state').notNull().default('not_started'),
+    // not_started | not_sure | self_serve_in_progress | assisted_in_progress
+    // managed_service_candidate | submitted | needs_fix | conditionally_approved
+    // verified | rejected
+    selectedMode:     text('selected_mode'),
+    // null | has_rut_ready_to_upload | no_rut_self_serve | assisted | managed
+    adminRequired:    boolean('admin_required').notNull().default(false),
+    confidenceScore:  integer('confidence_score'),
+    visibleNote:      text('visible_note'),
+    internalNote:     text('internal_note'),
+    createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    supplierReqUnique: uniqueIndex('srs_supplier_req_unique').on(t.supplierId, t.requirementCode),
+  })
+);
+
+// Step-by-step guidance content for each requirement + mode (Spanish)
+export const complianceEnablementFlows = pgTable('compliance_enablement_flows', {
+  id:              serial('id').primaryKey(),
+  requirementCode: text('requirement_code').notNull(),
+  stepOrder:       integer('step_order').notNull(),
+  mode:            text('mode').notNull(),
+  // self_serve | assisted | managed
+  language:        text('language').notNull().default('es'),
+  title:           text('title').notNull(),
+  guidance:        text('guidance').notNull(),
+  expectedOutput:  text('expected_output'),
+  active:          boolean('active').notNull().default(true),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Compliance documents uploaded by officer on behalf of supplier
+export const complianceDocumentsV2 = pgTable('compliance_documents_v2', {
+  id:                   serial('id').primaryKey(),
+  supplierId:           integer('supplier_id').notNull().references(() => suppliersTable.id, { onDelete: 'cascade' }),
+  requirementCode:      text('requirement_code').notNull(),
+  documentType:         text('document_type').notNull(),
+  evidenceType:         text('evidence_type'),
+  fileUrl:              text('file_url').notNull(),
+  extractedFieldsJson:  jsonb('extracted_fields_json'),
+  validationResultsJson:jsonb('validation_results_json'),
+  ocrConfidence:        integer('ocr_confidence'),
+  uploadedBy:           text('uploaded_by').notNull().default('officer'),
+  reviewStatus:         text('review_status').notNull().default('pending'),
+  // pending | accepted | needs_fix | rejected
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Admin review decisions — append-only audit log
+export const adminComplianceReviews = pgTable('admin_compliance_reviews', {
+  id:              serial('id').primaryKey(),
+  supplierId:      integer('supplier_id').notNull().references(() => suppliersTable.id, { onDelete: 'cascade' }),
+  requirementCode: text('requirement_code').notNull(),
+  documentId:      integer('document_id').references(() => complianceDocumentsV2.id),
+  decision:        text('decision').notNull(),
+  // verified | needs_fix | conditionally_approved | rejected | escalated
+  reasonCode:      text('reason_code'),
+  visibleNote:     text('visible_note'),
+  internalNote:    text('internal_note'),
+  reviewerId:      integer('reviewer_id'),
+  reviewedAt:      timestamp('reviewed_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Controls which compliance signals are shown to buyers (admin-gated toggle)
+export const buyerVisibilitySignals = pgTable(
+  'buyer_visibility_signals',
+  {
+    id:              serial('id').primaryKey(),
+    supplierId:      integer('supplier_id').notNull().references(() => suppliersTable.id, { onDelete: 'cascade' }),
+    requirementCode: text('requirement_code').notNull(),
+    visible:         boolean('visible').notNull().default(false),
+    badgeLabel:      text('badge_label'),
+    disclaimer:      text('disclaimer'),
+    enabledBy:       integer('enabled_by'),
+    enabledAt:       timestamp('enabled_at', { withTimezone: true }),
+    updatedAt:       timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    bvsSupplierReqUnique: uniqueIndex('bvs_supplier_req_unique').on(t.supplierId, t.requirementCode),
+  })
+);
+
+// Supplier's export mode declaration (direct / intermediary / not_sure)
+export const supplierExportMode = pgTable('supplier_export_mode', {
+  id:              serial('id').primaryKey(),
+  supplierId:      integer('supplier_id').notNull().references(() => suppliersTable.id, { onDelete: 'cascade' }),
+  productCategory: text('product_category').notNull().default('coffee'),
+  mode:            text('mode').notNull(),
+  // direct | intermediary | not_sure
+  confidence:      text('confidence').notNull().default('self_declared'),
+  // self_declared | admin_confirmed | admin_overridden
+  verifiedBy:      integer('verified_by'),
+  partnerName:     text('partner_name'),
+  partnerRole:     text('partner_role'),
+  evidenceStatus:  text('evidence_status').default('none'),
+  // none | uploaded | verified
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Managed service cases (officer does compliance work for supplier — fee in Phase III)
+export const managedServiceCases = pgTable('managed_service_cases', {
+  id:              serial('id').primaryKey(),
+  supplierId:      integer('supplier_id').notNull().references(() => suppliersTable.id, { onDelete: 'cascade' }),
+  requirementCode: text('requirement_code').notNull(),
+  packageType:     text('package_type').notNull(),
+  // rut_registration | ica_preparation | fnc_registration
+  consentRecord:   text('consent_record'),
+  consentAt:       timestamp('consent_at', { withTimezone: true }),
+  feeStatus:       text('fee_status').notNull().default('none'),
+  // none | quoted | invoiced | paid — payment logic is Phase III only
+  assignedStaffId: integer('assigned_staff_id'),
+  notes:           text('notes'),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+```
+
+---
+
+## STEP 2 — Register Schema Export
+
+Open `lib/db/src/schema/index.ts`. Add this line at the end:
+
+```typescript
+export * from './compliance-concierge';
+```
+
+Do not change any other line in that file.
+
+---
+
+## STEP 3 — Push Schema to Database
+
+In the Replit terminal, run:
+
+```bash
+pnpm --filter @workspace/db push
+```
+
+If prompted interactively, confirm the table creation statements.
+Do NOT add any DDL to `index.ts` or any other TypeScript file. The push command handles it.
+
+---
+
+## STEP 4 — Seed Guidance Content
+
+In the Replit terminal, connect to the database and run:
+
+```bash
+psql $DATABASE_URL
+```
+
+Then paste:
+
+```sql
+INSERT INTO compliance_enablement_flows
+  (requirement_code, step_order, mode, language, title, guidance, expected_output)
+VALUES
+  ('DIAN_RUT', 1, 'self_serve', 'es',
+   'Ingresa al portal DIAN',
+   'Entra a https://www.dian.gov.co y busca la opción "Inscripción RUT" en el menú principal.',
+   'Tienes el portal de la DIAN abierto en tu navegador o celular.'),
+  ('DIAN_RUT', 2, 'self_serve', 'es',
+   'Selecciona tu tipo de persona',
+   'Elige "Persona Natural" si eres un agricultor individual. Elige "Persona Jurídica" solo si tienes empresa legalmente constituida.',
+   'Has seleccionado el tipo de persona correcto.'),
+  ('DIAN_RUT', 3, 'self_serve', 'es',
+   'Reúne los documentos necesarios',
+   'Necesitas: cédula de ciudadanía, correo electrónico activo, número de celular, dirección completa, y la actividad económica relacionada con café o cacao (código CIIU 0121 o 0122).',
+   'Tienes todos los documentos listos.'),
+  ('DIAN_RUT', 4, 'self_serve', 'es',
+   'Completa el formulario y descarga tu RUT',
+   'Llena el formulario con tus datos. Al finalizar, descarga el PDF de tu RUT. Asegúrate de que se vean claramente tu nombre, NIT y actividad económica.',
+   'Tienes el PDF de tu RUT descargado.'),
+  ('DIAN_RUT', 5, 'self_serve', 'es',
+   'Sube tu RUT a Fincava',
+   'El oficial de Fincava recibirá el documento y lo revisará en 1-2 días hábiles.',
+   'Tu RUT fue enviado y está en revisión.')
+ON CONFLICT DO NOTHING;
+```
+
+---
+
+## STEP 5 — Verify
+
+1. Run `pnpm tsc --noEmit` — must pass with zero errors
+2. In Neon (or via psql), confirm these tables exist:
+   - `supplier_requirement_status` (with UNIQUE on supplier_id + requirement_code)
+   - `compliance_enablement_flows` (with 5 rows for DIAN_RUT)
+   - `compliance_documents_v2`
+   - `admin_compliance_reviews`
+   - `buyer_visibility_signals` (with UNIQUE on supplier_id + requirement_code)
+   - `supplier_export_mode`
+   - `managed_service_cases`
+3. Confirm no existing table was modified
+
+## CC-1B Acceptance Criteria
+- [ ] 7 tables confirmed in Neon
+- [ ] 5 seed rows in compliance_enablement_flows
+- [ ] `pnpm tsc --noEmit` passes
+- [ ] No existing table altered
+- [ ] compliance-concierge exported in lib/db/src/schema/index.ts
+
+---
+
+---
+
+# PASTE 2 — CC-1C: Admin Compliance Queue + Review Routes
+
+## Prerequisite
+CC-1B complete. All 7 tables confirmed in Neon. tsc clean.
+
+---
+
+## Task
+
+Open `artifacts/api-server/src/routes/admin.ts`. Add the following routes — do not remove or replace any existing routes.
+
+**Add these imports at the top of admin.ts** (below the existing imports):
+
+```typescript
+import {
+  supplierRequirementStatus,
+  adminComplianceReviews,
+  buyerVisibilitySignals,
+  complianceDocumentsV2,
+} from '@workspace/db';
+import { sql } from 'drizzle-orm';
+```
+
+---
+
+### Route 1 — Priority Queue
+
+```typescript
+// GET /api/admin/compliance/queue?offset=0&limit=100
+// Returns suppliers ranked by compliance priority score (admin only).
+// priority = 0.40×sellable_proximity + 0.30×ai_score + 0.20×blocker_score + 0.10×staleness
+router.get('/compliance/queue', ...adminOnly, async (req, res) => {
+  const offset = parseInt(String(req.query.offset ?? '0'), 10);
+  const limit  = Math.min(parseInt(String(req.query.limit ?? '100'), 10), 200);
+
+  const queue = await db.execute(sql`
+    WITH blocker_counts AS (
+      SELECT supplier_id,
+             COUNT(*) FILTER (WHERE state IN (
+               'not_started','not_sure','self_serve_in_progress',
+               'assisted_in_progress','needs_fix','submitted'
+             )) AS open_blockers
+      FROM supplier_requirement_status
+      GROUP BY supplier_id
+    ),
+    last_review AS (
+      SELECT supplier_id,
+             MAX(reviewed_at) AS last_reviewed_at
+      FROM admin_compliance_reviews
+      GROUP BY supplier_id
+    ),
+    ai_scores AS (
+      SELECT DISTINCT ON (supplier_id) supplier_id, commercial_score
+      FROM supplier_evaluations
+      ORDER BY supplier_id, created_at DESC
+    ),
+    proximity AS (
+      SELECT id,
+        CASE sellable_status
+          WHEN 'PUBLISHED'  THEN 1.00
+          WHEN 'SELLABLE'   THEN 0.85
+          WHEN 'ELIGIBLE'   THEN 0.50
+          ELSE 0.10
+        END AS sellable_proximity
+      FROM suppliers
+    )
+    SELECT
+      s.id,
+      s.nombre_completo        AS display_name,
+      s.sellable_status,
+      s.supplier_type,
+      COALESCE(ai.commercial_score, 0)  AS ai_quality_score,
+      COALESCE(bc.open_blockers, 0)     AS open_blockers,
+      lr.last_reviewed_at,
+      ROUND((
+        0.40 * p.sellable_proximity +
+        0.30 * (COALESCE(ai.commercial_score, 0) / 100.0) +
+        0.20 * GREATEST(0, 1 - COALESCE(bc.open_blockers, 0) / 10.0) +
+        0.10 * LEAST(1, EXTRACT(EPOCH FROM (
+          NOW() - COALESCE(lr.last_reviewed_at, s.created_at)
+        )) / (30 * 86400))
+      )::numeric, 3) AS priority_score
+    FROM suppliers s
+    LEFT JOIN proximity       p  ON p.id            = s.id
+    LEFT JOIN ai_scores       ai ON ai.supplier_id  = s.id
+    LEFT JOIN blocker_counts  bc ON bc.supplier_id  = s.id
+    LEFT JOIN last_review     lr ON lr.supplier_id  = s.id
+    ORDER BY priority_score DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `);
+
+  res.json({ queue: queue.rows, offset, limit });
+});
+```
+
+---
+
+### Route 2 — Supplier Compliance Detail
+
+```typescript
+// GET /api/admin/compliance/supplier/:supplierId
+// Full compliance picture for a single supplier (both boolean layer + CC-1 layer).
+router.get('/compliance/supplier/:supplierId', ...adminOnly, async (req, res) => {
+  const sid = parseInt(req.params.supplierId, 10);
+  if (isNaN(sid)) return res.status(400).json({ error: 'Invalid supplierId' });
+
+  const [booleans, requirements, documents, reviews, visibility] = await Promise.all([
+    db.select().from(complianceDocsTable).where(eq(complianceDocsTable.supplierId, sid)).limit(1),
+    db.select().from(supplierRequirementStatus).where(eq(supplierRequirementStatus.supplierId, sid)),
+    db.select().from(complianceDocumentsV2)
+      .where(eq(complianceDocumentsV2.supplierId, sid))
+      .orderBy(desc(complianceDocumentsV2.createdAt)),
+    db.select().from(adminComplianceReviews)
+      .where(eq(adminComplianceReviews.supplierId, sid))
+      .orderBy(desc(adminComplianceReviews.reviewedAt)),
+    db.select().from(buyerVisibilitySignals).where(eq(buyerVisibilitySignals.supplierId, sid)),
+  ]);
+
+  res.json({ booleans: booleans[0] ?? null, requirements, documents, reviews, visibility });
+});
+```
+
+**Important:** The import for `complianceDocsTable` already exists at the top of admin.ts (from `@workspace/db`). Confirm it is imported before running. If not, add it.
+
+---
+
+### Route 3 — Review + State Transition
+
+```typescript
+// POST /api/admin/compliance/supplier/:supplierId/review
+// Admin reviews a requirement: writes audit log and transitions state.
+const reviewBodySchema = z.object({
+  requirementCode: z.enum(['DIAN_RUT', 'ICA_CONTEXT', 'FNC_COFFEE']),
+  decision: z.enum(['verified', 'needs_fix', 'conditionally_approved', 'rejected', 'escalated']),
+  newState: z.enum([
+    'not_started', 'not_sure', 'self_serve_in_progress', 'assisted_in_progress',
+    'managed_service_candidate', 'submitted', 'needs_fix', 'conditionally_approved',
+    'verified', 'rejected'
+  ]),
+  reasonCode:   z.string().optional(),
+  visibleNote:  z.string().optional(),
+  internalNote: z.string().optional(),
+});
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  not_started:               ['not_sure', 'self_serve_in_progress', 'assisted_in_progress'],
+  not_sure:                  ['assisted_in_progress', 'managed_service_candidate'],
+  self_serve_in_progress:    ['submitted', 'assisted_in_progress', 'managed_service_candidate', 'needs_fix'],
+  assisted_in_progress:      ['submitted', 'managed_service_candidate', 'needs_fix'],
+  managed_service_candidate: ['submitted', 'assisted_in_progress'],
+  submitted:                 ['verified', 'needs_fix', 'conditionally_approved', 'rejected'],
+  needs_fix:                 ['submitted', 'assisted_in_progress', 'managed_service_candidate'],
+  conditionally_approved:    ['verified', 'needs_fix', 'rejected'],
+  verified:                  ['needs_fix', 'rejected'],  // admin can revert verified
+  rejected:                  ['not_started'],
+};
+
+router.post('/compliance/supplier/:supplierId/review', ...adminOnly, async (req, res) => {
+  const sid = parseInt(req.params.supplierId, 10);
+  if (isNaN(sid)) return res.status(400).json({ error: 'Invalid supplierId' });
+
+  const parsed = reviewBodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+  const { requirementCode, decision, newState, reasonCode, visibleNote, internalNote } = parsed.data;
+
+  const existing = await db.select({ state: supplierRequirementStatus.state })
+    .from(supplierRequirementStatus)
+    .where(and(
+      eq(supplierRequirementStatus.supplierId, sid),
+      eq(supplierRequirementStatus.requirementCode, requirementCode)
+    ))
+    .limit(1);
+
+  if (!existing.length) {
+    return res.status(404).json({ error: 'Requirement row not found. Run intake first.' });
+  }
+
+  const currentState = existing[0].state;
+  const allowed = ALLOWED_TRANSITIONS[currentState] ?? [];
+  if (!allowed.includes(newState)) {
+    return res.status(422).json({
+      error: `Transition '${currentState}' → '${newState}' not permitted`,
+      allowedTransitions: allowed,
+    });
+  }
+
+  await db.update(supplierRequirementStatus)
+    .set({ state: newState, visibleNote, internalNote, updatedAt: new Date() })
+    .where(and(
+      eq(supplierRequirementStatus.supplierId, sid),
+      eq(supplierRequirementStatus.requirementCode, requirementCode)
+    ));
+
+  await db.insert(adminComplianceReviews).values({
+    supplierId:      sid,
+    requirementCode,
+    decision,
+    reasonCode:      reasonCode  ?? null,
+    visibleNote:     visibleNote ?? null,
+    internalNote:    internalNote ?? null,
+    reviewerId:      (req as any).userId,  // the reviewing officer's user ID
+  });
+
+  logger.info({ supplierId: sid, requirementCode, previousState: currentState, newState },
+    'Compliance state transition');
+
+  res.json({ ok: true, previousState: currentState, newState });
+});
+```
+
+---
+
+### Route 4 — Buyer Visibility Toggle
+
+```typescript
+// PATCH /api/admin/compliance/supplier/:supplierId/visibility
+// Admin-only toggle for buyer-facing compliance badge. Never auto-enabled.
+const visibilityBodySchema = z.object({
+  requirementCode: z.enum(['DIAN_RUT', 'ICA_CONTEXT', 'FNC_COFFEE']),
+  visible:         z.boolean(),
+  badgeLabel:      z.string().optional(),
+  disclaimer:      z.string().optional(),
+});
+
+router.patch('/compliance/supplier/:supplierId/visibility', ...adminOnly, async (req, res) => {
+  const sid = parseInt(req.params.supplierId, 10);
+  if (isNaN(sid)) return res.status(400).json({ error: 'Invalid supplierId' });
+
+  const parsed = visibilityBodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+  const { requirementCode, visible, badgeLabel, disclaimer } = parsed.data;
+  const officerId = (req as any).userId;
+
+  await db.execute(sql`
+    INSERT INTO buyer_visibility_signals
+      (supplier_id, requirement_code, visible, badge_label, disclaimer, enabled_by, enabled_at, updated_at)
+    VALUES
+      (${sid}, ${requirementCode}, ${visible}, ${badgeLabel ?? null}, ${disclaimer ?? null},
+       ${visible ? officerId : null}, ${visible ? new Date() : null}, NOW())
+    ON CONFLICT (supplier_id, requirement_code) DO UPDATE SET
+      visible     = EXCLUDED.visible,
+      badge_label = EXCLUDED.badge_label,
+      disclaimer  = EXCLUDED.disclaimer,
+      enabled_by  = EXCLUDED.enabled_by,
+      enabled_at  = EXCLUDED.enabled_at,
+      updated_at  = NOW()
+  `);
+
+  res.json({ ok: true, supplierId: sid, requirementCode, visible });
+});
+```
+
+---
+
+### Admin UI — Compliance Queue Page
+
+**File:** `artifacts/fincava/src/pages/admin/ComplianceQueue.tsx`
+
+Create this file:
+
+```tsx
+// artifacts/fincava/src/pages/admin/ComplianceQueue.tsx
+// Admin compliance priority queue — shows all suppliers ranked by compliance urgency.
+
+import { useEffect, useState } from 'react';
+
+interface QueueRow {
+  id: number;
+  display_name: string;
+  sellable_status: string;
+  supplier_type: string;
+  ai_quality_score: number;
+  open_blockers: number;
+  last_reviewed_at: string | null;
+  priority_score: number;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  NOT_READY:  'bg-red-100 text-red-700',
+  ELIGIBLE:   'bg-yellow-100 text-yellow-700',
+  SELLABLE:   'bg-blue-100 text-blue-700',
+  PUBLISHED:  'bg-green-100 text-green-700',
+};
+
+export default function ComplianceQueue() {
+  const [rows, setRows]       = useState<QueueRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/admin/compliance/queue?limit=100')
+      .then(r => r.json())
+      .then(d => { setRows(d.queue ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-6 text-gray-500">Cargando cola de cumplimiento...</div>;
+
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-bold text-gray-900 mb-4">Cola de Cumplimiento</h1>
+      <p className="text-sm text-gray-500 mb-6">
+        Proveedores ordenados por prioridad de cumplimiento. Mayor puntaje = revisión más urgente.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase tracking-wide">
+              <th className="px-4 py-3">Proveedor</th>
+              <th className="px-4 py-3">Tipo</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Score IA</th>
+              <th className="px-4 py-3">Bloqueantes</th>
+              <th className="px-4 py-3">Última revisión</th>
+              <th className="px-4 py-3">Prioridad</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map(row => (
+              <tr key={row.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-gray-900">{row.display_name}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{row.supplier_type}</td>
+                <td className="px-4 py-3">
+                  <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLORS[row.sellable_status] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {row.sellable_status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-700">{row.ai_quality_score}</td>
+                <td className="px-4 py-3 text-gray-700">{row.open_blockers}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">
+                  {row.last_reviewed_at
+                    ? new Date(row.last_reviewed_at).toLocaleDateString('es-CO')
+                    : 'Sin revisión'}
+                </td>
+                <td className="px-4 py-3 font-mono text-gray-800">{row.priority_score}</td>
+                <td className="px-4 py-3">
+                  <a href={`/admin/compliance/supplier/${row.id}`}
+                    className="text-xs bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700">
+                    Revisar
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No hay proveedores en la cola.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+**Add route in App.tsx** (wherever admin routes are defined):
+```tsx
+import ComplianceQueue from './pages/admin/ComplianceQueue';
+// In the router:
+<Route path="/admin/compliance" component={ComplianceQueue} />
+```
+
+---
+
+## CC-1C Acceptance Criteria
+- [ ] `GET /api/admin/compliance/queue` returns ranked list (admin token → 200, no token → 401)
+- [ ] `GET /api/admin/compliance/supplier/:id` returns full picture (booleans + requirements + documents)
+- [ ] `POST /api/admin/compliance/supplier/:id/review` enforces ALLOWED_TRANSITIONS (invalid transition → 422)
+- [ ] `PATCH /api/admin/compliance/supplier/:id/visibility` upserts correctly
+- [ ] ComplianceQueue UI renders at `/admin/compliance`
+- [ ] `pnpm tsc --noEmit` passes
+
+---
+
+---
+
+# PASTE 3 — CC-1D: Officer Compliance Management (DIAN RUT)
+
+## Prerequisite
+CC-1C complete and verified.
+
+## Context
+This is an **officer/admin tool**. Officers manage compliance on behalf of suppliers. There is no supplier-facing portal in Phase I. All routes use `adminOnly`. `supplierId` comes from the URL, not from auth.
+
+---
+
+## STEP 0 — Read objectStorage.ts Before Writing Any Code
+
+Open `artifacts/api-server/src/lib/objectStorage.ts`. Find:
+- The method that generates a presigned upload URL
+- Its exact parameter names and return type
+
+Copy the function signature here before writing the upload route. The route below uses a placeholder — replace it with the actual call pattern.
+
+---
+
+## Task — Create Route File
+
+**File:** `artifacts/api-server/src/routes/admin-compliance.ts`
+
+```typescript
+// artifacts/api-server/src/routes/admin-compliance.ts
+// Officer-mediated DIAN RUT compliance management.
+// All routes are admin-only. Suppliers do not interact with this API directly in Phase I.
+
+import { Router } from 'express';
+import { z } from 'zod';
+import { db } from '@workspace/db';
+import {
+  supplierRequirementStatus,
+  complianceDocumentsV2,
+  complianceEnablementFlows,
+} from '@workspace/db';
+import { eq, and, asc } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { adminOnly } from '../middleware/admin';
+import { logger } from '../lib/logger';
+// Import ObjectStorageService — use the exact import pattern from other routes that use it
+// import { objectStorageService } from '../lib/objectStorage'; // confirm exact export name in Step 0
+
+export const adminComplianceRouter = Router();
+
+// ── GET /api/admin/compliance/dian-rut/:supplierId ────────────────────────────
+// Returns current DIAN RUT status + guidance steps for this supplier.
+adminComplianceRouter.get('/api/admin/compliance/dian-rut/:supplierId', ...adminOnly, async (req, res) => {
+  const supplierId = parseInt(req.params.supplierId, 10);
+  if (isNaN(supplierId)) return res.status(400).json({ error: 'Invalid supplierId' });
+
+  const [statusRow] = await db
+    .select()
+    .from(supplierRequirementStatus)
+    .where(and(
+      eq(supplierRequirementStatus.supplierId, supplierId),
+      eq(supplierRequirementStatus.requirementCode, 'DIAN_RUT')
+    ))
+    .limit(1);
+
+  const steps = await db
+    .select()
+    .from(complianceEnablementFlows)
+    .where(and(
+      eq(complianceEnablementFlows.requirementCode, 'DIAN_RUT'),
+      eq(complianceEnablementFlows.active, true)
+    ))
+    .orderBy(asc(complianceEnablementFlows.stepOrder));
+
+  const documents = await db
+    .select()
+    .from(complianceDocumentsV2)
+    .where(and(
+      eq(complianceDocumentsV2.supplierId, supplierId),
+      eq(complianceDocumentsV2.requirementCode, 'DIAN_RUT')
+    ));
+
+  res.json({
+    supplierId,
+    requirementCode: 'DIAN_RUT',
+    currentStatus:   statusRow ?? null,
+    steps,
+    documents,
+  });
+});
+
+// ── POST /api/admin/compliance/dian-rut/:supplierId/intake ────────────────────
+// Officer records the supplier's RUT situation: has it / doesn't have it / not sure.
+// Creates or updates the supplier_requirement_status row.
+const intakeSchema = z.object({
+  answer:       z.enum(['has_rut', 'no_rut', 'not_sure']),
+  internalNote: z.string().optional(),
+});
+
+// answer → state mapping (has_rut is an intake signal, not a DB state value)
+const INTAKE_STATE_MAP = {
+  has_rut:  'self_serve_in_progress',
+  no_rut:   'self_serve_in_progress',
+  not_sure: 'not_sure',
+} as const;
+
+// answer → selectedMode mapping (distinguishes has_rut vs no_rut within same state)
+const INTAKE_MODE_MAP = {
+  has_rut:  'has_rut_ready_to_upload',
+  no_rut:   'no_rut_self_serve',
+  not_sure: 'assisted',
+} as const;
+
+adminComplianceRouter.post('/api/admin/compliance/dian-rut/:supplierId/intake', ...adminOnly, async (req, res) => {
+  const supplierId = parseInt(req.params.supplierId, 10);
+  if (isNaN(supplierId)) return res.status(400).json({ error: 'Invalid supplierId' });
+
+  const parsed = intakeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+
+  const { answer, internalNote } = parsed.data;
+  const state        = INTAKE_STATE_MAP[answer];
+  const selectedMode = INTAKE_MODE_MAP[answer];
+  const officerId    = (req as any).userId;
+
+  await db.execute(sql`
+    INSERT INTO supplier_requirement_status
+      (supplier_id, requirement_code, agency, state, selected_mode, internal_note, updated_at)
+    VALUES
+      (${supplierId}, 'DIAN_RUT', 'DIAN', ${state}, ${selectedMode}, ${internalNote ?? null}, NOW())
+    ON CONFLICT (supplier_id, requirement_code) DO UPDATE SET
+      state         = EXCLUDED.state,
+      selected_mode = EXCLUDED.selected_mode,
+      internal_note = EXCLUDED.internal_note,
+      updated_at    = NOW()
+  `);
+
+  logger.info({ supplierId, answer, state, selectedMode, officerId }, 'DIAN RUT intake recorded');
+  res.json({ supplierId, requirementCode: 'DIAN_RUT', state, selectedMode });
+});
+
+// ── POST /api/admin/compliance/dian-rut/:supplierId/upload-url ────────────────
+// Returns a presigned upload URL so the officer can upload a RUT document.
+// After uploading, the officer calls /submit-document with the resulting fileUrl.
+const uploadUrlSchema = z.object({
+  fileName:    z.string().min(1),
+  contentType: z.string().min(1),
+});
+
+adminComplianceRouter.post('/api/admin/compliance/dian-rut/:supplierId/upload-url', ...adminOnly, async (req, res) => {
+  const supplierId = parseInt(req.params.supplierId, 10);
+  if (isNaN(supplierId)) return res.status(400).json({ error: 'Invalid supplierId' });
+
+  const parsed = uploadUrlSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+
+  // ⚠️ STEP 0 REQUIRED: Replace this with the actual objectStorage call confirmed in Step 0.
+  // The pattern is: objectStorageService.getObjectEntityUploadURL(params) → { uploadUrl, objectPath }
+  // Use the exact method signature from artifacts/api-server/src/lib/objectStorage.ts
+  // Example placeholder (DO NOT use verbatim — check actual API first):
+  /*
+  const { uploadUrl, objectPath } = await objectStorageService.getObjectEntityUploadURL({
+    entityType: 'compliance-rut',
+    entityId:   supplierId,
+    fileName:   parsed.data.fileName,
+    contentType: parsed.data.contentType,
+  });
+  res.json({ uploadUrl, objectPath });
+  */
+
+  // Replace the above comment block with the real implementation after Step 0.
+  res.status(501).json({ error: 'Implement after Step 0 — see comment in source' });
+});
+
+// ── POST /api/admin/compliance/dian-rut/:supplierId/submit-document ───────────
+// Officer records the file URL after uploading. Moves state to 'submitted'.
+const submitDocSchema = z.object({
+  fileUrl:      z.string().url(),
+  documentType: z.string().default('rut_pdf'),
+  internalNote: z.string().optional(),
+});
+
+adminComplianceRouter.post('/api/admin/compliance/dian-rut/:supplierId/submit-document', ...adminOnly, async (req, res) => {
+  const supplierId = parseInt(req.params.supplierId, 10);
+  if (isNaN(supplierId)) return res.status(400).json({ error: 'Invalid supplierId' });
+
+  const parsed = submitDocSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+
+  const { fileUrl, documentType, internalNote } = parsed.data;
+  const officerId = (req as any).userId;
+
+  // Check requirement row exists
+  const [existing] = await db
+    .select({ state: supplierRequirementStatus.state })
+    .from(supplierRequirementStatus)
+    .where(and(
+      eq(supplierRequirementStatus.supplierId, supplierId),
+      eq(supplierRequirementStatus.requirementCode, 'DIAN_RUT')
+    ))
+    .limit(1);
+
+  if (!existing) {
+    return res.status(404).json({ error: 'Run intake first before submitting a document.' });
+  }
+
+  // Record document
+  const [doc] = await db.insert(complianceDocumentsV2).values({
+    supplierId,
+    requirementCode: 'DIAN_RUT',
+    documentType,
+    fileUrl,
+    uploadedBy: `officer:${officerId}`,
+    reviewStatus: 'pending',
+  }).returning({ id: complianceDocumentsV2.id });
+
+  // Advance state to submitted
+  await db.execute(sql`
+    UPDATE supplier_requirement_status
+    SET state = 'submitted', internal_note = ${internalNote ?? null}, updated_at = NOW()
+    WHERE supplier_id = ${supplierId} AND requirement_code = 'DIAN_RUT'
+  `);
+
+  logger.info({ supplierId, documentId: doc.id, officerId }, 'DIAN RUT document submitted');
+  res.json({ ok: true, documentId: doc.id, state: 'submitted' });
+});
+```
+
+---
+
+## Register Route
+
+Open `artifacts/api-server/src/routes/index.ts`. Add:
+
+```typescript
+import { adminComplianceRouter } from './admin-compliance';
+// In the router mounts — NO path prefix (codebase pattern: routers embed full paths):
+router.use(adminComplianceRouter);
+```
+
+---
+
+## Admin UI — Officer Compliance Management Page
+
+**File:** `artifacts/fincava/src/pages/admin/SupplierCompliancePage.tsx`
+
+```tsx
+// artifacts/fincava/src/pages/admin/SupplierCompliancePage.tsx
+// Officer-facing compliance management for a single supplier.
+// Reached from the admin supplier detail page.
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'wouter';
+
+interface StatusRow {
+  state: string;
+  selectedMode: string | null;
+  visibleNote: string | null;
+  internalNote: string | null;
+  updatedAt: string;
+}
+
+interface Step {
+  stepOrder: number;
+  title: string;
+  guidance: string;
+  expectedOutput: string | null;
+}
+
+interface Document {
+  id: number;
+  fileUrl: string;
+  documentType: string;
+  reviewStatus: string;
+  createdAt: string;
+}
+
+const STATE_LABELS: Record<string, string> = {
+  not_started:               'Sin iniciar',
+  not_sure:                  'Sin claridad — orientación requerida',
+  self_serve_in_progress:    'En proceso (autogestión)',
+  assisted_in_progress:      'En proceso (con asesor)',
+  managed_service_candidate: 'Candidato a servicio gestionado',
+  submitted:                 'Documento enviado — en revisión',
+  needs_fix:                 'Requiere corrección',
+  conditionally_approved:    'Aprobado condicionalmente',
+  verified:                  'Verificado ✓',
+  rejected:                  'Rechazado',
+};
+
+export default function SupplierCompliancePage() {
+  const params = useParams<{ supplierId: string }>();
+  const supplierId = params.supplierId;
+
+  const [data, setData]   = useState<{ currentStatus: StatusRow | null; steps: Step[]; documents: Document[] } | null>(null);
+  const [answer, setAnswer] = useState<'has_rut' | 'no_rut' | 'not_sure' | ''>('');
+  const [note, setNote]   = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg]     = useState('');
+
+  const load = () => {
+    fetch(`/api/admin/compliance/dian-rut/${supplierId}`)
+      .then(r => r.json())
+      .then(setData);
+  };
+
+  useEffect(load, [supplierId]);
+
+  const submitIntake = async () => {
+    if (!answer) return;
+    setSaving(true);
+    await fetch(`/api/admin/compliance/dian-rut/${supplierId}/intake`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answer, internalNote: note }),
+    });
+    setMsg('Estado registrado.');
+    setSaving(false);
+    load();
+  };
+
+  if (!data) return <div className="p-6 text-gray-500">Cargando...</div>;
+
+  return (
+    <div className="p-6 max-w-2xl">
+      <h1 className="text-xl font-bold text-gray-900 mb-1">Cumplimiento DIAN RUT</h1>
+      <p className="text-sm text-gray-500 mb-6">Proveedor #{supplierId}</p>
+
+      {/* Current status */}
+      {data.currentStatus && (
+        <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+          <p className="text-xs text-gray-500 uppercase mb-1">Estado actual</p>
+          <p className="font-semibold text-gray-800">
+            {STATE_LABELS[data.currentStatus.state] ?? data.currentStatus.state}
+          </p>
+          {data.currentStatus.internalNote && (
+            <p className="text-sm text-gray-600 mt-1">Nota: {data.currentStatus.internalNote}</p>
+          )}
+          <p className="text-xs text-gray-400 mt-1">
+            Actualizado: {new Date(data.currentStatus.updatedAt).toLocaleString('es-CO')}
+          </p>
+        </div>
+      )}
+
+      {/* Intake form */}
+      <div className="mb-6 p-4 border rounded-lg">
+        <p className="font-semibold text-gray-800 mb-3">Registrar situación del RUT</p>
+        <div className="space-y-2 mb-4">
+          {(['has_rut', 'no_rut', 'not_sure'] as const).map(opt => (
+            <label key={opt} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="answer"
+                value={opt}
+                checked={answer === opt}
+                onChange={() => setAnswer(opt)}
+                className="accent-green-600"
+              />
+              <span className="text-sm text-gray-700">
+                {opt === 'has_rut'  ? 'Sí tiene RUT — subir documento'   :
+                 opt === 'no_rut'   ? 'No tiene RUT — iniciar proceso'    :
+                                     'No sabe — requiere orientación'}
+              </span>
+            </label>
+          ))}
+        </div>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Nota interna (opcional)..."
+          className="w-full border rounded p-2 text-sm text-gray-700 h-20 mb-3"
+        />
+        {msg && <p className="text-sm text-green-600 mb-2">{msg}</p>}
+        <button
+          onClick={submitIntake}
+          disabled={!answer || saving}
+          className="bg-gray-900 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? 'Guardando...' : 'Guardar estado'}
+        </button>
+      </div>
+
+      {/* Guidance steps */}
+      {data.steps.length > 0 && (
+        <div className="mb-6">
+          <p className="font-semibold text-gray-800 mb-3">Pasos para obtener el RUT (para compartir con proveedor)</p>
+          <ol className="space-y-3">
+            {data.steps.map(s => (
+              <li key={s.stepOrder} className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">
+                  {s.stepOrder}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{s.title}</p>
+                  <p className="text-sm text-gray-600">{s.guidance}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* Documents */}
+      {data.documents.length > 0 && (
+        <div>
+          <p className="font-semibold text-gray-800 mb-3">Documentos subidos</p>
+          <div className="space-y-2">
+            {data.documents.map(doc => (
+              <div key={doc.id} className="flex items-center justify-between p-3 border rounded">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{doc.documentType}</p>
+                  <p className="text-xs text-gray-500">
+                    {doc.reviewStatus} · {new Date(doc.createdAt).toLocaleDateString('es-CO')}
+                  </p>
+                </div>
+                <a href={doc.fileUrl} target="_blank" rel="noreferrer"
+                  className="text-xs text-blue-600 underline">Ver</a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+**Add route in App.tsx:**
+```tsx
+import SupplierCompliancePage from './pages/admin/SupplierCompliancePage';
+// In the router:
+<Route path="/admin/compliance/supplier/:supplierId" component={SupplierCompliancePage} />
+```
+
+---
+
+## CC-1D Acceptance Criteria
+- [ ] `GET /api/admin/compliance/dian-rut/:id` returns status + steps + documents (admin → 200, no auth → 401)
+- [ ] `POST /api/admin/compliance/dian-rut/:id/intake` with answer=has_rut → state=self_serve_in_progress, selectedMode=has_rut_ready_to_upload
+- [ ] `POST /api/admin/compliance/dian-rut/:id/intake` with answer=not_sure → state=not_sure, selectedMode=assisted
+- [ ] `POST /api/admin/compliance/dian-rut/:id/upload-url` returns presigned URL (implement after Step 0)
+- [ ] `POST /api/admin/compliance/dian-rut/:id/submit-document` requires intake to exist first (404 if not)
+- [ ] `POST /api/admin/compliance/dian-rut/:id/submit-document` advances state to submitted
+- [ ] `router.use(adminComplianceRouter)` in index.ts (no path prefix — routes embed full /api/admin/compliance/... paths)
+- [ ] SupplierCompliancePage renders at /admin/compliance/supplier/:supplierId
+- [ ] `pnpm tsc --noEmit` passes
+
+---
+
+---
+
+# PASTE 4 — CC-1E: Admin Compliance Status Panel
+
+## Prerequisite
+CC-1D complete and verified.
+
+## Context
+A compliance summary panel that appears within the **admin supplier detail view**. Shows all requirement states at a glance. Links to the full management page for each requirement.
+
+---
+
+## Task — Create Panel Component
+
+**File:** `artifacts/fincava/src/components/admin/ComplianceStatusPanel.tsx`
+
+```tsx
+// artifacts/fincava/src/components/admin/ComplianceStatusPanel.tsx
+// Compliance status summary for use inside the admin supplier detail view.
+// Reads from CC-1 new tables only. Links to full management page per requirement.
+
+import { useEffect, useState } from 'react';
+
+interface RequirementRow {
+  requirementCode: string;
+  state: string;
+  selectedMode: string | null;
+  visibleNote: string | null;
+  updatedAt: string;
+}
+
+interface ComplianceData {
+  booleans: {
+    rutDian: boolean;
+    icaRegistro: boolean;
+    fitosanitarioCert: boolean;
+    dianExportador: boolean;
+  } | null;
+  requirements: RequirementRow[];
+}
+
+const STATE_BADGES: Record<string, { label: string; color: string }> = {
+  not_started:               { label: 'Sin iniciar',          color: 'bg-gray-100 text-gray-600' },
+  not_sure:                  { label: 'Sin claridad',          color: 'bg-orange-100 text-orange-700' },
+  self_serve_in_progress:    { label: 'En proceso',            color: 'bg-blue-100 text-blue-700' },
+  assisted_in_progress:      { label: 'Con asesor',            color: 'bg-blue-100 text-blue-700' },
+  managed_service_candidate: { label: 'Servicio gestionado',   color: 'bg-purple-100 text-purple-700' },
+  submitted:                 { label: 'En revisión',           color: 'bg-yellow-100 text-yellow-700' },
+  needs_fix:                 { label: 'Corrección requerida',  color: 'bg-red-100 text-red-700' },
+  conditionally_approved:    { label: 'Aprobado parcialmente', color: 'bg-yellow-100 text-yellow-700' },
+  verified:                  { label: 'Verificado ✓',          color: 'bg-green-100 text-green-700' },
+  rejected:                  { label: 'Rechazado',             color: 'bg-red-200 text-red-800' },
+};
+
+const REQUIREMENT_NAMES: Record<string, string> = {
+  DIAN_RUT:    'RUT DIAN',
+  ICA_CONTEXT: 'Contexto ICA',
+  FNC_COFFEE:  'Registro FNC (Café)',
+};
+
+const REQUIREMENT_PATHS: Record<string, string> = {
+  DIAN_RUT:    'dian-rut',
+  ICA_CONTEXT: 'ica-context',
+  FNC_COFFEE:  'fnc-coffee',
+};
+
+interface Props { supplierId: number }
+
+export default function ComplianceStatusPanel({ supplierId }: Props) {
+  const [data, setData]       = useState<ComplianceData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/admin/compliance/supplier/${supplierId}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [supplierId]);
+
+  if (loading) return (
+    <div className="border rounded-lg p-4 animate-pulse bg-gray-50">
+      <div className="h-4 bg-gray-200 rounded w-40 mb-3"/>
+      <div className="h-3 bg-gray-100 rounded w-full"/>
+    </div>
+  );
+
+  const verifiedCount = data?.requirements.filter(r => r.state === 'verified').length ?? 0;
+  const totalCount    = data?.requirements.length ?? 0;
+
+  return (
+    <div className="border rounded-lg p-4 bg-white">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-800">Cumplimiento de exportación</h3>
+        {totalCount > 0 && (
+          <span className="text-xs text-gray-500">{verifiedCount}/{totalCount} verificados</span>
+        )}
+      </div>
+
+      {/* Legacy boolean layer — quick reference */}
+      {data?.booleans && (
+        <div className="mb-4 p-3 bg-gray-50 rounded text-xs">
+          <p className="text-gray-500 uppercase tracking-wide mb-2 font-medium">Estado histórico (booleanos)</p>
+          <div className="grid grid-cols-2 gap-1">
+            {Object.entries({
+              'RUT DIAN':     data.booleans.rutDian,
+              'ICA':          data.booleans.icaRegistro,
+              'Fitosanitario':data.booleans.fitosanitarioCert,
+              'DIAN Exportador': data.booleans.dianExportador,
+            }).map(([k, v]) => (
+              <span key={k} className={v ? 'text-green-700' : 'text-gray-400'}>
+                {v ? '✓' : '○'} {k}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CC-1 requirement rows */}
+      {totalCount === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-gray-500 mb-3">No se ha iniciado ningún requisito CC-1.</p>
+          <a href={`/admin/compliance/supplier/${supplierId}`}
+            className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded">
+            Iniciar gestión de cumplimiento
+          </a>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {data!.requirements.map(req => {
+            const badge = STATE_BADGES[req.state] ?? { label: req.state, color: 'bg-gray-100 text-gray-600' };
+            const path  = REQUIREMENT_PATHS[req.requirementCode];
+            return (
+              <div key={req.requirementCode}
+                className="flex items-center justify-between py-2 border-b last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    {REQUIREMENT_NAMES[req.requirementCode] ?? req.requirementCode}
+                  </p>
+                  <span className={`text-xs px-2 py-0.5 rounded ${badge.color}`}>
+                    {badge.label}
+                  </span>
+                </div>
+                {path && (
+                  <a href={`/admin/compliance/supplier/${supplierId}/${path}`}
+                    className="text-xs text-gray-600 underline">
+                    Gestionar
+                  </a>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="pt-2">
+            <a href={`/admin/compliance/supplier/${supplierId}`}
+              className="text-xs text-gray-500 underline">
+              Ver historial completo
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Wire Into Admin Supplier Detail
+
+Find the admin supplier detail page (search for `GET /api/suppliers/:id` call or `useGetSupplier` hook in `artifacts/fincava/src/pages/admin/`). Add the panel:
+
+```tsx
+import ComplianceStatusPanel from '../../components/admin/ComplianceStatusPanel';
+
+// Inside the supplier detail JSX, add:
+<ComplianceStatusPanel supplierId={supplier.id} />
+```
+
+---
+
+## CC-1E Acceptance Criteria
+- [ ] Panel renders in admin supplier detail page (no blank screen, no 500 errors)
+- [ ] Empty state shown when no CC-1 requirement rows exist for this supplier
+- [ ] State badges match STATE_BADGES map (no unknown states visible)
+- [ ] Legacy boolean layer shown correctly from complianceDocsTable
+- [ ] "Gestionar" links route to correct /admin/compliance/supplier/:id page
+- [ ] `pnpm tsc --noEmit` passes
+
+---
+
+---
+
+# PASTE 5 — CC-1A: AI Compliance Write-back Hook (Enhancement)
+
+## Prerequisite
+CC-1E complete. All 7 tables in Neon. Full admin pipeline verified end-to-end.
+
+## Context
+The graduation service reads `complianceDocsTable` booleans directly, but the AI scoring output (`aiOutputsTable.complianceGaps`) is never parsed back into those booleans. This means the boolean layer reflects only onboarding declarations and manual admin updates — not AI-detected gaps.
+
+**Invariant:** AI can only **clear** booleans (set to false if gap detected). AI cannot **verify** (set to true) — only an admin/officer can verify. This prevents false auto-verification.
+
+---
+
+## Task — Add Write-back to Scoring Service
+
+Open `artifacts/api-server/src/routes/suppliers.ts`. Find the `scoreSupplier` function (search for `aiOutputsTable` insert or `export_readiness_score`).
+
+After the AI output is written to `aiOutputsTable`, add the write-back block:
+
+```typescript
+// ── CC-1A: AI Compliance Write-back ──────────────────────────────────────────
+// Parse complianceGaps from AI output and clear corresponding booleans in complianceDocsTable.
+// INVARIANT: AI can only set booleans to FALSE (detected gap). Admin sets to TRUE (verified).
+// This is a best-effort operation — failure does NOT fail the scoring run.
+
+async function applyComplianceWriteback(
+  supplierId: number,
+  complianceGaps: string | null,
+): Promise<void> {
+  if (!complianceGaps) return;
+
+  const gaps = complianceGaps.toLowerCase();
+
+  // Detect which compliance booleans the AI flagged as missing
+  const clearRut          = gaps.includes('rut') || gaps.includes('dian');
+  const clearIca          = gaps.includes('ica');
+  const clearFitosanitario = gaps.includes('fitosanitario') || gaps.includes('fitosanitaria');
+  const clearDianExportador = gaps.includes('exportador') || gaps.includes('dian exportador');
+
+  if (!clearRut && !clearIca && !clearFitosanitario && !clearDianExportador) return;
+
+  const updates: Record<string, boolean> = {};
+  if (clearRut)           updates.rutDian          = false;
+  if (clearIca)           updates.icaRegistro       = false;
+  if (clearFitosanitario) updates.fitosanitarioCert = false;
+  if (clearDianExportador) updates.dianExportador   = false;
+
+  // Only update if the current value is false already, OR if the gap is confirmed.
+  // To avoid overwriting admin-set true values, we use a conditional update:
+  // Only clear a boolean if it is currently FALSE (i.e., not yet admin-verified).
+  // This preserves admin verifications while correcting stale "true" from onboarding input.
+  // WARNING: This means AI cannot un-verify what admin verified. That is intentional.
+  await db.execute(sql`
+    UPDATE compliance_docs SET
+      ${clearRut           ? sql`rut_dian           = CASE WHEN rut_dian           = false THEN false ELSE rut_dian END,`           : sql``}
+      ${clearIca           ? sql`ica_registro        = CASE WHEN ica_registro        = false THEN false ELSE ica_registro END,`        : sql``}
+      ${clearFitosanitario ? sql`fitosanitario_cert  = CASE WHEN fitosanitario_cert  = false THEN false ELSE fitosanitario_cert END,`  : sql``}
+      ${clearDianExportador ? sql`dian_exportador    = CASE WHEN dian_exportador    = false THEN false ELSE dian_exportador END,`    : sql``}
+      last_reviewed_at = NOW()
+    WHERE supplier_id = ${supplierId}
+  `);
+
+  logger.info({ supplierId, updates }, 'CC-1A: AI compliance write-back applied');
+}
+```
+
+**Note on the SQL above:** The conditional updates using dynamic sql template tags may not compose cleanly in all Drizzle versions. Rewrite as a simpler Drizzle update if needed:
+
+```typescript
+// Simpler alternative — only clears fields AI flagged, never touches others:
+if (clearRut || clearIca || clearFitosanitario || clearDianExportador) {
+  await db.execute(sql`
+    UPDATE compliance_docs
+    SET
+      rut_dian           = CASE WHEN ${clearRut}           THEN false ELSE rut_dian END,
+      ica_registro       = CASE WHEN ${clearIca}           THEN false ELSE ica_registro END,
+      fitosanitario_cert = CASE WHEN ${clearFitosanitario} THEN false ELSE fitosanitario_cert END,
+      dian_exportador    = CASE WHEN ${clearDianExportador} THEN false ELSE dian_exportador END,
+      last_reviewed_at   = NOW()
+    WHERE supplier_id = ${supplierId}
+  `);
+  logger.info({ supplierId, clearRut, clearIca, clearFitosanitario, clearDianExportador },
+    'CC-1A: AI compliance write-back applied');
+}
+```
+
+**Where to call it:** Find where `aiOutputsTable` is inserted with `complianceGaps`. After that insert succeeds, add:
+
+```typescript
+// Fire-and-forget — never block scoring run on write-back failure
+applyComplianceWriteback(supplierId, parsed.compliance_gaps?.join(', ') ?? null)
+  .catch(err => logger.error({ err, supplierId }, 'CC-1A: write-back failed — non-fatal'));
+```
+
+---
+
+## CC-1A Acceptance Criteria
+- [ ] After onboarding a supplier where AI returns compliance_gaps containing "RUT" → `complianceDocsTable.rutDian` is false
+- [ ] After onboarding a supplier where AI returns no compliance_gaps → complianceDocsTable unchanged
+- [ ] If admin has already set `rutDian = true`, AI write-back does NOT clear it (invariant preserved)
+- [ ] Write-back failure does NOT cause scoring run to fail (fire-and-forget)
+- [ ] `pnpm tsc --noEmit` passes
+- [ ] `pnpm tsc --noEmit` passes across full monorepo after CC-1A
+
+---
+
+## Full CC-1 Done Checklist
+
+After all 5 pastes are complete:
+
+- [ ] All 7 CC-1 tables exist in Neon with correct columns and constraints
+- [ ] No existing table (compliance_docs, suppliers, ai_outputs, supplier_evaluations) was altered
+- [ ] `pnpm tsc --noEmit` — zero errors across monorepo
+- [ ] `pnpm build` — succeeds
+- [ ] Admin can reach `/admin/compliance` — priority queue renders
+- [ ] Admin can open `/admin/compliance/supplier/:id` — full compliance detail renders
+- [ ] Officer can record DIAN RUT intake for a supplier (intake route returns correct state)
+- [ ] Officer can submit a document on behalf of a supplier (document appears in complianceDocumentsV2)
+- [ ] Admin review transition enforces ALLOWED_TRANSITIONS (422 on invalid move)
+- [ ] ComplianceStatusPanel appears in admin supplier detail page
+- [ ] AI write-back clears relevant booleans when complianceGaps contains keyword matches
+- [ ] Buyer visibility toggle upserts correctly
+
+**CC-1 complete. CC-2 (ICA Context flow) prompt follows.**
