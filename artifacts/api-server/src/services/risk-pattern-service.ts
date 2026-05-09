@@ -130,5 +130,30 @@ export function evaluateRiskPatterns(
     });
   }
 
+  // ── P6: PHYTO_SEQUENCING_RISK ─────────────────────────────────────────────
+  // ICA_REGISTRO must be active before FITOSANITARIO can be verified.
+  // Flagging this early prevents a supplier from submitting phytosanitary
+  // documents while their ICA registry is not yet in progress — the
+  // certification authority will reject the submission regardless.
+  {
+    const p6PhytoState = stateByCode.get("FITOSANITARIO");
+    const p6IcaState   = stateByCode.get("ICA_REGISTRO");
+    const phytoActive = p6PhytoState != null &&
+      (p6PhytoState === "submitted" || p6PhytoState === "verified");
+    const icaNotReady = p6IcaState != null &&
+      (p6IcaState === "not_started" || p6IcaState === "not_sure");
+    if (phytoActive && icaNotReady) {
+      flags.push({
+        patternCode: "PHYTO_SEQUENCING_RISK",
+        severity: "warning",
+        label: "Phytosanitary sequencing risk",
+        description:
+          "FITOSANITARIO certificate submitted but ICA_REGISTRO is not yet active. " +
+          "ICA Registro must be in progress before the phytosanitary certificate " +
+          "can be verified — reorder the compliance sequence.",
+      });
+    }
+  }
+
   return flags;
 }

@@ -3,6 +3,13 @@ import { useLocation } from "wouter";
 import { ClipboardCheck, ChevronRight, CheckCircle2, AlertTriangle, Clock, XCircle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+interface RiskFlag {
+  patternCode: string;
+  severity: "critical" | "warning" | "info";
+  label: string;
+  description: string;
+}
+
 interface QueueItem {
   supplierId: number;
   nombreCompleto: string;
@@ -13,6 +20,7 @@ interface QueueItem {
   totalRequirements: number;
   pendingCount: number;
   verifiedCount: number;
+  riskFlags?: RiskFlag[];
 }
 
 interface Requirement {
@@ -55,6 +63,7 @@ interface SupplierDetail {
   requirements: Requirement[];
   documents: Document[];
   reviews: Review[];
+  riskFlags?: RiskFlag[];
 }
 
 const STATE_CONFIG: Record<string, { label: string; color: string; icon: typeof Clock }> = {
@@ -100,6 +109,25 @@ function SellableBadge({ status }: { status: string | null }) {
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors[s] ?? "bg-white/10 text-white/40"}`}>
       {s.replace("_", " ")}
+    </span>
+  );
+}
+
+const RISK_SEVERITY_CONFIG = {
+  critical: { bg: "bg-red-500/20",   text: "text-red-400",   dot: "bg-red-400"   },
+  warning:  { bg: "bg-amber-500/20", text: "text-amber-400", dot: "bg-amber-400" },
+  info:     { bg: "bg-blue-500/20",  text: "text-blue-400",  dot: "bg-blue-400"  },
+} as const;
+
+function RiskBadge({ flag }: { flag: RiskFlag }) {
+  const cfg = RISK_SEVERITY_CONFIG[flag.severity];
+  return (
+    <span
+      title={flag.description}
+      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.text}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+      {flag.label}
     </span>
   );
 }
@@ -249,6 +277,31 @@ export default function AdminComplianceQueue() {
 
         <div className="space-y-4">
           {detailLoading && <p className="text-white/40 text-sm">Loading…</p>}
+
+          {selectedSupplier.riskFlags && selectedSupplier.riskFlags.length > 0 && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <h3 className="text-xs font-semibold text-amber-400/80 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Risk Signals ({selectedSupplier.riskFlags.length})
+              </h3>
+              <div className="space-y-2">
+                {selectedSupplier.riskFlags
+                  .sort((a, b) => {
+                    const order = { critical: 0, warning: 1, info: 2 };
+                    return order[a.severity] - order[b.severity];
+                  })
+                  .map((flag) => (
+                    <div
+                      key={flag.patternCode}
+                      className="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5"
+                    >
+                      <RiskBadge flag={flag} />
+                      <p className="text-xs text-white/50 leading-relaxed">{flag.description}</p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {selectedSupplier.requirements.map((req) => (
             <div key={req.id} className="rounded-xl border border-white/10 bg-white/5 p-5">
@@ -428,11 +481,12 @@ export default function AdminComplianceQueue() {
           <p className="text-white/30 text-sm mt-1">Suppliers appear here after their AI scoring run identifies compliance gaps.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-white/10 overflow-hidden">
+        <div className="rounded-xl border border-white/10 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 bg-white/5">
                 <th className="text-left text-xs font-semibold text-white/40 uppercase tracking-wider px-5 py-3">Supplier</th>
+                <th className="text-left text-xs font-semibold text-white/40 uppercase tracking-wider px-5 py-3">Risk Signals</th>
                 <th className="text-left text-xs font-semibold text-white/40 uppercase tracking-wider px-5 py-3">Status</th>
                 <th className="text-center text-xs font-semibold text-white/40 uppercase tracking-wider px-5 py-3">Pending</th>
                 <th className="text-center text-xs font-semibold text-white/40 uppercase tracking-wider px-5 py-3">Verified</th>
@@ -450,6 +504,22 @@ export default function AdminComplianceQueue() {
                   <td className="px-5 py-4">
                     <p className="font-medium text-white">{item.nombreCompleto}</p>
                     <p className="text-xs text-white/40 capitalize">{item.supplierType.toLowerCase()}</p>
+                  </td>
+                  <td className="px-5 py-4">
+                    {item.riskFlags && item.riskFlags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {item.riskFlags
+                          .sort((a, b) => {
+                            const order = { critical: 0, warning: 1, info: 2 };
+                            return order[a.severity] - order[b.severity];
+                          })
+                          .map((flag) => (
+                            <RiskBadge key={flag.patternCode} flag={flag} />
+                          ))}
+                      </div>
+                    ) : (
+                      <span className="text-white/20 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-5 py-4">
                     <SellableBadge status={item.sellableStatus} />

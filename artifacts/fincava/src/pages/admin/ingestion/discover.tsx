@@ -12,7 +12,15 @@ interface CandidateLead {
   location: string;
   website: string | null;
   categoryHint: string;
+  existingStatus?: "new" | "in_evaluation" | "already_onboarded" | "rejected";
 }
+
+const EXISTING_STATUS_CONFIG = {
+  new:               null,
+  in_evaluation:     { label: "In Evaluation",     bg: "bg-amber-500/20",   text: "text-amber-400"   },
+  already_onboarded: { label: "Already Onboarded", bg: "bg-emerald-500/20", text: "text-emerald-400" },
+  rejected:          { label: "Rejected",           bg: "bg-red-500/20",     text: "text-red-400"     },
+} as const;
 
 // Entity types the admin can hard-exclude from AI discovery results.
 // Cooperatives and exporters are checked by default — Fincava sources
@@ -110,6 +118,13 @@ export default function AdminIngestionDiscover() {
       if (next.has(idx)) {
         next.delete(idx);
       } else {
+        const lead = leads[idx];
+        if (
+          lead?.existingStatus === "already_onboarded" ||
+          lead?.existingStatus === "rejected"
+        ) {
+          return prev; // cannot select — already in system
+        }
         if (next.size >= 5) return prev;
         next.add(idx);
       }
@@ -387,11 +402,15 @@ export default function AdminIngestionDiscover() {
           <div className="rounded-xl border border-white/10 overflow-hidden">
             {leads.map((lead, idx) => {
               const isSelected = selected.has(idx);
-              const isDisabled = !isSelected && selected.size >= 5;
+              const isBlocked =
+                lead.existingStatus === "already_onboarded" ||
+                lead.existingStatus === "rejected";
+              const isDisabled = isBlocked || (!isSelected && selected.size >= 5);
               return (
                 <div
                   key={idx}
                   onClick={() => !isDisabled && toggleSelect(idx)}
+                  title={isBlocked ? `${lead.existingStatus === "already_onboarded" ? "Already onboarded" : "Previously rejected"} — cannot select` : undefined}
                   className={`flex items-start gap-4 px-5 py-4 border-b border-white/5 last:border-0 transition-colors cursor-pointer
                     ${isSelected ? "bg-emerald-500/10 border-l-2 border-l-emerald-500" : "hover:bg-white/5"}
                     ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}
@@ -428,6 +447,15 @@ export default function AdminIngestionDiscover() {
                           {new URL(lead.website).hostname}
                         </a>
                       )}
+                      {lead.existingStatus && lead.existingStatus !== "new" && (() => {
+                        const cfg = EXISTING_STATUS_CONFIG[lead.existingStatus as "in_evaluation" | "already_onboarded" | "rejected"];
+                        if (!cfg) return null;
+                        return (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.text}`}>
+                            {cfg.label}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
