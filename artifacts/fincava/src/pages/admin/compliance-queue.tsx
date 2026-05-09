@@ -80,12 +80,40 @@ const STATE_CONFIG: Record<string, { label: string; color: string; icon: typeof 
 };
 
 const VALID_DECISIONS = [
-  { value: "verified", label: "Verified" },
-  { value: "needs_fix", label: "Needs Fix" },
-  { value: "conditionally_approved", label: "Conditionally Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "escalated", label: "Escalate to Assisted" },
+  { value: "verified",              label: "Verified" },
+  { value: "needs_fix",             label: "Needs Fix" },
+  { value: "conditionally_approved",label: "Conditionally Approved" },
+  { value: "rejected",              label: "Rejected" },
+  { value: "escalated",             label: "Escalate to Assisted" },
 ] as const;
+
+// Mirrors backend DECISION_TO_STATE — decision name → resulting requirement state
+const DECISION_TO_STATE: Record<string, string> = {
+  verified:               "verified",
+  needs_fix:              "needs_fix",
+  conditionally_approved: "conditionally_approved",
+  rejected:               "rejected",
+  escalated:              "assisted_in_progress",
+};
+
+// Mirrors backend ALLOWED_TRANSITIONS — current state → allowed target states
+const ALLOWED_TRANSITIONS: Record<string, Set<string>> = {
+  not_started:              new Set(["not_sure", "self_serve_in_progress", "assisted_in_progress", "managed_service_candidate"]),
+  not_sure:                 new Set(["self_serve_in_progress", "assisted_in_progress", "managed_service_candidate"]),
+  self_serve_in_progress:   new Set(["submitted", "assisted_in_progress", "needs_fix"]),
+  assisted_in_progress:     new Set(["submitted", "managed_service_candidate", "needs_fix"]),
+  managed_service_candidate:new Set(["assisted_in_progress", "submitted"]),
+  submitted:                new Set(["needs_fix", "conditionally_approved", "verified", "rejected"]),
+  needs_fix:                new Set(["submitted", "assisted_in_progress"]),
+  conditionally_approved:   new Set(["verified", "rejected"]),
+  verified:                 new Set([]),
+  rejected:                 new Set([]),
+};
+
+function validDecisionsFor(state: string) {
+  const allowed = ALLOWED_TRANSITIONS[state] ?? new Set<string>();
+  return VALID_DECISIONS.filter((d) => allowed.has(DECISION_TO_STATE[d.value] ?? ""));
+}
 
 function StatePill({ state }: { state: string }) {
   const cfg = STATE_CONFIG[state] ?? { label: state, color: "text-white/40", icon: Clock };
@@ -142,6 +170,7 @@ export default function AdminComplianceQueue() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [reviewState, setReviewState] = useState<{
     requirementId: number;
+    requirementState: string;
     decision: string;
     visibleNote: string;
     internalNote: string;
@@ -337,16 +366,25 @@ export default function AdminComplianceQueue() {
                     {visibilityMap[req.requirementCode] ? "Buyer visible" : "Hidden"}
                   </button>
                   <button
-                    onClick={() =>
+                    onClick={() => {
+                      const available = validDecisionsFor(req.state);
+                      if (available.length === 0) return;
                       setReviewState({
                         requirementId: req.id,
-                        decision: "verified",
+                        requirementState: req.state,
+                        decision: available[0].value,
                         visibleNote: "",
                         internalNote: "",
                         submitting: false,
-                      })
+                      });
+                    }}
+                    disabled={validDecisionsFor(req.state).length === 0}
+                    title={
+                      validDecisionsFor(req.state).length === 0
+                        ? `No admin transitions available from '${req.state}'`
+                        : undefined
                     }
-                    className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     Review
                   </button>
@@ -407,7 +445,7 @@ export default function AdminComplianceQueue() {
                   onChange={(e) => setReviewState((s) => s && { ...s, decision: e.target.value })}
                   className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50"
                 >
-                  {VALID_DECISIONS.map((d) => (
+                  {validDecisionsFor(reviewState.requirementState).map((d) => (
                     <option key={d.value} value={d.value} className="bg-[#0a140e]">
                       {d.label}
                     </option>
