@@ -370,10 +370,17 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
     const result = await buildProductResponse(product, company);
     res.status(201).json(result);
 
-    // G4.4: New product changes catalog depth — recompute platform trust score.
-    void computePlatformTrustScore(company.id).catch((err) =>
-      logger.warn({ err, companyId: company.id }, "trust-score: recompute after product create failed"),
-    );
+    // Fire-and-forget: recompute platform trust score when a new product is listed.
+    // The productsCatalog dimension scales from 0→100 over 3+ products — each new
+    // listing may meaningfully change the score, especially in the 0–3 product range.
+    setImmediate(() => {
+      void computePlatformTrustScore(company.id).catch((err) =>
+        logger.warn(
+          { err, companyId: company.id },
+          "trust-score: recompute on product create failed (non-fatal)",
+        )
+      );
+    });
   } catch (err: any) {
     logger.error({ err }, "Create product error");
     sendError(res, 500, "Failed to create product");

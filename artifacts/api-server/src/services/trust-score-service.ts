@@ -1,4 +1,4 @@
-import { eq, count, inArray, and, sql } from "drizzle-orm";
+import { eq, count, inArray, and } from "drizzle-orm";
 import {
   db,
   companiesTable,
@@ -15,15 +15,12 @@ import { logger } from "../lib/logger";
 // This is the PLATFORM TRACK RECORD signal — distinct from profile_completeness_score
 // (confidence-scorer.ts) which measures profile quality. A new supplier with a
 // perfect profile scores zero here; a veteran with 10+ delivered orders scores high.
-//
-// Weight key `catalogActivity` maps to DB column `response_time` (no migration; the
-// column was originally reserved for messaging latency but is repurposed here).
 const WEIGHTS = {
   profileCompleteness: 30,  // company profile field coverage
   ordersCompleted:     25,  // DELIVERED/COMPLETED orders — temporal track record
   productsCatalog:     20,  // breadth of active listings
   verified:            15,  // admin-verified badge
-  catalogActivity:     10,  // active-product ratio: maintained catalog = engaged seller
+  responseTime:        10,  // messaging response latency via companiesTable.responseTimeHours
 };
 
 export function getTrustTier(score: number): string {
@@ -68,28 +65,26 @@ export async function computeTrustScore(companyId: number): Promise<number> {
   // 5+ fulfilled orders = full score; scales linearly below
   const ordersScore = Math.min(completedOrders / 5, 1) * 100;
 
-  // ── 3. Products catalog + catalog activity ────────────────────────────────
-  // Single query: total count + conditional count of active products.
-  // G4.2: `catalogActivity` replaces the static responseTime=50 placeholder.
-  // It measures the active-product ratio — a maintained catalog signals an
-  // engaged seller. DB column retains the name `response_time`; no migration needed.
-  const [catalogRow] = await db
-    .select({
-      total: count(),
-      active: sql<string>`count(*) filter (where ${productsTable.active} = true)`,
-    })
+  // ── 3. Products catalog ────────────────────────────────────────────────────
+  const [productRow] = await db
+    .select({ total: count() })
     .from(productsTable)
     .where(eq(productsTable.companyId, companyId));
 
-  const productCount = Number(catalogRow?.total ?? 0);
-  const activeProductCount = Number(catalogRow?.active ?? 0);
-  // 3+ listed products = full catalog breadth score
+  const productCount = Number(productRow?.total ?? 0);
+  // 3+ listed products = full catalog breadth score; scales linearly below
   const productsScore = Math.min(productCount / 3, 1) * 100;
-  // Active ratio: 0 if no products, 100 if all products active
-  const catalogActivityScore = productCount > 0 ? (activeProductCount / productCount) * 100 : 0;
 
   // ── 4. Verified flag ───────────────────────────────────────────────────────
   const verifiedScore = company.verified ? 100 : 0;
+
+  // ── 5. Response time — uses responseTimeHours from companiesTable
+  //    when populated by the messaging layer.
+  //    0 hours → 100 (instant). 72 hours (3 days) → 0 (unresponsive).
+  //    Falls back to 50 (neutral) when no messaging data is recorded.
+  const responseScore = company.responseTimeHours != null
+    ? Math.max(0, Math.round(100 - (company.responseTimeHours / 72) * 100))
+    : 50;
 
   // ── Weighted total ─────────────────────────────────────────────────────────
   const total =
@@ -97,7 +92,7 @@ export async function computeTrustScore(companyId: number): Promise<number> {
     (ordersScore         * WEIGHTS.ordersCompleted)      / 100 +
     (productsScore       * WEIGHTS.productsCatalog)      / 100 +
     (verifiedScore       * WEIGHTS.verified)             / 100 +
-    (catalogActivityScore * WEIGHTS.catalogActivity)     / 100;
+    (responseScore        * WEIGHTS.responseTime)         / 100;
 
   const finalScore = Math.round(Math.min(total, 100));
 
@@ -116,7 +111,7 @@ export async function computeTrustScore(companyId: number): Promise<number> {
         certificationsCount: verifiedScore,
         profileCompleteness: profileScore,
         tradeVolume: productsScore,
-        responseTime: catalogActivityScore,   // DB col retains old name; value is now catalogActivity
+        responseTime: responseScore,
         updatedAt: new Date(),
       })
       .where(eq(trustScoresTable.companyId, companyId));
@@ -128,7 +123,7 @@ export async function computeTrustScore(companyId: number): Promise<number> {
       certificationsCount: verifiedScore,
       profileCompleteness: profileScore,
       tradeVolume: productsScore,
-      responseTime: catalogActivityScore,     // DB col retains old name; value is now catalogActivity
+      responseTime: responseScore,
     });
   }
 

@@ -441,12 +441,18 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
   const result = await buildOrderResponse(order);
   res.json(result);
 
-  // G4.4: Recompute platform trust score when an order reaches DELIVERED/COMPLETED.
-  // company.id is already resolved by the ownership check above. Fire-and-forget.
-  if (parsed.data.status === "DELIVERED" || parsed.data.status === "COMPLETED") {
-    void computePlatformTrustScore(company.id).catch((err) =>
-      req.log.warn({ err, companyId: company.id }, "trust-score: recompute after order status failed"),
-    );
+  // Fire-and-forget: recompute platform trust score on terminal order states.
+  // Uses order.status (DB-confirmed value), not parsed.data.status (requested
+  // value) — trust signal should reflect what was actually committed.
+  if (order.status === "DELIVERED" || order.status === "COMPLETED") {
+    setImmediate(() => {
+      void computePlatformTrustScore(company.id).catch((err) =>
+        req.log.warn(
+          { err, companyId: company.id },
+          "trust-score: recompute on order delivery failed (non-fatal)",
+        )
+      );
+    });
   }
 
   // Fire-and-forget: notify buyer of order status change
