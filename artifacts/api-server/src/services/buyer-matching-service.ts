@@ -15,6 +15,7 @@ import {
   buyerMatchesTable,
   suppliersTable,
   productsTable,
+  trustScoresTable,
   usersTable,
   profilesTable,
 } from "@workspace/db";
@@ -27,6 +28,11 @@ import { BUYER_MATCHING_SYSTEM_PROMPT } from "../config/buyer-matching-prompts";
 
 const MATCHING_MODEL = "claude-sonnet-4-6";
 const MAX_CANDIDATES = 50;
+// G4.3: Over-fetch from SQL so the JS trust-score sort has a full pool to work
+// with, then trim to MAX_CANDIDATES after sorting by [PUBLISHED, platformTrustScore
+// DESC, commercialScore DESC]. This ensures high-trust suppliers are never excluded
+// by SQL ordering before the trust scores are even known.
+const SQL_CANDIDATE_POOL_SIZE = MAX_CANDIDATES * 2;
 
 // ── Match freshness window ────────────────────────────────────────────────────
 // Buyer-triggered re-runs skip Claude if the last run was within this window.
@@ -164,6 +170,10 @@ async function selectCandidates(opts: {
     sellableStatus: string | null;
     graduationPathway: string | null;
     commercialScore: number | null;
+    // G4.3: platform trust score from trust_scores table (company-level).
+    // Null when the supplier has no products with a companyId (no FK bridge yet)
+    // or when no trust score row exists for their company.
+    platformTrustScore: number | null;
     products: Array<{
       id: number;
       name: string;
@@ -226,6 +236,11 @@ async function selectCandidates(opts: {
     )`,
   );
 
+  // G4.3: Fetch SQL_CANDIDATE_POOL_SIZE rows (2× MAX_CANDIDATES) so the
+  // JavaScript trust-score re-sort has a full pool. Primary sort: PUBLISHED
+  // first. Secondary sort: commercialScore DESC (AI quality signal, already
+  // on suppliersTable — no extra join). The JS step below re-sorts by
+  // platformTrustScore and trims to MAX_CANDIDATES.
   const candidateRows = await db
     .select({
       id: suppliersTable.id,
@@ -241,19 +256,22 @@ async function selectCandidates(opts: {
     .where(and(...conditions))
     .orderBy(
       sql`CASE WHEN ${suppliersTable.sellableStatus} = 'PUBLISHED' THEN 0 ELSE 1 END`,
+      sql`${suppliersTable.commercialScore} DESC NULLS LAST`,
       sql`${suppliersTable.id} DESC`,
     )
-    .limit(MAX_CANDIDATES);
+    .limit(SQL_CANDIDATE_POOL_SIZE);
 
   if (candidateRows.length === 0) return [];
 
   const supplierIds = candidateRows.map((r) => r.id);
 
   // Pull all active products for the (already filtered) candidate set.
+  // G4.3: also fetch companyId so we can resolve platformTrustScore.
   const productRows = await db
     .select({
       id: productsTable.id,
       supplierId: productsTable.supplierId,
+      companyId: productsTable.companyId,
       name: productsTable.name,
       category: productsTable.category,
       subCategory: productsTable.subCategory,
@@ -274,15 +292,38 @@ async function selectCandidates(opts: {
     );
 
   const productsBySupplier = new Map<number, typeof productRows>();
+  // G4.3: supplierId → first non-null companyId seen on any of their products.
+  // This is the indirect supplier→company path until the direct FK bridge is added.
+  const companyIdBySupplier = new Map<number, number>();
   for (const p of productRows) {
     if (p.supplierId == null) continue;
     const list = productsBySupplier.get(p.supplierId) ?? [];
     list.push(p);
     productsBySupplier.set(p.supplierId, list);
+    if (p.companyId != null && !companyIdBySupplier.has(p.supplierId)) {
+      companyIdBySupplier.set(p.supplierId, p.companyId);
+    }
   }
 
-  return candidateRows.map((s) => {
+  // G4.3: Batch-fetch platform trust scores for all resolved company IDs.
+  const companyIds = [...new Set(companyIdBySupplier.values())];
+  const trustScoreByCompanyId = new Map<number, number>();
+  if (companyIds.length > 0) {
+    const trustRows = await db
+      .select({ companyId: trustScoresTable.companyId, score: trustScoresTable.score })
+      .from(trustScoresTable)
+      .where(inArray(trustScoresTable.companyId, companyIds));
+    for (const t of trustRows) {
+      trustScoreByCompanyId.set(t.companyId, t.score ?? 0);
+    }
+  }
+
+  // Build enriched candidate objects.
+  const enriched = candidateRows.map((s) => {
     const products = productsBySupplier.get(s.id) ?? [];
+    const companyId = companyIdBySupplier.get(s.id);
+    const platformTrustScore =
+      companyId != null ? (trustScoreByCompanyId.get(companyId) ?? null) : null;
     return {
       id: s.id,
       nombreCompleto: s.nombreCompleto,
@@ -292,6 +333,7 @@ async function selectCandidates(opts: {
       sellableStatus: s.sellableStatus,
       graduationPathway: s.graduationPathway,
       commercialScore: s.commercialScore,
+      platformTrustScore,
       products: products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -307,6 +349,22 @@ async function selectCandidates(opts: {
       })),
     };
   });
+
+  // G4.3: Re-sort enriched pool by [PUBLISHED first, platformTrustScore DESC,
+  // commercialScore DESC] and trim to MAX_CANDIDATES.
+  // This ensures high-trust veterans surface before low-trust newcomers
+  // even if they ranked lower on commercialScore in the SQL pre-filter.
+  enriched.sort((a, b) => {
+    const pubA = a.sellableStatus === "PUBLISHED" ? 0 : 1;
+    const pubB = b.sellableStatus === "PUBLISHED" ? 0 : 1;
+    if (pubA !== pubB) return pubA - pubB;
+    const tA = a.platformTrustScore ?? -1;
+    const tB = b.platformTrustScore ?? -1;
+    if (tB !== tA) return tB - tA;
+    return (b.commercialScore ?? 0) - (a.commercialScore ?? 0);
+  });
+
+  return enriched.slice(0, MAX_CANDIDATES);
 }
 
 // ── Coarse Phase 1 preview (no LLM call) ──────────────────────────────────────

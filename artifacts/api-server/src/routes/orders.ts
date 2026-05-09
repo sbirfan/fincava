@@ -12,6 +12,7 @@ import { orderStatusEmail, buyerIntentAdminAlertEmail } from "../lib/email";
 import { enqueueEmail } from "../lib/email-queue";
 import { logger } from "../lib/logger";
 import { computeFee } from "../services/fee-service";
+import { computePlatformTrustScore } from "../services/trust-score-service";
 import { logInteraction } from "../lib/interaction-logger";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
 import { isValidFeeStatus } from "../constants/fee-status";
@@ -439,6 +440,14 @@ router.patch("/supplier/orders/:id/status", requireAuth, async (req, res): Promi
 
   const result = await buildOrderResponse(order);
   res.json(result);
+
+  // G4.4: Recompute platform trust score when an order reaches DELIVERED/COMPLETED.
+  // company.id is already resolved by the ownership check above. Fire-and-forget.
+  if (parsed.data.status === "DELIVERED" || parsed.data.status === "COMPLETED") {
+    void computePlatformTrustScore(company.id).catch((err) =>
+      req.log.warn({ err, companyId: company.id }, "trust-score: recompute after order status failed"),
+    );
+  }
 
   // Fire-and-forget: notify buyer of order status change
   void Promise.resolve().then(async () => {

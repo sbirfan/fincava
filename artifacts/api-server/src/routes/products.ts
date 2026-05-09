@@ -13,6 +13,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
 import { logger } from "../lib/logger";
+import { computePlatformTrustScore } from "../services/trust-score-service";
 import { z } from "zod";
 import { sendError } from "../lib/response";
 
@@ -368,6 +369,11 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
 
     const result = await buildProductResponse(product, company);
     res.status(201).json(result);
+
+    // G4.4: New product changes catalog depth — recompute platform trust score.
+    void computePlatformTrustScore(company.id).catch((err) =>
+      logger.warn({ err, companyId: company.id }, "trust-score: recompute after product create failed"),
+    );
   } catch (err: any) {
     logger.error({ err }, "Create product error");
     sendError(res, 500, "Failed to create product");
@@ -425,6 +431,13 @@ router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<vo
 
   const result = await buildProductResponse(updated, company);
   res.json(result);
+
+  // G4.4: Catalog changes (active toggle, new fields) affect trust score — recompute.
+  if (parsed.data.active !== undefined) {
+    void computePlatformTrustScore(company.id).catch((err) =>
+      logger.warn({ err, companyId: company.id }, "trust-score: recompute after product update failed"),
+    );
+  }
 });
 
 router.delete("/supplier/products/:id", requireAuth, async (req, res): Promise<void> => {

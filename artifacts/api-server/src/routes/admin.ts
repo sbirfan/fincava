@@ -8,7 +8,7 @@ import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TY
 import { escalateGap } from "../services/buyer-gap-service";
 import { runMatching as runBuyerMatching, NotFoundError as MatchingNotFoundError } from "../services/buyer-matching-service";
 import { hashPassword } from "../lib/auth";
-import { computeTrustScore } from "../services/trust-score-service";
+import { computeTrustScore, getTrustTier } from "../services/trust-score-service";
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, AdminSupplierEditBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody, BatchConfirmBody } from "../schemas";
 import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
@@ -1812,7 +1812,33 @@ router.post("/admin/suppliers/:companyId/recompute-trust", ...adminOnly, async (
   if (isNaN(companyId)) { sendError(res, 400, "Invalid company id"); return; }
 
   const score = await computeTrustScore(companyId);
-  res.json({ companyId, score });
+  res.json({ companyId, score, tier: getTrustTier(score) });
+});
+
+// ── PATCH /api/admin/companies/:id/verify ────────────────────────────────────
+// Flips the company.verified flag and immediately recomputes platform trust
+// score (verified carries 15% weight — always recompute synchronously here so
+// the response reflects the new score). G4.4 event trigger.
+router.patch("/admin/companies/:id/verify", ...adminOnly, async (req, res): Promise<void> => {
+  const companyId = parseInt(req.params.id as string, 10);
+  if (isNaN(companyId)) { sendError(res, 400, "Invalid company id"); return; }
+
+  const parsed = z.object({ verified: z.boolean() }).safeParse(req.body);
+  if (!parsed.success) { sendError(res, 400, "Body must be { verified: boolean }"); return; }
+
+  const [company] = await db
+    .select({ id: companiesTable.id })
+    .from(companiesTable)
+    .where(eq(companiesTable.id, companyId));
+  if (!company) { sendError(res, 404, "Company not found"); return; }
+
+  await db
+    .update(companiesTable)
+    .set({ verified: parsed.data.verified })
+    .where(eq(companiesTable.id, companyId));
+
+  const score = await computeTrustScore(companyId);
+  res.json({ companyId, verified: parsed.data.verified, trustScore: score, tier: getTrustTier(score) });
 });
 
 // ── POST /api/admin/suppliers/:id/create-product ─────────────────────────────

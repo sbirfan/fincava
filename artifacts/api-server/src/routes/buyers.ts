@@ -19,6 +19,7 @@ import {
   buyerMatchesTable,
   suppliersTable,
   productsTable,
+  trustScoresTable,
   usersTable,
   profilesTable,
   companiesTable,
@@ -42,6 +43,7 @@ import {
   computeFieldsThatImproveMatch,
   MATCH_FRESHNESS_DAYS,
 } from "../services/buyer-matching-service";
+import { computeProfileCompletenessScore } from "../services/confidence-scorer";
 import { analyseGaps as analyseBuyerGaps } from "../services/buyer-gap-service";
 import { sendError } from "../lib/response";
 
@@ -811,6 +813,11 @@ router.get(
         sellableStatus: suppliersTable.sellableStatus,
         graduationPathway: suppliersTable.graduationPathway,
         commercialScore: suppliersTable.commercialScore,
+        // G4.1: fields needed to compute profile_completeness_score inline
+        supplierSourceUrl: suppliersTable.sourceUrl,
+        supplierNormalizedName: suppliersTable.normalizedName,
+        supplierDescription: suppliersTable.description,
+        supplierClaimStatus: suppliersTable.claimStatus,
       })
       .from(buyerMatchesTable)
       .innerJoin(suppliersTable, eq(buyerMatchesTable.supplierId, suppliersTable.id))
@@ -851,12 +858,16 @@ router.get(
     };
 
     const signalsBySupplier = new Map<number, SupplierSignals>();
+    // G4.1: supplierId → first companyId from products; companyId → trust score
+    const companyIdBySupplier = new Map<number, number>();
+    const trustScoreByCompanyId = new Map<number, number>();
 
     if (supplierIds.length > 0) {
       const productRows = await db
         .select({
           id: productsTable.id,
           supplierId: productsTable.supplierId,
+          companyId: productsTable.companyId,    // G4.1: needed to resolve platform trust score
           name: productsTable.name,
           category: productsTable.category,
           subCategory: productsTable.subCategory,
@@ -922,11 +933,46 @@ router.get(
           });
         }
         signalsBySupplier.set(p.supplierId, sig);
+
+        // G4.1: record first companyId seen for this supplier (indirect FK bridge)
+        if (p.companyId != null && !companyIdBySupplier.has(p.supplierId)) {
+          companyIdBySupplier.set(p.supplierId, p.companyId);
+        }
+      }
+
+      // G4.1: Batch-fetch platform trust scores for resolved company IDs.
+      const matchCompanyIds = [...new Set(companyIdBySupplier.values())];
+      if (matchCompanyIds.length > 0) {
+        const trustRows = await db
+          .select({ companyId: trustScoresTable.companyId, score: trustScoresTable.score })
+          .from(trustScoresTable)
+          .where(inArray(trustScoresTable.companyId, matchCompanyIds));
+        for (const t of trustRows) {
+          trustScoreByCompanyId.set(t.companyId, t.score ?? 0);
+        }
       }
     }
 
     const matches = rows.map((r) => {
       const sig = r.supplierId != null ? signalsBySupplier.get(r.supplierId) : undefined;
+
+      // G4.1 — profile_completeness_score: supplier-level profile quality signal.
+      // Answers "is this supplier's profile rich enough to be worth showing?"
+      const profile_completeness_score = computeProfileCompletenessScore({
+        sourceUrl: r.supplierSourceUrl,
+        normalizedName: r.supplierNormalizedName,
+        description: r.supplierDescription,
+        municipio: r.supplierMunicipio,
+        claimStatus: r.supplierClaimStatus as string | null | undefined,
+      });
+
+      // G4.1 — platform_trust_score: company-level track record signal.
+      // Answers "has this supplier proven themselves through actual behavior?"
+      // Null when no direct supplier→company FK exists yet (new unclaimed suppliers).
+      const companyId = r.supplierId != null ? companyIdBySupplier.get(r.supplierId) : undefined;
+      const platform_trust_score =
+        companyId != null ? (trustScoreByCompanyId.get(companyId) ?? null) : null;
+
       return {
         ...r,
         productCategories: sig?.categories ?? [],
@@ -937,6 +983,8 @@ router.get(
         cuppingMax: sig?.cuppingMax ?? null,
         productCount: sig?.productCount ?? 0,
         topProducts: sig?.topProducts ?? [],
+        profile_completeness_score,
+        platform_trust_score,
       };
     });
 

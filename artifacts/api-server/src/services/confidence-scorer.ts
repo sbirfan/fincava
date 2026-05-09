@@ -198,3 +198,12 @@ export function computePublicTrustScore(supplier: {
 
   return Math.round((earned / 5) * 100) / 100;
 }
+
+/**
+ * Canonical alias for {@link computePublicTrustScore}.
+ *
+ * Prefer this name in new code to make the distinction explicit:
+ *   - `computeProfileCompletenessScore` — profile quality (this file, supplier-level)
+ *   - `computePlatformTrustScore`       — platform track record (trust-score-service.ts, company-level)
+ */
+export const computeProfileCompletenessScore = computePublicTrustScore;
