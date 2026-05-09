@@ -439,11 +439,16 @@ router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<vo
   const result = await buildProductResponse(updated, company);
   res.json(result);
 
-  // G4.4: Catalog changes (active toggle, new fields) affect trust score — recompute.
+  // G4.4: Catalog changes (active toggle) affect the productsCatalog dimension — recompute.
   if (parsed.data.active !== undefined) {
-    void computePlatformTrustScore(company.id).catch((err) =>
-      logger.warn({ err, companyId: company.id }, "trust-score: recompute after product update failed"),
-    );
+    setImmediate(() => {
+      void computePlatformTrustScore(company.id).catch((err) =>
+        logger.warn(
+          { err, companyId: company.id },
+          "trust-score: recompute on product update failed (non-fatal)",
+        )
+      );
+    });
   }
 });
 

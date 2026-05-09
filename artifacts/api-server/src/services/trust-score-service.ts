@@ -1,4 +1,4 @@
-import { eq, count, inArray, and } from "drizzle-orm";
+import { eq, count, countDistinct, inArray, and } from "drizzle-orm";
 import {
   db,
   companiesTable,
@@ -45,8 +45,10 @@ export async function computeTrustScore(companyId: number): Promise<number> {
   // ── 2. Orders completed ────────────────────────────────────────────────────
   // Orders belong to buyers (buyerId), but exporter trust = orders fulfilled
   // on their products. Count COMPLETED orders on products owned by this company.
+  // countDistinct(ordersTable.id) prevents multi-line-item orders from being
+  // counted more than once — each fulfilled order is one trust signal.
   const [orderRow] = await db
-    .select({ total: count() })
+    .select({ total: countDistinct(ordersTable.id) })
     .from(ordersTable)
     .innerJoin(
       orderItemsTable,
@@ -66,10 +68,11 @@ export async function computeTrustScore(companyId: number): Promise<number> {
   const ordersScore = Math.min(completedOrders / 5, 1) * 100;
 
   // ── 3. Products catalog ────────────────────────────────────────────────────
+  // Only active products count — inactive/draft listings should not inflate score.
   const [productRow] = await db
     .select({ total: count() })
     .from(productsTable)
-    .where(eq(productsTable.companyId, companyId));
+    .where(and(eq(productsTable.companyId, companyId), eq(productsTable.active, true)));
 
   const productCount = Number(productRow?.total ?? 0);
   // 3+ listed products = full catalog breadth score; scales linearly below

@@ -251,11 +251,12 @@ export default function BuyerOnboardingPage() {
   useEffect(() => {
     fetch("/api/buyer/onboarding", { credentials: "include" })
       .then((r) => {
+        if (r.status === 404) return null; // no profile yet — new buyer, start with empty form
         if (!r.ok) throw new Error("load_error");
         return r.json();
       })
       .then((data) => {
-        if (data.profile) {
+        if (data?.profile) {
           const p = data.profile as OnboardingProfile;
           setProfile(p);
           setForm(prefill(p));
