@@ -18,6 +18,7 @@ const flagValues = vi.hoisted(() => ({
   ENABLE_FINANCE: false,
   ENABLE_LOGISTICS: false,
   ENABLE_INTELLIGENCE_PUBLIC: false,
+  ENABLE_MATCHING: false,
 }));
 
 vi.mock("../lib/flags", () => flagValues);
@@ -252,15 +253,17 @@ describe("Core route independence", () => {
     expect(src).not.toMatch(/last_evaluated_at.*DESC/i);
   });
 
-  it("flags module exports all four expected boolean flags", async () => {
+  it("flags module exports all five expected boolean flags", async () => {
     const actual = await vi.importActual<typeof import("../lib/flags")>("../lib/flags");
     expect(actual).toHaveProperty("ENABLE_TRANSACTIONS");
     expect(actual).toHaveProperty("ENABLE_FINANCE");
     expect(actual).toHaveProperty("ENABLE_LOGISTICS");
     expect(actual).toHaveProperty("ENABLE_INTELLIGENCE_PUBLIC");
+    expect(actual).toHaveProperty("ENABLE_MATCHING");
     expect(typeof actual.ENABLE_TRANSACTIONS).toBe("boolean");
     expect(typeof actual.ENABLE_FINANCE).toBe("boolean");
     expect(typeof actual.ENABLE_LOGISTICS).toBe("boolean");
     expect(typeof actual.ENABLE_INTELLIGENCE_PUBLIC).toBe("boolean");
+    expect(typeof actual.ENABLE_MATCHING).toBe("boolean");
   });
 });

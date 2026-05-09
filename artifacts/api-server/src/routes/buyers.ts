@@ -27,7 +27,7 @@ import {
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { hashPassword, generateToken, requireAuth } from "../lib/auth";
 import { requireAdmin } from "../middleware/admin";
-import { ENABLE_INTELLIGENCE_PUBLIC } from "../lib/flags";
+import { ENABLE_INTELLIGENCE_PUBLIC, ENABLE_MATCHING } from "../lib/flags";
 import { logger } from "../lib/logger";
 import {
   sendEmail,
@@ -40,6 +40,7 @@ import {
   runMatching as runBuyerMatching,
   countCoarseMatches,
   computeFieldsThatImproveMatch,
+  MATCH_FRESHNESS_DAYS,
 } from "../services/buyer-matching-service";
 import { analyseGaps as analyseBuyerGaps } from "../services/buyer-gap-service";
 import { sendError } from "../lib/response";
@@ -673,12 +674,85 @@ router.patch(
   },
 );
 
+// ── POST /api/buyers/match ────────────────────────────────────────────────────
+// Buyer-triggered re-run of the matching engine (G3.1).
+// Gate: ENABLE_MATCHING must be true for buyers to trigger directly;
+//       admins can always call it regardless of the flag (ENABLE_INTELLIGENCE_PUBLIC).
+// Freshness check (G3.5): if the buyer's lastMatchedAt is within MATCH_FRESHNESS_DAYS
+// and they already have current matches, return the cached result without
+// a Claude call. Pass `?force=true` to bypass the freshness guard.
+router.use("/buyers/match", (req, res, next): void => {
+  if (ENABLE_MATCHING || ENABLE_INTELLIGENCE_PUBLIC) { next(); return; }
+  void requireAuth(req, res, () => requireAdmin(req, res, next));
+});
+router.post(
+  "/buyers/match",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId: number = req.userId;
+
+    const [profile] = await db
+      .select({
+        id: buyerProfilesTable.id,
+        userId: buyerProfilesTable.userId,
+        lastMatchedAt: buyerProfilesTable.lastMatchedAt,
+        matchingRunCount: buyerProfilesTable.matchingRunCount,
+        p2SectionsDone: buyerProfilesTable.p2SectionsDone,
+      })
+      .from(buyerProfilesTable)
+      .where(eq(buyerProfilesTable.userId, userId));
+
+    if (!profile) {
+      sendError(res, 404, "Buyer profile not found");
+      return;
+    }
+
+    const force = String(req.query["force"] ?? "") === "true";
+
+    // G3.5 — Freshness check: skip Claude if a run was done within the window
+    // and there are already current matches. Buyer can override with ?force=true.
+    if (!force && profile.lastMatchedAt && (profile.matchingRunCount ?? 0) > 0) {
+      const ageMs = Date.now() - profile.lastMatchedAt.getTime();
+      const ageDays = ageMs / (1000 * 60 * 60 * 24);
+      if (ageDays < MATCH_FRESHNESS_DAYS) {
+        res.json({
+          fresh: true,
+          skipped: true,
+          last_matched_at: profile.lastMatchedAt,
+          matching_run_count: profile.matchingRunCount,
+          message: `Matches are fresh (last run ${Math.round(ageDays)} day(s) ago). Pass ?force=true to re-run.`,
+        });
+        return;
+      }
+    }
+
+    req.log.info(
+      { userId, buyerProfileId: profile.id, force },
+      "buyer match: manual re-run triggered",
+    );
+
+    try {
+      const result = await runBuyerMatching(profile.id);
+      res.json({
+        fresh: false,
+        skipped: false,
+        matches_inserted: result.matchesInserted,
+        candidates_evaluated: result.candidatesEvaluated,
+      });
+    } catch (err) {
+      req.log.error({ err, buyerProfileId: profile.id }, "buyer match: run failed");
+      sendError(res, 500, "Matching run failed");
+    }
+  },
+);
+
 // ── GET /api/buyers/:id/matches ───────────────────────────────────────────────
 // Returns the current matches for a buyer, sorted desc by match_score.
 // `?preview=true` returns a Phase 1-only coarse candidate count without
 // touching the matches table or invoking Sonnet.
+// Gate swapped to ENABLE_MATCHING (G3.2) — finer-grained than ENABLE_INTELLIGENCE_PUBLIC.
 router.use("/buyers/:id/matches", (req, res, next): void => {
-  if (ENABLE_INTELLIGENCE_PUBLIC) { next(); return; }
+  if (ENABLE_MATCHING || ENABLE_INTELLIGENCE_PUBLIC) { next(); return; }
   void requireAuth(req, res, () => requireAdmin(req, res, next));
 });
 router.get(

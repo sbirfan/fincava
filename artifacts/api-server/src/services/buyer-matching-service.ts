@@ -19,6 +19,7 @@ import {
   profilesTable,
 } from "@workspace/db";
 import { eq, and, inArray, sql } from "drizzle-orm";
+import { z } from "zod";
 import { getAnthropicClient } from "../lib/anthropic";
 import { logger } from "../lib/logger";
 import { sendEmail, buyerMatchReadyEmail } from "../lib/email";
@@ -27,6 +28,10 @@ import { BUYER_MATCHING_SYSTEM_PROMPT } from "../config/buyer-matching-prompts";
 const MATCHING_MODEL = "claude-sonnet-4-6";
 const MAX_CANDIDATES = 50;
 
+// ── Match freshness window ────────────────────────────────────────────────────
+// Buyer-triggered re-runs skip Claude if the last run was within this window.
+export const MATCH_FRESHNESS_DAYS = 30;
+
 export class NotFoundError extends Error {
   constructor(message: string) {
     super(message);
@@ -34,16 +39,105 @@ export class NotFoundError extends Error {
   }
 }
 
-export interface MatchRow {
-  supplier_id: number;
-  match_score: number;
-  score_breakdown: Record<string, number>;
-  disqualifiers: string[];
-  match_notes: string;
+// ── G3.4 — Zod output validation ─────────────────────────────────────────────
+// Validates Claude's JSON response; rejects hallucinated fields or bad types
+// rather than silently casting with `as MatchResponse`.
+const MatchRowSchema = z.object({
+  supplier_id: z.number().int().positive(),
+  match_score: z.number().min(0).max(1),
+  score_breakdown: z.object({
+    product: z.number().min(0).max(1),
+    certifications: z.number().min(0).max(1),
+    origin: z.number().min(0).max(1),
+    volume: z.number().min(0).max(1),
+    supplier_type: z.number().min(0).max(1),
+  }),
+  disqualifiers: z.array(z.string()),
+  match_notes: z.string(),
+});
+
+const MatchResponseSchema = z.object({
+  matches: z.array(MatchRowSchema),
+});
+
+export type MatchRow = z.infer<typeof MatchRowSchema>;
+
+// ── G3.3 — Category normalization ────────────────────────────────────────────
+// Buyer targetProducts strings (free text from onboarding) often don't exactly
+// match products.category values in the DB. This map normalizes common aliases
+// to the canonical lowercase form used in products.category.
+// SQL pre-filter uses lower(p.category) after normalization so both sides match.
+const CATEGORY_ALIASES: Record<string, string> = {
+  coffee: "coffee",
+  cafe: "coffee",
+  café: "coffee",
+  "specialty coffee": "coffee",
+  "green coffee": "coffee",
+  cacao: "cacao",
+  cocoa: "cacao",
+  chocolate: "cacao",
+  "fine cacao": "cacao",
+  avocado: "avocado",
+  aguacate: "avocado",
+  hass: "avocado",
+  "exotic fruit": "exotic_fruit",
+  exotic_fruit: "exotic_fruit",
+  "exotic fruits": "exotic_fruit",
+  "tropical fruit": "exotic_fruit",
+  "tropical fruits": "exotic_fruit",
+  fruit: "exotic_fruit",
+  uchuva: "exotic_fruit",
+  granadilla: "exotic_fruit",
+  maracuyá: "exotic_fruit",
+  maracuya: "exotic_fruit",
+  "passion fruit": "exotic_fruit",
+  superfoods: "superfoods",
+  superfood: "superfoods",
+  panela: "panela",
+  "raw cane sugar": "panela",
+  sugarcane: "panela",
+  "hearts of palm": "hearts_of_palm",
+  hearts_of_palm: "hearts_of_palm",
+  palm: "hearts_of_palm",
+  palmito: "hearts_of_palm",
+  plantain: "plantain",
+  platano: "plantain",
+  plátano: "plantain",
+  banana: "plantain",
+  yuca: "yuca",
+  cassava: "yuca",
+  manioc: "yuca",
+  yucca: "yuca",
+};
+
+function normalizeLookupKey(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/_/g, " ");
 }
 
-interface MatchResponse {
-  matches: MatchRow[];
+/** Maps a raw buyer targetProducts entry to a canonical lowercase category.
+ *  Falls back to lowercased + trimmed input if no alias matches. */
+export function normalizeCategoryInput(raw: string): string {
+  const key = normalizeLookupKey(raw);
+  return CATEGORY_ALIASES[key] ?? key;
+}
+
+/** Normalizes an array of targetProducts strings for use in the SQL pre-filter. */
+export function normalizeTargetProducts(products: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of products) {
+    const norm = normalizeCategoryInput(p);
+    if (!seen.has(norm)) {
+      seen.add(norm);
+      out.push(norm);
+    }
+  }
+  return out;
 }
 
 // ── Candidate pre-filter ──────────────────────────────────────────────────────
@@ -92,14 +186,16 @@ async function selectCandidates(opts: {
     inArray(suppliersTable.sellableStatus, ["SELLABLE", "PUBLISHED"]),
   ];
 
-  // Category overlap (SQL EXISTS — runs entirely server-side).
+  // Category overlap (SQL EXISTS — case-insensitive via lower() on both sides).
+  // G3.3: targetProducts are normalized to lowercase canonical forms before
+  // entering SQL so "Coffee", "COFFEE", "cafe" all match products.category = "coffee".
   if (targetProducts.length > 0) {
     conditions.push(
       sql`EXISTS (
         SELECT 1 FROM ${productsTable} p
         WHERE p.supplier_id = ${suppliersTable.id}
           AND p.active = true
-          AND p.category::text = ANY(${sql`ARRAY[${sql.join(targetProducts.map((c) => sql`${c}`), sql`, `)}]::text[]`})
+          AND lower(p.category::text) = ANY(${sql`ARRAY[${sql.join(targetProducts.map((c) => sql`${c}`), sql`, `)}]::text[]`})
       )`,
     );
   }
@@ -287,8 +383,10 @@ export async function runMatching(buyerProfileId: number): Promise<{
   }
 
   // 2. SQL pre-filter candidates.
+  // G3.3: normalize buyer's free-text targetProducts to canonical lowercase forms
+  // so "Coffee", "COFFEE", "cafe" all hit products.category = "coffee" in the SQL.
   const candidates = await selectCandidates({
-    targetProducts: (profile.targetProducts ?? []) as string[],
+    targetProducts: normalizeTargetProducts((profile.targetProducts ?? []) as string[]),
     requiredCerts: (profile.requiredCertsP1 ?? []) as string[],
   });
 
@@ -369,22 +467,14 @@ export async function runMatching(buyerProfileId: number): Promise<{
       }
       const raw = firstBlock.text;
       const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-      const parsed = JSON.parse(jsonStr) as MatchResponse;
-      if (!parsed?.matches || !Array.isArray(parsed.matches)) {
-        throw new Error("Claude did not return a `matches` array");
-      }
 
-      // Validate + clamp scores; drop any supplier_id not in the candidate set.
+      // G3.4 — Zod validation replaces raw JSON.parse cast.
+      // ZodError is thrown on schema mismatch, caught below, logged, and re-thrown.
+      const parsed = MatchResponseSchema.parse(JSON.parse(jsonStr));
+
+      // Drop any supplier_id not in the candidate set (hallucination guard).
       const validIds = new Set(candidates.map((c) => c.id));
-      matchRows = parsed.matches
-        .filter((m) => validIds.has(m.supplier_id))
-        .map((m) => ({
-          supplier_id: m.supplier_id,
-          match_score: Math.max(0, Math.min(1, Number(m.match_score) || 0)),
-          score_breakdown: m.score_breakdown ?? {},
-          disqualifiers: Array.isArray(m.disqualifiers) ? m.disqualifiers : [],
-          match_notes: typeof m.match_notes === "string" ? m.match_notes : "",
-        }));
+      matchRows = parsed.matches.filter((m) => validIds.has(m.supplier_id));
     } catch (err) {
       logger.error({ err, buyerProfileId }, "buyer-matching: Claude call failed");
       throw err;

@@ -21,6 +21,10 @@ function boolFlag(name: string, defaultValue: boolean): boolean {
 /** Layer II — public intelligence endpoints (analytics, market intel, trust scores, compliance). */
 export const ENABLE_INTELLIGENCE_PUBLIC = boolFlag("ENABLE_INTELLIGENCE_PUBLIC", false);
 
+/** Layer II — buyer-supplier matching endpoints. Fine-grained gate so matching
+ *  can be opened to buyers before the full intelligence layer is public. */
+export const ENABLE_MATCHING = boolFlag("ENABLE_MATCHING", false);
+
 /** Layer III — transactional endpoints (inquiries, orders, RFQs). */
 export const ENABLE_TRANSACTIONS = boolFlag("ENABLE_TRANSACTIONS", false);
 
