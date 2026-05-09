@@ -3,7 +3,7 @@ import { z } from "zod";
 // ── Admin user edit ──────────────────────────────────────────────────────────
 export const AdminUserEditBody = z.object({
   email: z.string().email().optional(),
-  role: z.enum(["BUYER", "SUPPLIER", "ADMIN"]).optional(),
+  role: z.enum(["BUYER", "SUPPLIER", "ADMIN", "FIELD_OFFICER", "EMPLOYEE"]).optional(),
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),
   country: z.string().max(100).optional().nullable(),
@@ -20,7 +20,7 @@ export const AdminResetPasswordBody = z.object({
 export const AdminCreateUserBody = z.object({
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["BUYER", "SUPPLIER", "ADMIN"]),
+  role: z.enum(["BUYER", "SUPPLIER", "ADMIN", "FIELD_OFFICER", "EMPLOYEE"]),
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),
   country: z.string().max(100).optional().nullable(),

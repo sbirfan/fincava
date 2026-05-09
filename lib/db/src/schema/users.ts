@@ -2,7 +2,7 @@ import { pgTable, text, serial, timestamp, pgEnum, boolean, integer } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const roleEnum = pgEnum("role", ["BUYER", "SUPPLIER", "ADMIN"]);
+export const roleEnum = pgEnum("role", ["BUYER", "SUPPLIER", "ADMIN", "FIELD_OFFICER", "EMPLOYEE"]);
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),

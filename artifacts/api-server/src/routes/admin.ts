@@ -1685,20 +1685,35 @@ router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<voi
 
 // ── GET /api/admin/team ───────────────────────────────────────────────────────
 router.get("/admin/team", ...adminOnly, async (_req, res): Promise<void> => {
+  // Fetch all explicit staff role assignments (returns string array, not objects)
   const allRoles = await db
-    .select({
-      userId: staffRolesTable.userId,
-      role: staffRolesTable.role,
-      createdAt: staffRolesTable.createdAt,
-      assignedByEmail: usersTable.email,
-    })
-    .from(staffRolesTable)
-    .leftJoin(usersTable, eq(usersTable.id, staffRolesTable.assignedBy));
+    .select({ userId: staffRolesTable.userId, role: staffRolesTable.role })
+    .from(staffRolesTable);
 
-  const rolesByUser: Record<number, { role: string; assignedByEmail: string | null; createdAt: Date }[]> = {};
+  const rolesByUser: Record<number, string[]> = {};
   for (const r of allRoles) {
     if (!rolesByUser[r.userId]) rolesByUser[r.userId] = [];
-    rolesByUser[r.userId].push({ role: r.role, assignedByEmail: r.assignedByEmail, createdAt: r.createdAt });
+    rolesByUser[r.userId].push(r.role);
+  }
+
+  // Also include users with ADMIN account type so the Admin tile reflects reality.
+  // These users may not have an explicit 'admin' staff_role row — they get one virtually.
+  const adminUsers = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      role: usersTable.role,
+      createdAt: usersTable.createdAt,
+      firstName: profilesTable.firstName,
+      lastName: profilesTable.lastName,
+    })
+    .from(usersTable)
+    .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+    .where(eq(usersTable.role, "ADMIN"));
+
+  for (const u of adminUsers) {
+    if (!rolesByUser[u.id]) rolesByUser[u.id] = [];
+    if (!rolesByUser[u.id].includes("admin")) rolesByUser[u.id].push("admin");
   }
 
   const userIds = Object.keys(rolesByUser).map(Number);

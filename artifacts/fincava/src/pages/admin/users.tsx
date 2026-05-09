@@ -6,6 +6,8 @@ const roleBadge: Record<string, string> = {
   BUYER: "bg-blue-500/15 text-blue-300 border-blue-500/20",
   SUPPLIER: "bg-emerald-500/15 text-emerald-300 border-emerald-500/20",
   ADMIN: "bg-purple-500/15 text-purple-300 border-purple-500/20",
+  FIELD_OFFICER: "bg-amber-500/15 text-amber-300 border-amber-500/20",
+  EMPLOYEE: "bg-sky-500/15 text-sky-300 border-sky-500/20",
 };
 
 
@@ -82,6 +84,8 @@ function RoleSelect({ value, onChange }: { value: string; onChange: (v: string) 
         <option value="BUYER">BUYER</option>
         <option value="SUPPLIER">SUPPLIER</option>
         <option value="ADMIN">ADMIN</option>
+        <option value="FIELD_OFFICER">FIELD OFFICER</option>
+        <option value="EMPLOYEE">EMPLOYEE</option>
       </select>
     </div>
   );
