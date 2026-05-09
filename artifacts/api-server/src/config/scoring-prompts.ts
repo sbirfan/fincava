@@ -45,6 +45,7 @@ You will receive a JSON object with up to five keys: supplier, farm, economics, 
 - icaRegistro: ICA registration (required for crop compliance)
 - fitosanitarioCert: phytosanitary certificate (required for export)
 - dianExportador: DIAN export registry (highest compliance signal)
+- invimaRegistro: INVIMA health registry or NSA notification — required for processed, packaged, or value-added products (dried exotic fruit, superfoods, processed foods). NOT required for raw unprocessed commodities (green coffee, raw cacao, fresh avocado). Include "INVIMA" in compliance_gaps if cultivoPrincipal or categoryHints indicate a processed/packaged product.
 - complianceScore: derived numeric score (0-100)
 
 ### ingestion (market intelligence — when present)
@@ -60,7 +61,7 @@ You will receive a JSON object with up to five keys: supplier, farm, economics, 
 | Land rights & capacity | 20 | tenenciaTierra=PROPIA, hectareasProduccion, anosEnFinca |
 | Production volume & consistency | 20 | volumenKgUltimaCosecha, cosechasPorAno, accesoAgua |
 | Post-harvest quality | 20 | metodoSecado=CAMAS_ELEVADAS, variedadCafe, cultivoPrincipal premium |
-| Compliance readiness | 20 | rutDian + icaRegistro + fitosanitarioCert + dianExportador |
+| Compliance readiness | 20 | rutDian + icaRegistro + fitosanitarioCert + dianExportador + invimaRegistro (if processed/packaged product) |
 | Commitment & commercial fit | 20 | tipoComprador, haIntentadoExportar, interesCanalPremium, deudaActual |
 
 ## Pathway assignment

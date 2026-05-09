@@ -96,16 +96,20 @@ const DECISION_TO_STATE: Record<string, string> = {
   escalated:              "assisted_in_progress",
 };
 
-// Mirrors backend ALLOWED_TRANSITIONS — current state → allowed target states
+// Admin-level transitions: all decisions available from any non-terminal state.
+// Only 'verified' and 'rejected' are terminal (no further review possible).
+const ADMIN_DECISION_TARGETS = new Set([
+  "verified", "needs_fix", "conditionally_approved", "rejected", "assisted_in_progress",
+]);
 const ALLOWED_TRANSITIONS: Record<string, Set<string>> = {
-  not_started:              new Set(["not_sure", "self_serve_in_progress", "assisted_in_progress", "managed_service_candidate"]),
-  not_sure:                 new Set(["self_serve_in_progress", "assisted_in_progress", "managed_service_candidate"]),
-  self_serve_in_progress:   new Set(["submitted", "assisted_in_progress", "needs_fix"]),
-  assisted_in_progress:     new Set(["submitted", "managed_service_candidate", "needs_fix"]),
-  managed_service_candidate:new Set(["assisted_in_progress", "submitted"]),
-  submitted:                new Set(["needs_fix", "conditionally_approved", "verified", "rejected"]),
-  needs_fix:                new Set(["submitted", "assisted_in_progress"]),
-  conditionally_approved:   new Set(["verified", "rejected"]),
+  not_started:              ADMIN_DECISION_TARGETS,
+  not_sure:                 ADMIN_DECISION_TARGETS,
+  self_serve_in_progress:   ADMIN_DECISION_TARGETS,
+  assisted_in_progress:     ADMIN_DECISION_TARGETS,
+  managed_service_candidate:ADMIN_DECISION_TARGETS,
+  submitted:                ADMIN_DECISION_TARGETS,
+  needs_fix:                ADMIN_DECISION_TARGETS,
+  conditionally_approved:   ADMIN_DECISION_TARGETS,
   verified:                 new Set([]),
   rejected:                 new Set([]),
 };

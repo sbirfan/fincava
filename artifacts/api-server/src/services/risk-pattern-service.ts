@@ -29,7 +29,7 @@ export type RiskFlag = {
 };
 
 // ── CRITICAL requirement codes — used for STALE_SUBMISSION check ──────────────
-const CRITICAL_REQUIREMENTS = new Set(["DIAN_RUT", "DIAN_EXPORTADOR", "ICA_REGISTRO", "FITOSANITARIO"]);
+const CRITICAL_REQUIREMENTS = new Set(["DIAN_RUT", "DIAN_EXPORTADOR", "ICA_REGISTRO", "FITOSANITARIO", "INVIMA"]);
 
 // ── Pattern registry (Phase I — 5 patterns) ───────────────────────────────────
 
@@ -127,6 +127,21 @@ export function evaluateRiskPatterns(
       label: "Score-compliance mismatch",
       description:
         "Strong commercial score but compliance still failing — fast track compliance to unlock SELLABLE.",
+    });
+  }
+
+  // ── P7: INVIMA_NOT_STARTED ────────────────────────────────────────────────
+  // Supplier has an INVIMA requirement row (seeded because they sell processed,
+  // packaged, or value-added products) but has not yet begun the registration.
+  const invimaState = stateByCode.get("INVIMA");
+  if (invimaState != null && (invimaState === "not_started" || invimaState === "not_sure")) {
+    flags.push({
+      patternCode: "INVIMA_NOT_STARTED",
+      severity: "critical",
+      label: "INVIMA registration not started",
+      description:
+        "Supplier sells processed, packaged, or value-added products but has not started " +
+        "INVIMA health registration — mandatory before any commercial shipment of these goods.",
     });
   }
 

@@ -7,7 +7,7 @@
 //   5. Send WhatsApp confirmation (non-fatal if it fails)
 //   6. Retry up to 3 times with exponential backoff on any failure
 
-import { db, aiOutputsTable, complianceDocsTable, supplierRequirementStatusTable } from "@workspace/db";
+import { db, aiOutputsTable, complianceDocsTable, supplierRequirementStatusTable, productsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getAnthropicClient, SCORING_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
@@ -140,6 +140,45 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
           logger.info(
             { supplierId, count: requirementRows.length },
             "scoreSupplier: supplier_requirement_status seeded from AI gaps (CC-1A Part 2)",
+          );
+        }
+
+        // INVIMA seeding — deterministic rule, independent of AI gap list.
+        // Triggered when the supplier's primary crop or existing products belong
+        // to EXOTIC_FRUIT (dried/packaged), SUPERFOOD, or PROCESSED categories.
+        // onConflictDoNothing: re-scoring must never reset officer progress.
+        const INVIMA_CULTIVO_KEYWORDS = [
+          "procesado", "processed", "tostado", "roasted", "chocolate",
+          "mermelada", "conserva", "pulpa", "deshidratado", "dried",
+          "snack", "harina", "flour", "superfood", "superalimento",
+          "spirulina", "espirulina", "moringa", "acai", "açaí", "maca", "camu",
+        ];
+        const INVIMA_PRODUCT_CATEGORIES = new Set(["SUPERFOOD", "PROCESSED", "EXOTIC_FRUIT"]);
+
+        const cultivoNorm = (farm?.cultivoPrincipal ?? "").toLowerCase();
+        const cultivoTriggersInvima = INVIMA_CULTIVO_KEYWORDS.some((kw) =>
+          cultivoNorm.includes(kw),
+        );
+
+        let productTriggersInvima = false;
+        if (!cultivoTriggersInvima) {
+          const productRows = await db
+            .select({ category: productsTable.category })
+            .from(productsTable)
+            .where(eq(productsTable.supplierId, supplierId));
+          productTriggersInvima = productRows.some((p) =>
+            INVIMA_PRODUCT_CATEGORIES.has(p.category),
+          );
+        }
+
+        if (cultivoTriggersInvima || productTriggersInvima) {
+          await db
+            .insert(supplierRequirementStatusTable)
+            .values({ supplierId, requirementCode: "INVIMA", agency: "INVIMA", state: "not_started" })
+            .onConflictDoNothing();
+          logger.info(
+            { supplierId, source: cultivoTriggersInvima ? "cultivo" : "products" },
+            "scoreSupplier: INVIMA requirement seeded (processed/packaged product category)",
           );
         }
       } catch (complianceErr) {

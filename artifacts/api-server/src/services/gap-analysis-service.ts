@@ -94,6 +94,19 @@ export const REQUIREMENT_REGISTRY: Record<string, RequirementMeta> = {
     recommendation:
       "Registrarse como cafetero en la Federación Nacional de Cafeteros. El registro habilita acceso a precios de garantía y mercados diferenciados.",
   },
+  INVIMA: {
+    code: "INVIMA",
+    label: "Registro / Notificación Sanitaria INVIMA",
+    agency: "INVIMA",
+    severity: "CRITICAL",
+    estimatedCostCOP: 1_000_000,
+    estimatedDays: 60,
+    resolutionTimeline: "90days",
+    recommendation:
+      "Obtener Notificación Sanitaria Automática (NSA) o Registro Sanitario ante INVIMA para productos procesados, empacados o de valor agregado (frutas deshidratadas, superalimentos, alimentos procesados). " +
+      "Costo estimado: $500.000–2.000.000 COP según categoría. Tiempo estimado: 30–90 días. " +
+      "Iniciar el trámite en invima.gov.co o en la Cámara de Comercio más cercana.",
+  },
 };
 
 // States that represent an open gap (requirement not yet satisfied)
