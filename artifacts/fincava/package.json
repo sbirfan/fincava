@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0",
+    "dev": "vite --config vite.config.ts --host 0.0.0.0 --port 5173",
     "build": "vite build --config vite.config.ts",
-    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "serve": "vite preview --config vite.config.ts --host 0.0.0.0 --port 5173",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
@@ -86,10 +86,8 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "vitest": "^3.1.0",
+    "react-markdown": "^10.1.0",
     "wouter": "^3.3.5",
     "zod": "catalog:"
-  },
-  "dependencies": {
-    "react-markdown": "^10.1.0"
   }
 }

@@ -4,7 +4,7 @@ import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, originStoriesTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
 import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
-import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES } from "@workspace/db";
+import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES, complianceRequirementsTable } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
 import { runMatching as runBuyerMatching, NotFoundError as MatchingNotFoundError } from "../services/buyer-matching-service";
 import { hashPassword } from "../lib/auth";
@@ -2661,6 +2661,66 @@ router.post("/admin/backup/run", async (req: Request, res: Response, next: NextF
         sendError(res, 500, "Backup failed");
       }
     });
+  });
+});
+
+// ── POST /api/admin/seed-compliance-requirements ─────────────────────────────
+// One-time idempotent seed for the compliance_requirements reference table.
+// Safe to call multiple times — uses ON CONFLICT DO NOTHING so existing rows
+// are never overwritten. Returns counts of inserted vs already-present rows.
+const COMPLIANCE_REQUIREMENTS_SEED = [
+  { country: "UAE",          productType: "COFFEE",  requirement: "Phytosanitary Certificate",      description: "Issued by ICA Colombia certifying the coffee is free from pests and diseases.",                                              mandatory: 1, category: "DOCUMENT"   },
+  { country: "UAE",          productType: "COFFEE",  requirement: "Certificate of Origin",          description: "Issued by the Colombian Coffee Federation or Chamber of Commerce.",                                                          mandatory: 1, category: "DOCUMENT"   },
+  { country: "UAE",          productType: "COFFEE",  requirement: "Food Safety Certificate",        description: "UAE ESMA halal/food safety compliance for food imports.",                                                                     mandatory: 1, category: "COMPLIANCE" },
+  { country: "UAE",          productType: "COFFEE",  requirement: "RUT DIAN",                       description: "Colombian tax ID registration required for export invoicing.",                                                               mandatory: 1, category: "DOCUMENT"   },
+  { country: "UAE",          productType: "COFFEE",  requirement: "DIAN Export Registration",      description: "Exporter must be registered with DIAN as an authorized exporter.",                                                           mandatory: 1, category: "COMPLIANCE" },
+  { country: "Saudi Arabia", productType: "COFFEE",  requirement: "Phytosanitary Certificate",      description: "ICA-issued certificate required at Saudi customs.",                                                                          mandatory: 1, category: "DOCUMENT"   },
+  { country: "Saudi Arabia", productType: "COFFEE",  requirement: "Halal Certificate",              description: "For processed coffee products entering Saudi Arabia.",                                                                       mandatory: 0, category: "COMPLIANCE" },
+  { country: "Saudi Arabia", productType: "COFFEE",  requirement: "Certificate of Origin",          description: "Must be authenticated by the Colombian Chamber of Commerce.",                                                                mandatory: 1, category: "DOCUMENT"   },
+  { country: "Saudi Arabia", productType: "COFFEE",  requirement: "SASO Conformity",               description: "Saudi Standards, Metrology and Quality Organization conformity certificate.",                                               mandatory: 1, category: "COMPLIANCE" },
+  { country: "Japan",        productType: "COFFEE",  requirement: "Phytosanitary Certificate",      description: "Required by Japanese Ministry of Agriculture (MAFF).",                                                                     mandatory: 1, category: "DOCUMENT"   },
+  { country: "Japan",        productType: "COFFEE",  requirement: "Food Sanitation Act Compliance", description: "Green and roasted coffee must meet Japan's residue limits.",                                                                mandatory: 1, category: "COMPLIANCE" },
+  { country: "Japan",        productType: "COFFEE",  requirement: "Organic JAS Certification",     description: "Required to market coffee as organic in Japan.",                                                                             mandatory: 0, category: "COMPLIANCE" },
+  { country: "UAE",          productType: "CACAO",   requirement: "Phytosanitary Certificate",      description: "ICA Colombia certificate required for cacao exports.",                                                                      mandatory: 1, category: "DOCUMENT"   },
+  { country: "UAE",          productType: "CACAO",   requirement: "Certificate of Origin",          description: "Chamber of Commerce or FNC certificate.",                                                                                  mandatory: 1, category: "DOCUMENT"   },
+  { country: "UAE",          productType: "CACAO",   requirement: "Heavy Metal Test Report",        description: "UAE requires cadmium and lead test results for cacao.",                                                                     mandatory: 1, category: "COMPLIANCE" },
+  { country: "UAE",          productType: "CACAO",   requirement: "RUT DIAN",                       description: "Colombian tax ID required for export.",                                                                                     mandatory: 1, category: "DOCUMENT"   },
+  { country: "EU",           productType: "CACAO",   requirement: "EU Cadmium Regulation Compliance", description: "Regulation 488/2014 — cadmium levels in cacao must be below 0.60 mg/kg.",                                              mandatory: 1, category: "COMPLIANCE" },
+  { country: "EU",           productType: "CACAO",   requirement: "Phytosanitary Certificate",      description: "Required at EU border inspection post.",                                                                                   mandatory: 1, category: "DOCUMENT"   },
+  { country: "EU",           productType: "CACAO",   requirement: "Deforestation Regulation (EUDR)", description: "From Dec 2024: proof cacao was not grown on deforested land.",                                                           mandatory: 1, category: "COMPLIANCE" },
+  { country: "EU",           productType: "CACAO",   requirement: "Due Diligence Statement",        description: "EUDR operator due diligence statement filed in EU system.",                                                                mandatory: 1, category: "DOCUMENT"   },
+  { country: "UAE",          productType: "AVOCADO", requirement: "Phytosanitary Certificate",      description: "ICA certificate verifying fruit fly free status.",                                                                          mandatory: 1, category: "DOCUMENT"   },
+  { country: "UAE",          productType: "AVOCADO", requirement: "Cold Treatment Certificate",     description: "Some markets require cold chain treatment certification.",                                                                  mandatory: 0, category: "COMPLIANCE" },
+  { country: "UAE",          productType: "AVOCADO", requirement: "GlobalGAP Certification",       description: "Good Agricultural Practices certification preferred by UAE buyers.",                                                         mandatory: 0, category: "COMPLIANCE" },
+  { country: "EU",           productType: "AVOCADO", requirement: "Phytosanitary Certificate",      description: "EU plant health requirements for fresh avocado.",                                                                          mandatory: 1, category: "DOCUMENT"   },
+  { country: "EU",           productType: "AVOCADO", requirement: "MRL Compliance",                 description: "Maximum Residue Levels — pesticide testing required.",                                                                     mandatory: 1, category: "COMPLIANCE" },
+  { country: "EU",           productType: "AVOCADO", requirement: "GlobalGAP or equivalent",        description: "Required by most EU supermarket buyers.",                                                                                  mandatory: 0, category: "COMPLIANCE" },
+  { country: "ALL",          productType: "ALL",     requirement: "RUT DIAN",                       description: "Colombian tax registration — required for all exports.",                                                                    mandatory: 1, category: "DOCUMENT"   },
+  { country: "ALL",          productType: "ALL",     requirement: "ICA Export Registration",        description: "Instituto Colombiano Agropecuario registration for agricultural exporters.",                                                mandatory: 1, category: "COMPLIANCE" },
+  { country: "ALL",          productType: "ALL",     requirement: "DIAN Customs Authorization",     description: "Authorization to operate as exporter with Colombian customs.",                                                              mandatory: 1, category: "COMPLIANCE" },
+  { country: "ALL",          productType: "ALL",     requirement: "Commercial Invoice",             description: "Standard export commercial invoice with HS code.",                                                                          mandatory: 1, category: "DOCUMENT"   },
+  { country: "ALL",          productType: "ALL",     requirement: "Packing List",                   description: "Detailed packing list per shipment.",                                                                                       mandatory: 1, category: "DOCUMENT"   },
+  { country: "ALL",          productType: "ALL",     requirement: "Bill of Lading / Airway Bill",   description: "Shipping document issued by carrier.",                                                                                      mandatory: 1, category: "DOCUMENT"   },
+] as const;
+
+router.post("/admin/seed-compliance-requirements", ...adminOnly, async (_req, res): Promise<void> => {
+  const before = await db.select({ count: count() }).from(complianceRequirementsTable);
+  const countBefore = before[0]?.count ?? 0;
+
+  await db
+    .insert(complianceRequirementsTable)
+    .values(COMPLIANCE_REQUIREMENTS_SEED.map((r) => ({ ...r })))
+    .onConflictDoNothing();
+
+  const after = await db.select({ count: count() }).from(complianceRequirementsTable);
+  const countAfter = after[0]?.count ?? 0;
+  const inserted = countAfter - countBefore;
+
+  logger.info({ inserted, total: countAfter }, "COMPLIANCE_REQUIREMENTS_SEEDED");
+  res.json({
+    inserted,
+    alreadyPresent: COMPLIANCE_REQUIREMENTS_SEED.length - inserted,
+    total: countAfter,
   });
 });
 
