@@ -19,7 +19,7 @@ type ProfileCompleteness = {
 };
 
 type MyProfileResponse =
-  | { found: false }
+  | { found: false; reason?: "email_unverified" | "no_record" }
   | {
       found: true;
       supplierId: number;
@@ -69,6 +69,29 @@ function ProfileCompletenessWidget() {
   };
 
   if (data === null) return null;
+
+  // Email not yet verified — show verification prompt only.
+  // Do NOT show onboarding links: the supplier record is present but the
+  // security gate blocks linkage until the user confirms email ownership.
+  if (!data.found && data.reason === "email_unverified") {
+    return (
+      <Card className="border-l-4 border-l-blue-400">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-blue-500" />
+            <CardTitle className="text-base font-serif">Verify your email</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground">
+            Please verify your email address to activate your supplier profile. Check your inbox for a verification link from Fincava.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Genuinely no supplier record found for this account.
   if (!data.found) {
     return (
       <Card className="border-l-4 border-l-amber-500">
@@ -95,23 +118,27 @@ function ProfileCompletenessWidget() {
 
   const { supplierId, supplier, profileCompleteness: pc } = data;
   const isClaimed = claimDone || supplier.claimStatus === "CLAIMED";
-  const onboardingBase = `/onboarding?supplierId=${supplierId}&prefill=1`;
+  // NOTE: onboardingBase (/onboarding?supplierId=X&prefill=1) is intentionally
+  // removed here. That route calls GET /api/suppliers/:id (admin-only) and submits
+  // with a supplierId body field that triggers the admin-only update path — both
+  // return 403 for supplier-role users. A dedicated supplier self-edit flow is
+  // tracked for a future release. Until then all dimension links are null.
 
   const dimensions = [
     {
       label: "Farm data",
       done: pc.hasFarmData,
-      link: onboardingBase,
+      link: null,
     },
     {
       label: "Economics",
       done: pc.hasEconomicsData,
-      link: onboardingBase,
+      link: null,
     },
     {
       label: "Compliance docs",
       done: pc.hasComplianceData,
-      link: onboardingBase,
+      link: null,
     },
     {
       label: "AI readiness score",
@@ -179,13 +206,10 @@ function ProfileCompletenessWidget() {
           ))}
         </ul>
         {pct < 100 && (
-          <div className="mt-4">
-            <Link
-              href={onboardingBase}
-              className="block w-full text-center text-sm font-medium bg-[#1B5E20] text-white py-2 px-4 rounded-md hover:bg-[#154a18] transition-colors"
-            >
-              Complete your farm profile
-            </Link>
+          <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-center">
+            <p className="text-xs text-muted-foreground">
+              Profile editing coming soon — contact your Fincava representative to update your farm details.
+            </p>
           </div>
         )}
 

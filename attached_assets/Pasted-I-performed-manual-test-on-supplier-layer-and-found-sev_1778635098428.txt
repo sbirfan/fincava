@@ -1,0 +1,71 @@
+I performed manual test on supplier layer and found several issues listed below. I need to do deep Supplier layer analysis, code review, flow check, AI integration, onboarding process and so on. On Admin
+
+1 - On a supplier page https://fincava.com/register?role=supplierwhen creating a new account there is no row to confirm new password or a way to see what password was enetered. 
+2 - It is also missing 2FA - A verify code in email.
+3 - On onboarding page when pressing Submit and Confirm, following error appears on a blank while page. Something went wrong
+An unexpected error occurred. Please reload the page.
+Reload page
+4 - clicking Reload Page loads supplier dashboard and shows following message in orange color Connect your farm profile
+Your farmer record is not yet linked to this account. Connect it to see your graduation status and profile completeness.
+Connect farm profile
+Clicking Connect farm profile take user bak to onboarding/Supplier Registration page which user just filled.  5 - After confirming email supplier is shown following information with 80% profile complete indicator Profile Completeness
+80%
+Babar Irfan · San Gil
+
+*  Farm data  Economics  Compliance docs  AI readiness score  Graduated
+Complete your farm profile
+
+Profile claimed — trust score boosted
+Graduation Status
+NOT READYPathway
+ 
+D
+Last evaluated 5/12/2026
+ Clicking on Complete your farm profile once again takes supplier to onboarding page from the start and onboarding/Supplier Registration page shows red warning box with Could Not Load Data error.
+6 - Once signing up a users receives following welcome message: Welcome to Fincava 
+
+Your account is active and ready to use. As a supplier you can list your agricultural products, respond to buyer inquiries and RFQs, and grow your export business across Latin America.  The message mentions “grow your export business across Latin America.” FINCAVA provides suppliers access to global market not just Latin America.  
+
+7 - 2nd email with subject “Hemos recibido su solicitud — Fincava” was received by user in Spanish even though the user was using English language when signed up for an account.  
+
+ On Admin panel, review last document produced following report:  Generated Document — Babar Irfan
+Export Compliance Guide — Babar Irfan
+Fincava Agricultural Export Programme | Santander Region Generated: 13 May 2026 | Supplier ID: 003 | Vereda La Flora, San Gil
+
+Greeting
+Dear Mr. Irfan,
+Thank you for completing your Fincava onboarding registration. This personalised guide has been prepared based on the information collected during your field visit in La Flora, San Gil, Santander. It outlines the specific steps required to advance your cacao operation toward export readiness.
+
+Your Current Score Summary
+| Indicator | Result | |---|---| | Export Readiness Score | 28 / 100 | | Commercial Score | 28 | | Sellable Status | Not Ready | | Graduation Pathway | D (Development Track) | | Estimated Capital Capacity | COP $8,500,000 |
+Your compliance registrations — RUT-DIAN, ICA Registry, Phytosanitary Certificate, and DIAN Exporter Registry — are recorded as active. This is a strong foundation. However, your farm's operational documentation and production volume require significant development before export transactions can proceed.
+
+Missing or Incomplete Documentation
+The following gaps were identified during your compliance evaluation:
+* INVIMA registration or NSA notification — required if your cacao is processed or packaged before sale
+* Current, validated phytosanitary certificate — your certificate is recorded, but a dated, active copy must be on file
+* Post-harvest quality documentation — no drying method (metodo secado) has been recorded
+* Production consistency records — harvest frequency, water access, and land tenure are undocumented
+* Volume capacity evidence — current recorded output (approximately 5 kg) must reach 500–1,000 kg minimum for commercial eligibility
+
+Your Numbered Action Steps
+Step 1 — Validate and File Your Phytosanitary Certificate
+WHERE: ICA Regional Office, Bucaramanga — Carrera 22 No. 45-30, or nearest ICA municipal point in San Gil WHAT: Request a current, dated phytosanitary inspection for your 1-hectare cacao plot. Ensure the certificate specifies your vereda (La Flora) and crop variety. Provide a physical copy to Fincava. COST: COP $0 – $80,000 (inspection fee varies by municipality)
+
+Step 2 — Register with INVIMA or File NSA Notification
+WHERE: INVIMA online portal — www.invima.gov.co — or INVIMA Regional Office, Bucaramanga WHAT: If your cacao is dried, fermented, or packaged before delivery, you must either register the product with INVIMA or submit a Notificación Sanitaria Automática (NSA). Select the category for processed agricultural products for export. COST: COP $150,000 – $400,000 depending on product classification
+
+Step 3 — Document Your Post-Harvest Process
+WHERE: At your farm in La Flora — self-documented with Fincava field agent support WHAT: Record your drying method (sun-drying, raised beds, mechanical), fermentation duration, and storage conditions in writing. Fincava will provide a standard format. This document becomes part of your quality file. COST: COP $0 (completed with Fincava agent assistance)
+
+Step 4 — Register Land Tenure and Water Access
+WHERE: Notaría or IGAC office in San Gil — Carrera 10 No. 12-22, San Gil centre WHAT: Obtain a written land tenure record (ownership title, lease agreement, or community land declaration). Additionally, document your water source (river, well, rainfall collection) in a signed statement. COST: COP $50,000 – $200,000 depending on document type
+
+Step 5 — Build Production Volume and Request Technical Support
+WHERE: SENA Agropecuario, San Gil campus — or through Fincava's linked technical assistance network WHAT: Enrol in a cacao production intensification programme. Target a documented harvest of at least 500 kg dried cacao per cycle. Request an assigned technical assistant (asistencia técnica) who can certify your harvest records for Fincava's commercial evaluation. COST: COP $0 (SENA programmes are free for smallholders)
+
+Total Estimated Cost
+| Step | Estimated Cost (COP) | |---|---| | Phytosanitary Certificate Validation | $0 – $80,000 | | INVIMA / NSA Notification | $150,000 – $400,000 | | Post-Harvest Documentation | $0 | | Land Tenure and Water Access | $50,000 – $200,000 | | Technical Support Enrolment | $0 | | Total Estimated Range | $200,000 – $680,000 |
+
+Your Next Fincava Contact
+Your assigned Fincava representative will conduct a follow-up evaluation once Steps 1 through 3 are completed. Please send confirmation documents via WhatsApp to your registered number (+57 316 656 361

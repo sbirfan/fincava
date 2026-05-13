@@ -139,15 +139,18 @@ export const supplierIngestionBatchesTable = pgTable(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ARCHITECTURE NOTE: suppliers is a standalone entity graph (no FK to companies or users).
-// Suppliers are onboarded via WhatsApp — they have no user account in Phase 1.
-// The bridge column (company_id FK → companies) will be added in Phase 2 when supplier
-// login is introduced. Do NOT attempt to JOIN suppliers to products or companies without
-// confirming the bridge exists first.
+// ARCHITECTURE NOTE: suppliers was originally a standalone entity (no FK to users).
+// Phase 1 suppliers are onboarded via WhatsApp with no user account.
+// userId is added as a nullable FK: set during web self-registration and backfilled
+// by email match for existing suppliers. NULL = legacy / field-collected supplier.
+// Do NOT make userId non-null or unique — field-collected suppliers never have one.
 export const suppliersTable = pgTable(
   "suppliers",
   {
     id: serial("id").primaryKey(),
+    // Nullable FK to users. Set during supplier self-registration;
+    // NULL for field-collected / ingested suppliers without a user account.
+    userId: integer("user_id").references(() => usersTable.id),
     nombreCompleto: text("nombre_completo").notNull(),
     // Nullable: ingested suppliers may not have a WhatsApp number yet.
     // Partial UNIQUE index (non-null rows only) enforced in the table callback below.

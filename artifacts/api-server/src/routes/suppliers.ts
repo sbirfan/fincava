@@ -13,6 +13,7 @@ import {
   productsTable,
   originStoriesTable,
   usersTable,
+  profilesTable,
   supplierRequirementStatusTable,
 } from "@workspace/db";
 import { requireAuth, verifyToken } from "../lib/auth";
@@ -40,6 +41,7 @@ import { runOnboardPipeline } from "../services/onboard-pipeline";
 import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 import { DOCUMENT_PROMPT } from "../config/scoring-prompts";
+import { buildAgencyLinksSection } from "../config/agency-registry";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
 import { sendError } from "../lib/response";
 
@@ -122,6 +124,35 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       typeof rawBody.email === "string" && rawBody.email.trim()
         ? rawBody.email.trim().toLowerCase()
         : null;
+
+    // Optional auth extraction for self-registration path.
+    // Field officers submit without auth — this never blocks the request.
+    // Reuses the exact same cookie/Bearer pattern as the update-mode auth check above.
+    const _selfCookieToken = (req as any).cookies?.fincava_auth as string | undefined;
+    const _selfBearerToken = req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.slice(7)
+      : undefined;
+    const _selfRawToken = _selfCookieToken ?? _selfBearerToken;
+    const _selfTokenPayload = _selfRawToken ? verifyToken(_selfRawToken) : null;
+    // Role is NOT encoded in the JWT payload (only userId + tokenVersion are signed).
+    // A DB lookup is required to confirm the caller is SUPPLIER-role before stamping
+    // their userId on the new supplier row. Field officers and admins are logged in
+    // when they submit this form on behalf of farmers — without this role guard their
+    // userId would be incorrectly stamped, making the farmer's future account unable
+    // to locate the supplier record via the Priority 2 email fallback.
+    // Non-failing: any error (expired token, unknown userId) leaves the value null,
+    // which is the correct result for non-SUPPLIER callers and unauthenticated officers.
+    let selfRegistrationUserId: number | null = null;
+    if (_selfTokenPayload) {
+      const [_selfUser] = await db
+        .select({ role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.id, _selfTokenPayload.userId))
+        .limit(1);
+      if (_selfUser?.role === "SUPPLIER") {
+        selfRegistrationUserId = _selfTokenPayload.userId;
+      }
+    }
 
     // ── UPDATE MODE: supplierId provided — complete an existing ingested supplier ──
     // When admin initiates onboarding for an already-ingested supplier, the payload
@@ -287,6 +318,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         nombreCompleto,
         whatsappNumber,
         email: supplierEmail,
+        userId: selfRegistrationUserId,
         municipio,
         department: rawBody.department ?? null,
         vereda,
@@ -425,17 +457,32 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     const adminUrl = `${appBaseUrl}/admin/suppliers`;
 
     if (supplierEmail) {
-      const { html, text } = supplierApplicationConfirmationEmail({
-        name: nombreCompleto,
-        municipio,
-        primaryProduct,
-      });
-      sendEmail({
-        to: supplierEmail,
-        subject: "Hemos recibido su solicitud — Fincava",
-        html,
-        text,
-      }).catch((err) => logger.warn({ err, supplierId: supplier.id }, "Supplier confirmation email failed"));
+      // Look up the supplier's language preference before building the email.
+      // Wrapped in an async IIFE so it runs after the response is flushed without
+      // blocking the caller. Fallback to "en" if no user account exists yet
+      // (e.g. field officer submitting on behalf of a supplier without an account).
+      (async () => {
+        const [profileRow] = await db
+          .select({ language: profilesTable.language })
+          .from(profilesTable)
+          .innerJoin(usersTable, eq(profilesTable.userId, usersTable.id))
+          .where(eq(usersTable.email, supplierEmail))
+          .limit(1);
+        const lang = profileRow?.language === "es" ? "es" : "en";
+        const { html, text } = supplierApplicationConfirmationEmail({
+          name: nombreCompleto,
+          municipio,
+          primaryProduct,
+          lang,
+        });
+        const subject =
+          lang === "es"
+            ? "Hemos recibido su solicitud — Fincava"
+            : "We received your application — Fincava";
+        await sendEmail({ to: supplierEmail, subject, html, text });
+      })().catch((err) =>
+        logger.warn({ err, supplierId: supplier.id }, "Supplier confirmation email failed"),
+      );
     }
 
     const farmName = rawBody.farm_name || rawBody.business_name || null;
@@ -661,7 +708,10 @@ router.post(
         ],
       });
 
-      const documentContent = (message.content[0] as any).text;
+      const aiContent = (message.content[0] as any).text;
+      // Append the deterministic agency-links section AFTER the AI prose.
+      // URLs never come from the AI — they come exclusively from the static registry.
+      const documentContent = aiContent + buildAgencyLinksSection();
       await db.insert(aiOutputsTable).values({
         supplierId,
         aiModel: DOCUMENT_MODEL,
@@ -1275,10 +1325,12 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
 });
 
 // ── GET /api/suppliers/my-profile ─────────────────────────────────────────────
-// Resolves the logged-in user's supplier record by matching their account email
-// against suppliersTable.email (the only field shared between both systems).
-// Returns profileCompleteness so the supplier dashboard can render the self-
-// completion widget without the user knowing their supplierId.
+// Resolves the logged-in user's supplier record using a two-priority lookup:
+//   Priority 1: direct userId FK match (reliable, set during self-registration)
+//   Priority 2: email match — ONLY for suppliers where userId IS NULL (legacy /
+//               field-collected suppliers without a user account)
+// The email fallback is intentionally restricted to userId-null rows so that a
+// supplier already linked to one account can never be retrieved by another user.
 router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void> => {
   const userId = req.userId;
 
@@ -1296,25 +1348,40 @@ router.get("/suppliers/my-profile", requireAuth, async (req, res): Promise<void>
   // Only resolve supplier linkage for accounts that have verified email ownership.
   // Without this gate an attacker who registered with someone else's email could
   // call this endpoint to discover the matching supplierId before attempting a claim.
+  // reason: "email_unverified" lets the dashboard show the correct guidance instead
+  // of the generic "no record found" / "Connect farm profile" panel.
   if (!user.emailVerifiedAt) {
-    res.json({ found: false });
+    res.json({ found: false, reason: "email_unverified" });
     return;
   }
 
-  const [supplier] = await db
-    .select({
-      id:               suppliersTable.id,
-      nombreCompleto:   suppliersTable.nombreCompleto,
-      municipio:        suppliersTable.municipio,
-      department:       suppliersTable.department,
-      sellableStatus:   suppliersTable.sellableStatus,
-      graduationPathway: suppliersTable.graduationPathway,
-      lastEvaluatedAt:  suppliersTable.lastEvaluatedAt,
-      claimStatus:      suppliersTable.claimStatus,
-    })
+  const supplierFields = {
+    id:               suppliersTable.id,
+    nombreCompleto:   suppliersTable.nombreCompleto,
+    municipio:        suppliersTable.municipio,
+    department:       suppliersTable.department,
+    sellableStatus:   suppliersTable.sellableStatus,
+    graduationPathway: suppliersTable.graduationPathway,
+    lastEvaluatedAt:  suppliersTable.lastEvaluatedAt,
+    claimStatus:      suppliersTable.claimStatus,
+  } as const;
+
+  // Priority 1: direct userId FK — fast, reliable, no email dependency.
+  let [supplier] = await db
+    .select(supplierFields)
     .from(suppliersTable)
-    .where(eq(suppliersTable.email, user.email))
+    .where(eq(suppliersTable.userId, userId))
     .limit(1);
+
+  // Priority 2: legacy email match — only for suppliers not yet linked to any user.
+  // Restricting to userId IS NULL prevents cross-user leakage for already-linked rows.
+  if (!supplier) {
+    [supplier] = await db
+      .select(supplierFields)
+      .from(suppliersTable)
+      .where(and(eq(suppliersTable.email, user.email), isNull(suppliersTable.userId)))
+      .limit(1);
+  }
 
   if (!supplier) {
     res.json({ found: false });

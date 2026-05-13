@@ -390,6 +390,8 @@ const en = {
       lastNameRequired: "Last name is required",
       companyRequired: "Company name is required",
       countryRequired: "Country is required",
+      confirmPasswordRequired: "Please confirm your password",
+      passwordsMustMatch: "Passwords do not match",
     },
     toasts: {
       success: "Account created",
@@ -1091,6 +1093,8 @@ const es: typeof en = {
       lastNameRequired: "El apellido es requerido",
       companyRequired: "El nombre de la empresa es requerido",
       countryRequired: "El país es requerido",
+      confirmPasswordRequired: "Por favor confirma tu contraseña",
+      passwordsMustMatch: "Las contraseñas no coinciden",
     },
     toasts: {
       success: "Cuenta creada",

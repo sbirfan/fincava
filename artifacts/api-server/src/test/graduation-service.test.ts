@@ -19,6 +19,7 @@ import {
 
 const BASE_SUPPLIER = {
   id: 1,
+  userId: null,
   nombreCompleto: "Juan Café",
   whatsappNumber: "573001234567",
   email: null,

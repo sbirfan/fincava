@@ -105,20 +105,41 @@ export function supplierApplicationConfirmationEmail(opts: {
   name: string;
   municipio: string;
   primaryProduct?: string | null;
+  lang?: string;
 }): { html: string; text: string } {
+  const isEs = (opts.lang ?? "en") === "es";
+
+  if (isEs) {
+    const html = baseTemplate(`
+      <p>Estimado/a ${esc(opts.name)},</p>
+      <p>Hemos recibido su solicitud de registro en <strong>Fincava</strong>. Nuestro equipo revisará su información y se pondrá en contacto con usted a la brevedad posible.</p>
+      <p><strong>Detalles de su solicitud:</strong></p>
+      <ul style="padding-left:20px;margin:0 0 16px;">
+        <li>Nombre: ${esc(opts.name)}</li>
+        <li>Municipio: ${esc(opts.municipio)}</li>
+        ${opts.primaryProduct ? `<li>Producto principal: ${esc(opts.primaryProduct)}</li>` : ""}
+      </ul>
+      <p>Mientras tanto, si tiene alguna pregunta, puede contactarnos en <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+      <p class="note">Gracias por confiar en Fincava para impulsar su negocio agrícola hacia los mercados internacionales.</p>
+    `);
+    const text = `Estimado/a ${opts.name},\n\nHemos recibido su solicitud de registro en Fincava.\n\nDetalles:\n- Nombre: ${opts.name}\n- Municipio: ${opts.municipio}${opts.primaryProduct ? `\n- Producto: ${opts.primaryProduct}` : ""}\n\nNuestro equipo revisará su información pronto. Para consultas: info@fincava.com\n\n— Equipo Fincava`;
+    return { html, text };
+  }
+
+  // English template (default)
   const html = baseTemplate(`
-    <p>Estimado/a ${esc(opts.name)},</p>
-    <p>Hemos recibido su solicitud de registro en <strong>Fincava</strong>. Nuestro equipo revisará su información y se pondrá en contacto con usted a la brevedad posible.</p>
-    <p><strong>Detalles de su solicitud:</strong></p>
+    <p>Dear ${esc(opts.name)},</p>
+    <p>We have received your registration request on <strong>Fincava</strong>. Our team will review your information and be in touch with you shortly.</p>
+    <p><strong>Application details:</strong></p>
     <ul style="padding-left:20px;margin:0 0 16px;">
-      <li>Nombre: ${esc(opts.name)}</li>
+      <li>Name: ${esc(opts.name)}</li>
       <li>Municipio: ${esc(opts.municipio)}</li>
-      ${opts.primaryProduct ? `<li>Producto principal: ${esc(opts.primaryProduct)}</li>` : ""}
+      ${opts.primaryProduct ? `<li>Primary product: ${esc(opts.primaryProduct)}</li>` : ""}
     </ul>
-    <p>Mientras tanto, si tiene alguna pregunta, puede contactarnos en <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
-    <p class="note">Gracias por confiar en Fincava para impulsar su negocio agrícola hacia los mercados internacionales.</p>
+    <p>If you have any questions in the meantime, please contact us at <a href="mailto:info@fincava.com" style="color:#16a34a;">info@fincava.com</a>.</p>
+    <p class="note">Thank you for choosing Fincava to connect with international buyers.</p>
   `);
-  const text = `Estimado/a ${opts.name},\n\nHemos recibido su solicitud de registro en Fincava.\n\nDetalles:\n- Nombre: ${opts.name}\n- Municipio: ${opts.municipio}${opts.primaryProduct ? `\n- Producto: ${opts.primaryProduct}` : ""}\n\nNuestro equipo revisará su información pronto. Para consultas: info@fincava.com\n\n— Equipo Fincava`;
+  const text = `Dear ${opts.name},\n\nWe have received your registration request on Fincava.\n\nApplication details:\n- Name: ${opts.name}\n- Municipio: ${opts.municipio}${opts.primaryProduct ? `\n- Primary product: ${opts.primaryProduct}` : ""}\n\nOur team will review your information shortly. Questions? Contact us at info@fincava.com\n\n— The Fincava Team`;
   return { html, text };
 }
 
@@ -741,7 +762,7 @@ export function welcomeEmail(opts: {
   const subject = "Welcome to Fincava!";
   const roleLine = isBuyer
     ? "As a buyer you can source premium Colombian agricultural products, request quotes from verified exporters, and access flexible trade financing."
-    : "As a supplier you can list your agricultural products, respond to buyer inquiries and RFQs, and grow your export business across Latin America.";
+    : "As a supplier you can list your agricultural products, respond to buyer inquiries and RFQs, and connect with international buyers through Fincava.";
   const html = baseTemplate(`
     <p>Hello ${esc(opts.firstName)},</p>
     <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Welcome to Fincava 🌿</h2>

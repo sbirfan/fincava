@@ -11,7 +11,7 @@ import { useRegisterUser } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation, Link, useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, Building2, ShoppingCart } from "lucide-react";
+import { Loader2, ArrowLeft, Building2, ShoppingCart, Eye, EyeOff } from "lucide-react";
 import { RegisterUserBodyRole } from "@workspace/api-client-react";
 import { StepFarmIdentity } from "@/components/onboarding/StepFarmIdentity";
 import { StepProduction } from "@/components/onboarding/StepProduction";
@@ -26,6 +26,7 @@ import { ENABLE_FINANCE } from "@/lib/flags";
 type AccountData = {
   email: string;
   password: string;
+  confirmPassword: string;
   firstName: string;
   lastName: string;
   companyName: string;
@@ -85,8 +86,9 @@ export default function Register() {
   const [supplierForm, setSupplierForm] = useState<SupplierFormData>(SUPPLIER_INITIAL);
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const { login, logout } = useAuth();
+  const { login } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const registerMutation = useRegisterUser();
@@ -94,16 +96,20 @@ export default function Register() {
   const accountSchema = useMemo(() => z.object({
     email: z.string().email(tr.errors.invalidEmail),
     password: z.string().min(MIN_PASSWORD_LENGTH, tr.errors.passwordMin),
+    confirmPassword: z.string().min(1, tr.errors.confirmPasswordRequired),
     firstName: z.string().min(2, tr.errors.firstNameRequired),
     lastName: z.string().min(2, tr.errors.lastNameRequired),
     companyName: z.string().min(2, tr.errors.companyRequired),
     country: z.string().min(2, tr.errors.countryRequired),
+  }).refine((d) => d.password === d.confirmPassword, {
+    message: tr.errors.passwordsMustMatch,
+    path: ["confirmPassword"],
   }), [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const form = useForm<AccountData>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
-      email: "", password: "", firstName: "", lastName: "", companyName: "", country: "",
+      email: "", password: "", confirmPassword: "", firstName: "", lastName: "", companyName: "", country: "",
     },
   });
 
@@ -127,7 +133,7 @@ export default function Register() {
     return true;
   }
 
-  async function handleBuyerSubmit(values: AccountData) {
+  async function handleBuyerSubmit({ confirmPassword: _cp, ...values }: AccountData) {
     registerMutation.mutate(
       { data: { ...values, role } },
       {
@@ -151,7 +157,7 @@ export default function Register() {
     setIsSubmitting(true);
     setSubmitError("");
     try {
-      const accountValues = form.getValues();
+      const { confirmPassword: _cp, ...accountValues } = form.getValues();
 
       const regRes = await fetch(API.AUTH_REGISTER, {
         method: "POST",
@@ -163,7 +169,10 @@ export default function Register() {
         throw new Error(err.error || "Account creation failed");
       }
       const regData = await regRes.json();
-      login(regData.token, regData.user);
+      // login() is intentionally deferred — do not call it here.
+      // Calling login() before onboarding completes causes an auth-context
+      // re-render mid-flight that races with a subsequent logout() and triggers
+      // the global ErrorBoundary ("Something went wrong" blank page).
 
       const product = supplierForm.primary_product === "other"
         ? supplierForm.other_product
@@ -195,15 +204,16 @@ export default function Register() {
         }),
       });
       if (!onboardRes.ok) {
-        await logout();
-        toast({
-          variant: "destructive",
-          title: "Account created but setup failed. Please log in and try again.",
-        });
-        setLocation("/login");
-        return;
+        // Onboarding failed — clear the server-side cookie the register call set,
+        // but do NOT touch the auth context (login() was never called, so there
+        // is no React state to clean up and no re-render is triggered).
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+        const errBody = await onboardRes.json().catch(() => ({}));
+        throw new Error(errBody.error || "Farm profile setup failed. Please try again.");
       }
 
+      // Both calls succeeded — update auth context exactly once.
+      login(regData.token, regData.user);
       toast({ title: tr.toasts.welcome, description: tr.toasts.supplierCreated });
       setLocation("/supplier-dashboard");
     } catch (e: any) {
@@ -371,7 +381,44 @@ export default function Register() {
                     <FormItem><FormLabel>{tr.form.email}</FormLabel><FormControl><Input placeholder={tr.form.emailPlaceholder} type="email" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="password" render={({ field }) => (
-                    <FormItem><FormLabel>{tr.form.password}</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem>
+                      <FormLabel>{tr.form.password}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input type={showPassword ? "text" : "password"} className="pr-10" {...field} />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground transition-colors"
+                            tabIndex={-1}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="confirmPassword" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{lang === "es" ? "Confirmar contraseña" : "Confirm password"}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input type={showPassword ? "text" : "password"} className="pr-10" {...field} />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground transition-colors"
+                            tabIndex={-1}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )} />
                   <Button
                     type="submit"

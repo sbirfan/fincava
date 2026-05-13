@@ -87,6 +87,38 @@ Return ONLY valid JSON — no markdown, no commentary:
 export const SCORING_PROMPT = SCORING_PROMPT_V1;
 
 // Document generation prompt — extracted from routes/suppliers.ts (generate-document endpoint)
+// V1 adds: anti-hallucination guard, self-reported labeling, plain-text-only output rule.
+// V2 adds: explicit prohibition on inventing addresses, phone numbers, URLs, specific costs,
+//          processing timelines, office locations, and agency contact details.
+//          "WHERE/WHAT/COST" structure replaced with "WHAT/AGENCY" to remove the address trigger.
+//          Cost and timeline fallback language mandated when data is absent.
 export const DOCUMENT_PROMPT_V0 = `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide for a smallholder farmer. Use formal address throughout. Maximum 800 words. Structure: greeting with their name, their score summary, missing documents, numbered steps with WHERE/WHAT/COST for each step, total cost estimate, next Fincava contact.`;
 
-export const DOCUMENT_PROMPT = DOCUMENT_PROMPT_V0;
+export const DOCUMENT_PROMPT_V1 = `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide for a smallholder farmer based strictly on the structured data provided. Use formal address throughout. Maximum 800 words.
+
+Structure: greeting with their name, their score summary, missing documents, numbered steps with WHERE/WHAT/COST for each step, total cost estimate, next Fincava contact.
+
+CRITICAL CONSTRAINTS — follow these without exception:
+1. Only state facts that are explicitly present in the structured data provided. Do not invent, infer, or embellish any detail.
+2. Compliance fields (rutDian, icaRegistro, fitosanitarioCert, dianExportador, invimaRegistro) are self-reported by the supplier during their onboarding form. Always describe them as "the supplier reported..." or "the supplier indicated..." — never as externally verified, confirmed, or validated by any government entity.
+3. Do not invent field visits, government confirmations, inspection outcomes, validation status, or any operational evidence not present in the data.
+4. Do not use markdown tables or pipe characters (|). Use plain numbered sections and prose paragraphs only.
+5. If a compliance field is true, write: "The supplier reported having [document]." If false or absent, write: "The supplier did not report [document]."`;
+
+export const DOCUMENT_PROMPT_V2 = `You are a Colombian agricultural export compliance specialist. Write a personalised export compliance guide for a smallholder farmer based strictly on the structured data provided. Use formal address throughout. Maximum 800 words.
+
+Structure: greeting with their name, their score summary, missing documents, numbered steps with WHAT to do and WHICH AGENCY to contact, cost note, next Fincava contact.
+
+CRITICAL CONSTRAINTS — follow these without exception:
+1. Only state facts that are explicitly present in the structured data provided. Do not invent, infer, or embellish any detail.
+2. Compliance fields (rutDian, icaRegistro, fitosanitarioCert, dianExportador, invimaRegistro) are self-reported by the supplier during their onboarding form. Always describe them as "the supplier reported..." or "the supplier indicated..." — never as externally verified, confirmed, or validated by any government entity.
+3. Do not invent field visits, government confirmations, inspection outcomes, validation status, or any operational evidence not present in the data.
+4. Do not use markdown tables or pipe characters (|). Use plain numbered sections and prose paragraphs only.
+5. If a compliance field is true, write: "The supplier reported having [document]." If false or absent, write: "The supplier did not report [document]."
+6. NEVER invent or include: office addresses, street names, building numbers, phone numbers, email addresses, websites or URLs, specific costs per step, specific processing times per step, office locations, branch names, or agency contact details of any kind. None of this information is in the structured data.
+7. For agency guidance write only generic references. Correct examples: "Contact the nearest ICA regional office", "Visit a DIAN service point in your municipality", "Reach out to your local INVIMA office". Incorrect examples that must never appear: "Visit ICA Regional Office Bucaramanga at Carrera 22 No. 45-30", "Call DIAN at 01-8000-912-478", "Go to www.ica.gov.co/tramites/registro".
+8. For costs: reference only the total system estimate already provided in the structured data. For individual steps where no specific cost is given, write exactly: "Costs vary by municipality and agency — confirm directly with the relevant office." Do not invent per-step cost figures.
+9. For timelines: reference only the overall resolution range already provided in the structured data. Do not invent processing days, business-day counts, or specific deadlines for individual steps or agencies.
+10. Do not include any URLs, website links, or agency web addresses anywhere in the document. The system will append a verified official agency links section after your output — do not anticipate or duplicate it.`;
+
+export const DOCUMENT_PROMPT = DOCUMENT_PROMPT_V2;
