@@ -13,9 +13,7 @@ router.get("/stats/platform", async (_req, res): Promise<void> => {
 
   res.json({
     verifiedSuppliers: supplierCount?.count ?? 0,
-    exportDestinations: 15,
-    facilitatedTradeUSD: orderSum?.total ?? 2000000,
-    productCategories: 8,
+    facilitatedTradeUSD: orderSum?.total ?? 0,
     totalProducts: productCount?.count ?? 0,
   });
 });

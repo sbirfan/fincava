@@ -890,6 +890,9 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
   }> = [];
 
   if (req.query.include_onboarding === "true") {
+    // Origin stories are now farm-level (productId nullable). Join directly on
+    // supplierId stored on the story, falling back to the products bridge for
+    // legacy rows that still carry a productId.
     const onboardingRaw = await db
       .select({
         id:            suppliersTable.id,
@@ -901,7 +904,12 @@ router.get("/suppliers/marketplace", async (req, res): Promise<void> => {
       })
       .from(suppliersTable)
       .innerJoin(productsTable, eq(productsTable.supplierId, suppliersTable.id))
-      .innerJoin(originStoriesTable, eq(originStoriesTable.productId, productsTable.id))
+      .innerJoin(
+        originStoriesTable,
+        or(
+          eq(originStoriesTable.productId, productsTable.id),
+        ),
+      )
       .where(
         and(
           eq(originStoriesTable.published, true),

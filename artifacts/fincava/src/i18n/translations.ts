@@ -128,7 +128,7 @@ const en = {
     forSuppliers: {
       label: "For Suppliers",
       heading: "Reach global buyers. Get paid. Keep your margin.",
-      sub: "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers in 15+ countries, with financing to grow and logistics to deliver.",
+      sub: "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers across target markets, with financing to grow and logistics to deliver.",
       features: [
         { label: "Global Buyer Network", desc: "Access vetted importers, distributors, and retail buyers across the Middle East, Asia, Europe, and North America." },
         { label: "Trade Finance Access (Launching Soon)", desc: "Get credit against confirmed purchase orders, with no land collateral required. Capital that follows your orders." },
@@ -829,7 +829,7 @@ const es: typeof en = {
     forSuppliers: {
       label: "Para Proveedores",
       heading: "Llega a compradores globales. Cobra. Conserva tu margen.",
-      sub: "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en más de 15 países, con financiamiento para crecer y logística para entregar.",
+      sub: "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en mercados objetivo, con financiamiento para crecer y logística para entregar.",
       features: [
         { label: "Red Global de Compradores", desc: "Accede a importadores, distribuidores y compradores minoristas verificados en Medio Oriente, Asia, Europa y América del Norte." },
         { label: "Acceso a Financiamiento (Próximamente)", desc: "Obtén crédito contra órdenes de compra confirmadas, sin garantías de tierra requeridas. Capital que sigue tus pedidos." },
@@ -849,7 +849,7 @@ const es: typeof en = {
     traction: {
       label: "Acceso Anticipado",
       heading: "Construyendo la infraestructura de comercio directo de Colombia.",
-      sub: "Fincava está en acceso anticipado. Estamos incorporando productores colombianos verificados y conectándolos con compradores globales en 15 mercados objetivo.",
+      sub: "Fincava está en acceso anticipado. Estamos incorporando productores colombianos verificados y conectándolos con compradores globales.",
       bullets: [
         "Perfiles de productores verificados en café, cacao, aguacate y superalimentos",
         "Motor de solicitudes que conecta compradores con productores colombianos verificados",

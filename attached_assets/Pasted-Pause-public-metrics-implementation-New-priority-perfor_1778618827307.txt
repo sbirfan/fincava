@@ -1,0 +1,77 @@
+Pause public_metrics implementation.
+
+New priority: perform a full fake/demo/test data cleanup sweep.
+
+Context:
+The Impact page is no longer publicly visible. It is retained for possible future use, but it must not contain fake farmers, fake names, fake quotes, fake farms, fake photos, fake metrics, or fictional stories.
+
+Requirement:
+Remove or quarantine fake/demo/sample data across the repo and database, including:
+- fake farmers
+- fake farms
+- fake supplier stories
+- fake buyer data
+- fake supplier data
+- test users
+- demo orders
+- demo inquiries
+- demo RFQs
+- fake shipments
+- fake trade volume
+- fake dashboard values
+- fake “live” activity
+- fake country/order counts
+- hardcoded public claims
+- placeholder farmer profiles
+- stock-photo profiles presented as real
+
+Do NOT implement yet.
+
+First perform a read-only audit.
+
+Find all fake/demo/sample/test data in:
+1. frontend constants/components
+2. backend route fallbacks
+3. seed scripts
+4. migrations
+5. database rows
+6. attached mock/demo assets
+7. admin dashboards
+8. hidden/future pages such as Impact
+9. test/demo users, buyers, suppliers, orders, RFQs, shipments
+
+For each finding, report:
+- file/table
+- exact fake/demo/test item
+- where it appears
+- whether public, hidden, admin-only, or future-use
+- whether it is code hardcoded, DB row, seed data, or migration artifact
+- recommended action:
+  - delete
+  - hide
+  - relabel as sample
+  - move to test fixture
+  - keep only in mockup sandbox
+  - replace with real DB-backed value
+
+Important rules:
+- Do not delete real suppliers.
+- Do not delete real products.
+- Do not delete real buyer/supplier accounts without explicit approval.
+- Preserve mockup-sandbox data if clearly isolated from production app.
+- Remove fake data from production-facing app code even if the page is currently hidden.
+- Do not introduce new public_metrics or public_stories tables in this pass.
+- Do not build a CMS.
+- Do not change real business logic.
+
+Return:
+1. full fake/demo/test data inventory
+2. classification by public / hidden / admin / mockup-only / DB
+3. deletion or quarantine recommendation
+4. exact files and tables affected
+5. safe cleanup phases
+6. rollback plan
+7. human verification checklist
+8. open questions before deletion
+
+Stop for approval.

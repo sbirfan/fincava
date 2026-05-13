@@ -48,7 +48,8 @@ export const productsTable = pgTable("products", {
 
 export const originStoriesTable = pgTable("origin_stories", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => productsTable.id),
+  productId: integer("product_id").references(() => productsTable.id),
+  productCategory: text("product_category"),
   farmerName: text("farmer_name").notNull(),
   farmerPhoto: text("farmer_photo"),
   farmName: text("farm_name").notNull(),

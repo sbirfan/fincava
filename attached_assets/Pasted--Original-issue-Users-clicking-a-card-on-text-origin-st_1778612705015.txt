@@ -1,0 +1,418 @@
+# Original issue
+
+Users clicking a card on:
+
+```text
+/origin-stories
+```
+
+were taken to:
+
+```text
+/supplier/:id
+```
+
+but the supplier page behaved like the user came from Supplier Network:
+
+```text
+← Back to Supplier Network
+```
+
+instead of preserving Origin Stories context.
+
+At the same time, supplier detail showed:
+
+```text
+Preparing for Export
+This supplier is building export readiness...
+```
+
+which felt disconnected from the intended purpose of Origin Stories.
+
+---
+
+# Initial assumption
+
+We initially assumed Origin Stories was deeply integrated into:
+
+* Supplier Network
+* onboarding
+* product storytelling
+* marketplace enrichment
+* “Meet the Farmer”
+* impact metrics
+* export readiness lifecycle
+
+That led toward a large Phase C proposal involving:
+
+* `supplierId` on `origin_stories`
+* compatibility bridges
+* dual lookup logic
+* onboarding join rewrites
+* fallback chains
+* System A/System B convergence
+
+This became increasingly complex.
+
+---
+
+# Key clarification from you
+
+You clarified the actual intended purpose:
+
+Origin Stories was originally meant to be:
+
+```text
+lightweight public farm/farmer discovery
+```
+
+created through:
+
+1. AI/public-data ingestion
+2. admin-created lightweight supplier visibility
+
+Core purpose:
+
+```text
+show farms/farmers publicly
+→ let them discover FINCAVA
+→ optionally claim their profile
+→ optionally evolve into suppliers later
+```
+
+NOT:
+
+* a CMS
+* a story platform
+* a product-story architecture
+* a marketplace dependency layer
+
+This changed the entire direction.
+
+---
+
+# A + B fixes
+
+We approved and completed:
+
+## A — Navigation/context fix
+
+Cards on `/origin-stories` now preserve context using:
+
+```text
+?from=origin-stories
+```
+
+Supplier detail page now correctly shows:
+
+```text
+← Back to Origin Stories
+```
+
+instead of:
+
+```text
+← Back to Supplier Network
+```
+
+when applicable.
+
+---
+
+## B — Context-aware messaging
+
+Supplier detail page now presents the supplier in an Origin Stories context:
+
+* “Building Export Journey”
+* softer onboarding framing
+* preserving discovery/trust narrative
+
+without changing supplier/export logic.
+
+---
+
+# What triggered deeper investigation
+
+During discussion, we noticed:
+
+* `origin_stories.productId` became nullable
+* `productCategory` existed
+* no `supplierId` existed
+
+This looked like a partially completed migration.
+
+That raised concern that:
+
+* Origin Stories drifted architecturally
+* dependencies might exist elsewhere
+* simplifying too aggressively could break hidden flows
+
+So we paused implementation and requested:
+
+* repo audit
+* dependency map
+* timeline/history
+* live DB verification
+
+---
+
+# What the audit discovered
+
+The audit revealed there are actually:
+
+```text
+TWO Origin Story systems
+```
+
+---
+
+# System A (working)
+
+Public Origin Stories system.
+
+Powered by:
+
+```text
+suppliers table
+```
+
+using:
+
+* `published_to_origin_stories`
+* `description`
+* `origin_story_image_url`
+
+Flow:
+
+```text
+supplier
+→ published to origin stories
+→ visible publicly
+→ click into supplier page
+```
+
+This system:
+
+* works
+* powers public `/origin-stories`
+* matches your original intent
+* is lightweight
+* supplier-centric
+* ingestion-friendly
+
+Live DB confirmed:
+
+* 2 active public supplier stories
+* both working correctly
+
+---
+
+# System B (broken/legacy)
+
+Separate `origin_stories` table.
+
+Originally product-centric:
+
+```text
+product
+→ origin story
+```
+
+Over time:
+
+* `productId` became nullable
+* but `supplierId` was never added
+
+Result:
+
+```text
+orphan rich-story records
+```
+
+Live DB confirmed:
+
+* only 1 row exists
+* unpublished
+* cannot resolve to supplier
+* not powering public Origin Stories
+
+Admin CRUD for this system still exists, but creates orphaned rows.
+
+---
+
+# What was proposed along the way
+
+## Early proposal (now rejected)
+
+Expand and converge systems:
+
+* add `supplierId`
+* create compatibility bridges
+* unify onboarding
+* unify product detail
+* fallback logic everywhere
+* converge System A and B
+
+This became:
+
+* too complex
+* too coupled
+* unnecessary
+* architecture-heavy
+
+---
+
+## Later proposal (closer)
+
+Treat:
+
+* System A as lightweight supplier discovery
+* System B as optional enrichment
+
+Still involved:
+
+* supplierId migration
+* compatibility joins
+* cross-system bridges
+
+Still more complex than needed.
+
+---
+
+# Current understanding
+
+The audit and live DB proved:
+
+```text
+System A already won operationally.
+```
+
+Meaning:
+
+* the real Origin Stories experience already exists
+* it already matches your intent
+* users already interact through System A
+
+System B is:
+
+* partially abandoned
+* partially migrated
+* not operationally important
+* disconnected from public experience
+
+---
+
+# Current desired direction
+
+## Preserve System A
+
+Keep:
+
+* `/origin-stories`
+* supplier-table driven stories
+* lightweight discovery
+* ingestion/admin publishing
+* supplier detail context flow
+* optional claim-your-profile concept
+
+This is the real product.
+
+---
+
+## Park System B
+
+Do NOT expand it yet.
+
+Do NOT:
+
+* add `supplierId`
+* redesign joins
+* converge systems
+* integrate onboarding
+* integrate Supplier Network
+* integrate product detail
+* build CMS architecture
+
+Instead:
+
+* contain it
+* warn admins
+* possibly relabel it
+* decide later whether it survives
+
+---
+
+# Immediate operational priorities
+
+## 1. Fix migration replay risk
+
+Two migrations duplicate:
+
+```text
+published_to_origin_stories
+origin_story_image_url
+```
+
+Fresh DB replay is broken.
+
+This is now the highest-risk technical issue.
+
+---
+
+## 2. Stop orphan record creation
+
+Admin rich-story CRUD currently creates records that:
+
+* never surface publicly
+* cannot resolve to suppliers
+* confuse operators
+
+Need:
+
+* disable create
+  OR
+* clearly warn operators
+
+---
+
+## 3. Preserve working public Origin Stories
+
+Do not touch:
+
+* public `/origin-stories`
+* supplier detail flow
+* Supplier Network
+* products
+* onboarding
+* export readiness logic
+
+unless future needs justify it.
+
+---
+
+# What we want now
+
+A lightweight, simple, supplier-driven Origin Stories layer:
+
+```text
+Admin/AI ingestion
+→ lightweight public farm visibility
+→ user discovers farm/farmer
+→ optional claim profile
+→ optional supplier evolution later
+```
+
+with:
+
+* minimal coupling
+* minimal architecture
+* minimal maintenance
+* solo-founder operability
+* rollback safety
+
+NOT:
+
+* a narrative platform
+* a story CMS
+* a cross-system orchestration layer
+* a dependency hub across marketplace systems.

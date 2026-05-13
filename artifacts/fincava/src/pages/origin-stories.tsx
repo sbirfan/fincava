@@ -28,7 +28,7 @@ export default function OriginStories() {
             ))
           ) : stories?.length ? (
             stories.map((story) => (
-              <Link key={story.id} href={`/supplier/${story.supplierId}`} className="group">
+              <Link key={story.id} href={`/supplier/${story.supplierId}?from=origin-stories`} className="group">
                 <div className="flex flex-col h-full bg-card rounded-lg overflow-hidden border transition-all hover:shadow-md">
                   <div className="h-64 bg-muted relative overflow-hidden">
                     <img 

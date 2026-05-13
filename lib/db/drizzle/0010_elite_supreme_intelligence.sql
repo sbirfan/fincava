@@ -6,105 +6,105 @@ ALTER TYPE "public"."supplier_type" ADD VALUE 'PROCESSOR';--> statement-breakpoi
 ALTER TYPE "public"."supplier_type" ADD VALUE 'DISTRIBUTOR';--> statement-breakpoint
 ALTER TYPE "public"."supplier_type" ADD VALUE 'OTHER';--> statement-breakpoint
 CREATE TABLE "product_placeholders" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"supplier_id" integer NOT NULL,
-	"category_hint" text,
-	"data_origin" text DEFAULT 'inferred' NOT NULL,
-	"verification_status" text DEFAULT 'unverified' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+        "id" serial PRIMARY KEY NOT NULL,
+        "supplier_id" integer NOT NULL,
+        "category_hint" text,
+        "data_origin" text DEFAULT 'inferred' NOT NULL,
+        "verification_status" text DEFAULT 'unverified' NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "supplier_contacts" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"supplier_id" integer NOT NULL,
-	"contact_type" text NOT NULL,
-	"contact_value" text,
-	"source" text,
-	"consent_status" text DEFAULT 'UNKNOWN',
-	"approved_for_outreach" boolean DEFAULT false NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+        "id" serial PRIMARY KEY NOT NULL,
+        "supplier_id" integer NOT NULL,
+        "contact_type" text NOT NULL,
+        "contact_value" text,
+        "source" text,
+        "consent_status" text DEFAULT 'UNKNOWN',
+        "approved_for_outreach" boolean DEFAULT false NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "supplier_ingestion_batches" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"batch_uuid" varchar(36) NOT NULL,
-	"created_by_admin_id" integer NOT NULL,
-	"status" "batch_status" DEFAULT 'DRAFT' NOT NULL,
-	"batch_size" integer,
-	"notes" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"submitted_at" timestamp with time zone,
-	CONSTRAINT "supplier_ingestion_batches_batch_uuid_unique" UNIQUE("batch_uuid")
+        "id" serial PRIMARY KEY NOT NULL,
+        "batch_uuid" varchar(36) NOT NULL,
+        "created_by_admin_id" integer NOT NULL,
+        "status" "batch_status" DEFAULT 'DRAFT' NOT NULL,
+        "batch_size" integer,
+        "notes" text,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "submitted_at" timestamp with time zone,
+        CONSTRAINT "supplier_ingestion_batches_batch_uuid_unique" UNIQUE("batch_uuid")
 );
 --> statement-breakpoint
 CREATE TABLE "buyer_matches" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"buyer_profile_id" integer NOT NULL,
-	"supplier_id" integer NOT NULL,
-	"match_score" numeric(3, 2) NOT NULL,
-	"score_breakdown" jsonb NOT NULL,
-	"disqualifiers" text[],
-	"match_notes" text,
-	"sections_at_run" text[] NOT NULL,
-	"is_current" boolean DEFAULT true NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "buyer_matches_score_range" CHECK ("buyer_matches"."match_score" >= 0.00 AND "buyer_matches"."match_score" <= 1.00)
+        "id" serial PRIMARY KEY NOT NULL,
+        "buyer_profile_id" integer NOT NULL,
+        "supplier_id" integer NOT NULL,
+        "match_score" numeric(3, 2) NOT NULL,
+        "score_breakdown" jsonb NOT NULL,
+        "disqualifiers" text[],
+        "match_notes" text,
+        "sections_at_run" text[] NOT NULL,
+        "is_current" boolean DEFAULT true NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        CONSTRAINT "buyer_matches_score_range" CHECK ("buyer_matches"."match_score" >= 0.00 AND "buyer_matches"."match_score" <= 1.00)
 );
 --> statement-breakpoint
 CREATE TABLE "buyer_gap_briefs" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"buyer_profile_id" integer NOT NULL,
-	"gap_type" varchar(30) NOT NULL,
-	"priority" varchar(10) NOT NULL,
-	"pipeline_action" varchar(30) NOT NULL,
-	"is_real_gap" boolean DEFAULT true NOT NULL,
-	"search_category" varchar(50),
-	"search_region" text,
-	"required_attributes" text[],
-	"volume_target_mt" numeric(10, 2),
-	"buyer_urgency_note" text,
-	"discovery_search_terms" text[],
-	"ingestion_batch_id" integer,
-	"resolved_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+        "id" serial PRIMARY KEY NOT NULL,
+        "buyer_profile_id" integer NOT NULL,
+        "gap_type" varchar(30) NOT NULL,
+        "priority" varchar(10) NOT NULL,
+        "pipeline_action" varchar(30) NOT NULL,
+        "is_real_gap" boolean DEFAULT true NOT NULL,
+        "search_category" varchar(50),
+        "search_region" text,
+        "required_attributes" text[],
+        "volume_target_mt" numeric(10, 2),
+        "buyer_urgency_note" text,
+        "discovery_search_terms" text[],
+        "ingestion_batch_id" integer,
+        "resolved_at" timestamp with time zone,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "buyer_admin_actions" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"actor_admin_id" integer NOT NULL,
-	"buyer_profile_id" integer NOT NULL,
-	"action_type" varchar(50) NOT NULL,
-	"payload" jsonb,
-	"note" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+        "id" serial PRIMARY KEY NOT NULL,
+        "actor_admin_id" integer NOT NULL,
+        "buyer_profile_id" integer NOT NULL,
+        "action_type" varchar(50) NOT NULL,
+        "payload" jsonb,
+        "note" text,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "campaign_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"campaign_id" integer NOT NULL,
-	"profile_id" integer,
-	"email" text NOT NULL,
-	"status" varchar(10) NOT NULL,
-	"error" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+        "id" serial PRIMARY KEY NOT NULL,
+        "campaign_id" integer NOT NULL,
+        "profile_id" integer,
+        "email" text NOT NULL,
+        "status" varchar(10) NOT NULL,
+        "error" text,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "marketing_campaigns" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"admin_id" integer NOT NULL,
-	"subject" text NOT NULL,
-	"html" text NOT NULL,
-	"text_body" text,
-	"topic" varchar(80),
-	"country" varchar(80),
-	"state_filter" varchar(40),
-	"status" varchar(20) DEFAULT 'pending' NOT NULL,
-	"total_recipients" integer DEFAULT 0 NOT NULL,
-	"sent" integer DEFAULT 0 NOT NULL,
-	"failed" integer DEFAULT 0 NOT NULL,
-	"started_at" timestamp with time zone,
-	"completed_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+        "id" serial PRIMARY KEY NOT NULL,
+        "admin_id" integer NOT NULL,
+        "subject" text NOT NULL,
+        "html" text NOT NULL,
+        "text_body" text,
+        "topic" varchar(80),
+        "country" varchar(80),
+        "state_filter" varchar(40),
+        "status" varchar(20) DEFAULT 'pending' NOT NULL,
+        "total_recipients" integer DEFAULT 0 NOT NULL,
+        "sent" integer DEFAULT 0 NOT NULL,
+        "failed" integer DEFAULT 0 NOT NULL,
+        "started_at" timestamp with time zone,
+        "completed_at" timestamp with time zone,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "suppliers" DROP CONSTRAINT "suppliers_whatsapp_number_unique";--> statement-breakpoint
@@ -146,8 +146,6 @@ ALTER TABLE "suppliers" ADD COLUMN "country" text DEFAULT 'Colombia';--> stateme
 ALTER TABLE "suppliers" ADD COLUMN "data_completeness_score" numeric(5, 2);--> statement-breakpoint
 ALTER TABLE "suppliers" ADD COLUMN "confidence_score" numeric(5, 2);--> statement-breakpoint
 ALTER TABLE "suppliers" ADD COLUMN "custom_supplier_type" varchar(120);--> statement-breakpoint
-ALTER TABLE "suppliers" ADD COLUMN "published_to_origin_stories" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "suppliers" ADD COLUMN "origin_story_image_url" text;--> statement-breakpoint
 ALTER TABLE "password_reset_tokens" ADD COLUMN "token_hash" text;--> statement-breakpoint
 ALTER TABLE "email_verification_tokens" ADD COLUMN "token_hash" text;--> statement-breakpoint
 ALTER TABLE "buyer_profiles" ADD COLUMN "state" varchar(20) DEFAULT 'REGISTERED' NOT NULL;--> statement-breakpoint

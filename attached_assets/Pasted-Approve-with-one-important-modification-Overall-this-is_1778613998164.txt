@@ -1,0 +1,151 @@
+Approve with one important modification.
+
+Overall this is disciplined, narrow, and aligned with the simplified direction. 
+
+# Approve
+
+## Migration replay fix
+
+Approved exactly as proposed.
+
+This is the highest-priority technical risk and the proposed fix is correct:
+
+* preserve 0009
+* remove duplicate ADD COLUMN from 0010
+* no live DB mutation
+* no schema redesign
+
+Good scope discipline.
+
+---
+
+## Admin warning/banner
+
+Approved with one wording adjustment.
+
+Current proposed wording:
+
+```text id="h2cpxj"
+This section manages legacy/rich story records.
+```
+
+I would avoid calling them “legacy” yet because:
+
+* it implies deprecation already decided
+* may confuse future operators
+* System B may later become optional enrichment/internal biography storage
+
+Use this instead:
+
+```text id="r8m8gk"
+This section manages internal rich-story records. These records do NOT publish to the public Origin Stories page. Public Origin Stories are currently managed through supplier publishing.
+```
+
+And rename:
+
+```text id="6u6lpm"
+Farm Biography Records
+```
+
+Good.
+
+---
+
+## Empty-state warning
+
+Approved.
+
+Very important operational clarification.
+
+---
+
+# Defer
+
+## Impact metric fix
+
+Correctly identified as public-facing.
+
+But I still recommend deferring it into a separate:
+
+* metrics cleanup
+* public claims audit
+* trust metrics review
+
+Reason:
+
+* impact metrics are now broader than Origin Stories
+* they intersect with prior public-claims cleanup work
+* should be reviewed holistically:
+
+  * suppliers
+  * verified suppliers
+  * stories
+  * products
+  * facilitated trade
+  * export-ready counts
+  * public trust signals
+
+Do not bundle metrics into this stabilization pass.
+
+---
+
+# One additional request before execution
+
+Ask Replit for one extra thing:
+
+```text id="tb3ihn"
+Please also identify whether the admin navigation/menu label currently says “Origin Stories”.
+
+If yes:
+- update ONLY the admin navigation label to:
+  “Farm Biography Records”
+or
+  “Internal Farm Stories”
+
+Do NOT change the public /origin-stories page naming.
+Do NOT rename routes.
+Do NOT rename APIs.
+```
+
+Reason:
+If the admin sidebar still says “Origin Stories,” operators will continue assuming it controls the public page.
+
+That is the final remaining operational confusion vector.
+
+---
+
+# Final assessment
+
+This is now finally in a healthy place:
+
+## Preserved
+
+* public lightweight Origin Stories
+* supplier discovery
+* ingestion workflow
+* onboarding flexibility
+* minimal architecture
+
+## Contained
+
+* orphan story system
+* accidental complexity
+* cross-system coupling
+* premature convergence
+
+## Fixed
+
+* navigation/context bug
+* migration replay risk
+* admin/operator confusion
+
+without:
+
+* schema expansion
+* supplierId migration
+* convergence architecture
+* CMS growth
+* onboarding rewrites
+* product-detail rewrites
+
+This is the correct stopping point for now.

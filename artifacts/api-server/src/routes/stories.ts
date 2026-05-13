@@ -121,7 +121,6 @@ router.get("/impact", async (_req, res): Promise<void> => {
     organicProducts,
     regionsRepresented: regions,
     avgFarmSizeHa: Math.round(avgFarmSizeHa * 10) / 10,
-    tradeVolumeUSD: 4200000,
   });
 });
 

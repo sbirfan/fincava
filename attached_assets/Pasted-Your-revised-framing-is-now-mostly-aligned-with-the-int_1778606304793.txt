@@ -1,0 +1,133 @@
+Your revised framing is now mostly aligned with the intended FINCAVA lifecycle and architecture direction.
+
+We are now narrowing Phase C into the smallest safe additive correction.
+
+Do NOT implement yet.
+
+Do NOT create migrations yet.
+
+Do NOT modify routes yet.
+
+We are now validating:
+- exact scope boundaries
+- compatibility strategy
+- sequencing
+- temporary bridge logic
+- rollback safety
+- what stays untouched
+
+Important corrections and constraints before Phase C approval:
+
+1. Supplier is the authoritative ownership anchor.
+
+2. productId should now be treated as:
+- backward compatibility bridge
+- optional enrichment linkage
+- NOT primary ownership
+
+3. However:
+DO NOT aggressively remove or replace product-linked logic yet.
+
+There may still be:
+- legacy stories
+- hidden joins
+- fallback assumptions
+- product-detail rendering dependencies
+- onboarding dependencies
+- admin assumptions
+
+So Phase C must prioritize:
+- compatibility-first transition
+- additive supplierId support
+- staged migration
+- rollback safety
+
+NOT:
+- immediate simplification
+- immediate bridge removal
+- immediate query inversion
+- immediate architecture cleanup
+
+IMPORTANT IMPLEMENTATION DIRECTION
+
+For Phase C, preferred approach is:
+
+Phase C1
+- add nullable supplierId to origin_stories
+- backfill supplierId from products.supplierId where possible
+- add admin supplier selector
+- support supplierId in create/edit/list APIs
+- preserve all existing productId behavior
+
+Phase C2
+- add compatibility lookup logic:
+  1. supplierId-linked story first
+  2. fallback productId-linked story second
+
+This applies to:
+- supplier detail fallback
+- onboarding section rendering
+- product detail "Meet the Farmer"
+
+Phase C3 (future, not now)
+- evaluate removal/simplification of legacy product bridge logic
+- only after repo-wide validation
+
+IMPORTANT CONSTRAINTS
+
+Do NOT:
+- redesign Supplier Network
+- redesign onboarding
+- redesign public /origin-stories
+- merge System A and System B
+- create dedicated story routing
+- create CMS-like behavior
+- create mandatory story requirements
+- require rich story existence for supplier visibility
+
+System A remains authoritative lightweight visibility.
+
+System B remains optional rich enrichment.
+
+ADDITIONAL IMPORTANT CLARIFICATION
+
+A supplier may exist with:
+- lightweight visibility only
+- onboarding data only
+- enrichment data only
+- no rich story
+- no products yet
+
+This is acceptable.
+
+Origin Stories enrichment must remain optional.
+
+NOW RE-EVALUATE PHASE C
+
+Please provide:
+
+1. Minimal final Phase C scope
+2. Exact files affected
+3. Exact DB changes
+4. Exact route changes
+5. Exact admin UI changes
+6. Exact compatibility bridge logic
+7. What remains untouched
+8. What is explicitly deferred
+9. Temporary vs permanent logic
+10. Rollback plan
+11. Hidden risks
+12. Any remaining drift concerns
+13. Recommended execution order
+14. Test/validation checkpoints after each step
+
+Most importantly:
+
+identify which proposed changes are:
+- truly required now
+vs
+- cleanup/refactor work that should be deferred
+
+Do not implement yet.
+
+Return final refined Phase C proposal only and stop for approval.

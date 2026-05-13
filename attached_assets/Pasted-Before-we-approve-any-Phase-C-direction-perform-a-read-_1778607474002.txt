@@ -1,0 +1,208 @@
+Before we approve any Phase C direction, perform a read-only Origin Stories state audit.
+
+DO NOT implement anything.
+DO NOT modify files.
+DO NOT create migrations.
+DO NOT refactor.
+DO NOT propose a new architecture yet.
+
+Goal:
+Understand the current actual state of the Origin Stories layer and how it drifted into its current structure before deciding whether to simplify, decouple, or extend anything.
+
+Original intended purpose:
+Origin Stories was meant to be a lightweight public farm/farmer discovery layer.
+
+Basic intended flow:
+Admin or AI/public-data ingestion creates an Origin Story
+→ it appears on /origin-stories
+→ user clicks tile
+→ user lands on an Origin Story / Farm Detail page
+→ if linked supplier exists, user may go to Supplier Profile / Products
+→ if farmer has not claimed the profile, show Claim Your Profile
+→ if no linked supplier exists, show no supplier/profile button
+
+Known entry points:
+1. AI/public web-search ingestion
+2. Admin-created story from admin console
+
+Unknown:
+- whether other entry points exist
+- whether current origin_stories data is actually used anywhere important
+- whether prior product-linked design is live, dead, partial, or legacy
+
+AUDIT REQUIREMENTS
+
+1. Current data model inventory
+Inspect all schema fields related to:
+- origin_stories
+- suppliersTable origin story fields
+- product placeholders
+- products story/farmer fields
+- claim/profile fields if any
+
+Report:
+- field name
+- table
+- purpose
+- current usage
+- whether it appears active, legacy, or dead
+
+2. Route/API inventory
+Find every route that reads or writes:
+- origin_stories
+- suppliersTable.publishedToOriginStories
+- suppliersTable.description
+- suppliersTable.originStoryImageUrl
+- productPlaceholdersTable
+- product-level origin/farmer/story fields
+
+For each route, report:
+- path
+- read/write
+- table(s) used
+- frontend consumer if any
+- whether it is active, legacy, or dead
+- risk if changed
+
+3. Frontend page/component inventory
+Find every frontend page/component using Origin Stories or related fields:
+- /origin-stories
+- supplier detail
+- product detail
+- Supplier Network
+- admin origin stories
+- admin suppliers
+- claim profile flow, if present
+
+For each, report:
+- file
+- purpose
+- data source
+- what it displays
+- what it links to
+- risk if changed
+
+4. Entry point audit
+Identify all ways an Origin Story or origin-like supplier profile can be created:
+- AI ingestion
+- admin create
+- supplier onboarding
+- manual supplier admin
+- product creation
+- any seed/demo/sample data
+- any script
+
+For each, report:
+- entry point
+- affected table(s)
+- whether it creates supplier row
+- whether it creates origin_stories row
+- whether it creates product row
+- whether it creates product placeholder
+- whether it can produce orphan records
+
+5. Current A+B state
+Confirm what A+B changed:
+- origin-stories tile link behavior
+- supplier detail back link behavior
+- context-aware message behavior
+- any query params or routing state added
+- any unintended side effects
+
+6. Dependency map
+Create a dependency map showing:
+
+/origin-stories page
+→ API used
+→ tables used
+→ click target
+→ detail page reached
+→ CTAs shown
+
+admin origin story page
+→ API used
+→ tables written
+→ where those records surface
+
+AI/public ingestion
+→ API/service used
+→ tables written
+→ where those records surface
+
+supplier detail
+→ API used
+→ story fields used
+→ fallback logic
+
+product detail
+→ API used
+→ story fields used
+
+Supplier Network
+→ API used
+→ story fields used
+
+7. Drift diagnosis
+Explain how Origin Stories drifted from the simple intended purpose into the current structure.
+
+Separate findings into:
+- intentional current behavior
+- accidental drift
+- dead/unused legacy code
+- partial implementation
+- risky dependency
+- safe-to-ignore complexity
+
+8. Breakage risk assessment
+Before any simplification, answer:
+
+If we build a dedicated Origin Story / Farm Detail page:
+- what breaks?
+- what remains untouched?
+- what duplicated behavior appears?
+- what existing links need to change?
+- what existing admin flows need to change?
+- what backend routes can remain untouched?
+
+If we add supplierId to origin_stories:
+- what improves?
+- what breaks?
+- what remains optional?
+- does it force unwanted coupling?
+
+If we leave origin_stories alone and use suppliersTable fields only:
+- what works?
+- what breaks?
+- what future limitation appears?
+
+9. Minimal safe paths
+Do not choose yet. Compare three options:
+
+Option A:
+Keep current model and only fix UX.
+
+Option B:
+Create dedicated Origin Story detail page using existing suppliersTable-powered System A.
+
+Option C:
+Use origin_stories as the canonical story table with optional supplierId.
+
+For each option, provide:
+- changes needed
+- affected files
+- risk
+- rollback
+- what it solves
+- what it does not solve
+
+10. Final recommendation
+Do not implement.
+
+Return:
+- current-state audit
+- dependency map
+- drift explanation
+- safest next-step recommendation
+- questions requiring owner decision
+
+Stop for approval.

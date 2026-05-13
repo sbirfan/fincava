@@ -19,7 +19,6 @@ import {
   Link2,
   AlertTriangle,
   BarChart3,
-  BookOpen,
   Leaf,
   ClipboardCheck,
   Briefcase,
@@ -41,8 +40,7 @@ const navigation = [
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Team", href: "/admin/team", icon: UsersRound },
   { name: "Public Metrics", href: "/admin/public-metrics", icon: BarChart3 },
-  { name: "Producer Stories", href: "/admin/stories", icon: BookOpen },
-  { name: "Origin Stories", href: "/admin/origin-stories", icon: Leaf },
+  { name: "Farm Biography Records", href: "/admin/origin-stories", icon: Leaf },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {

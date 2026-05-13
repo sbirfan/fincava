@@ -504,8 +504,8 @@ export default function Home() {
               <h3 className="text-2xl font-serif font-bold mb-3">{h.cta.supplierCard.title}</h3>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">
                 {ENABLE_FINANCE ? h.cta.supplierCard.sub : lang === "es"
-                  ? "Conéctate directamente con compradores internacionales y exporta tus productos a más de 15 países, sin intermediarios."
-                  : "Connect directly with international buyers and export your products to 15+ countries, without intermediaries."}
+                  ? "Conéctate directamente con compradores internacionales y exporta tus productos a mercados destino, sin intermediarios."
+                  : "Connect directly with international buyers and export your products to target markets, without intermediaries."}
               </p>
               <ul className="space-y-2 mb-8">
                 {h.cta.supplierCard.features.map((f, i) => {

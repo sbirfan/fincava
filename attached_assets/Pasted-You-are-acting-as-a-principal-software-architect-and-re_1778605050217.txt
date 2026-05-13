@@ -1,0 +1,384 @@
+You are acting as a principal software architect and repo-aware systems reviewer for FINCAVA.
+
+DO NOT WRITE CODE.
+DO NOT MODIFY FILES.
+DO NOT CREATE MIGRATIONS.
+DO NOT RUN FIXES.
+
+Your task is to inspect the current Replit FINCAVA-HUB repo and produce a detailed implementation plan to address the Origin Stories architecture drift identified below.
+
+CONTEXT
+
+We are separately approving Phase A + B only:
+
+Phase A:
+- /origin-stories card links pass origin-story context to /supplier/:id
+- supplier detail back link becomes context-aware:
+  - from Origin Stories → Back to Origin Stories → /origin-stories
+  - default/direct/Supplier Network → Back to Supplier Network → /suppliers
+
+Phase B:
+- supplier detail copy becomes context-aware when user arrives from /origin-stories
+- non-export-ready suppliers shown from Origin Stories should be framed as “building export journey,” not as failed/blocked supplier profiles
+- do not remove export readiness signals
+
+This prompt is NOT about implementing A + B.
+
+This prompt is about Phase C and beyond.
+
+CURRENT FINDING TO VALIDATE
+
+The latest repo appears to have changed origin_stories from product-linked only toward category/farm-level stories:
+
+origin_stories:
+- productId is now nullable
+- productCategory exists
+- supplierId does NOT appear to exist
+
+This creates possible architecture drift:
+
+origin_stories moved away from product-linked stories,
+but did not become supplier-linked stories.
+
+That means new admin-created origin stories may exist without:
+- a product relationship
+- a supplier relationship
+
+This can break or weaken:
+- Supplier Network onboarding/story sections
+- product detail “Meet the Farmer”
+- supplier detail origin story rendering
+- public /origin-stories consistency
+- future export-ready handoff from story → supplier profile → products
+- admin ability to manage story ownership
+- analytics and impact reporting
+
+YOUR TASK
+
+Perform a full repo-aware feasibility review and produce a written plan only.
+
+Do not implement.
+
+REQUIRED INSPECTION AREAS
+
+1. Schema / database model
+
+Inspect:
+- lib/db/src/schema/products.ts
+- any schema exports
+- migrations if present
+- any drizzle migration snapshots if present
+
+Confirm:
+- current fields on origin_stories
+- whether productId is nullable
+- whether productCategory exists
+- whether supplierId exists
+- whether foreign keys exist
+- whether indexes exist
+- whether existing rows may become orphaned
+
+Answer:
+- Should origin_stories get nullable supplierId?
+- Should productId remain nullable for backward compatibility?
+- Should productCategory remain?
+- Should published remain?
+- Should story ownership be supplier-first, product-optional?
+
+2. Public /origin-stories page flow
+
+Inspect:
+- artifacts/fincava/src/pages/origin-stories.tsx
+- API client hook used by this page
+- GET /api/origin-stories implementation
+
+Confirm:
+- what data source powers the page
+- whether it uses suppliersTable.publishedToOriginStories
+- whether it uses origin_stories table at all
+- whether productPlaceholders are still used
+- whether the page is showing Supplier-level lightweight stories, not origin_stories records
+
+Answer:
+- Should public /origin-stories continue using suppliersTable?
+- Should it later merge with origin_stories?
+- What is the safest near-term model?
+
+3. Supplier detail page
+
+Inspect:
+- artifacts/fincava/src/pages/supplier-detail.tsx
+- GET /api/suppliers/marketplace/:id implementation
+
+Confirm:
+- where supplier detail originStory comes from
+- whether it reads origin_stories
+- whether it falls back to supplier description
+- how isExportReady is computed
+- when Products tab appears
+- when inquiry / RFQ / purchase intent CTAs appear
+
+Answer:
+- How should supplier detail behave when reached from /origin-stories?
+- How should supplier detail behave after supplier becomes export ready?
+- How should “View Products” or “View Supplier Profile” handoff work?
+- What should happen if supplier has story but no products yet?
+
+4. Product detail / Meet the Farmer
+
+Inspect:
+- product detail page
+- GET /api/products/:id
+- any “Meet the Farmer” tab or origin story rendering
+
+Confirm:
+- whether it still queries origin_stories through productId
+- whether nullable productId breaks new story records
+- whether productCategory-only stories can appear on product pages
+- whether supplier-linked stories would improve lookup
+
+Answer:
+- Should product detail first search story by productId?
+- Then fallback by supplierId?
+- Should productCategory be used only as fallback metadata, not ownership?
+
+5. Admin origin stories flow
+
+Inspect:
+- admin origin stories page/component
+- API routes for admin origin story create/update/list
+- validation schemas
+- generated API client if relevant
+
+Confirm:
+- what fields admin currently provides
+- whether admin can select product
+- whether admin can select productCategory
+- whether admin can select supplier
+- whether current records can be created without product and supplier
+
+Answer:
+- Should admin create story require supplierId?
+- Should productId be optional?
+- Should productCategory be required when productId is absent?
+- Should admin UI include supplier selector?
+- Should it support “supplier-level story” and “product-level story”?  ADMIN SUPPLIER SELECTOR REQUIREMENT
+
+Do NOT recommend limiting the supplier selector to only suppliers already published to Origin Stories.
+
+Current preferred direction:
+
+- Show all suppliers in the DB
+- Supplier selector should support filtering and status visibility
+
+Recommended statuses to display:
+
+- Published to Origin Stories
+- Building Export Journey
+- Export Ready
+- Draft / Incomplete
+
+Recommended UX behavior:
+
+- Default sort/filter should prioritize:
+  1. suppliers already published to Origin Stories
+  2. suppliers with onboarding/enrichment data
+  3. suppliers with export-readiness progress
+
+- Admin must be able to create an Origin Story BEFORE public publication.
+- Admin must be able to create an Origin Story during informal onboarding/discovery.
+- Admin must be able to progressively enrich supplier profiles over time.
+
+IMPORTANT CONSTRAINT
+
+Do NOT allow creation of fully orphan Origin Stories long-term.
+
+Preferred future rule:
+
+- supplierId becomes required for NEW stories
+- productId remains optional
+- productCategory remains optional fallback metadata only
+- published flag controls public visibility
+
+The architecture must preserve:
+
+Supplier
+→ Product
+→ Marketplace
+
+while also supporting:
+
+Supplier
+→ Origin Story
+→ onboarding enrichment
+→ export readiness
+→ products
+→ buyer engagement
+
+6. Supplier Network impact
+
+Inspect:
+- artifacts/fincava/src/pages/suppliers.tsx
+- GET routes powering Supplier Network
+- any onboarding/building export readiness section
+- joins involving origin_stories, products, suppliers, productPlaceholders
+
+Confirm:
+- whether current Supplier Network depends on productId linkage
+- whether new productId-null stories disappear
+- whether supplierId would fix this
+
+Answer:
+- What breaks now?
+- What should be changed?
+- What should remain untouched?
+
+7. Analytics / impact reporting
+
+Inspect:
+- /api/impact or related impact reporting
+- any metrics using origin_stories length
+- public metrics dependencies
+
+Confirm:
+- whether orphan origin_stories could inflate impact metrics
+- whether hardcoded tradeVolumeUSD still exists
+- whether published-only filtering is needed
+
+Answer:
+- Should impact reporting count only published stories?
+- Should it count only supplier-linked stories?
+- Should current logic be corrected now or deferred?
+
+8. Backward compatibility
+
+Assess existing legacy records and routes:
+- /api/stories/:productId
+- product-linked stories
+- productId nullable change
+- existing product pages
+
+Answer:
+- How can old product-linked stories keep working?
+- How can new supplier-linked stories work?
+- Should /api/stories/:productId be retained, expanded, or deprecated?
+
+9. Migration safety
+
+If supplierId is recommended, provide a migration plan.
+
+Must include:
+- additive-only migration
+- nullable supplierId first
+- no destructive changes
+- no data deletion
+- backfill strategy if possible:
+  - where productId exists, infer supplierId from products.supplierId
+  - where productId is null, leave supplierId null and require admin repair
+- index recommendation
+- rollback plan
+
+10. Future dedicated Origin Story detail page
+
+Evaluate but do not implement:
+- /origin-stories/:supplierId
+or
+- /origin-stories/:storyId
+
+Answer:
+- Is this needed now?
+- Which route is better later?
+- Should it be supplier-first or story-record-first?
+- What would it solve?
+- What should be deferred?
+
+ARCHITECTURAL CONSTRAINTS
+
+Do not redesign supplier onboarding.
+Do not redesign product onboarding.
+Do not replace Supplier Network.
+Do not replace marketplace flow.
+Do not create a new subsystem.
+Do not add AI automation.
+Do not introduce microservices.
+Do not overbuild.
+Do not make origin stories a separate platform.
+
+Preserve this existing authoritative flow:
+
+Supplier
+→ Product
+→ FINCAVA Marketplace
+
+Origin Stories is an early trust/storytelling layer that can lead users into supplier profiles and products as more information is collected.
+
+Correct future flow should be:
+
+Discovery / informal onboarding
+→ Supplier lightweight profile
+→ Origin Story visibility
+→ Formal onboarding / enrichment
+→ Export readiness graduation
+→ Supplier profile + products
+→ Buyer inquiry / RFQ / purchase intent
+
+EXPECTED OUTPUT FORMAT
+
+Return a written feasibility report with these sections:
+
+1. Executive Summary
+2. Confirmed Current Repo State
+3. Architecture Drift Findings
+4. Affected Files and Functions
+5. What Breaks Today
+6. What Could Break After A + B
+7. Recommended Phase C Plan
+8. Recommended Phase D / Future Plan
+9. Migration Plan
+10. Backward Compatibility Plan
+11. Testing Plan
+12. Risks to Avoid
+13. Rollback Plan
+14. Final Recommendation
+
+FINAL DECISION REQUIRED
+
+At the end, give one of:
+
+- APPROVE PHASE C AS ADDITIVE SCHEMA FIX
+- APPROVE PHASE C WITH CHANGES
+- DO NOT APPROVE PHASE C YET
+ FINAL DECISION REQUIRED  MANDATORY REVIEW GATE
+
+Do NOT implement anything.
+
+Do NOT create migrations.
+Do NOT modify schema.
+Do NOT modify routes.
+Do NOT modify admin UI.
+Do NOT modify public pages.
+
+First return:
+
+1. findings
+2. repo-state validation
+3. identified drift
+4. risks
+5. recommended approach
+6. open questions
+7. dependencies
+8. rollback considerations
+9. implementation sequencing
+
+Then STOP and wait for explicit approval.
+
+If assumptions are unclear:
+- ask questions
+- identify conflicting repo patterns
+- identify unsafe migration areas
+- identify backward compatibility risks
+
+Do not proceed into execution automatically.
+
+This is an architecture review and implementation-planning phase only.
+ Do not implement anything until I explicitly approve.

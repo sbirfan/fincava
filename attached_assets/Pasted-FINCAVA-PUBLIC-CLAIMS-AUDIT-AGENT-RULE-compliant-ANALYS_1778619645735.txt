@@ -1,0 +1,643 @@
+FINCAVA — PUBLIC CLAIMS AUDIT  ·  AGENT_RULE compliant  ·  ANALYSIS ONLY — No code changes until explicitly approved EXECUTIVE SUMMARY
+
+FINCAVA's public-facing pages carry 20+ claims that are hardcoded, aspirational, or mismatched with real DB data.
+
+🔴 HIGH RISK (7 claims): Numbers that directly contradict database values or assert capabilities not yet live. e.g. '$4.2M+' trade when DB=$0; 'Real-Time Tracking' when Distribution is Launching Soon.
+
+🟠 MEDIUM RISK (8 claims): Hardcoded copy that is directionally plausible but unverified or overstated. e.g. '15+ countries', '85+ farming families', market growth rates with no source.
+
+🟢 LOW RISK / KEEP (5 claims): DB-driven counts, research-backed market content, regulatory reference data.
+
+RECOMMENDED PRIORITY:
+1) Immediately address 7 HIGH-risk items — especially $4.2M+ and 'Live' badges on mock data.
+2) Move ALL quantitative claims to admin-controlled system.
+3) Replace misleading 'Live' UI badges with 'Sample View'.
+4) Adopt early-stage positioning for Traction section. ACTUAL DB vs. PUBLIC CLAIMS
+Source: GET /api/stats/platform (live query just run)
+
+Metric              Shown        Real DB
+─────────────────────────────────────────
+Verified Suppliers  '12+'        4
+Export Products     '40+'        8
+Trade Facilitated   '$4.2M+'     $0.00
+Countries Reached   '15+'        15 (hardcoded in API, no DB col)
+Farming Families    '85+'        No DB column
+Farming Regions     '8'          No DB column
+Dashboard orders    'Live'       3 hardcoded demo strings
+Supplier markets    '4 active'   6 hardcoded demo strings
+Lead time           '14 days'    Hardcoded
+Docs complete       '100%'       Hardcoded
+Satisfaction        '4.9 ★'      Hardcoded
+─────────────────────────────────────────
+API response: {verifiedSuppliers:4, totalProducts:8,
+facilitatedTradeUSD:0, exportDestinations:15 (hardcoded),
+productCategories:8} 🚨  CRITICAL: '$4.2M+' is hardcoded in home.tsx line 127 and NEVER reads from the API. Real DB facilitatedTradeUSD = $0. The API fallback is $2M — not even that is used. Highest priority fix. CLAIM INVENTORY   ·   A=KEEP   B=REWRITE   C=HIDE   D=ADMIN-CONTROLLED   E=NEEDS CONFIRMATION 🔴 HIGH RISK — C: HIDE or B: REWRITE immediately
+
+#  Claim                                   Location              Source Type    Risk    Class   Action
+1  '$4.2M+ Trade Facilitated'              hero stats            hardcoded TSX  HIGH    C       Hide until admin-verified. DB=$0.
+2  'Real-Time Tracking' feature + desc     forBuyers features    hardcoded      HIGH    B       Rewrite to 'Planned: Shipment Visibility'
+3  'Every shipment is tracked'             forBuyers sub         hardcoded      HIGH    B       Remove — tracking not live
+4  Buyer dashboard 'Live' badge + 3 orders forBuyers mockup      hardcoded      HIGH    B       Label section 'Platform Preview / Sample'
+5  '14 days / 100% docs / 4.9★'           forBuyers mockup      hardcoded      HIGH    C       Remove these 3 hardcoded stats entirely
+6  Supplier markets grid 'Live Orders'     forSuppliers mockup   hardcoded      HIGH    B       Change 'Live Orders' → 'Target Markets'
+7  '$4.2M+' in Traction stats             traction section      hardcoded      HIGH    C       Hide stat card until admin-verified
+8  'Real-time shipment tracking'           CTA buyer card        hardcoded      HIGH    B       Remove — capability not live 🟠 MEDIUM RISK — B: REWRITE or D: ADMIN-CONTROLLED
+
+#   Claim                                        Location             Source Type   Risk    Class   Action
+9   '12+ verified Colombian producers'           traction bullets     hardcoded     MED     D       Admin enter real count (DB=4). Remove bullet if unverified.
+10  '40+' Export Products (fallback)             hero stats           hardcoded FB  MED     D       Remove '40+' fallback string. Show DB count or hide.
+11  'Active buyers in SA, JP, KR, UAE, NL'       traction bullets     hardcoded     MED     E       Needs confirmation — real relationships or demo?
+12  '85+ farming families across 8 regions'      traction bullets+stats hardcoded   MED     E       Needs confirmation — no DB col. If real → D: admin-verify.
+13  '15+ countries' (hero stat, forSuppliers CTA) multiple sections   double-hcoded MED     D       Clarify: target markets or active buyer countries?
+14  'logistics to deliver' / 'Logistics handled' forSuppliers + CTA   hardcoded     MED     B       Rewrite to 'logistics planned, partner-supported'
+15  'end-to-end logistics support'               CTA buyer card sub   hardcoded     MED     B       Rewrite — logistics launching soon
+16  Market growth rates (+34%, +28% etc.)        Markets profiles     hardcoded     MED     B       Add source label: 'Est. import growth, Fincava research 2024' 🟢 LOW RISK — A: KEEP (with minor fixes noted)
+
+#   Claim                                     Location         Source Type      Class   Action
+17  verifiedSuppliers count (from DB)         hero stats       live_db          A       KEEP — shows DB value (4). Remove '12+' hardcoded fallback.
+18  totalProducts count (from DB)             hero stats       live_db          A       KEEP — shows DB value (8). Remove '40+' hardcoded fallback.
+19  Compliance requirements matrix            Markets          research         A       KEEP — accurate regulatory reference content
+20  Market profiles (descriptions, ports)     Markets          research         A       KEEP — add 'Source: Fincava market research' label
+21  Impact: 40-70% C-market premium, SDGs     Impact page      academic/market  A       KEEP — general market context, not Fincava-specific perf claim
+22  'Producers capture <5% of end value'      Problem section  market research  A       KEEP — widely cited industry fact HOMEPAGE STRATEGY — BEFORE vs. AFTER (section by section) CURRENT — Problems
+
+HERO STATS (4 tiles)
+❌ '12+' Verified Producers — DB=4, fallback overrides real count
+❌ '40+' Export Products — DB=8, fallback wrong
+❌ '15+' Countries — double-hardcoded, no DB basis
+❌ '$4.2M+ Trade Facilitated' — DB=$0, hardcoded in TSX
+
+TRACTION SECTION
+❌ Heading: 'Real producers. Real buyers. Real trade.'
+❌ Sub: 'We have verified producer relationships, live order flow, and trade data'
+❌ Bullet: '12+ verified Colombian producers across coffee, cacao, and superfoods'
+❌ Bullet: 'Active buyers in Saudi Arabia, Japan, South Korea, UAE, Netherlands'
+❌ Bullet: '85+ farming families across 8 regions'
+❌ Bullet: 'Live RFQ, order, and shipment tracking processing real trade flows'
+❌ Stat cards: 12+ / 8 / 85+ / $4.2M+
+
+FOR BUYERS MOCKUP
+❌ 'Active Sourcing' with 'Live' badge
+❌ 3 hardcoded orders presented as real platform activity
+❌ '14 days lead time' / '100% docs complete' / '4.9 ★ satisfaction' — all demo
+
+FOR SUPPLIERS MOCKUP
+❌ 'Live Orders' badge
+❌ Country grid with fabricated active order counts PROPOSED — What to show instead
+
+HERO STATS → Two real tiles + Two removed
+✅ Verified Producers: show real DB count (4) — no fallback string
+✅ Active Products: show real DB count (8) — no fallback string
+🔒 Countries Reached: REMOVE until admin-verified OR relabel 'Target Markets'
+🔒 Trade Facilitated: REMOVE until real GMV; replace with qualitative stat
+
+TRACTION → REPLACE WITH EARLY-STAGE POSITIONING
+✅ New heading: 'Building Colombia's direct trade infrastructure.'
+✅ New sub: 'FINCAVA is in early access — onboarding verified producers and connecting them to international buyers across 15 target markets.'
+✅ Replace 4 bullets:
+   · 'Verified producer profiles across coffee, cacao, avocado, and superfoods'
+   · 'RFQ engine connecting buyers with Colombian producers'
+   · 'Compliance documentation support per destination market'
+   · 'Early supplier onboarding in Huila, Nariño, Tumaco, and Antioquia'
+✅ All 4 stat cards: hidden until admin publishes verified values
+
+FOR BUYERS MOCKUP
+✅ Change label: 'Active Sourcing' → 'Platform Preview'
+✅ Change badge: 'Live' → 'Sample'
+✅ Remove '14 days / 100% / 4.9★' row entirely
+
+FOR SUPPLIERS MOCKUP
+✅ Change badge: 'Live Orders' → 'Target Markets'
+✅ Country grid becomes market reach display, not order volume claim MARKETS PAGE ANALYSIS MARKETS PAGE — Classification by Tab
+
+HERO SUBTITLE
+❌ 'Real-time demand signals, price benchmarks, and compliance requirements'
+Issue: 'Real-time' overstates what is partial DB + hardcoded fallback data.
+Class: B — REWRITE to 'Market intelligence, compliance requirements, and indicative price benchmarks'
+
+MARKET PROFILES TAB (4 cards)
+Content: Descriptions, growth %, signal labels, ports — all hardcoded
+Growth rates: +34%, +28%, +19%, +42% — no source cited
+Class: B — Add label 'Estimated growth, Fincava market research 2024'
+Signals (HIGH/MEDIUM/EMERGING): editorial labels, fine as-is → A: KEEP
+
+DEMAND SIGNALS TAB
+Content: From /api/markets/intelligence — real DB query?
+Risk: E — NEEDS CONFIRMATION (is this real data or seed data?)
+
+COMPLIANCE GUIDE TAB
+Content: 100% hardcoded research (Halal, GACC, MFDS, HACCP, etc.)
+Accuracy: Correct regulatory reference data → A: KEEP
+
+PRICE BENCHMARKS TAB
+Content: Partial DB avg, fallback to {COFFEE:18.50, CACAO:3.50…}
+Note: Already has disclaimer 'Prices are indicative benchmarks'
+→ A: KEEP as-is (disclaimer is sufficient) MARKETS PAGE — Verdict
+
+OVERALL: Lowest risk public page on the site.
+Main issues are the hero 'Real-time' claim and uncited growth %.
+
+MINIMUM CHANGES NEEDED:
+1. Hero subtitle: remove 'Real-time' claim
+2. Growth rates: add source footnote
+3. Confirm /api/markets/intelligence data source
+
+NO CHANGES NEEDED:
+· Compliance guide (accurate regulatory content)
+· Price benchmarks (already disclaimed as indicative)
+· Signal labels (editorial, not precision claims)
+· Port data (publicly available information)
+
+IF demand signals API returns seed/mock data:
+→ Add 'Sample data — updates as platform grows' label to that tab
+
+MARKETS PAGE RISK LEVEL: LOW-MEDIUM
+Only the hero sub and growth % require action. ADMIN-CONTROLLED PUBLIC METRICS SYSTEM — Design Proposal (NOT implemented yet) PROPOSED SCHEMA — public_metrics table
+
+id                 UUID (PK)
+metric_key         TEXT  'verified_suppliers'
+page               TEXT  'home' | 'markets' | 'impact'
+section            TEXT  'hero_stats' | 'traction' | ...
+label              TEXT  'Verified Producers'
+value              TEXT  '4'
+description        TEXT  optional copy
+source_type        ENUM  live_db | manual_verified | external_research
+source_note        TEXT  'Counted from companies table WHERE verified=true'
+source_url         TEXT  optional
+last_verified_date DATE
+owner              TEXT  'ops@fincava.com'
+is_visible         BOOL  DEFAULT false
+status             ENUM  draft | published | archived
+sort_order         INT
+created_at         TIMESTAMP
+updated_at         TIMESTAMP
+updated_by         TEXT
+
+PUBLIC ENDPOINT:
+GET /api/public-metrics?page=home
+→ Returns ONLY status=published AND is_visible=true
+→ Response: [{metric_key, section, label, value, last_verified_date}]
+
+ADMIN ENDPOINTS:
+GET/POST/PATCH /api/admin/public-metrics/:id
+POST /api/admin/public-metrics/:id/publish
+POST /api/admin/public-metrics/:id/unpublish FRONTEND RENDERING RULES
+
+For each metric slot on the public page:
+if (!metric || !metric.is_visible) return null;
+→ Card collapses cleanly (no empty box, no 'undefined')
+
+If ALL metrics in a section are hidden/empty:
+→ Replace entire section with approved early-stage copy:
+  'Fincava is in early access. We are building
+   the sourcing infrastructure for Colombian
+   agricultural trade. Join as an early member.'
+
+Admin console shows:
+┌────────────────────────────────────────────┐
+│ metric_key         value  status   visible  │
+│ verified_suppliers 4      draft    OFF  [✎] │
+│ trade_facilitated  —      draft    OFF  [✎] │
+│ countries_reached  15+    draft    OFF  [✎] │
+│ farming_families   —      draft    OFF  [✎] │
+└────────────────────────────────────────────┘
+Admin edits → Previews → Publishes
+No code deploy required.
+
+SEED ROWS (all draft + hidden by default):
+verified_suppliers, total_products,
+countries_reached, trade_facilitated_usd,
+farming_families, farming_regions ARCHITECTURE OPTIONS — Select implementation path before approving OPTION A
+Admin JSON Config File
+
+public_metrics.json in repo
+
+✅ Fastest (days)
+✅ Zero backend change
+✅ Git history = audit log
+❌ Requires code deploy to update values
+❌ Non-technical team cannot edit
+❌ No real-time preview
+
+Backend change: NONE
+Admin UI: Edit JSON in repo
+Auditability: Git log only
+Frontend change: LOW
+
+Best for: next 2 weeks
+only. Not sustainable. OPTION B ⭐ RECOMMENDED
+Extend Existing Admin
+
+Check if DB has a settings
+or config table already.
+If YES → extend it.
+
+✅ Minimal schema change
+✅ No new infrastructure
+✅ Toggle without redeploy
+✅ Good auditability
+⚠️ Depends on existing schema
+
+Backend change: LOW
+Admin UI: Extend existing
+Auditability: DB timestamps
+Frontend change: MEDIUM
+
+Action: Check DB for
+existing settings table
+before choosing this path. OPTION C
+New public_metrics Table
+
+Full implementation of
+proposed schema.
+
+✅ Best governance
+✅ Full audit trail per field
+✅ Rich admin preview UI
+✅ Source + owner tracking
+✅ No deploy to change data
+❌ Most backend work
+❌ New migration needed
+❌ Admin UI must be built
+
+Backend change: MEDIUM
+Admin UI: New page required
+Auditability: Full
+Frontend change: MEDIUM
+
+Use IF Option B
+is not viable. OPEN QUESTIONS — Need confirmation before implementation
+
+Q1. '85+ farming families' and '8 regions' — are these real verified numbers or aspirational targets? Who owns these numbers?
+Q2. SUPPLIER_MARKETS grid (SA: 3 active, UAE: 4 active, etc.) — are any of these real buyer relationships, or 100% demo data?
+Q3. /api/markets/intelligence — does this return real DB queries or seed/mock data?
+Q4. Farmer stories on Impact page (Carlos, Doña Esperanza, Ximena) — real people? Publicly attributable?
+Q5. Does the DB have an existing config/settings table? (determines Option B viability)
+Q6. Who is the data owner per metric — who has authority to verify and publish numbers?
+Q7. 'Countries Reached: 15+' — active buyer inquiries from 15 countries, or 15 target markets we aspire to serve? ✅ ANALYSIS COMPLETE — NO CODE CHANGED  |  Review findings above  |  Answer open questions  |  Select architecture option  |  Approve specific items to proceed REFINED ANALYSIS — v2  ·  Updated with confirmed answers + DB schema finding  ·  Includes definitive architecture recommendation CONFIRMED ANSWERS — All questions now closed
+
+Q1. '85+ farming families / 8 regions'
+→ CONFIRMED: NOT REAL. No DB column. Aspirational only.
+→ Action: HIDE all 4 traction stat cards. Rewrite traction copy.
+
+Q2. Supplier market grid (SA: 3 active, UAE: 4 active…)
+→ CONFIRMED: NOT REAL. 100% demo data in home.tsx.
+→ Action: Change badge 'Live Orders' → 'Target Markets'
+
+Q3. Farmer stories (Carlos, Doña Esperanza, Ximena)
+→ CONFIRMED: NOT REAL. Fictional people with stock photos.
+→ UPGRADED TO CRITICAL RISK (see below).
+
+Q4. Config/settings table in DB?
+→ CONFIRMED: DOES NOT EXIST. Scanned 24-table schema.
+→ Conclusion: Option B (extend existing) NOT VIABLE.
+
+Q5. '15+ countries' — real or target markets?
+→ CONFIRMED: NOT REAL. Target markets only.
+→ Action: Relabel as 'Target markets' or hide. DB SCHEMA FINDING — Architecture impact
+
+24 tables scanned. No config/settings table exists.
+
+EXISTING TABLES:
+users, companies, products, orders, inquiries,
+reviews, messages, rfqs, shipments, analytics,
+financing, suppliers, supplier-evaluations,
+staff-roles, buyer-profiles, buyer-matches,
+buyer-gap-briefs, buyer-admin-actions,
+marketing-campaigns, interaction-logs,
+officer-applications, + token tables
+
+NOTABLE: No generic config/settings/flags table.
+→ Option B (extend existing table) = NOT VIABLE.
+
+ADMIN INFRASTRUCTURE AUDIT:
+✅ adminOnly middleware — exists and used on all admin routes
+✅ admin.ts — 2,472 lines, 30+ existing routes (GET/PATCH/POST/DELETE)
+✅ admin/index.tsx — stat dashboard with card pattern
+✅ 8 existing admin pages: users, suppliers, orders, buyers,
+   team, ingestion, buyer-gaps, buyer-matches
+✅ Established Drizzle + Zod + Express pattern throughout
+→ Adding a new admin page/route is LOW effort with existing infrastructure. 🚨  CRITICAL ESCALATION — FARMER STORIES (now highest priority alongside $4.2M+)
+
+The Impact page displays three farmer profiles (Carlos Andres Muñoz / Huila, Doña Esperanza Villamil / Tumaco, Ximena Patiño Gómez / Sierra Nevada) with personal quotes, photos, regions, and product specialties — presented under the heading 'These are real people with real farms, real challenges, and real futures shaped by your sourcing decisions.'
+
+All three are CONFIRMED fictional. The photos are stock Unsplash images. The names, regions, products, and quotes are fabricated. The heading text explicitly asserts they are real people.
+
+This must be addressed BEFORE any outreach to buyers or public launch. Either replace with real verified farmer profiles, or explicitly label as 'Sample supplier stories — real profiles coming soon.' DEFINITIVE ARCHITECTURE RECOMMENDATION — Based on confirmed DB schema + admin infrastructure OPTION B — NOT VIABLE
+
+Requires an existing config/settings table.
+
+DB schema confirmed: no such table exists across all 24 tables.
+
+Do not pursue this path. OPTION A — JSON Config
+
+Zero backend work. Values in repo JSON.
+Fastest to implement today.
+
+Limitation: every metric change needs a code deploy.
+Team cannot update values without a PR.
+
+Acceptable as a BRIDGE for days 1-7, but not the right long-term solution. OPTION C ⭐ RECOMMENDED
+Lean public_metrics table
+
+Given the existing admin infrastructure, this is the lowest-disruption path that does NOT require code deploys to update values.
+
+Estimated effort: 1 migration + 2 API routes + 1 admin page (copying existing pattern). WHY LEAN OPTION C IS LOWEST DISRUPTION (given what already exists)
+
+The admin infrastructure is already mature. Adding one more admin page follows the exact same pattern as the 8 that already exist. 'Lowest disruption' means 'least operational complexity forever', not 'fewest lines of code today.'
+
+  Option A Burden:                         Option C Burden:
+  ─────────────────────────────────────    ─────────────────────────────────────
+  Every number update = git commit + PR     Admin updates value in UI → done
+  Every update needs a code deploy          No deploy needed
+  Team needs repo access to change values   Any admin-role user can update
+  JSON grows messy over time                DB row is self-documenting
+  No audit trail per value change           updated_at + updated_by per row
+  No toggle to hide a metric instantly      is_visible toggle = instant hide
+
+ESTIMATED WORK (Lean Option C):
+  · 1 Drizzle migration — new public_metrics table (5 columns only: key, label, value, is_visible, updated_at)
+  · 2 API routes — GET /api/public-metrics (public) + CRUD at /api/admin/public-metrics (adminOnly)
+  · 1 Admin page — /admin/public-metrics, copy pattern from /admin/users or /admin/suppliers
+  · Frontend — replace 6 hardcoded stat slots with API-driven slots that collapse when is_visible=false
+
+NO CHANGES TO: existing routes, migrations, schemas, auth, or any other admin pages. LEAN TABLE SCHEMA — public_metrics
+(5 columns only, no workflow complexity)
+
+id           SERIAL PRIMARY KEY
+metric_key   TEXT NOT NULL UNIQUE
+label        TEXT NOT NULL
+value        TEXT NOT NULL DEFAULT ''
+is_visible   BOOLEAN NOT NULL DEFAULT false
+updated_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+INDEX: metric_key (unique constraint covers this)
+
+SEED DATA (all is_visible=false at start):
+('verified_suppliers',  'Verified Producers',         '4',   false)
+('total_products',      'Active Products',            '8',   false)
+('countries_reached',   'Target Markets',             '15+', false)
+('trade_facilitated',   'Trade Facilitated (USD)',    '—',   false)
+('farming_families',    'Farming Families Supported', '—',   false)
+('farming_regions',     'Regions Represented',        '—',   false)
+
+ADMIN publishes a row by:
+  · Verifying the number
+  · Setting is_visible = true
+
+FRONTEND renders by:
+  · Fetching GET /api/public-metrics
+  · Rendering only rows where is_visible=true
+  · If all rows for a section hidden → show early-stage fallback copy ADMIN PAGE SPEC — /admin/public-metrics
+(copy pattern from /admin/users.tsx)
+
+PAGE LAYOUT:
+┌──────────────────────────────────────────┐
+│ Public Metrics                [+ Add]    │
+├─────────────────────┬────────┬──────────┤
+│ Label               │ Value  │ Visible  │
+├─────────────────────┼────────┼──────────┤
+│ Verified Producers  │ [4___] │ OFF   ⬡  │
+│ Active Products     │ [8___] │ OFF   ⬡  │
+│ Target Markets      │ [15+_] │ OFF   ⬡  │
+│ Trade Facilitated   │ [____] │ OFF   ⬡  │
+│ Farming Families    │ [____] │ OFF   ⬡  │
+│ Regions Represented │ [____] │ OFF   ⬡  │
+└─────────────────────┴────────┴──────────┘
+
+Interactions:
+· Inline edit value field → PATCH /api/admin/public-metrics/:id
+· Toggle is_visible → same PATCH endpoint
+· No separate publish flow needed (toggle IS the publish)
+· updated_at auto-updates on any PATCH
+
+NEW ADMIN ROUTES (follow existing adminOnly pattern):
+GET  /api/admin/public-metrics      → list all rows
+PATCH /api/admin/public-metrics/:id → update value + visibility
+
+PUBLIC ROUTE (no auth):
+GET /api/public-metrics             → rows where is_visible=true RECOMMENDED IMPLEMENTATION ORDER — (pending your approval for each phase)
+
+PHASE 1 — Immediate cosmetic fixes (no schema changes, no backend, ~1hr work)
+   · Farmer stories: relabel section 'Sample supplier profiles — real stories coming soon'
+   · Buyer dashboard: change 'Live' badge → 'Sample View'; remove '14 days / 100% / 4.9★'
+   · Supplier market grid: change 'Live Orders' badge → 'Target Markets'
+   · Traction section: remove $4.2M+ stat card; replace copy with early-stage positioning
+   · Hero stats: remove '15+' countries tile entirely; remove '$4.2M+' tile entirely
+   · Remove hardcoded fallback strings '12+', '40+' from hero (show DB value or nothing)
+   → Estimated: 6-8 targeted file edits, all in translations.ts + home.tsx
+
+PHASE 2 — Admin-controlled metrics (lean Option C, ~4-6hr work)
+   · Migration: add public_metrics table (5 columns)
+   · API: 3 routes (list-public, list-admin, patch-admin)
+   · Admin page: /admin/public-metrics (copy existing pattern)
+   · Frontend: hero stat tiles now read from /api/public-metrics
+   · Seed: 6 rows, all is_visible=false by default
+   → No metric appears publicly until admin explicitly toggles it ON
+
+PHASE 3 — When real data exists
+   · Admin verifies numbers → sets is_visible=true → metric appears on homepage
+   · No code change required for any future update ✅ REFINED ANALYSIS COMPLETE — NO CODE CHANGED  ·  Ready to implement Phase 1 and/or Phase 2 on your approval  ·  Approve individually or together PHASE 2 — DB SCHEMA DESIGN + CONFLICT ANALYSIS  ·  Read-only analysis. No DB changes executed. Awaiting explicit approval. NEW TABLE: public_metrics
+Purpose: Admin-controlled values for all public-facing numbers on the site.
+
+COLUMNS (11):
+  id               SERIAL PRIMARY KEY
+  metric_key       TEXT NOT NULL UNIQUE
+                   e.g. 'home.hero.verified_suppliers'
+  page             TEXT NOT NULL
+                   'home' | 'impact' | 'markets'
+  section          TEXT NOT NULL
+                   'hero_stats' | 'traction' |
+                   'impact_numbers' | etc.
+  label            TEXT NOT NULL  (display label)
+  value            TEXT NOT NULL DEFAULT ''
+  source_type      TEXT NOT NULL DEFAULT 'manual_verified'
+                   manual_verified | live_db |
+                   external_research
+  source_note      TEXT  (nullable — context for admins)
+  last_verified_at TIMESTAMP WITH TIME ZONE (nullable)
+  sort_order       INTEGER NOT NULL DEFAULT 0
+  is_visible       BOOLEAN NOT NULL DEFAULT false
+  updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+SEED DATA (initial rows, is_visible=false until admin activates):
+  home.hero.verified_suppliers  → value='4', source_type='live_db'
+  home.hero.total_products      → value='8', source_type='live_db'
+  home.traction.target_markets  → value='15', source_type='manual_verified'
+  impact.numbers.women_led      → value='3+', source_type='manual_verified'
+  impact.numbers.organic        → value='4+', source_type='live_db' NEW TABLE: public_stories
+Purpose: Admin-controlled producer profile cards shown on the Impact page.
+Replaces the current hardcoded FARMER_STORIES const in impact.tsx.
+
+COLUMNS (10):
+  id               SERIAL PRIMARY KEY
+  story_key        TEXT NOT NULL UNIQUE
+                   e.g. 'huila-coffee-producer-1'
+  page             TEXT NOT NULL DEFAULT 'impact'
+  section          TEXT NOT NULL DEFAULT 'farmer_voices'
+  name             TEXT NOT NULL
+                   (generic or real — admin decides)
+  region           TEXT  (e.g. 'Huila')
+  product          TEXT  (e.g. 'Specialty Coffee')
+  quote            TEXT
+  photo_url        TEXT
+  is_visible       BOOLEAN NOT NULL DEFAULT false
+  sort_order       INTEGER NOT NULL DEFAULT 0
+  updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+FRONTEND BEHAVIOR:
+  → GET /api/public-stories returns only is_visible=true rows
+  → If 0 visible stories, section collapses entirely
+  → Admin can toggle each card on/off independently
+  → No personal names appear on public site unless
+    admin explicitly enables that story card
+
+SEED DATA: 3 generic placeholder profiles
+(same content as current FARMER_STORIES const,
+but now DB-controlled, not hardcoded) CONFLICT ANALYSIS — FINDINGS
+All 8 risk vectors checked. Result: NO CONFLICTS.
+
+① Naming conflicts
+  → No table named public_metrics or public_stories
+     in the existing 24-table schema. SAFE.
+
+② Route conflicts
+  → GET /api/public-metrics — not registered. SAFE.
+  → GET /api/public-stories — not registered. SAFE.
+  → GET /api/admin/public-metrics — not registered. SAFE.
+  → GET /api/admin/public-stories — not registered. SAFE.
+
+③ /api/impact route
+  → Does NOT exist (confirmed by grepping all route files).
+  → impact.tsx calls it and silently falls back to
+     hardcoded values. Our new routes are purely additive.
+
+④ TypeScript type conflicts
+  → New Drizzle tables follow existing schema/index.ts
+     export pattern. No type conflicts expected.
+
+⑤ Admin route conflicts
+  → admin.ts (2,472 lines) has no public_metrics or
+     public_stories routes. We will add them as a
+     new router file (public-content.ts), not inline
+     in admin.ts to avoid diff explosion.
+
+⑥ Frontend query conflicts
+  → useGetPlatformStats() still works for admin KPIs.
+  → New useGetPublicMetrics() hook is purely additive.
+
+⑦ Drizzle migration strategy
+  → pnpm --filter @workspace/db run push
+  → No breaking changes to existing tables.
+
+⑧ Import/export chain
+  → Export 2 new tables from lib/db/src/schema/index.ts
+  → Add 1 new route file + register in routes/index.ts NEW API ROUTES
+File: artifacts/api-server/src/routes/public-content.ts
+
+PUBLIC (no auth required):
+  GET /api/public-metrics
+     ?page=home|impact|markets
+     ?section=hero_stats|traction|...
+  → Returns is_visible=true rows only
+  → No auth, public cache-safe
+
+  GET /api/public-stories
+  → Returns is_visible=true story cards
+  → No auth
+
+ADMIN (adminOnly middleware):
+  GET  /api/admin/public-metrics
+  → Returns ALL rows (incl. hidden) for admin UI
+
+  PATCH /api/admin/public-metrics/:id
+  → Update value, source_note, last_verified_at,
+    sort_order, is_visible
+  → Zod-validated body
+
+  GET  /api/admin/public-stories
+  → Returns ALL story cards
+
+  POST  /api/admin/public-stories
+  → Create new story card
+
+  PATCH /api/admin/public-stories/:id
+  → Toggle is_visible, update content
+
+  DELETE /api/admin/public-stories/:id
+  → Remove story card
+
+Registration:
+  import publicContentRouter from './public-content';
+  router.use(publicContentRouter);
+  (add to routes/index.ts, after storiesRouter) NEW ADMIN PAGES (follows existing users.tsx pattern)
+
+① artifacts/fincava/src/pages/admin/public-metrics.tsx
+   Purpose: View/edit all public metric values
+   UI elements:
+   - Table grouped by page+section
+   - Inline editable 'value' field per row
+   - source_type dropdown (manual_verified /
+     live_db / external_research)
+   - source_note textarea
+   - last_verified_at date display
+   - is_visible toggle (eye icon)
+   - sort_order drag-handle (optional)
+   Hooks: useQuery(['/api/admin/public-metrics'])
+          useMutation PATCH per row
+
+② artifacts/fincava/src/pages/admin/stories.tsx
+   Purpose: Manage producer profile cards
+   UI elements:
+   - Card grid view of all stories
+   - Toggle is_visible per card
+   - Inline edit: name, region, product,
+     quote, photo_url
+   - Create new story card
+   - Delete story card
+   Hooks: useQuery(['/api/admin/public-stories'])
+          useMutation POST/PATCH/DELETE
+
+Admin nav link:
+  Add to existing admin navigation sidebar
+  'Public Metrics' + 'Producer Stories' entries
+
+ADMIN ROUTE pattern: existing dark theme,
+adminOnly middleware on API, same layout as
+users.tsx — no design deviation needed. MIGRATION + FRONTEND WIRING
+
+MIGRATION STEPS:
+  1. Add schema files:
+     lib/db/src/schema/public-metrics.ts
+     lib/db/src/schema/public-stories.ts
+  2. Export both tables from:
+     lib/db/src/schema/index.ts
+  3. Run migration:
+     pnpm --filter @workspace/db run push
+  4. Seed initial rows via admin UI
+     (no migration seed needed — admin can
+     create rows via POST endpoints)
+
+FRONTEND WIRING AFTER MIGRATION:
+
+  home.tsx — hero stats:
+  → Add useGetPublicMetrics({page:'home',section:'hero_stats'})
+  → If admin has visible rows, show them
+  → If none, show DB-live fallback (verifiedSuppliers,
+    totalProducts) — already in place from Phase 1
+
+  home.tsx — traction section:
+  → Add useGetPublicMetrics({page:'home',section:'traction'})
+  → If visible rows exist, show stat cards
+  → Currently hidden (stats:[] from Phase 1) — Phase 2
+    unlocks the grid when admin publishes metrics
+
+  impact.tsx — farmer voices:
+  → Replace FARMER_STORIES const with
+    useGetPublicStories() hook
+  → Section shows only if stories.length > 0
+
+OPENAPI + CODEGEN:
+  → Add endpoints to api-spec/openapi.yaml
+  → pnpm --filter @workspace/api-spec run codegen
+  → Generated hooks available to frontend ⏸  AWAITING APPROVAL TO PROCEED WITH PHASE 2 DB CHANGES  ·  Conflict analysis complete — zero conflicts found  ·  Two new tables: public_metrics (11 cols) + public_stories (10 cols)  ·  Reply 'PROCEED WITH PHASE 2' to begin. FINCAVA Value Flow — Desktop (1280px) Value Flow — Mobile (390px) Combined Buyers + Suppliers — Desktop (1280px) Mobile (390px) Beta Section — Redesigned (Desktop 1280px) Mobile (390px) Variation A — Refined Compact Variation B — Elevated Structure

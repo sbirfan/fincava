@@ -101,8 +101,10 @@ router.get("/products", async (req, res): Promise<void> => {
   const filterDirectTrade = boolParsed.data.directTrade === true;
   const filterOrganic = boolParsed.data.organic === true;
 
-  // INNER JOIN on suppliersTable via the direct products.supplierId column.
-  // Products with supplierId = null (no verified supplier link) are excluded.
+  // LEFT JOIN on suppliersTable via the direct products.supplierId column.
+  // Products appear when either:
+  //   (a) supplierId is set and supplier has a graduated sellableStatus (SELLABLE/PUBLISHED), OR
+  //   (b) supplierId is NULL (legacy/seed products) and the linked company is verified.
   // GRADUATED_STATUSES uses sellableStatusEnum.enumValues — no raw string literals.
   let query = db.select({
     product: productsTable,
@@ -110,12 +112,16 @@ router.get("/products", async (req, res): Promise<void> => {
   })
     .from(productsTable)
     .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
-    .innerJoin(suppliersTable, eq(productsTable.supplierId, suppliersTable.id))
+    .leftJoin(suppliersTable, eq(productsTable.supplierId, suppliersTable.id))
     .$dynamic();
 
   const conditions = [
     eq(productsTable.active, true),
-    inArray(suppliersTable.sellableStatus, GRADUATED_STATUSES),
+    sql`(
+      (${productsTable.supplierId} IS NOT NULL AND ${suppliersTable.sellableStatus}::text = ANY(ARRAY[${sql.join(GRADUATED_STATUSES.map(s => sql`${s}`), sql`, `)}]))
+      OR
+      (${productsTable.supplierId} IS NULL AND ${companiesTable.verified} = true)
+    )`,
   ];
 
   if (category) conditions.push(eq(productsTable.category, category as any));
@@ -143,11 +149,12 @@ router.get("/products", async (req, res): Promise<void> => {
 
   const offset = (page - 1) * cappedLimit;
 
-  // countQuery carries its own INNER JOIN — conditions reference suppliersTable.
+  // countQuery mirrors the main query's LEFT JOINs so conditions reference suppliersTable correctly.
   const countQuery = db
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(productsTable)
-    .innerJoin(suppliersTable, eq(productsTable.supplierId, suppliersTable.id))
+    .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
+    .leftJoin(suppliersTable, eq(productsTable.supplierId, suppliersTable.id))
     .where(and(...conditions));
 
   const [rows, [{ count }]] = await Promise.all([
@@ -225,8 +232,34 @@ router.get("/products/:id", async (req, res): Promise<void> => {
     };
   });
 
-  const [story] = await db.select().from(originStoriesTable)
-    .where(and(eq(originStoriesTable.productId, row.product.id), eq(originStoriesTable.published, true)));
+  // Origin stories are now farm-level. Look up via supplier who owns this product.
+  // Legacy rows with productId still work via the supplierId→products join.
+  const [story] = row.product.supplierId
+    ? await db
+        .select({
+          farmerName:  originStoriesTable.farmerName,
+          farmerPhoto: originStoriesTable.farmerPhoto,
+          farmName:    originStoriesTable.farmName,
+          region:      originStoriesTable.region,
+          elevation:   originStoriesTable.elevation,
+          farmSizeHa:  originStoriesTable.farmSizeHa,
+          yearsFarming: originStoriesTable.yearsFarming,
+          story:       originStoriesTable.story,
+          challenges:  originStoriesTable.challenges,
+          impact:      originStoriesTable.impact,
+          images:      originStoriesTable.images,
+        })
+        .from(originStoriesTable)
+        .innerJoin(productsTable, eq(productsTable.id, originStoriesTable.productId))
+        .where(
+          and(
+            eq(productsTable.supplierId, row.product.supplierId),
+            eq(originStoriesTable.published, true),
+          ),
+        )
+        .orderBy(originStoriesTable.id)
+        .limit(1)
+    : [undefined];
 
   res.json({
     ...base,

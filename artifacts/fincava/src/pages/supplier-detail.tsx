@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link, useLocation, useSearch } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldCheck, MapPin, Loader2, MessageSquare, ArrowLeft, Clock, FileText, Handshake } from "lucide-react";
+import { ShieldCheck, MapPin, Loader2, MessageSquare, ArrowLeft, Clock, FileText, Handshake, Leaf } from "lucide-react";
 import { Product } from "@workspace/api-client-react";
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
@@ -67,6 +67,8 @@ export default function SupplierDetail() {
   const { toast } = useToast();
   const { lang } = useLanguage();
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const fromOriginStories = new URLSearchParams(search).get("from") === "origin-stories";
 
   const [profile, setProfile] = useState<MarketplaceSupplierDetail | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -222,8 +224,8 @@ export default function SupplierDetail() {
     return (
       <div className="container mx-auto px-4 py-24 text-center">
         <h2 className="text-2xl font-bold mb-4">Supplier not found</h2>
-        <Link href="/suppliers">
-          <Button>Back to Supplier Network</Button>
+        <Link href={fromOriginStories ? "/origin-stories" : "/suppliers"}>
+          <Button>{fromOriginStories ? "Back to Origin Stories" : "Back to Supplier Network"}</Button>
         </Link>
       </div>
     );
@@ -251,11 +253,11 @@ export default function SupplierDetail() {
       {/* ── Section 6: Back navigation ── */}
       <div className="container mx-auto px-4 pt-6">
         <Link
-          href="/suppliers"
+          href={fromOriginStories ? "/origin-stories" : "/suppliers"}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Supplier Network
+          {fromOriginStories ? "Back to Origin Stories" : "Back to Supplier Network"}
         </Link>
       </div>
 
@@ -296,11 +298,11 @@ export default function SupplierDetail() {
                 </Badge>
               )}
 
-              {/* Preparing for Export (amber) */}
+              {/* Preparing for Export / Building Export Journey (amber) */}
               {!isExportReady && (
                 <Badge className="bg-amber-50 text-amber-700 border border-amber-200 h-6 text-xs px-2 flex items-center gap-1 hover:bg-amber-50">
-                  <Clock className="w-3 h-3" />
-                  Preparing for Export
+                  {fromOriginStories ? <Leaf className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                  {fromOriginStories ? "Building Export Journey" : "Preparing for Export"}
                 </Badge>
               )}
             </div>
@@ -341,12 +343,40 @@ export default function SupplierDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* ── Sidebar ── */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Non-export-ready notice — text only, no CTA */}
+            {/* Non-export-ready notice — context-aware text */}
             {!isExportReady && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-5">
-                <p className="text-sm text-amber-800 leading-relaxed">
-                  This supplier is building export readiness. Check back when they are verified.
-                </p>
+                {fromOriginStories ? (
+                  <div className="flex gap-2.5">
+                    <Leaf className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-amber-800 leading-relaxed">
+                      This farm is part of our Origin Stories programme — actively building their export journey with Fincava's support.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-800 leading-relaxed">
+                    This supplier is building export readiness. Check back when they are verified.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Export-ready CTA — shown only when arriving from Origin Stories */}
+            {isExportReady && fromOriginStories && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5">
+                <div className="flex gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800 mb-2">
+                      This farm is now export ready
+                    </p>
+                    <Link href={`/supplier/${profile.id}`}>
+                      <Button size="sm" variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 text-xs">
+                        View Products &rarr;
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -1,0 +1,117 @@
+Do NOT proceed with Phase 2 as currently proposed.
+
+Reject:
+- public_stories table
+- producer story CRUD
+- /api/public-stories
+- /admin/public-stories
+- story CMS expansion
+- story orchestration architecture
+- fictional farmer profiles stored in DB
+- additional content-management systems
+
+The direction is drifting again into building a CMS/content platform.
+
+Important architectural correction:
+
+System A already handles real supplier visibility and public discovery.
+Do NOT create a third story system.
+
+Current direction moving forward:
+
+APPROVED:
+1. Phase 1 trust cleanup
+2. Lean public_metrics only
+
+REJECTED:
+- public_stories
+- producer stories admin system
+- story APIs
+- story CRUD
+- story workflows
+- story governance
+- page/section orchestration architecture
+
+FAKE FARMER STORIES:
+- remove them completely
+OR
+- clearly relabel them as sample/mockup content temporarily
+- do NOT persist fictional people into DB tables
+- do NOT create APIs for fake stories
+
+LEAN public_metrics ONLY
+
+Keep schema extremely small:
+
+public_metrics
+- id
+- metric_key
+- label
+- value
+- is_visible
+- updated_at
+
+No:
+- workflow states
+- source governance
+- owner fields
+- publish pipelines
+- source_url
+- source_note
+- taxonomy complexity
+- story orchestration
+
+If additional metadata becomes necessary later, it can be added later.
+
+IMPORTANT:
+Before implementing anything, verify the actual Impact page data flow.
+
+There is still route confusion:
+- earlier analysis referenced /api/impact
+- later analysis says /api/impact does not exist
+- impact.tsx apparently falls back to hardcoded values
+
+Task:
+1. Verify exactly how Impact page currently loads data
+2. Verify whether /api/impact exists or not
+3. Identify all frontend hardcoded metric fallbacks:
+   - 12+
+   - 40+
+   - 15+
+   - $4.2M+
+   - 85+
+   - 8 regions
+   - 12 ha
+   - Live badges
+   - 14 days
+   - 100%
+   - 4.9★
+4. Replace all unsupported hardcoded public metrics with:
+   - real DB values
+   - public_metrics values
+   - or hidden state
+
+If a metric is not trustworthy:
+- hide it
+- do not fallback to fake numbers
+
+Implementation scope should remain strictly:
+
+TRUST CLEANUP
++
+MINIMAL METRICS CONTROL
+
+NOT:
+- CMS rebuild
+- story platform
+- content governance framework
+
+Before implementation return:
+1. exact files affected
+2. final lean schema
+3. actual Impact page data flow
+4. cleanup plan
+5. testing checklist
+6. rollback plan
+
+Stop for approval.

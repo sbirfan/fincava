@@ -1,0 +1,122 @@
+Approved direction:
+
+Proceed with:
+1. Phase 1 trust cleanup
+2. Lean Phase 2 public_metrics only
+
+Do NOT proceed with:
+- public_stories
+- producer story CRUD
+- /api/public-stories
+- /api/admin/public-stories
+- story tables
+- story APIs
+- story admin pages
+- workflow/status systems
+- source governance
+- owner/source tracking
+- page/section taxonomy complexity
+- publish pipelines
+- content orchestration
+- CMS/platform architecture expansion
+
+Important architectural correction:
+
+System A already handles real supplier visibility and discovery.
+Do NOT create a third story system.
+
+FAKE STORIES:
+- remove fake farmer stories entirely
+OR
+- clearly relabel them as sample/mockup content temporarily
+- do NOT store fictional people in DB
+- do NOT create APIs for fake stories
+- if no real stories exist, collapse the section entirely
+
+PHASE 1 — TRUST CLEANUP (approved)
+
+Implement:
+- remove/hide unsupported hardcoded metrics
+- replace “Live” badges with “Sample” or “Platform Preview”
+- remove fake logistics/tracking claims
+- remove fake operational stats:
+  - 14 days
+  - 100%
+  - 4.9★
+  - $4.2M+
+  - 85+
+  - fake active orders
+  - fake supplier market counts
+- remove hardcoded fallback counts:
+  - 12+
+  - 40+
+  - 15+
+- rewrite traction copy into early-stage positioning
+- remove or relabel fictional farmer stories
+
+Keep:
+- real DB-backed counts only
+- real market/compliance reference data
+- real research-backed industry statements
+
+PHASE 2 — LEAN public_metrics ONLY
+
+Use MINIMAL schema only:
+
+public_metrics
+- id
+- metric_key
+- label
+- value
+- is_visible
+- updated_at
+
+Do NOT add:
+- page
+- section
+- source_type
+- source_note
+- source_url
+- owner
+- workflow states
+- publish status
+- taxonomy fields
+- sort systems
+- verification pipelines
+
+Minimal routes only:
+- GET /api/public-metrics
+- GET /api/admin/public-metrics
+- PATCH /api/admin/public-metrics/:id
+
+No extra orchestration.
+
+Minimal admin UI only:
+- label
+- value
+- visibility toggle
+- updated_at
+
+Before implementation:
+1. Verify actual Impact page data flow
+2. Confirm whether /api/impact actually exists
+3. Identify all frontend fallback paths still bypassing real values
+
+Implementation constraints:
+- preserve existing architecture
+- preserve System A
+- preserve supplier discovery flows
+- preserve onboarding
+- preserve Supplier Network
+- preserve existing admin patterns
+- smallest safe implementation only
+
+Before coding return:
+1. final affected files
+2. final lean schema
+3. exact fake metrics/stories being removed
+4. exact metrics moving to public_metrics
+5. testing checklist
+6. rollback plan
+
+Stop for approval before implementation.

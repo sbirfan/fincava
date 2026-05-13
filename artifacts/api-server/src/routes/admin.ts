@@ -27,6 +27,7 @@ import { runBackup } from "../services/backup-service";
 import { processCampaign } from "../services/marketing-campaign-service";
 import { incrementAndMaybeLog } from "../lib/volumeCounters";
 import { sendError } from "../lib/response";
+import { ENRICHMENT_MODEL, getAnthropicClient } from "../lib/anthropic";
 
 // ── Local typed helpers (avoid `any` in route bodies) ─────────────────────────
 type AuthedRequest = Request & { userId: number };
@@ -2480,33 +2481,30 @@ router.post("/admin/ingestion/batch-confirm", ...adminOnly, async (req: Request,
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── GET /api/admin/origin-stories ─────────────────────────────────────────────
-// List all product-level origin stories with product + supplier context.
+// List all farm-level origin stories. productId is now nullable; productCategory
+// is the authoritative label for what the farm grows.
 router.get("/admin/origin-stories", ...adminOnly, async (_req, res): Promise<void> => {
   const rows = await db
     .select({
-      id:           originStoriesTable.id,
-      productId:    originStoriesTable.productId,
-      farmerName:   originStoriesTable.farmerName,
-      farmerPhoto:  originStoriesTable.farmerPhoto,
-      farmName:     originStoriesTable.farmName,
-      region:       originStoriesTable.region,
-      elevation:    originStoriesTable.elevation,
-      farmSizeHa:   originStoriesTable.farmSizeHa,
-      yearsFarming: originStoriesTable.yearsFarming,
-      story:        originStoriesTable.story,
-      challenges:   originStoriesTable.challenges,
-      impact:       originStoriesTable.impact,
-      images:       originStoriesTable.images,
-      videoUrl:     originStoriesTable.videoUrl,
-      published:    originStoriesTable.published,
-      createdAt:    originStoriesTable.createdAt,
-      productName:  productsTable.name,
-      supplierId:   suppliersTable.id,
-      supplierName: suppliersTable.nombreCompleto,
+      id:              originStoriesTable.id,
+      productId:       originStoriesTable.productId,
+      productCategory: originStoriesTable.productCategory,
+      farmerName:      originStoriesTable.farmerName,
+      farmerPhoto:     originStoriesTable.farmerPhoto,
+      farmName:        originStoriesTable.farmName,
+      region:          originStoriesTable.region,
+      elevation:       originStoriesTable.elevation,
+      farmSizeHa:      originStoriesTable.farmSizeHa,
+      yearsFarming:    originStoriesTable.yearsFarming,
+      story:           originStoriesTable.story,
+      challenges:      originStoriesTable.challenges,
+      impact:          originStoriesTable.impact,
+      images:          originStoriesTable.images,
+      videoUrl:        originStoriesTable.videoUrl,
+      published:       originStoriesTable.published,
+      createdAt:       originStoriesTable.createdAt,
     })
     .from(originStoriesTable)
-    .innerJoin(productsTable, eq(productsTable.id, originStoriesTable.productId))
-    .leftJoin(suppliersTable, eq(suppliersTable.id, productsTable.supplierId))
     .orderBy(desc(originStoriesTable.createdAt));
 
   res.json(rows);
@@ -2519,6 +2517,7 @@ router.get("/admin/products-simple", ...adminOnly, async (_req, res): Promise<vo
     .select({
       id:           productsTable.id,
       name:         productsTable.name,
+      category:     productsTable.category,
       supplierId:   suppliersTable.id,
       supplierName: suppliersTable.nombreCompleto,
     })
@@ -2529,24 +2528,114 @@ router.get("/admin/products-simple", ...adminOnly, async (_req, res): Promise<vo
   res.json(rows);
 });
 
-const OriginStoryCreateBody = z.object({
-  productId:    z.number().int().positive(),
-  farmerName:   z.string().min(1),
-  farmerPhoto:  z.string().optional().or(z.literal("")),
-  farmName:     z.string().min(1),
-  region:       z.string().min(1),
-  elevation:    z.string().optional(),
-  farmSizeHa:   z.number().positive().optional(),
-  yearsFarming: z.number().int().positive().optional(),
-  story:        z.string().min(1),
-  challenges:   z.string().min(1),
-  impact:       z.string().min(1),
-  images:       z.array(z.string()).optional(),
-  videoUrl:     z.string().optional().or(z.literal("")),
-  published:    z.boolean().optional(),
+// ── POST /api/admin/origin-stories/enhance ────────────────────────────────────
+// Admin-only: takes a field's current text + story context and returns an
+// AI-enhanced version written in a passionate, first-person farmer's voice.
+// Never writes to the DB — admin must explicitly accept and save.
+
+const OriginStoryEnhanceBody = z.object({
+  field:   z.enum(["story", "challenges", "impact"]),
+  text:    z.string().min(1).max(4000),
+  context: z.object({
+    farmerName: z.string().optional(),
+    farmName:   z.string().optional(),
+    region:     z.string().optional(),
+    product:    z.string().optional(),
+  }),
 });
 
-const OriginStoryPatchBody = OriginStoryCreateBody.omit({ productId: true }).partial();
+const ENHANCE_MODEL = process.env["ANTHROPIC_ENHANCE_MODEL"] ?? ENRICHMENT_MODEL;
+
+const ENHANCE_SYSTEM = `You are a gifted agricultural storyteller for Fincava, a Colombian B2B agricultural marketplace. Your job is to rewrite a single field of a farmer's origin story so that international buyers feel a genuine, human connection to the farm and the person behind it.
+
+TONE RULES — non-negotiable:
+- Write in a warm, confident, first-person voice as if the farmer is speaking directly
+- Celebrate craft, generational knowledge, passion, and pride of place
+- NEVER use charity language: no "need", "help", "struggle", "poverty", "hardship", "fortunate", or any framing that positions the farmer as a recipient of aid
+- Challenges are tests of character and dedication — frame them as proof of commitment, not reasons for sympathy
+- Impact is what the farmer has built and is proud of — not what a company gave them
+- Keep it vivid, grounded, and human — specific details beat generic statements
+- Length: 2–4 sentences maximum per field. Concise and powerful beats long and bland.
+- Do NOT add disclaimers, headers, or meta-commentary. Return only the rewritten field text.`;
+
+function buildEnhancePrompt(field: "story" | "challenges" | "impact", text: string, ctx: { farmerName?: string; farmName?: string; region?: string; product?: string }): string {
+  const who = [ctx.farmerName, ctx.farmName, ctx.region, ctx.product].filter(Boolean).join(" · ");
+  const fieldGuide = {
+    story:      "Farmer's background and passion for the land — why they farm and what it means to them.",
+    challenges: "What this farmer faces and overcomes — frame as proof of resilience and dedication, never as a plea for help.",
+    impact:     "What this farmer has built, contributed, or is proud of — their legacy and the community they are part of.",
+  }[field];
+
+  return `Context: ${who || "Colombian agricultural farmer"}
+Field to rewrite: ${field.toUpperCase()} — ${fieldGuide}
+
+Original text:
+"""
+${text}
+"""
+
+Rewrite this field so an international buyer feels a genuine human connection to this farmer and their land. Follow the tone rules strictly. Return only the rewritten text — no labels, no explanation.`;
+}
+
+router.post("/admin/origin-stories/enhance", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  if (!process.env["ANTHROPIC_API_KEY"]) {
+    sendError(res, 503, "AI enhancement is not configured on this server.");
+    return;
+  }
+
+  const parsed = OriginStoryEnhanceBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  const { field, text, context } = parsed.data;
+
+  try {
+    const client = getAnthropicClient();
+    const start = Date.now();
+
+    const message = await client.messages.create({
+      model:      ENHANCE_MODEL,
+      max_tokens: 512,
+      system:     ENHANCE_SYSTEM,
+      messages:   [{ role: "user", content: buildEnhancePrompt(field, text, context) }],
+    });
+
+    const enhanced = message.content
+      .map((b) => (b.type === "text" ? b.text : ""))
+      .join("\n")
+      .trim();
+
+    req.log.info({ field, duration: Date.now() - start, model: ENHANCE_MODEL }, "admin: origin story field enhanced");
+    res.json({ enhanced });
+  } catch (err: any) {
+    req.log.error({ err }, "admin: origin story enhance failed");
+    sendError(res, 502, "AI enhancement temporarily unavailable. Please try again.");
+  }
+});
+
+const STORY_PRODUCT_CATEGORIES = [
+  "Coffee", "Cacao", "Avocado", "Exotic Fruit", "Dehydrated Fruit", "Superfood", "Other",
+] as const;
+
+const OriginStoryCreateBody = z.object({
+  productCategory: z.string().min(1),
+  farmerName:      z.string().min(1),
+  farmerPhoto:     z.string().optional().or(z.literal("")),
+  farmName:        z.string().min(1),
+  region:          z.string().min(1),
+  elevation:       z.string().optional(),
+  farmSizeHa:      z.number().positive().optional(),
+  yearsFarming:    z.number().int().positive().optional(),
+  story:           z.string().min(1),
+  challenges:      z.string().optional(),
+  impact:          z.string().optional(),
+  images:          z.array(z.string()).optional(),
+  videoUrl:        z.string().optional().or(z.literal("")),
+  published:       z.boolean().optional(),
+});
+
+const OriginStoryPatchBody = OriginStoryCreateBody.partial();
 
 // ── POST /api/admin/origin-stories ────────────────────────────────────────────
 router.post("/admin/origin-stories", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
@@ -2557,28 +2646,25 @@ router.post("/admin/origin-stories", ...adminOnly, async (req: Request, res: Res
   }
   const d = parsed.data;
 
-  const [product] = await db.select({ id: productsTable.id }).from(productsTable)
-    .where(eq(productsTable.id, d.productId)).limit(1);
-  if (!product) { sendError(res, 404, "Product not found"); return; }
-
   const [story] = await db.insert(originStoriesTable).values({
-    productId:    d.productId,
-    farmerName:   d.farmerName,
-    farmerPhoto:  d.farmerPhoto || null,
-    farmName:     d.farmName,
-    region:       d.region,
-    elevation:    d.elevation ?? null,
-    farmSizeHa:   d.farmSizeHa ?? null,
-    yearsFarming: d.yearsFarming ?? null,
-    story:        d.story,
-    challenges:   d.challenges,
-    impact:       d.impact,
-    images:       d.images ?? [],
-    videoUrl:     d.videoUrl || null,
-    published:    d.published ?? false,
+    productId:       null,
+    productCategory: d.productCategory,
+    farmerName:      d.farmerName,
+    farmerPhoto:     d.farmerPhoto || null,
+    farmName:        d.farmName,
+    region:          d.region,
+    elevation:       d.elevation ?? null,
+    farmSizeHa:      d.farmSizeHa ?? null,
+    yearsFarming:    d.yearsFarming ?? null,
+    story:           d.story,
+    challenges:      d.challenges ?? "",
+    impact:          d.impact ?? "",
+    images:          d.images ?? [],
+    videoUrl:        d.videoUrl || null,
+    published:       d.published ?? false,
   }).returning();
 
-  req.log.info({ storyId: story.id, productId: d.productId }, "admin: origin story created");
+  req.log.info({ storyId: story.id, productCategory: d.productCategory }, "admin: origin story created");
   res.status(201).json(story);
 });
 
@@ -2599,6 +2685,7 @@ router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res
   if (!existing) { sendError(res, 404, "Story not found"); return; }
 
   const updateData: Partial<typeof originStoriesTable.$inferInsert> = {};
+  if (d.productCategory !== undefined) updateData.productCategory = d.productCategory;
   if (d.farmerName   !== undefined) updateData.farmerName   = d.farmerName;
   if (d.farmerPhoto  !== undefined) updateData.farmerPhoto  = d.farmerPhoto || null;
   if (d.farmName     !== undefined) updateData.farmName     = d.farmName;
@@ -2607,8 +2694,8 @@ router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res
   if (d.farmSizeHa   !== undefined) updateData.farmSizeHa   = d.farmSizeHa ?? null;
   if (d.yearsFarming !== undefined) updateData.yearsFarming = d.yearsFarming ?? null;
   if (d.story        !== undefined) updateData.story        = d.story;
-  if (d.challenges   !== undefined) updateData.challenges   = d.challenges;
-  if (d.impact       !== undefined) updateData.impact       = d.impact;
+  if (d.challenges   !== undefined) updateData.challenges   = d.challenges ?? "";
+  if (d.impact       !== undefined) updateData.impact       = d.impact ?? "";
   if (d.images       !== undefined) updateData.images       = d.images ?? [];
   if (d.videoUrl     !== undefined) updateData.videoUrl     = d.videoUrl || null;
   if (d.published    !== undefined) updateData.published    = d.published;

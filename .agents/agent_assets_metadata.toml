@@ -41,3 +41,9 @@ id = "4ZLSZWjWs-bHngQJqXyzu"
 uri = "file://fincava_schema_ddl.txt"
 type = "text"
 title = "Fincava Database Schema (DDL)"
+
+[[outputs]]
+id = "-Mi_g14lDexpc_naSDoNk"
+uri = "file://marketplace-visibility-bridge.md"
+type = "text"
+title = "Marketplace Visibility Compatibility Bridge"

@@ -23,5 +23,4 @@ export * from "./interaction-logs";
 export * from "./officer-applications";
 export * from "./marketing-campaigns";
 export * from "./public-metrics";
-export * from "./public-stories";
 export * from "./compliance-concierge";

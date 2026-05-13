@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Users, MapPin, Sprout, Handshake, Leaf, TrendingUp, Heart, Globe, ArrowRight } from "lucide-react";
+import { Users, MapPin, Sprout, Handshake, Leaf, Heart, Globe, ArrowRight } from "lucide-react";
 
 interface ImpactData {
   farmersSupported: number;
@@ -15,16 +15,6 @@ interface ImpactData {
   womenLedFarms: number;
   organicProducts: number;
   totalFamiliesSupported: number;
-  tradeVolumeUSD: number;
-}
-
-interface PublicStory {
-  id: number;
-  name: string;
-  region: string | null;
-  product: string | null;
-  quote: string | null;
-  photoUrl: string | null;
 }
 
 const SDG_GOALS = [
@@ -40,11 +30,6 @@ export default function Impact() {
   const { data, isLoading } = useQuery<ImpactData>({
     queryKey: ["/api/impact"],
     queryFn: () => fetch("/api/impact").then(r => r.json()),
-  });
-
-  const { data: publicStories = [] } = useQuery<PublicStory[]>({
-    queryKey: ["/api/public-stories"],
-    queryFn: () => fetch("/api/public-stories").then(r => r.json()),
   });
 
   return (
@@ -70,10 +55,10 @@ export default function Impact() {
             {isLoading ? (
               Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-36 rounded-xl" />)
             ) : ([
-              { label: "Farmers Directly Supported", value: data?.farmersSupported ?? "12+", icon: Users, color: "text-primary" },
-              { label: "Families Reached", value: data?.totalFamiliesSupported ?? "85+", icon: Heart, color: "text-rose-500" },
-              { label: "Regions Represented", value: data?.regionsRepresented?.length ?? "6", icon: MapPin, color: "text-sky-500" },
-              { label: "Direct Trade Products", value: data?.directTradeProducts ?? "8+", icon: Handshake, color: "text-emerald-500" },
+              { label: "Farmers Directly Supported", value: data?.farmersSupported ?? 0, icon: Users, color: "text-primary" },
+              { label: "Families Reached", value: data?.totalFamiliesSupported ?? 0, icon: Heart, color: "text-rose-500" },
+              { label: "Regions Represented", value: data?.regionsRepresented?.length ?? 0, icon: MapPin, color: "text-sky-500" },
+              { label: "Direct Trade Products", value: data?.directTradeProducts ?? 0, icon: Handshake, color: "text-emerald-500" },
             ]).map(stat => (
               <Card key={stat.label} className="text-center py-6">
                 <CardContent className="p-4">
@@ -89,10 +74,10 @@ export default function Impact() {
             {isLoading ? (
               Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
             ) : ([
-              { label: "Women-Led Farms", value: data?.womenLedFarms ?? "3+", icon: Users },
-              { label: "Organic Products", value: data?.organicProducts ?? "4+", icon: Leaf },
-              { label: "Smallholder Farms", value: data?.smallholderProducts ?? "6+", icon: Sprout },
-              { label: "Avg Farm Size", value: data?.avgFarmSizeHa ? `${data.avgFarmSizeHa.toFixed(1)} ha` : "12 ha", icon: MapPin },
+              { label: "Women-Led Farms", value: data?.womenLedFarms ?? 0, icon: Users },
+              { label: "Organic Products", value: data?.organicProducts ?? 0, icon: Leaf },
+              { label: "Smallholder Farms", value: data?.smallholderProducts ?? 0, icon: Sprout },
+              { label: "Avg Farm Size", value: data?.avgFarmSizeHa ? `${data.avgFarmSizeHa.toFixed(1)} ha` : "–", icon: MapPin },
             ]).map(stat => (
               <Card key={stat.label} className="bg-muted/40">
                 <CardContent className="p-4 flex items-center gap-3">
@@ -107,45 +92,6 @@ export default function Impact() {
           </div>
         </div>
       </section>
-
-      {/* Farmer Voices — only rendered when admin has published at least one story */}
-      {publicStories.length > 0 && (
-        <section className="py-20 bg-card border-y">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">The Producers We Work With</h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">The Fincava network connects buyers with smallholder farming communities across Colombia's key agricultural regions. Below is an illustration of the types of producers we work with.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {publicStories.map(story => (
-                <Card key={story.id} className="overflow-hidden">
-                  <div className="h-48 bg-muted relative overflow-hidden">
-                    {story.photoUrl && (
-                      <img src={story.photoUrl} alt={`${story.product ?? "Producer"}, ${story.region ?? "Colombia"}`} className="w-full h-full object-cover object-top" />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-3 left-4 text-white">
-                      <p className="font-semibold">{story.name}</p>
-                      {(story.region || story.product) && (
-                        <p className="text-xs text-white/80">
-                          {[story.region, story.product].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <CardContent className="p-5">
-                    {story.quote && (
-                      <blockquote className="text-muted-foreground italic text-sm leading-relaxed">
-                        "{story.quote}"
-                      </blockquote>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Why Direct Trade */}
       <section className="py-20 bg-background">
