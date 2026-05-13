@@ -127,7 +127,7 @@ export default function Markets() {
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-3xl mx-auto text-center mb-12">
         <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Market Intelligence</h1>
-        <p className="text-lg text-muted-foreground">Real-time demand signals, price benchmarks, and compliance requirements for Colombia's top export markets.</p>
+        <p className="text-lg text-muted-foreground">Current demand signals, price benchmarks, and compliance requirements for Colombia's top export markets.</p>
       </div>
 
       {/* Global signals bar */}

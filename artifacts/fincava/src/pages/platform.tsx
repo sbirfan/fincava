@@ -70,7 +70,7 @@ const COMPARISON = [
   { capability: "Producer verification", fincava: true, broker: false, traditional: false },
   { capability: "Transaction coordination", fincava: true, broker: false, traditional: false },
   { capability: "Direct buyer-producer pricing", fincava: true, broker: false, traditional: false },
-  { capability: "Real-time RFQ routing", fincava: true, broker: false, traditional: false },
+  { capability: "Direct RFQ routing", fincava: true, broker: false, traditional: false },
   { capability: "Compliance intelligence", fincava: true, broker: false, traditional: true },
   { capability: "Shipment tracking", fincava: true, broker: false, traditional: true },
   { capability: "Origin story / traceability", fincava: true, broker: false, traditional: false },

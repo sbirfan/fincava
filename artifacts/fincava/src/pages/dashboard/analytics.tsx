@@ -5,7 +5,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, ShoppingCart, DollarSign, Package } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, ShoppingCart, DollarSign, Package, FlaskConical } from "lucide-react";
 
 const VOLUME_DATA = [
   { month: "Oct", orders: 2, value: 8400 },
@@ -45,7 +46,7 @@ interface TrendingProduct {
   pricePerKgUSD: number;
 }
 
-const STAT_CARDS = [
+const SAMPLE_STAT_CARDS = [
   { label: "Total Orders", value: "42", change: "+18% MoM", icon: ShoppingCart, color: "text-primary" },
   { label: "Trade Value", value: "$189K", change: "+31% MoM", icon: DollarSign, color: "text-green-600" },
   { label: "Products Sourced", value: "8", change: "Active", icon: Package, color: "text-amber-600" },
@@ -76,28 +77,39 @@ export default function AnalyticsDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight">Analytics</h1>
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-3xl font-serif font-bold tracking-tight">Analytics</h1>
+          <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 gap-1.5 text-xs font-medium">
+            <FlaskConical className="w-3 h-3" />
+            Sample analytics
+          </Badge>
+        </div>
         <p className="text-muted-foreground mt-1">Trade volume, product performance, and regional demand signals.</p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {STAT_CARDS.map(card => (
-          <Card key={card.label}>
-            <CardContent className="pt-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm text-muted-foreground">{card.label}</p>
-                  <p className="text-2xl font-bold mt-1">{card.value}</p>
-                  <p className="text-xs text-green-600 mt-1 font-medium">{card.change}</p>
+      {/* Sample stat cards — illustrative data only */}
+      <div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {SAMPLE_STAT_CARDS.map(card => (
+            <Card key={card.label} className="opacity-70">
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm text-muted-foreground">{card.label}</p>
+                    <p className="text-2xl font-bold mt-1">{card.value}</p>
+                    <p className="text-xs text-green-600 mt-1 font-medium">{card.change}</p>
+                  </div>
+                  <div className={`p-2 rounded-lg bg-muted ${card.color}`}>
+                    <card.icon className="w-5 h-5" />
+                  </div>
                 </div>
-                <div className={`p-2 rounded-lg bg-muted ${card.color}`}>
-                  <card.icon className="w-5 h-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2 ml-1">
+          These figures are illustrative. Live order data will appear here once transactions are active on your account.
+        </p>
       </div>
 
       {/* Trade volume line chart */}

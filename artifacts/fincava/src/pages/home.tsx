@@ -335,7 +335,6 @@ export default function Home() {
 
               <div className="space-y-3 flex-1 mb-8">
                 {h.forSuppliers.features.map((f, i) => {
-                  if (!ENABLE_FINANCE && i === 1) return null;
                   const Icon = SUPPLIER_FEATURE_ICONS[i];
                   return (
                     <div key={f.label} className="flex items-start gap-4 p-4 rounded-xl border border-primary/20 bg-background hover:border-primary/40 transition-colors">
@@ -509,7 +508,6 @@ export default function Home() {
               </p>
               <ul className="space-y-2 mb-8">
                 {h.cta.supplierCard.features.map((f, i) => {
-                  if (!ENABLE_FINANCE && i === 1) return null;
                   return (
                     <li key={f} className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />

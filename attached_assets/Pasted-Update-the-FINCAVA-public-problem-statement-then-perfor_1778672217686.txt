@@ -1,0 +1,55 @@
+Update the FINCAVA public problem statement, then perform a review-only scan for similar messaging drift.
+
+Do NOT redesign the page.
+Do NOT rewrite unrelated copy.
+Do NOT change additional sections without approval.
+
+Approved replacement copy:
+
+The Problem
+
+Cross-border agricultural sourcing depends heavily on trust, relationships, and fragmented information.
+
+Buyers need confidence in who they source from. Producers need a credible way to present their operations to international markets.
+
+Fincava provides the visibility, structure, and verification layer between both sides.
+
+Task 1 — Implement approved change
+
+1. Search for the current text:
+   “Global trade is broken for both sides.”
+   “Buyers can't find verified, traceable supply.”
+   “Producers can't reach the buyers who need them.”
+   “Fincava fixes both.”
+
+2. Replace only that exact problem statement with the approved replacement copy.
+
+3. Preserve existing layout, styling, components, routes, and translations structure.
+
+Task 2 — Review-only messaging drift scan
+After implementing the approved replacement, scan the codebase for similar overstatements or unsupported claims, including:
+
+* “global trade is broken”
+* “fixes global trade”
+* “revolutionizing”
+* “transforming supply chains”
+* “live trade”
+* “real-time tracking”
+* “guaranteed buyers”
+* “verified supply” where verification is not actually complete
+* “traceable supply” where traceability is not actually implemented
+* unsupported references to finance, logistics, shipping, loans, insurance, or real-time tracking
+* unsupported market reach claims such as “15+ countries”
+* unsupported traction, trade volume, revenue, order, or supplier-count claims
+
+For the review-only scan, return:
+
+1. exact file path
+2. exact line or copy block
+3. why it may be risky or unsupported
+4. recommended replacement copy
+5. whether it is public-facing, admin-facing, or internal
+
+Do NOT change any additional copy beyond the approved problem statement.
+
+Stop after reporting the scan results.

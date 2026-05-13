@@ -32,7 +32,7 @@ const en = {
       headline1: "Colombia's best producers.",
       headline2: "The world's best buyers.",
       headline3: "One platform.",
-      sub: "Fincava connects verified Colombian agricultural producers with global buyers, with embedded finance, compliance documentation, and distribution built in.",
+      sub: "Fincava connects verified Colombian agricultural producers with global buyers, with compliance documentation and direct trade built in.",
       ctaBuy: "Start Buying",
       ctaSupply: "Join as a Supplier",
       stats: {
@@ -44,8 +44,8 @@ const en = {
     },
     problem: {
       label: "The Problem",
-      heading: "Global trade is broken for both sides.",
-      sub: "Buyers can't find verified, traceable supply. Producers can't reach the buyers who need them. Fincava fixes both.",
+      heading: "Cross-border agricultural sourcing depends heavily on trust, relationships, and fragmented information.",
+      sub: "Buyers need confidence in who they source from. Producers need a credible way to present their operations to international markets. Fincava provides the visibility, structure, and verification layer between both sides.",
       buyersLabel: "For Buyers",
       buyersHeading: "Finding reliable supply is a guessing game",
       suppliersLabel: "For Suppliers",
@@ -128,11 +128,10 @@ const en = {
     forSuppliers: {
       label: "For Suppliers",
       heading: "Reach global buyers. Get paid. Keep your margin.",
-      sub: "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers across target markets, with financing to grow and logistics to deliver.",
+      sub: "Stop selling through brokers who take 60–80% of your value. Fincava gives Colombian producers a direct channel to buyers across target markets.",
       features: [
         { label: "Global Buyer Network", desc: "Access vetted importers, distributors, and retail buyers across the Middle East, Asia, Europe, and North America." },
-        { label: "Trade Finance Access (Launching Soon)", desc: "Get credit against confirmed purchase orders, with no land collateral required. Capital that follows your orders." },
-        { label: "Logistics Handled (Launching Soon)", desc: "We coordinate cold chain, port clearance, and freight forwarding so you focus on growing and harvesting." },
+        { label: "Logistics coordination (coming soon)", desc: "We are developing partner logistics networks to help you prepare exports for delivery." },
         { label: "Your Story, Professionally Presented", desc: "Origin documentation, certifications, and your farm's story, presented to buyers in a format they trust." },
       ],
       applyBtn: "Apply to Join",
@@ -140,9 +139,9 @@ const en = {
       dashboard: {
         title: "Your Global Reach",
         liveOrders: "Target markets",
-        financeTitle: "Trade Finance",
-        financeStatus: "Launching Soon",
-        financeDesc: "Pre-shipment credit against confirmed orders",
+        financeTitle: "Export Support",
+        financeStatus: "Included",
+        financeDesc: "Documentation and compliance guidance for export readiness",
       },
     },
     traction: {
@@ -232,13 +231,13 @@ const en = {
       buyerCard: {
         title: "I'm a Buyer",
         sub: "Source premium, verified Colombian agricultural products with full traceability and compliance documentation.",
-        features: ["Access verified Colombian producers", "Request quotes via RFQ engine", "Full compliance documentation", "Verified supply chain traceability"],
+        features: ["Access verified Colombian producers", "Request quotes via RFQ engine", "Full compliance documentation", "Origin documentation and farm-level transparency"],
         btn: "Register as a Buyer",
       },
       supplierCard: {
         title: "I'm a Supplier",
         sub: "Connect directly with international buyers and export your products across target markets, without intermediaries.",
-        features: ["Connect with buyers across target markets", "Trade finance on your orders", "Logistics coordination (coming soon)", "Keep more of your margin"],
+        features: ["Connect with buyers across target markets", "Logistics coordination (coming soon)", "Keep more of your margin"],
         btn: "Join as a Supplier",
       },
       question: "Questions?",
@@ -735,7 +734,7 @@ const es: typeof en = {
       headline1: "Los mejores productores de Colombia.",
       headline2: "Los mejores compradores del mundo.",
       headline3: "Una sola plataforma.",
-      sub: "Fincava conecta productores agrícolas colombianos verificados con compradores globales, con financiación integrada, documentación de cumplimiento y distribución incluidas.",
+      sub: "Fincava conecta productores agrícolas colombianos verificados con compradores globales, con documentación de cumplimiento y comercio directo incluidos.",
       ctaBuy: "Comenzar a Comprar",
       ctaSupply: "Unirse como Proveedor",
       stats: {
@@ -747,8 +746,8 @@ const es: typeof en = {
     },
     problem: {
       label: "El Problema",
-      heading: "El comercio global está roto para ambas partes.",
-      sub: "Los compradores no pueden encontrar proveedores verificados y trazables. Los productores no pueden llegar a los compradores que los necesitan. Fincava lo soluciona.",
+      heading: "La compra agrícola transfronteriza depende en gran medida de la confianza, las relaciones y la información fragmentada.",
+      sub: "Los compradores necesitan confianza en sus fuentes de abastecimiento. Los productores necesitan una forma creíble de presentar sus operaciones a los mercados internacionales. Fincava proporciona la capa de visibilidad, estructura y verificación entre ambas partes.",
       buyersLabel: "Para Compradores",
       buyersHeading: "Encontrar proveedores confiables es una apuesta",
       suppliersLabel: "Para Proveedores",
@@ -831,11 +830,10 @@ const es: typeof en = {
     forSuppliers: {
       label: "Para Proveedores",
       heading: "Llega a compradores globales. Cobra. Conserva tu margen.",
-      sub: "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en mercados objetivo, con financiamiento para crecer y logística para entregar.",
+      sub: "Deja de vender a través de intermediarios que se quedan con el 60–80% de tu valor. Fincava da a los productores colombianos un canal directo con compradores en mercados objetivo.",
       features: [
         { label: "Red Global de Compradores", desc: "Accede a importadores, distribuidores y compradores minoristas verificados en Medio Oriente, Asia, Europa y América del Norte." },
-        { label: "Acceso a Financiamiento (Próximamente)", desc: "Obtén crédito contra órdenes de compra confirmadas, sin garantías de tierra requeridas. Capital que sigue tus pedidos." },
-        { label: "Logística Gestionada (Próximamente)", desc: "Coordinamos la cadena de frío, el despacho aduanero y el transporte para que te concentres en cultivar y cosechar." },
+        { label: "Coordinación logística (próximamente)", desc: "Estamos desarrollando redes logísticas con socios para ayudarte a preparar tus exportaciones para entrega." },
         { label: "Tu Historia, Presentada Profesionalmente", desc: "Documentación de origen, certificaciones e historia de tu finca, presentadas a compradores en un formato en que confían." },
       ],
       applyBtn: "Aplicar para Unirse",
@@ -843,9 +841,9 @@ const es: typeof en = {
       dashboard: {
         title: "Tu Alcance Global",
         liveOrders: "Mercados objetivo",
-        financeTitle: "Financiamiento Comercial",
-        financeStatus: "Próximamente",
-        financeDesc: "Crédito pre-envío contra pedidos confirmados",
+        financeTitle: "Apoyo a la Exportación",
+        financeStatus: "Incluido",
+        financeDesc: "Orientación de documentación y cumplimiento para preparación de exportación",
       },
     },
     traction: {
@@ -935,13 +933,13 @@ const es: typeof en = {
       buyerCard: {
         title: "Soy Comprador",
         sub: "Abastécete de productos agrícolas colombianos premium verificados con trazabilidad completa y documentación de cumplimiento.",
-        features: ["Accede a productores colombianos verificados", "Solicita cotizaciones con el motor de solicitudes", "Documentación de cumplimiento completa", "Trazabilidad verificada de la cadena de suministro"],
+        features: ["Accede a productores colombianos verificados", "Solicita cotizaciones con el motor de solicitudes", "Documentación de cumplimiento completa", "Documentación de origen y transparencia a nivel de finca"],
         btn: "Registrarme como Comprador",
       },
       supplierCard: {
         title: "Soy Proveedor",
         sub: "Conéctate directamente con compradores internacionales y exporta tus productos a mercados objetivo, sin intermediarios.",
-        features: ["Conéctate con compradores en mercados objetivo", "Financiamiento comercial para tus pedidos", "Coordinación logística (próximamente)", "Conserva más de tu margen"],
+        features: ["Conéctate con compradores en mercados objetivo", "Coordinación logística (próximamente)", "Conserva más de tu margen"],
         btn: "Unirme como Proveedor",
       },
       question: "¿Preguntas?",

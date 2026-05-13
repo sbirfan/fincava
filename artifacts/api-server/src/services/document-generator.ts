@@ -52,10 +52,15 @@ export async function generateComplianceDocument(
 
   const gapSummary = await analyzeGaps(supplierId);
 
-  const prompt = buildDocumentPrompt(supplierId, supplier, gapSummary);
+  const resolvedLang = lang ?? "es";
+  const systemPrompt = resolvedLang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ES;
+  const prompt =
+    resolvedLang === "en"
+      ? buildDocumentPromptEn(supplierId, supplier, gapSummary)
+      : buildDocumentPrompt(supplierId, supplier, gapSummary);
 
   logger.info(
-    { supplierId, totalGaps: gapSummary.totalGaps },
+    { supplierId, totalGaps: gapSummary.totalGaps, lang: resolvedLang },
     "document-generator: calling Claude Sonnet",
   );
 
@@ -64,7 +69,7 @@ export async function generateComplianceDocument(
   const message = await client.messages.create({
     model: DOCUMENT_MODEL,
     max_tokens: 2000,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: "user", content: prompt }],
   });
   const duration = Date.now() - start;
@@ -264,7 +269,7 @@ export async function generateInvestorSummary(
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Eres un experto en cumplimiento regulatorio para exportaciones agrícolas colombianas.
+const SYSTEM_PROMPT_ES = `Eres un experto en cumplimiento regulatorio para exportaciones agrícolas colombianas.
 Redactas evaluaciones de cumplimiento claras, profesionales y accionables en español para agricultores y cooperativas.
 Tu tono es directo, empático y orientado a soluciones. Evita tecnicismos innecesarios.
 Estructura el documento con secciones claramente delimitadas usando encabezados en mayúsculas.
@@ -375,3 +380,115 @@ function formatTimeline(timeline: string): string {
   };
   return map[timeline] ?? timeline;
 }
+
+// ── English variants ──────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT_EN = `You are an expert in regulatory compliance for Colombian agricultural exports.
+You write clear, professional, and actionable compliance assessments in English for farmers and cooperatives.
+Your tone is direct, empathetic, and solution-oriented. Avoid unnecessary jargon.
+Structure the document with clearly delimited sections using UPPERCASE headings.
+
+CRITICAL CONSTRAINTS — apply without exception:
+1. Only assert facts that are explicitly present in the structured data provided. Do not invent, infer, or exaggerate any detail.
+2. Compliance statuses come from Fincava's system tracking, not from independent external verification. Never describe them as confirmed, validated, or verified by government entities unless an administrative reviewer has explicitly marked the requirement as "approved" or "verified".
+3. Do not invent field visits, government confirmations, inspection results, validation status, or any operational evidence not present in the data.
+4. Do not use markdown tables or pipe characters (|). Use only plain-text sections with UPPERCASE headings and prose paragraphs.
+5. When a requirement status is "not started" or "not sure", write: "the supplier indicated they do not yet have this document in place" — never assert the document does not exist as an externally verified fact.
+6. NEVER invent or include: office addresses, street names, building numbers, phone numbers, email addresses, websites or URLs, step-specific costs, step-specific processing timelines, office locations, branch names, or contact details for regulatory entities. This information is not in the structured data.
+7. For guidance on regulatory entities, use only generic references. Correct examples: "Contact your nearest ICA regional office", "Visit a DIAN service point in your municipality", "Reach out to your local INVIMA office". Never write: specific addresses such as "Carrera 22 No. 45-30", phone numbers, or procedural URLs.
+8. For costs: reference only the total estimate already present in the structured data. For individual steps without a specific cost, write exactly: "Costs vary by municipality and entity — confirm directly with the relevant authority." Do not invent per-step amounts.
+9. For timelines: reference only the general time range present in the data. Do not invent processing days, business days, or individual deadlines per procedure or entity.
+10. Do not include URLs, web links, or regulatory entity pages anywhere in the document. The system will automatically append an official links section after the generated text — do not anticipate or duplicate it.`;
+
+function requirementStateLabelEn(state: string): string {
+  const labels: Record<string, string> = {
+    not_started:               "the supplier indicated they have not yet started this process",
+    not_sure:                  "the supplier indicated they are unsure about the status of this requirement",
+    self_serve_in_progress:    "the supplier reported managing this process independently",
+    assisted_in_progress:      "the supplier is receiving support from the Fincava team to complete this process",
+    managed_service_candidate: "this requirement has been identified for assisted management by Fincava",
+    needs_fix:                 "a correction is required on the submitted documentation",
+    submitted:                 "documentation submitted; awaiting review by the Fincava team",
+    approved:                  "requirement approved by a Fincava administrative reviewer",
+    verified:                  "requirement verified by a Fincava administrative reviewer",
+    rejected:                  "documentation rejected during review; new submission required",
+  };
+  return labels[state] ?? `system status: ${state}`;
+}
+
+function formatTimelineEn(timeline: string): string {
+  const map: Record<string, string> = {
+    "7days": "7 days",
+    "30days": "30 days",
+    "90days": "90 days",
+    longterm: "More than 90 days",
+  };
+  return map[timeline] ?? timeline;
+}
+
+function buildDocumentPromptEn(
+  supplierId: number,
+  supplier: {
+    nombreCompleto: string;
+    municipio: string;
+    department: string | null;
+    supplierType: string;
+    eligibilityStatus: string | null;
+    sellableStatus: string | null;
+    graduationPathway: string | null;
+    commercialScore: number | null;
+    lastEvaluatedAt: Date | null;
+  },
+  gaps: GapAnalysisResult,
+): string {
+  const gapLines = gaps.gaps
+    .map(
+      (g) =>
+        `- [${g.severity}] ${g.label} (${g.agency}): ${requirementStateLabelEn(g.requirementState)}. Recommended action: ${g.recommendation}`,
+    )
+    .join("\n");
+
+  const noGapsMessage =
+    gaps.totalGaps === 0
+      ? "No active compliance gaps are recorded in the system for this supplier. All evaluated requirements are in a satisfactory state according to system tracking."
+      : "";
+
+  return `Generate a compliance assessment for the following Colombian agricultural supplier.
+
+NOTE ON DATA PROVENANCE:
+The compliance statuses below come from Fincava's tracking system. Statuses of "not started" and "not sure" reflect what the supplier reported during onboarding — they are not independent external verifications. Only statuses of "approved" or "verified" have been confirmed by an administrative reviewer. Do not assert as externally verified facts any information that comes solely from the supplier's onboarding form.
+
+ADDITIONAL CONSTRAINT ON ABSENT DATA:
+The structured data below does NOT include: office addresses, phone numbers, URLs, per-step individual costs, or per-entity processing timelines. Do not invent any of these. For entity guidance, use only generic references ("the nearest ICA regional office", "a DIAN service point in your municipality"). For per-step costs, write: "Costs vary by municipality and entity — confirm directly with the relevant authority."
+
+SUPPLIER DATA:
+- Name: ${supplier.nombreCompleto}
+- Municipality: ${supplier.municipio}${supplier.department ? `, ${supplier.department}` : ""}
+- Type: ${supplier.supplierType}
+- Export readiness score (AI-calculated): ${supplier.commercialScore ?? "Not evaluated"}/100
+- Eligibility status: ${supplier.eligibilityStatus ?? "Not evaluated"}
+- Marketability status: ${supplier.sellableStatus ?? "Not evaluated"}
+- Assigned pathway: ${supplier.graduationPathway ?? "Not assigned"}
+- Last evaluated: ${supplier.lastEvaluatedAt ? supplier.lastEvaluatedAt.toLocaleDateString("en-GB") : "Never"}
+
+GAP ANALYSIS (based on system tracking):
+- Total active gaps: ${gaps.totalGaps}
+- Critical gaps: ${gaps.criticalGaps}
+- High-severity gaps: ${gaps.highGaps}
+- Medium-severity gaps: ${gaps.mediumGaps}
+- Estimated total cost (system estimate, not verified): $${gaps.estimatedTotalCostCOP.toLocaleString("en-US")} COP
+- Estimated resolution timeframe (general system range): ${formatTimelineEn(gaps.overallTimeline)}
+
+${gaps.totalGaps > 0 ? `DETAILED GAPS:\n${gapLines}` : noGapsMessage}
+
+Write the document with the following sections using PLAIN TEXT ONLY. Do not use markdown tables, table dashes, or pipe characters (|). Use UPPERCASE headings and prose paragraphs:
+
+1. EXECUTIVE SUMMARY (2-3 sentences on the current state according to system tracking)
+2. COMPLIANCE STATUS (describe each requirement stating what the supplier reported or what the system records)
+3. GAPS AND ACTION PLAN (for each gap: what process to complete and with which entity — use only the entity indicated in the data; do not include addresses or per-step costs)
+4. RECOMMENDED TIMELINE (use only the general time range indicated in the data; do not invent specific dates or per-process deadlines)
+5. IMMEDIATE NEXT STEPS (3-5 priority actions)
+
+Document generation date: ${new Date().toLocaleDateString("en-GB")}`;
+}
+

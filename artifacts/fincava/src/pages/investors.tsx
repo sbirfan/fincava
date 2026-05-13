@@ -25,7 +25,7 @@ const stagger = { show: { transition: { staggerChildren: 0.1 } } } as unknown as
 const OPPORTUNITY_STATS = [
   { icon: DollarSign, value: "$180B", label: "Colombian agricultural exports TAM", color: "text-emerald-600" },
   { icon: Users, value: "800K+", label: "Small & mid-scale producers in Colombia", color: "text-amber-600" },
-  { icon: TrendingUp, value: "$2.1B", label: "Annual trade finance gap for producers", color: "text-sky-600" },
+  { icon: TrendingUp, value: "$2.1B", label: "Annual working-capital gap for smallholder producers", color: "text-sky-600" },
   { icon: Globe, value: "60+", label: "Destination markets for Colombian goods", color: "text-violet-600" },
 ];
 
@@ -45,19 +45,6 @@ const REVENUE_STREAMS = [
   },
   {
     badge: "Stream 02",
-    color: "bg-amber-50 border-amber-200 text-amber-700",
-    dot: "bg-amber-500",
-    icon: DollarSign,
-    title: "Embedded Finance Spread (Launching Soon)",
-    subtitle: "Yield on trade loans and purchase-order financing.",
-    details: [
-      "PO financing at 3–6% net margin",
-      "Producer harvest loans at 4–8% net",
-      "FX conversion spread (institutional access)",
-    ],
-  },
-  {
-    badge: "Stream 03",
     color: "bg-sky-50 border-sky-200 text-sky-700",
     dot: "bg-sky-500",
     icon: Layers,
@@ -75,7 +62,7 @@ const MOATS = [
   {
     icon: ShieldCheck,
     title: "Verified Supply Network",
-    desc: "Every producer is screened, certified, and reviewed. Verification is a cost competitors cannot easily replicate at speed.",
+    desc: "Every producer is screened, scored, and reviewed. Verification is a cost competitors cannot easily replicate at speed.",
   },
   {
     icon: Globe,
@@ -84,8 +71,8 @@ const MOATS = [
   },
   {
     icon: Zap,
-    title: "Embedded Finance Lock-in",
-    desc: "Once a producer or buyer relies on Fincava for financing, switching costs are very high. Finance data improves over time — creating an ever-sharpening credit edge.",
+    title: "Compliance Intelligence Lock-in",
+    desc: "Once a supplier's certification pipeline runs through Fincava, switching costs are high. Compliance data deepens over time — creating an ever-sharpening verification edge.",
   },
   {
     icon: BarChart2,
@@ -101,7 +88,6 @@ const TRACTION = [
   "Dual-language platform (EN / ES) with Colombia-first positioning",
   "GCS-backed image uploads with pre-signed URL flow",
   "Backup and audit infrastructure in place",
-  "Embedded finance layer (embedded — launching Q3 2025)",
 ];
 
 export default function Investors() {
@@ -132,7 +118,7 @@ export default function Investors() {
               variants={fadeUp}
               className="text-lg md:text-xl text-zinc-400 max-w-2xl leading-relaxed mb-8"
             >
-              Fincava is building the Dastgyr of South America — a vertically integrated B2B commerce platform connecting 800,000+ Colombian producers to verified international buyers, with embedded finance and logistics built in.
+              Fincava is building the Dastgyr of South America — a vertically integrated B2B commerce platform building toward a market of 800,000+ Colombian producers, with supplier verification, compliance documentation, and trusted sourcing infrastructure.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-wrap gap-3">
               <Link href="/register">
@@ -197,10 +183,10 @@ export default function Investors() {
             <motion.div variants={fadeUp} className="mb-12">
               <p className="text-xs font-semibold text-emerald-400 tracking-[0.12em] uppercase mb-2">Business Model</p>
               <h2 className="font-serif text-3xl md:text-4xl font-bold text-white">
-                Three interlocking revenue streams
+                Two live revenue streams
               </h2>
               <p className="mt-3 text-zinc-400 max-w-2xl">
-                Each layer amplifies the others. Marketplace GMV feeds finance deal flow. Finance data improves credit scoring. SaaS stickiness deepens both.
+                Each stream amplifies the other. Marketplace GMV builds platform data and buyer trust. SaaS tools deepen supplier and buyer retention.
               </p>
             </motion.div>
 
@@ -334,7 +320,7 @@ export default function Investors() {
               Interested in backing Fincava?
             </motion.h2>
             <motion.p variants={fadeUp} className="text-zinc-400 mb-8 leading-relaxed">
-              We are raising our seed round to accelerate marketplace GMV, launch embedded finance, and expand into Peru and Ecuador. Reach out to start a conversation.
+              We are raising our seed round to accelerate marketplace GMV, deepen our supplier verification network, and expand into Peru and Ecuador. Reach out to start a conversation.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-wrap gap-3">
               <Link href="/contact">
