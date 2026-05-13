@@ -1,0 +1,57 @@
+PREFLIGHT (AGENT_RULE.MD §1):
+- Affected file: lib/db/drizzle/0012_yummy_tyger_tiger.sql
+- The migration runner failed on: CREATE TYPE "public"."role" AS ENUM(...)
+  because the enum already exists in the live database.
+- Root cause: Drizzle snapshot is out of sync — it generated CREATE TYPE
+  for enums that are already present, instead of ALTER TYPE ADD VALUE.
+- Do NOT re-run drizzle-kit generate — that would create a 0013 on top of a
+  broken 0012. Fix 0012 in place.
+- Verify: check the migration file for ALL CREATE TYPE statements and identify
+  which enums already exist vs which are genuinely new.
+
+EXECUTION PLAN (AGENT_RULE.MD §2):
+
+STEP 1 — Read lib/db/drizzle/0012_yummy_tyger_tiger.sql in full.
+Identify every CREATE TYPE ... AS ENUM statement in the file.
+
+STEP 2 — For each CREATE TYPE on an existing enum, replace the entire
+CREATE TYPE block with ALTER TYPE ... ADD VALUE IF NOT EXISTS statements
+for only the new values.
+
+Based on the error, the known cases are:
+
+  REPLACE:
+    CREATE TYPE "public"."role" AS ENUM('BUYER', 'SUPPLIER', 'ADMIN');
+  WITH:
+    ALTER TYPE "public"."role" ADD VALUE IF NOT EXISTS 'FIELD_OFFICER';
+    ALTER TYPE "public"."role" ADD VALUE IF NOT EXISTS 'EMPLOYEE';
+
+  If sellable_status has a similar CREATE TYPE block, apply the same pattern:
+    ALTER TYPE "public"."sellable_status" ADD VALUE IF NOT EXISTS 'INACTIVE';
+
+  If any CREATE TYPE is for a genuinely NEW enum (one that does not yet exist
+  in the database), leave it unchanged.
+
+STEP 3 — Also check for any CREATE TABLE statements in the migration for
+tables that already exist (public_metrics may be one — it was previously
+created). For any table that already exists, wrap its CREATE TABLE with:
+  CREATE TABLE IF NOT EXISTS ...
+or add a DROP TABLE IF EXISTS before it. Check the actual DB tables first:
+  SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
+Report which tables already exist before making any changes.
+
+STEP 4 — After editing the SQL file, re-run the migration:
+  pnpm --filter @workspace/db run migrate
+
+VALIDATION:
+- Migration exits with zero errors
+- All new tables and columns are present in the DB
+- Run tsc --noEmit — zero errors
+
+ROLLBACK:
+- If migration still fails, revert 0012 SQL to the generated original and
+  report the exact error. Do not attempt further edits without reporting first.
+
+RISK: Medium — editing a migration SQL file directly. Changes are limited to
+replacing CREATE TYPE with ALTER TYPE ADD VALUE, and adding IF NOT EXISTS
+guards. No data is modified.

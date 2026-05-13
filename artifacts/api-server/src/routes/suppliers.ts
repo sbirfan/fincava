@@ -56,7 +56,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // before any field validation or processing. Update mode is admin-only.
     const earlyUpdateId = rawBody.supplierId ? Number(rawBody.supplierId) : null;
     if (earlyUpdateId) {
-      const cookieToken = (req as any).cookies?.fincava_auth as string | undefined;
+      const cookieToken = req.cookies?.["fincava_auth"] as string | undefined;
       const authHeader = req.headers.authorization;
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
       const rawToken = cookieToken ?? bearerToken;
@@ -128,7 +128,7 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // Optional auth extraction for self-registration path.
     // Field officers submit without auth — this never blocks the request.
     // Reuses the exact same cookie/Bearer pattern as the update-mode auth check above.
-    const _selfCookieToken = (req as any).cookies?.fincava_auth as string | undefined;
+    const _selfCookieToken = req.cookies?.["fincava_auth"] as string | undefined;
     const _selfBearerToken = req.headers.authorization?.startsWith("Bearer ")
       ? req.headers.authorization.slice(7)
       : undefined;
