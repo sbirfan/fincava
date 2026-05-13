@@ -20,7 +20,6 @@ import { ReviewSummary, type ReviewSection } from "@/components/onboarding/Revie
 import { PRODUCT_OPTIONS } from "@/lib/onboarding-constants";
 import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import { API } from "@/lib/api-routes";
-import { apiFetch } from "@/lib/api-fetch";
 import { ENABLE_FINANCE } from "@/lib/flags";
 
 type AccountData = {
@@ -178,8 +177,9 @@ export default function Register() {
         ? supplierForm.other_product
         : supplierForm.primary_product;
 
-      const onboardRes = await apiFetch(API.SUPPLIER_ONBOARD, {
+      const onboardRes = await fetch(API.SUPPLIER_ONBOARD, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           business_name: supplierForm.farm_name,

@@ -54,8 +54,19 @@ export const AGENCY_REGISTRY: readonly Agency[] = [
  * This function is the single place where URLs enter a document.
  * It must never be called inside an AI prompt or system message.
  */
-export function buildAgencyLinksSection(): string {
+export function buildAgencyLinksSection(lang?: "en" | "es"): string {
   const lines = AGENCY_REGISTRY.map((a) => `- ${a.name}: ${a.homepageUrl}`).join("\n");
+  if (lang === "en") {
+    return [
+      "",
+      "",
+      "OFFICIAL REGULATORY AGENCY LINKS",
+      "",
+      lines,
+      "",
+      "Note: These links are official agency homepages. Specific procedures are handled through each agency's own service channels. Fincava is not responsible for changes to external content.",
+    ].join("\n");
+  }
   return [
     "",
     "",

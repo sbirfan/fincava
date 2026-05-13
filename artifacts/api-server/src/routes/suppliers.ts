@@ -711,7 +711,8 @@ router.post(
       const aiContent = (message.content[0] as any).text;
       // Append the deterministic agency-links section AFTER the AI prose.
       // URLs never come from the AI — they come exclusively from the static registry.
-      const documentContent = aiContent + buildAgencyLinksSection();
+      const docLang = (req.body as any)?.language === "es" ? "es" : "en";
+      const documentContent = aiContent + buildAgencyLinksSection(docLang);
       await db.insert(aiOutputsTable).values({
         supplierId,
         aiModel: DOCUMENT_MODEL,

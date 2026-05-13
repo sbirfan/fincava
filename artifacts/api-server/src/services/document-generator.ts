@@ -28,6 +28,7 @@ export type GeneratedDocument = {
 
 export async function generateComplianceDocument(
   supplierId: number,
+  lang?: "en" | "es",
 ): Promise<GeneratedDocument> {
   const [supplier] = await db
     .select({
@@ -78,7 +79,7 @@ export async function generateComplianceDocument(
 
   // Append the deterministic agency-links section AFTER the AI prose.
   // URLs never come from the AI — they come exclusively from the static registry.
-  const documentContent = aiContent + buildAgencyLinksSection();
+  const documentContent = aiContent + buildAgencyLinksSection(lang);
 
   logger.info({ supplierId, duration }, "document-generator: Claude latency");
 
