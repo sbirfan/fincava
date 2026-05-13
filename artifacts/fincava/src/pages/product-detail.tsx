@@ -390,11 +390,6 @@ export default function ProductDetail() {
                 Your Impact
               </h4>
               <p className="text-muted-foreground text-sm leading-relaxed">{story.impact}</p>
-              <Link href="/impact">
-                <span className="inline-flex items-center gap-1.5 text-primary text-sm font-medium mt-4 hover:gap-2.5 transition-all">
-                  See all impact data <ArrowRight className="w-3.5 h-3.5" />
-                </span>
-              </Link>
             </div>
           </div>
         </div>

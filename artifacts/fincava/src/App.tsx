@@ -36,7 +36,6 @@ const Investors = lazy(() => import("@/pages/investors"));
 const Contact = lazy(() => import("@/pages/contact"));
 const RFQs = lazy(() => import("@/pages/rfqs"));
 const RFQDetail = lazy(() => import("@/pages/rfq-detail"));
-const Impact = lazy(() => import("@/pages/impact"));
 const SupplierMarketplace = lazy(() => import("@/pages/supplier-marketplace"));
 const OnboardingPage = lazy(() => import("@/pages/onboarding"));
 const OfficerRegisterPage = lazy(() => import("@/pages/officer-register"));
@@ -143,7 +142,6 @@ function Router() {
         <Route path="/markets" component={() => <AppLayout><Markets /></AppLayout>} />
         <Route path="/rfqs" component={() => <AppLayout><RFQs /></AppLayout>} />
         <Route path="/rfq/:id" component={() => <AppLayout><RFQDetail /></AppLayout>} />
-        <Route path="/impact" component={() => <AppLayout><Impact /></AppLayout>} />
         <Route path="/origin-stories" component={() => <AppLayout><OriginStories /></AppLayout>} />
         <Route path="/about" component={() => <AppLayout><About /></AppLayout>} />
         <Route path="/platform" component={() => <AppLayout><Platform /></AppLayout>} />

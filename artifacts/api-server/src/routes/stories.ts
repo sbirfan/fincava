@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { db, productsTable, originStoriesTable, suppliersTable, productPlaceholdersTable } from "@workspace/db";
+import { db, originStoriesTable, suppliersTable, productPlaceholdersTable } from "@workspace/db";
 import { sendError } from "../lib/response";
 
 const router: IRouter = Router();
@@ -92,35 +92,6 @@ router.get("/stories/:productId", async (req, res): Promise<void> => {
     impact: story.impact,
     images: story.images,
     videoUrl: story.videoUrl,
-  });
-});
-
-router.get("/impact", async (_req, res): Promise<void> => {
-  const products = await db.select().from(productsTable).where(eq(productsTable.active, true));
-  const stories = await db.select().from(originStoriesTable);
-
-  const farmersSupported = stories.length;
-  const totalFamiliesSupported = products.reduce((sum, p) => sum + (p.familiesSupported ?? 0), 0);
-  const directTradeProducts = products.filter(p => p.directTrade).length;
-  const smallholderProducts = products.filter(p => p.smallholder).length;
-  const womenLedFarms = products.filter(p => p.womenLed).length;
-  const organicProducts = products.filter(p => p.organic).length;
-
-  const regions = [...new Set(stories.map(s => s.region))];
-
-  const avgFarmSizeHa = stories.length
-    ? stories.reduce((sum, s) => sum + (s.farmSizeHa ?? 0), 0) / stories.filter(s => s.farmSizeHa).length
-    : 0;
-
-  res.json({
-    farmersSupported,
-    totalFamiliesSupported,
-    directTradeProducts,
-    smallholderProducts,
-    womenLedFarms,
-    organicProducts,
-    regionsRepresented: regions,
-    avgFarmSizeHa: Math.round(avgFarmSizeHa * 10) / 10,
   });
 });
 

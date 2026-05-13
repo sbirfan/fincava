@@ -68,9 +68,6 @@ export default function Marketplace() {
           <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">Marketplace</h1>
           <p className="text-muted-foreground">Discover premium agricultural products from verified Colombian producers.</p>
         </div>
-        <Link href="/impact" className="text-sm text-primary font-medium hover:underline flex items-center gap-1">
-          View Impact Report &rarr;
-        </Link>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -205,13 +202,6 @@ export default function Marketplace() {
             </div>
           </div>
 
-          {/* Impact CTA */}
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-2">Every purchase directly supports Colombian farming families.</p>
-            <Link href="/impact" className="text-primary text-xs font-medium hover:underline">
-              See the impact &rarr;
-            </Link>
-          </div>
         </aside>
 
         {/* Product Grid */}
