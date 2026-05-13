@@ -6,19 +6,61 @@
     <title>Fincava — Colombian Agricultural Marketplace</title>
     <meta name="description" content="Fincava connects international buyers with verified Colombian agricultural producers. Source premium coffee, cacao, avocado, exotic fruits, and superfoods directly from smallholder farms." />
     <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://fincava.com/" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://fincava.com/" />
     <meta property="og:site_name" content="Fincava" />
     <meta property="og:title" content="Fincava — Colombian Agricultural Marketplace" />
     <meta property="og:description" content="Connect with verified Colombian agricultural producers. Source premium coffee, cacao, avocado, exotic fruits, and superfoods directly from smallholder farms." />
-    <meta property="og:image" content="/opengraph.jpg" />
+    <meta property="og:image" content="https://fincava.com/opengraph.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@fincava" />
     <meta name="twitter:title" content="Fincava — Colombian Agricultural Marketplace" />
     <meta name="twitter:description" content="Connect with verified Colombian agricultural producers. Source premium coffee, cacao, avocado, exotic fruits, and superfoods directly from smallholder farms." />
-    <meta name="twitter:image" content="/opengraph.jpg" />
+    <meta name="twitter:image" content="https://fincava.com/opengraph.jpg" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Fincava",
+      "url": "https://fincava.com/",
+      "logo": "https://fincava.com/fincava-logo.png",
+      "description": "Fincava is a B2B marketplace connecting international buyers with verified Colombian agricultural producers of coffee, cacao, avocado, exotic fruits, and superfoods.",
+      "foundingLocation": {
+        "@type": "Place",
+        "addressCountry": "CO",
+        "name": "Colombia"
+      },
+      "areaServed": ["Middle East", "Asia", "Africa", "Europe"],
+      "sameAs": []
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Fincava",
+      "url": "https://fincava.com/",
+      "description": "Colombian agricultural B2B marketplace for international trade",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://fincava.com/marketplace?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
 
     <link rel="icon" type="image/png" href="/fincava-logo.png" />
     <link rel="apple-touch-icon" href="/fincava-logo.png" />

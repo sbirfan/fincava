@@ -1,2 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /dashboard/
+Disallow: /supplier-dashboard/
+Disallow: /admin/
+Disallow: /onboarding
+
+Sitemap: https://fincava.com/sitemap.xml

@@ -1,0 +1,76 @@
+Implement a minimal admin-only backup/export system for critical FINCAVA operational data.
+Do NOT redesign architecture. Do NOT introduce background jobs. Do NOT introduce cloud backup systems. Do NOT introduce automated sync engines.
+Goal: Allow FINCAVA admin to manually export/download critical operational data for recovery and auditing after recent onboarding/data integrity issues.
+Scope (Phase 1 ONLY)
+EXPORT ONLY:
+* users
+* profiles
+* suppliers
+* farms
+* economics
+* products
+* origin_stories
+* supplier evaluations
+* trust scores
+Do NOT implement import yet.
+Reason: Export capability is low-risk. Import capability can corrupt production state and must be designed carefully later.
+Implementation requirements
+1. Admin-only route(s)
+Create:
+* GET /api/admin/export/:entity
+Supported entities:
+* users
+* profiles
+* suppliers
+* farms
+* economics
+* products
+* origin_stories
+* evaluations
+* trust_scores
+1. Output format
+Support:
+* JSON download
+* CSV download
+Use query param: ?format=json ?format=csv
+1. Preserve IDs and timestamps exactly.
+2. Include soft relationship references:
+* userId
+* supplierId
+* productId
+* farmId
+1. Add export metadata: { exportedAt, entity, rowCount, exportedBy }
+2. No destructive operations.
+3. No DB mutations.
+4. No import functionality yet.
+Admin UI
+Create a very small admin page:
+* /admin/system-backups
+Features:
+* entity dropdown
+* format dropdown
+* download button
+No dashboards. No scheduling. No automation.
+Security requirements
+1. ADMIN role only.
+2. Audit log every export action.
+3. Do NOT expose password hashes.
+4. Do NOT expose auth tokens.
+5. Mask highly sensitive internal auth fields if present.
+Validation
+Test:
+* export each entity successfully
+* JSON opens correctly
+* CSV opens correctly
+* IDs preserved
+* timestamps preserved
+* unauthorized user blocked
+* large tables do not crash server
+Return:
+1. exact files changed
+2. routes added
+3. entities supported
+4. excluded sensitive fields
+5. sample export structure
+6. rollback plan
+Stop for approval before implementation.
