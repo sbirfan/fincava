@@ -39,6 +39,7 @@ import {
 } from "../services/supplier-graduation-service";
 import { runOnboardPipeline } from "../services/onboard-pipeline";
 import { initSupplierProduct } from "../services/supplier-product-init";
+import { generateOriginStory } from "../services/origin-story-service";
 import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 import { DOCUMENT_PROMPT } from "../config/scoring-prompts";
@@ -2102,6 +2103,74 @@ router.patch(
       fieldsUpdated,
       ...(evaluationResult ? { evaluation: evaluationResult } : {}),
     });
+  },
+);
+
+router.patch(
+  "/admin/products/:id/pricing",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const productId = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      sendError(res, 400, "Invalid product id");
+      return;
+    }
+
+    const { pricePerKgUSD, availableKg, minOrderKg, harvestSeason } = req.body;
+
+    if (pricePerKgUSD === undefined && availableKg === undefined &&
+        minOrderKg === undefined && harvestSeason === undefined) {
+      sendError(res, 400, "At least one field required: pricePerKgUSD, availableKg, minOrderKg, harvestSeason");
+      return;
+    }
+
+    const updateValues: Record<string, unknown> = {};
+    if (pricePerKgUSD !== undefined) updateValues.pricePerKgUSD = parseFloat(pricePerKgUSD);
+    if (availableKg !== undefined) updateValues.availableKg = parseFloat(availableKg);
+    if (minOrderKg !== undefined) updateValues.minOrderKg = parseFloat(minOrderKg);
+    if (harvestSeason !== undefined) updateValues.harvestSeason = String(harvestSeason);
+
+    const [updated] = await db
+      .update(productsTable)
+      .set(updateValues)
+      .where(eq(productsTable.id, productId))
+      .returning({ id: productsTable.id, name: productsTable.name,
+                   pricePerKgUSD: productsTable.pricePerKgUSD,
+                   availableKg: productsTable.availableKg });
+
+    if (!updated) {
+      sendError(res, 404, "Product not found");
+      return;
+    }
+
+    logger.info({ productId, updateValues }, "admin: product pricing updated");
+    res.json({ success: true, product: updated });
+  },
+);
+
+router.post(
+  "/admin/suppliers/:id/generate-story",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(supplierId) || supplierId <= 0) {
+      sendError(res, 400, "Invalid supplier id");
+      return;
+    }
+    const force = req.query["force"] === "true" || req.body?.force === true;
+    try {
+      const result = await generateOriginStory(supplierId, { force });
+      res.status(result.written ? 201 : 200).json({
+        supplierId,
+        written: result.written,
+        story: result.story,
+      });
+    } catch (err: any) {
+      logger.error({ supplierId, err }, "admin generate-story: failed");
+      sendError(res, 500, err.message ?? "Story generation failed");
+    }
   },
 );
 

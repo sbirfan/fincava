@@ -72,7 +72,11 @@ export function ProductCard({ product }: ProductCardProps) {
           <div className="flex justify-between items-end mt-auto pt-3 border-t border-border">
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">Price / kg</p>
-              <p className="font-bold text-lg">${product.pricePerKgUSD.toFixed(2)}</p>
+              <p className="font-bold text-lg">
+                {product.pricePerKgUSD > 0
+                  ? `$${product.pricePerKgUSD.toFixed(2)}`
+                  : "Price on request"}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-muted-foreground mb-0.5">Min. Order</p>

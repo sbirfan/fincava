@@ -49,6 +49,7 @@ export async function initSupplierProduct(supplierId: number): Promise<{
   const [supplier] = await db
     .select({
       id: suppliersTable.id,
+      userId: suppliersTable.userId,
       nombreCompleto: suppliersTable.nombreCompleto,
       municipio: suppliersTable.municipio,
       department: suppliersTable.department,
@@ -61,6 +62,10 @@ export async function initSupplierProduct(supplierId: number): Promise<{
   if (!supplier) {
     throw new Error("initSupplierProduct: supplier not found");
   }
+
+  // Prefer the supplier's own userId (self-registered) over the system admin.
+  // Field-collected suppliers (userId = null) fall back to the system admin.
+  const companyOwnerId = supplier.userId ?? adminUserId;
 
   const [farm] = await db
     .select({
@@ -86,7 +91,7 @@ export async function initSupplierProduct(supplierId: number): Promise<{
   const [company] = await db
     .insert(companiesTable)
     .values({
-      userId: adminUserId,
+      userId: companyOwnerId,
       name: supplier.nombreCompleto,
       type: "SMALLHOLDER",
       country: "Colombia",

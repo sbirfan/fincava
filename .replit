@@ -92,6 +92,8 @@ packages = ["dig", "u-root-cmds"]
 [userenv.shared]
 FINCAVA_COMPANY_ID = "17"
 UPLOAD_TOKEN_SECRET = "50d321c29ab131af77ab546fea82dffd0400f6aaa3c2f75c90f3346006381d1f0c2ce454789b5f002fe111284af3ae63"
+ENABLE_MATCHING = "true"
+ENABLE_TRANSACTIONS = "true"
 
 [userenv.production]
 CORS_ORIGIN = "https://fincava.com,https://fincava.replit.app"

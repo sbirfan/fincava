@@ -1,12 +1,15 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray, count } from "drizzle-orm";
 import {
-  db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable, usersTable, productsTable
+  db, rfqsTable, rfqResponsesTable, companiesTable, profilesTable, trustScoresTable, usersTable, productsTable,
+  farmsTable, suppliersTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { sendEmail, rfqResponseEmail, rfqAwardEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { sendError } from "../lib/response";
+import { getAnthropicClient } from "../lib/anthropic";
+import { RFQ_RESPONSE_DRAFT_PROMPT } from "../config/ai-prompts/rfq-response-prompt";
 
 const router: IRouter = Router();
 
@@ -165,8 +168,46 @@ router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> =>
   const rfqId = parseInt(req.params.id as string);
   if (isNaN(rfqId)) { sendError(res, 400, "Invalid id"); return; }
 
-  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.userId, userId));
-  if (!company) { sendError(res, 403, "Only suppliers can respond to RFQs"); return; }
+  // Primary lookup: company owned directly by this user (self-registered supplier)
+  let [company] = await db.select().from(companiesTable)
+    .where(eq(companiesTable.userId, userId));
+
+  // Fallback: for field-collected suppliers or legacy auto-created companies,
+  // resolve via suppliersTable → productsTable → companiesTable.
+  // This handles the case where the company was created under admin userId.
+  if (!company) {
+    const [supplierRow] = await db
+      .select({ id: suppliersTable.id })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.userId, userId))
+      .limit(1);
+
+    if (supplierRow) {
+      const [firstProduct] = await db
+        .select({ companyId: productsTable.companyId })
+        .from(productsTable)
+        .where(
+          and(
+            eq(productsTable.supplierId, supplierRow.id),
+            eq(productsTable.active, true),
+          ),
+        )
+        .limit(1);
+
+      if (firstProduct?.companyId != null) {
+        const [resolvedCompany] = await db
+          .select()
+          .from(companiesTable)
+          .where(eq(companiesTable.id, firstProduct.companyId));
+        company = resolvedCompany;
+      }
+    }
+  }
+
+  if (!company) {
+    sendError(res, 403, "No company found for this supplier — contact your Fincava field officer");
+    return;
+  }
 
   const { pricePerKgUSD, leadTimeDays, message } = req.body;
   if (!pricePerKgUSD || !leadTimeDays || !message) {
@@ -324,5 +365,116 @@ router.get("/buyer/rfqs", requireAuth, async (req, res): Promise<void> => {
 
   res.json(result);
 });
+
+router.get(
+  "/rfqs/:id/draft-response",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = req.userId;
+    const userRole = req.userRole;
+
+    if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
+      sendError(res, 403, "Only suppliers can request a draft response");
+      return;
+    }
+
+    const rfqId = parseInt(req.params.id as string);
+    if (isNaN(rfqId)) { sendError(res, 400, "Invalid id"); return; }
+
+    const [rfq] = await db.select().from(rfqsTable).where(eq(rfqsTable.id, rfqId));
+    if (!rfq) { sendError(res, 404, "RFQ not found"); return; }
+    if (rfq.status !== "OPEN") { sendError(res, 409, "RFQ is no longer open"); return; }
+
+    // Find supplier's company and products
+    const [company] = await db.select().from(companiesTable)
+      .where(eq(companiesTable.userId, userId));
+
+    // For admin acting on behalf: accept ?supplierId= query param
+    let resolvedSupplierId: number | null = null;
+    if (userRole === "ADMIN" && req.query["supplierId"]) {
+      resolvedSupplierId = parseInt(req.query["supplierId"] as string);
+    } else if (company) {
+      // Try to find supplierId from products linked to this company
+      const [firstProduct] = await db.select({ supplierId: productsTable.supplierId })
+        .from(productsTable)
+        .where(eq(productsTable.companyId, company.id))
+        .limit(1);
+      resolvedSupplierId = firstProduct?.supplierId ?? null;
+    }
+
+    const supplierProducts = company
+      ? await db.select({
+          name: productsTable.name,
+          category: productsTable.category,
+          altitude: productsTable.altitude,
+          process: productsTable.process,
+          variety: productsTable.variety,
+          cupping: productsTable.cupping,
+          availableKg: productsTable.availableKg,
+          certifications: productsTable.certifications,
+        }).from(productsTable)
+          .where(eq(productsTable.companyId, company.id))
+      : [];
+
+    // Optionally enrich with farm data if supplierId resolved
+    let farmData = null;
+    if (resolvedSupplierId) {
+      const [farm] = await db.select({
+        cultivoPrincipal: farmsTable.cultivoPrincipal,
+        altitudeMeters: farmsTable.altitudeMeters,
+        hectareasProduccion: farmsTable.hectareasProduccion,
+        metodoSecado: farmsTable.metodoSecado,
+        harvestMonths: farmsTable.harvestMonths,
+        tenenciaTierra: farmsTable.tenenciaTierra,
+      }).from(farmsTable)
+        .where(eq(farmsTable.supplierId, resolvedSupplierId));
+      farmData = farm ?? null;
+    }
+
+    const supplierPayload = {
+      companyName: company?.name ?? "Supplier",
+      region: company?.region ?? null,
+      products: supplierProducts,
+      farm: farmData,
+    };
+
+    const rfqPayload = {
+      productCategory: rfq.productCategory,
+      quantityKg: rfq.quantityKg,
+      destination: rfq.destination,
+      incoterm: rfq.incoterm,
+      deadline: rfq.deadline,
+      qualityGrade: rfq.qualityGrade,
+      requiredCertifications: rfq.requiredCertifications,
+      preferredCertifications: rfq.preferredCertifications,
+      requiredDocuments: rfq.requiredDocuments,
+      packagingRequirements: rfq.packagingRequirements,
+      coldChainRequired: rfq.coldChainRequired,
+      moqMt: rfq.moqMt,
+      orderFrequency: rfq.orderFrequency,
+      priceRangeMinUsdKg: rfq.priceRangeMinUsdKg,
+      priceRangeMaxUsdKg: rfq.priceRangeMaxUsdKg,
+    };
+
+    try {
+      const client = getAnthropicClient();
+      const message = await client.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 1024,
+        system: RFQ_RESPONSE_DRAFT_PROMPT,
+        messages: [{ role: "user", content: JSON.stringify({ rfq: rfqPayload, supplier: supplierPayload }) }],
+      });
+
+      const raw = (message.content[0] as any).text as string;
+      const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const draft = JSON.parse(jsonStr);
+
+      res.json({ rfqId, draft });
+    } catch (err: any) {
+      logger.error({ err, rfqId, userId }, "rfq draft-response: Claude call failed");
+      sendError(res, 500, "Draft generation failed — please try again");
+    }
+  },
+);
 
 export default router;

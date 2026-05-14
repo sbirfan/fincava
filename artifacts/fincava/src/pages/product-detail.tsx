@@ -267,10 +267,14 @@ export default function ProductDetail() {
             {/* Price */}
             <div className="mb-6">
               <div className="flex items-baseline mb-2">
-                <span className="text-4xl font-bold">${product.pricePerKgUSD.toFixed(2)}</span>
+                {product.pricePerKgUSD > 0 ? (
+                  <span className="text-4xl font-bold">${product.pricePerKgUSD.toFixed(2)}</span>
+                ) : (
+                  <span className="text-2xl font-bold text-muted-foreground">Price on request</span>
+                )}
                 <span className="text-muted-foreground ml-2">/ kg (USD)</span>
               </div>
-              {p.directTrade && (
+              {product.pricePerKgUSD > 0 && p.directTrade && (
                 <p className="text-xs text-emerald-600 flex items-center gap-1">
                   <Handshake className="w-3 h-3" />
                   Direct trade price — 40–70% above commodity market paid to farmer
@@ -522,7 +526,7 @@ export default function ProductDetail() {
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Place Order</DialogTitle>
             <DialogDescription>
-              {product && `${product.name} · $${product.pricePerKgUSD.toFixed(2)} / kg`}
+              {product && (product.pricePerKgUSD > 0 ? `${product.name} · $${product.pricePerKgUSD.toFixed(2)} / kg` : product.name)}
             </DialogDescription>
           </DialogHeader>
 
@@ -540,7 +544,9 @@ export default function ProductDetail() {
               />
               {qty && product && (
                 <p className="text-sm text-primary font-medium mt-1">
-                  Total: ${(parseFloat(qty) * product.pricePerKgUSD).toFixed(2)} USD
+                  {product.pricePerKgUSD > 0
+                    ? `Total: $${(parseFloat(qty) * product.pricePerKgUSD).toFixed(2)} USD`
+                    : "Pricing to be confirmed — submit inquiry to discuss terms"}
                 </p>
               )}
             </div>
@@ -611,7 +617,7 @@ export default function ProductDetail() {
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Request Quote / Inquiry</DialogTitle>
             <DialogDescription>
-              {product && `${product.name} · $${product.pricePerKgUSD.toFixed(2)} / kg`}
+              {product && (product.pricePerKgUSD > 0 ? `${product.name} · $${product.pricePerKgUSD.toFixed(2)} / kg` : product.name)}
             </DialogDescription>
           </DialogHeader>
 
