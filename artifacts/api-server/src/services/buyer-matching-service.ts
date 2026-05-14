@@ -60,6 +60,7 @@ const MatchRowSchema = z.object({
   }),
   disqualifiers: z.array(z.string()),
   match_notes: z.string(),
+  data_reliability_note: z.string().nullable().optional(),
 });
 
 const MatchResponseSchema = z.object({

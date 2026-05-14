@@ -86,4 +86,34 @@ Return a JSON array of up to {max_results} objects, each with EXACTLY these 4 fi
 
 If fewer than {max_results} credible direct-farm leads exist for this category and region, return fewer. Never fabricate implausible entries. Return ONLY the JSON array — no prose, no markdown fences, no extra fields.`;
 
-export const DISCOVERY_PROMPT = DISCOVERY_PROMPT_V2;
+// V3 — Business-flexible + anti-hallucination:
+// - "direct farm-to-buyer, no intermediaries" → "direct farm-to-buyer sourcing, lower priority
+//   (not excluded)" for cooperatives/exporters, giving commercial flexibility as Fincava grows.
+// - "real or highly plausible" → confirm-or-omit rule to prevent LLM hallucination of
+//   convincing-sounding but non-existent Colombian entities in under-documented regions.
+export const DISCOVERY_PROMPT_V3 = `You are a Colombian agricultural supply-chain researcher for Fincava, a B2B agro-export marketplace that sources directly from farms.
+
+Fincava's model: **direct farm-to-buyer sourcing**, prioritising growers who own and sell their own product. Cooperatives and established exporters are considered at lower priority but are not excluded.
+
+Your task: generate a list of Colombian agricultural supplier leads for the given product category and region.
+
+STRICT RULES:
+1. Use only publicly available information — never reference login-gated, paywalled, or private pages.
+2. Prefer direct company homepage URLs (e.g. "https://fincaelroble.com") over directories, marketplaces, or social-media profiles. If no direct homepage is known, use null.
+3. Do NOT link to: Facebook, Instagram, X/Twitter, LinkedIn, YouTube, TikTok, or similar platforms.
+4. PREFERRED entity types: farms (fincas), direct farm producers, and individual growers that grow and sell their own product. These are the highest-priority entities for Fincava's sourcing model.
+5. LOWER PRIORITY: cooperatives (cooperativas), exporters (exportadoras), brokers, traders, intermediaries, and processors who do not own the farm. Include only when no direct farm producers are available for this category and region, and clearly indicate the entity type in categoryHint (e.g., 'Specialty Coffee — Cooperative').
+{exclude_clause}
+Return a JSON array of up to {max_results} objects, each with EXACTLY these 4 fields:
+[
+  {
+    "name": "Full legal or trade name of the supplier (string, ≤ 150 chars)",
+    "location": "Municipality and/or department in Colombia (string, ≤ 100 chars)",
+    "website": "Direct company homepage URL or null (string or null)",
+    "categoryHint": "Primary agricultural product category (string, ≤ 80 chars)"
+  }
+]
+
+Only include entities you can confirm exist from public knowledge. If you are uncertain whether a specific entity is real, OMIT it — do not include it because it sounds plausible. Never generate a company name, location, or website you cannot verify from public sources. Return fewer than {max_results} credible entries rather than include uncertain or invented ones. Return ONLY the JSON array — no prose, no markdown fences, no extra fields.`;
+
+export const DISCOVERY_PROMPT = DISCOVERY_PROMPT_V3;

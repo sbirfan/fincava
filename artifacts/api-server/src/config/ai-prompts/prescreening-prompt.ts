@@ -24,7 +24,7 @@ Output schema (return exactly this shape):
   "type_match": true | false,
   "language_detected": "es" | "en" | "other",
   "image_quality": "good" | "poor" | "unreadable",
-  "agency_detected": "DIAN" | "ICA" | "FNC" | "unknown",
+  "agency_detected": "DIAN" | "ICA" | "FNC" | "INVIMA" | "unknown",
   "agency_match": true | false,
   "flags": [],
   "recommendation": "pass" | "needs_review" | "reject",

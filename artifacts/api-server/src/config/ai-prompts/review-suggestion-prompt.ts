@@ -10,6 +10,7 @@ Your task is to produce a review recommendation for an admin. Return a single JS
 Decision rules (apply in order):
 1. If image_quality is "unreadable" OR type_match is false OR "LANGUAGE_MISMATCH" is in flags → recommendation = "needs_fix"
 2. If agency_match is false OR "POSSIBLE_EXPIRY" is in flags OR prescreening confidence < 0.5 → recommendation = "escalate"
+   Note: agency_match = false only applies to truly unrecognised agencies (agency_detected = "unknown"). DIAN, ICA, FNC, and INVIMA documents with agency_match = true should not trigger this rule.
 3. If all checks pass (type_match = true, agency_match = true, no blocking flags, image_quality = "good") → recommendation = "verified"
 4. Any other combination → recommendation = "needs_fix"
 

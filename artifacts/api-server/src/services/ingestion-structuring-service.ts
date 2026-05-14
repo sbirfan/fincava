@@ -18,7 +18,7 @@ const AiEnrichmentOutput = z.object({
   categoryHints: z.array(z.string().max(100)).max(10).default([]),
   exportReadinessNarrative: z.string().max(1000).nullable().optional(),
   estimatedAnnualVolumeKg: z.number().nonnegative().nullable().optional(),
-  certifications: z.array(z.string().max(100)).max(20).default([]),
+  likelyCertifications: z.array(z.string().max(100)).max(20).default([]),
   dataCompletenessScore: z.number().min(0).max(100).nullable().optional(),
 });
 
@@ -152,19 +152,31 @@ Input data:
 - Existing description: ${input.description ?? "none"}
 
 Instructions:
-1. Infer likely agricultural products from the name, region, and category hint.
+1. Identify likely agricultural products from the name, region, and category hint.
+   ALL output fields are AI_INFERRED from sparse data — treat as preliminary draft only.
 2. Write a brief 2-3 sentence professional description suitable for a B2B marketplace.
-3. Estimate export readiness based on organisation type, region, and available data.
-4. Rate data completeness 0-100 based on how much useful information is present.
+3. Write a brief export readiness narrative based ONLY on explicit signals in the
+   input data — organisation type, region, and category hint. Do not assign numerical
+   scores. Label the narrative as an AI_INFERRED preliminary estimate.
+
+IMPORTANT: Do NOT include a certifications field in your output. Certifications are
+verified documents — they must never be inferred from a supplier's name, region, or
+product category. If certifications are mentioned in the existing description field,
+you may reference them in the description text with the qualifier 'reportedly' only.
+Never place inferred certifications in a structured array field.
 
 Return ONLY valid JSON with exactly these fields — no extra fields, no markdown prose:
 {
   "normalizedName": "string (English-friendly, Title Case, ≤ 80 chars)",
   "description": "string (2-3 sentences B2B profile, ≤ 300 chars)",
   "categoryHints": ["string", ...],
-  "exportReadinessNarrative": "string (1 sentence) or null",
+  "exportReadinessNarrative": "string (1 sentence, labelled as AI_INFERRED preliminary estimate) or null",
   "estimatedAnnualVolumeKg": number or null,
-  "certifications": ["string", ...],
+  "likelyCertifications": ["string", ...],
   "dataCompletenessScore": number (0-100)
-}`;
+}
+
+ALL fields in this output are AI_INFERRED from sparse public and admin data.
+They form a DRAFT PROFILE only. The consuming system must store and display these
+values with AI_INFERRED labelling. No field should be treated as a verified fact.`;
 }
