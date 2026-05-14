@@ -7,7 +7,7 @@
 //   5. Send WhatsApp confirmation (non-fatal if it fails)
 //   6. Retry up to 3 times with exponential backoff on any failure
 
-import { db, aiOutputsTable, complianceDocsTable, supplierRequirementStatusTable, productsTable } from "@workspace/db";
+import { db, aiOutputsTable, supplierRequirementStatusTable, productsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getAnthropicClient, SCORING_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
@@ -87,37 +87,19 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
         })
         .returning();
 
-      // CC-1A: Parse compliance gaps from AI output and write back to compliance_docs.
-      // Gap present in list = supplier is NOT compliant for that requirement (false).
-      // Gap absent from list = supplier IS compliant (true).
+      // Seed supplier_requirement_status work items from AI-detected gaps.
+      // gap present in AI list → seed a "not_started" row for the field officer.
+      // gap absent from AI list → no action taken.
+      //   IMPORTANT: AI gap absence is NOT evidence of compliance. compliance_docs
+      //   booleans are written only by the onboarding form and admin review — never
+      //   by AI scoring output. The !gapSet.has() pattern must never appear here.
+      // onConflictDoNothing: re-scoring must never reset officer progress.
       // Non-fatal: a write-back failure must not abort the scoring pipeline.
       try {
         const gapSet = new Set<string>(
           Array.isArray(parsed.compliance_gaps)
             ? parsed.compliance_gaps.map((g: string) => String(g).toUpperCase())
             : [],
-        );
-        await db
-          .insert(complianceDocsTable)
-          .values({
-            supplierId,
-            rutDian: !gapSet.has("DIAN_RUT"),
-            icaRegistro: !gapSet.has("ICA_REGISTRO"),
-            fitosanitarioCert: !gapSet.has("FITOSANITARIO"),
-            dianExportador: !gapSet.has("DIAN_EXPORTADOR"),
-          })
-          .onConflictDoUpdate({
-            target: complianceDocsTable.supplierId,
-            set: {
-              rutDian: !gapSet.has("DIAN_RUT"),
-              icaRegistro: !gapSet.has("ICA_REGISTRO"),
-              fitosanitarioCert: !gapSet.has("FITOSANITARIO"),
-              dianExportador: !gapSet.has("DIAN_EXPORTADOR"),
-            },
-          });
-        logger.info(
-          { supplierId, gaps: [...gapSet] },
-          "scoreSupplier: compliance_docs updated from AI gaps (CC-1A)",
         );
 
         // CC-1A Part 2: Seed supplier_requirement_status rows for each gap code.
@@ -145,7 +127,7 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
             .onConflictDoNothing();
           logger.info(
             { supplierId, count: requirementRows.length },
-            "scoreSupplier: supplier_requirement_status seeded from AI gaps (CC-1A Part 2)",
+            "scoreSupplier: supplier_requirement_status work items seeded from AI-detected gaps",
           );
         }
 
