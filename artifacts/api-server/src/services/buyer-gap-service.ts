@@ -317,6 +317,31 @@ export async function analyseGaps(buyerProfileId: number): Promise<{
     supplierTypePref: profile.supplierTypePref,
     socialImpactReqs: profile.socialImpactReqs,
     earlyStageSupplierOpen: profile.earlyStageSupplierOpen,
+    // Phase 1.5 extended signals — sharpen gap analysis
+    ...(profile.buyerSegment != null && { buyerSegment: profile.buyerSegment }),
+    ...(profile.coffeeQualityTier != null && { coffeeQualityTier: profile.coffeeQualityTier }),
+    ...(profile.coffeeFlavorProfile != null &&
+      (profile.coffeeFlavorProfile as string[]).length > 0 && {
+        coffeeFlavorProfile: profile.coffeeFlavorProfile }),
+    ...(profile.cacaoFlavorProfile != null && { cacaoFlavorProfile: profile.cacaoFlavorProfile }),
+    ...(profile.priceSensitivity != null && { priceSensitivity: profile.priceSensitivity }),
+    ...(profile.annualBudgetUsd != null && { annualBudgetUsd: profile.annualBudgetUsd }),
+    ...(profile.coffeeOrderSizeKg != null && { coffeeOrderSizeKg: profile.coffeeOrderSizeKg }),
+    ...(profile.cacaoOrderSizeKg != null && { cacaoOrderSizeKg: profile.cacaoOrderSizeKg }),
+    ...(profile.certsNiceToHave != null &&
+      (profile.certsNiceToHave as string[]).length > 0 && {
+        certsNiceToHave: profile.certsNiceToHave }),
+    ...(profile.qualityDocRequired != null &&
+      (profile.qualityDocRequired as string[]).length > 0 && {
+        qualityDocRequired: profile.qualityDocRequired }),
+    ...(profile.coffeeDefectRate != null && { coffeeDefectRate: profile.coffeeDefectRate }),
+    ...(profile.cacaoMoldPct != null && { cacaoMoldPct: profile.cacaoMoldPct }),
+    ...(profile.sourceConsistency != null && { sourceConsistency: profile.sourceConsistency }),
+    ...(profile.sustainabilityImportance != null && {
+      sustainabilityImportance: profile.sustainabilityImportance }),
+    ...(profile.sustainabilityDimensions != null &&
+      (profile.sustainabilityDimensions as string[]).length > 0 && {
+        sustainabilityDimensions: profile.sustainabilityDimensions }),
   };
 
   let gapRows: GapRow[] = [];

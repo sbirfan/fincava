@@ -14,6 +14,7 @@ import { logInteraction } from "../lib/interaction-logger";
 import type { OnboardPayload } from "../lib/pipeline-emitter";
 import { scoreSupplier } from "./scoring-service";
 import { evaluateSupplier } from "./supplier-graduation-service";
+import { initSupplierProduct } from "./supplier-product-init";
 
 export async function runOnboardPipeline(payload: OnboardPayload): Promise<void> {
   const { supplierId, correlationId } = payload;
@@ -33,6 +34,23 @@ export async function runOnboardPipeline(payload: OnboardPayload): Promise<void>
 
     await evaluateSupplier(supplierId);
     logger.info({ supplierId, correlationId }, "onboard-pipeline: succeeded");
+
+    // Step 3: Seed company + product stub so this supplier is immediately
+    // eligible for buyer matching. Non-fatal — a stub creation failure must
+    // never abort the pipeline or prevent the supplier from being scored.
+    try {
+      const initResult = await initSupplierProduct(supplierId);
+      if (initResult.skipped) {
+        logger.debug({ supplierId, correlationId, reason: initResult.reason },
+          "onboard-pipeline: product stub already exists — skipped");
+      } else {
+        logger.info({ supplierId, correlationId, companyId: initResult.companyId, productId: initResult.productId },
+          "onboard-pipeline: product stub seeded for buyer matching");
+      }
+    } catch (initErr: any) {
+      logger.warn({ supplierId, correlationId, err: initErr },
+        "onboard-pipeline: product stub creation failed (non-fatal)");
+    }
 
     logInteraction({
       eventType:     "supplier_onboarding",

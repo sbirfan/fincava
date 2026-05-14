@@ -38,6 +38,7 @@ import {
   NotFoundError,
 } from "../services/supplier-graduation-service";
 import { runOnboardPipeline } from "../services/onboard-pipeline";
+import { initSupplierProduct } from "../services/supplier-product-init";
 import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
 import type { SupplierOnboardingInput } from "../types/supplier-onboarding";
 import { DOCUMENT_PROMPT } from "../config/scoring-prompts";
@@ -2104,5 +2105,33 @@ router.patch(
   },
 );
 
+router.post(
+  "/admin/suppliers/:id/init-product",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const supplierId = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(supplierId) || supplierId <= 0) {
+      sendError(res, 400, "Invalid supplier id");
+      return;
+    }
+
+    try {
+      const result = await initSupplierProduct(supplierId);
+      res.status(result.skipped ? 200 : 201).json({
+        supplierId,
+        skipped: result.skipped,
+        reason: result.reason ?? null,
+        companyId: result.companyId,
+        productId: result.productId,
+      });
+    } catch (err: any) {
+      logger.error({ supplierId, err }, "admin init-product: failed");
+      sendError(res, 500, err.message ?? "Product stub creation failed");
+    }
+  },
+);
+
 export default router;
+
 

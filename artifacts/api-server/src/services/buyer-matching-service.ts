@@ -496,6 +496,21 @@ export async function runMatching(buyerProfileId: number): Promise<{
         (profile.sustainabilityDimensions as string[]).length > 0 && {
           sustainabilityDimensions: profile.sustainabilityDimensions,
         }),
+      ...(profile.annualBudgetUsd != null && { annualBudgetUsd: profile.annualBudgetUsd }),
+      ...(profile.coffeeOrderSizeKg != null && { coffeeOrderSizeKg: profile.coffeeOrderSizeKg }),
+      ...(profile.cacaoOrderSizeKg != null && { cacaoOrderSizeKg: profile.cacaoOrderSizeKg }),
+      ...(profile.fruitOrderSizeKg != null && { fruitOrderSizeKg: profile.fruitOrderSizeKg }),
+      ...(profile.availabilityRequirement != null && { availabilityRequirement: profile.availabilityRequirement }),
+      ...(profile.orderFrequency != null && { orderFrequency: profile.orderFrequency }),
+      ...(profile.certsNiceToHave != null &&
+        (profile.certsNiceToHave as string[]).length > 0 && {
+          certsNiceToHave: profile.certsNiceToHave }),
+      ...(profile.qualityDocRequired != null &&
+        (profile.qualityDocRequired as string[]).length > 0 && {
+          qualityDocRequired: profile.qualityDocRequired }),
+      ...(profile.coffeeDefectRate != null && { coffeeDefectRate: profile.coffeeDefectRate }),
+      ...(profile.cacaoMoldPct != null && { cacaoMoldPct: profile.cacaoMoldPct }),
+      ...(profile.sourceConsistency != null && { sourceConsistency: profile.sourceConsistency }),
     };
 
     try {
