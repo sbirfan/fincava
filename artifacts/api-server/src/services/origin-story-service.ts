@@ -82,7 +82,14 @@ export async function generateOriginStory(
   });
 
   const block = message.content[0];
-  const generatedText = block.type === "text" ? block.text.trim() : "";
+  if (!block || block.type !== "text" || !block.text.trim()) {
+    logger.warn(
+      { supplierId, blockType: block?.type ?? "none" },
+      "generateOriginStory: Claude returned non-text or empty block — story not written",
+    );
+    return { story: "", written: false };
+  }
+  const generatedText = block.text.trim();
 
   await db
     .update(suppliersTable)

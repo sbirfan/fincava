@@ -172,7 +172,7 @@ Return ONLY valid JSON — no markdown, no commentary:
   "data_completeness": <integer 0–100, percentage of expected input fields that are non-null>,
   "evidence_tier": "SELF_REPORTED",
   "capital_capacity_cop": <integer — estimated working capital need in COP. Formula: base 5000000 + (hectareasProduccion × 800000) + estimated gap remediation cost. Cap at 150000000 unless scale explicitly justifies more. This is a PRELIMINARY ESTIMATE only.>,
-  "compliance_gaps": [<list of specific missing documents or registrations>],
+  "compliance_gaps": [<list of gap codes from the fixed set: DIAN_RUT, DIAN_EXPORTADOR, ICA_REGISTRO, ICA_CONTEXT, FITOSANITARIO, FNC_COFFEE, INVIMA — only include a code if that specific document is missing; INVIMA only for processed/packaged products>],
   "gap_analysis": <2–3 sentences in Spanish on the biggest blockers to export>,
   "primary_recommendation": <one actionable next step in plain Spanish for the farmer>
 }`;
@@ -274,7 +274,7 @@ Return ONLY valid JSON — no markdown, no commentary:
   "data_completeness": <integer 0–100, percentage of expected input fields that are non-null>,
   "evidence_tier": "SELF_REPORTED",
   "capital_capacity_cop": <integer — estimated working capital need in COP. Formula: base 5000000 + (hectareasProduccion × 800000) + estimated gap remediation cost. Cap at 150000000 unless scale explicitly justifies more. If costPerKg is present and close to precioVentaBanda, increase estimate by 20%. This is a PRELIMINARY ESTIMATE only.>,
-  "compliance_gaps": [<list of specific missing documents or registrations>],
+  "compliance_gaps": [<list of gap codes from the fixed set: DIAN_RUT, DIAN_EXPORTADOR, ICA_REGISTRO, ICA_CONTEXT, FITOSANITARIO, FNC_COFFEE, INVIMA — only include a code if that specific document is missing; INVIMA only for processed/packaged products>],
   "gap_analysis": <2–3 sentences in Spanish on the biggest blockers to export>,
   "primary_recommendation": <one actionable next step in plain Spanish for the farmer>
 }`;

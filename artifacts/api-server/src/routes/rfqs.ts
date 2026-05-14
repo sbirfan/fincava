@@ -320,7 +320,7 @@ router.get("/supplier/rfqs", requireAuth, async (req, res): Promise<void> => {
 
   const [myResponses, myProducts] = await Promise.all([
     db.select({ rfqId: rfqResponsesTable.rfqId }).from(rfqResponsesTable).where(eq(rfqResponsesTable.companyId, company.id)),
-    db.select({ category: productsTable.category }).from(productsTable).where(eq(productsTable.supplierId, company.id)),
+    db.select({ category: productsTable.category }).from(productsTable).where(eq(productsTable.companyId, company.id)),
   ]);
   const respondedRfqIds = myResponses.map(r => r.rfqId);
   const supplierCategories = [...new Set(myProducts.map(p => p.category))];
@@ -385,21 +385,32 @@ router.get(
     if (!rfq) { sendError(res, 404, "RFQ not found"); return; }
     if (rfq.status !== "OPEN") { sendError(res, 409, "RFQ is no longer open"); return; }
 
-    // Find supplier's company and products
-    const [company] = await db.select().from(companiesTable)
-      .where(eq(companiesTable.userId, userId));
-
-    // For admin acting on behalf: accept ?supplierId= query param
+    let company: typeof companiesTable.$inferSelect | undefined;
     let resolvedSupplierId: number | null = null;
+
     if (userRole === "ADMIN" && req.query["supplierId"]) {
       resolvedSupplierId = parseInt(req.query["supplierId"] as string);
-    } else if (company) {
-      // Try to find supplierId from products linked to this company
-      const [firstProduct] = await db.select({ supplierId: productsTable.supplierId })
-        .from(productsTable)
-        .where(eq(productsTable.companyId, company.id))
-        .limit(1);
-      resolvedSupplierId = firstProduct?.supplierId ?? null;
+      if (!isNaN(resolvedSupplierId)) {
+        const [firstProduct] = await db
+          .select({ companyId: productsTable.companyId, supplierId: productsTable.supplierId })
+          .from(productsTable)
+          .where(eq(productsTable.supplierId, resolvedSupplierId))
+          .limit(1);
+        if (firstProduct?.companyId) {
+          [company] = await db.select().from(companiesTable)
+            .where(eq(companiesTable.id, firstProduct.companyId));
+        }
+      }
+    } else {
+      [company] = await db.select().from(companiesTable)
+        .where(eq(companiesTable.userId, userId));
+      if (company) {
+        const [firstProduct] = await db.select({ supplierId: productsTable.supplierId })
+          .from(productsTable)
+          .where(eq(productsTable.companyId, company.id))
+          .limit(1);
+        resolvedSupplierId = firstProduct?.supplierId ?? null;
+      }
     }
 
     const supplierProducts = company

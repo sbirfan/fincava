@@ -96,9 +96,31 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
       // onConflictDoNothing: re-scoring must never reset officer progress.
       // Non-fatal: a write-back failure must not abort the scoring pipeline.
       try {
+        // Normalize AI-returned gap codes to canonical AGENCY_MAP keys.
+        // Claude returns field-guide names (camelCase e.g. "fitosanitarioCert",
+        // "dianExportador") or descriptive strings ("fitosanitarioCert — …").
+        // Strip the description suffix, then map known aliases to canonical codes.
+        const GAP_CODE_ALIAS: Record<string, string> = {
+          RUTDIAN: "DIAN_RUT",
+          DIANRUT: "DIAN_RUT",
+          DIANEXPORTADOR: "DIAN_EXPORTADOR",
+          FITOSANITARIOCERT: "FITOSANITARIO",
+          FITOSANITARIO_CERT: "FITOSANITARIO",
+          ICAREGISTRO: "ICA_REGISTRO",
+          ICACONTEXT: "ICA_CONTEXT",
+          FNCCOFFEE: "FNC_COFFEE",
+          FNC_CAFE: "FNC_COFFEE",
+          INVIMA_REGISTRO: "INVIMA",
+          INVIMAREGISTRO: "INVIMA",
+        };
+
         const gapSet = new Set<string>(
           Array.isArray(parsed.compliance_gaps)
-            ? parsed.compliance_gaps.map((g: string) => String(g).toUpperCase())
+            ? parsed.compliance_gaps.map((g: string) => {
+                // Strip " — description" or ": description" suffixes
+                const rawCode = String(g).replace(/[\s\u2014\-:].*/u, "").trim().toUpperCase();
+                return GAP_CODE_ALIAS[rawCode] ?? rawCode;
+              })
             : [],
         );
 
@@ -111,6 +133,7 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
           ICA_CONTEXT: "ICA",
           FITOSANITARIO: "ICA",
           FNC_COFFEE: "FNC",
+          INVIMA: "INVIMA",
         };
         const requirementRows = [...gapSet]
           .filter((code) => code in AGENCY_MAP)
