@@ -200,6 +200,12 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         .where(eq(farmsTable.supplierId, updateSupplierId))
         .limit(1);
 
+      const harvestMonthsUpdate = Array.isArray(rawBody.harvestMonths)
+        ? rawBody.harvestMonths
+        : typeof rawBody.harvestMonths === "string"
+          ? rawBody.harvestMonths.split(",").map((s: string) => s.trim())
+          : null;
+
       if (existingFarm) {
         await db
           .update(farmsTable)
@@ -214,6 +220,8 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
             anosEnFinca: rawBody.farm?.anosEnFinca ?? null,
             tenenciaTierra: rawBody.farm?.tenenciaTierra ?? null,
             asistenciaTecnica: rawBody.farm?.asistenciaTecnica ?? null,
+            altitudeMeters: rawBody.altitudeMeters != null ? Number(rawBody.altitudeMeters) : null,
+            harvestMonths: harvestMonthsUpdate,
           })
           .where(eq(farmsTable.supplierId, updateSupplierId));
       } else {
@@ -229,6 +237,8 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
           anosEnFinca: rawBody.farm?.anosEnFinca ?? null,
           tenenciaTierra: rawBody.farm?.tenenciaTierra ?? null,
           asistenciaTecnica: rawBody.farm?.asistenciaTecnica ?? null,
+          altitudeMeters: rawBody.altitudeMeters != null ? Number(rawBody.altitudeMeters) : null,
+          harvestMonths: harvestMonthsUpdate,
         });
       }
 
@@ -253,6 +263,8 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         interesCanalPremium: rawBody.economics?.interesCanalPremium ?? null,
         conocePrecioExportacion: rawBody.economics?.conocePrecioExportacion ?? null,
         haIntentadoExportar: rawBody.currently_exporting === "yes" ? true : rawBody.currently_exporting === "no" ? false : (rawBody.economics?.haIntentadoExportar ?? null),
+        costPerKg: rawBody.costPerKg != null ? String(rawBody.costPerKg) : null,
+        minimumOrderKg: rawBody.minimumOrderKg != null ? Number(rawBody.minimumOrderKg) : null,
       };
 
       if (existingEcon) {
@@ -263,12 +275,16 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
 
       // Compliance — upsert with ON CONFLICT (supplierId has unique constraint).
       const icaRegisteredTrue = rawBody.ica_registered === true || rawBody.ica_registered === "yes";
+      const rutDianTrue = rawBody.has_rut === true || rawBody.has_rut === "yes";
       await db
         .insert(complianceDocsTable)
-        .values({ supplierId: updateSupplierId, icaRegistro: icaRegisteredTrue })
+        .values({ supplierId: updateSupplierId, icaRegistro: icaRegisteredTrue, rutDian: rutDianTrue })
         .onConflictDoNothing({ target: complianceDocsTable.supplierId });
       if (icaRegisteredTrue) {
         await db.update(complianceDocsTable).set({ icaRegistro: true }).where(eq(complianceDocsTable.supplierId, updateSupplierId));
+      }
+      if (rutDianTrue) {
+        await db.update(complianceDocsTable).set({ rutDian: true }).where(eq(complianceDocsTable.supplierId, updateSupplierId));
       }
 
       // Interaction log.
@@ -339,6 +355,12 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     const annualVolume =
       rawBody.annual_volume_kg || rawBody.farm?.volumenKgUltimaCosecha || null;
 
+    const harvestMonthsNew = Array.isArray(rawBody.harvestMonths)
+      ? rawBody.harvestMonths
+      : typeof rawBody.harvestMonths === "string"
+        ? rawBody.harvestMonths.split(",").map((s: string) => s.trim())
+        : null;
+
     await db.insert(farmsTable).values({
       supplierId: supplier.id,
       cultivoPrincipal: primaryProduct,
@@ -351,6 +373,8 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       anosEnFinca: rawBody.farm?.anosEnFinca ?? null,
       tenenciaTierra: rawBody.farm?.tenenciaTierra ?? null,
       asistenciaTecnica: rawBody.farm?.asistenciaTecnica ?? null,
+      altitudeMeters: rawBody.altitudeMeters != null ? Number(rawBody.altitudeMeters) : null,
+      harvestMonths: harvestMonthsNew,
     });
 
     // Economics
@@ -384,6 +408,8 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
           : rawBody.currently_exporting === "no"
             ? false
             : (rawBody.economics?.haIntentadoExportar ?? null),
+      costPerKg: rawBody.costPerKg != null ? String(rawBody.costPerKg) : null,
+      minimumOrderKg: rawBody.minimumOrderKg != null ? Number(rawBody.minimumOrderKg) : null,
     });
 
     // ica_registered is submitted as body.ica_registered (flat, root level) from Step 3.
@@ -392,15 +418,17 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     // Direct API callers may send boolean true. Both forms are treated as positive intent.
     const icaRegisteredTrue =
       rawBody.ica_registered === true || rawBody.ica_registered === "yes";
+    const rutDianTrue = rawBody.has_rut === true || rawBody.has_rut === "yes";
 
     // Idempotent initialization:
     // ON CONFLICT DO NOTHING ensures this never clobbers an existing compliance row.
-    // icaRegistro seeded from onboarding body for new rows.
+    // icaRegistro and rutDian seeded from onboarding body for new rows.
     await db
       .insert(complianceDocsTable)
       .values({
         supplierId: supplier.id,
         icaRegistro: icaRegisteredTrue,
+        rutDian: rutDianTrue,
       })
       .onConflictDoNothing({ target: complianceDocsTable.supplierId });
 

@@ -249,6 +249,8 @@ export const farmsTable = pgTable("farms", {
   anosEnFinca: integer("anos_en_finca"),
   tenenciaTierra: text("tenencia_tierra"),
   asistenciaTecnica: text("asistencia_tecnica"),
+  altitudeMeters: integer("altitude_meters"),
+  harvestMonths: text("harvest_months").array(),
 });
 
 export const economicsTable = pgTable("economics", {
@@ -269,6 +271,8 @@ export const economicsTable = pgTable("economics", {
   interesCanalPremium: boolean("interes_canal_premium"),
   conocePrecioExportacion: boolean("conoce_precio_exportacion"),
   haIntentadoExportar: boolean("ha_intentado_exportar"),
+  costPerKg: decimal("cost_per_kg", { precision: 8, scale: 2 }),
+  minimumOrderKg: integer("minimum_order_kg"),
 });
 
 export const complianceDocsTable = pgTable("compliance_docs", {
