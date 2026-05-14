@@ -78,6 +78,12 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
           capitalCapacityCop: parsed.capital_capacity_cop,
           complianceGaps: parsed.compliance_gaps?.join(", "),
           gapAnalysis: parsed.gap_analysis,
+          confidenceLevel: parsed.confidence_level ?? null,
+          dataCompleteness:
+            typeof parsed.data_completeness === "number"
+              ? parsed.data_completeness
+              : null,
+          evidenceTier: parsed.evidence_tier ?? "SELF_REPORTED",
         })
         .returning();
 

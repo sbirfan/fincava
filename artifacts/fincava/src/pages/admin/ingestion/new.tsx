@@ -52,7 +52,7 @@ interface EnrichedProfile {
   categoryHints: string[];
   exportReadinessNarrative: string | null;
   estimatedAnnualVolumeKg: number | null;
-  certifications: string[];
+  likelyCertifications: string[];
   dataCompletenessScore: number | null;
 }
 
@@ -781,8 +781,8 @@ export default function AdminIngestionNew() {
                   value={`${enriched.estimatedAnnualVolumeKg.toLocaleString()} kg`}
                 />
               )}
-              {enriched.certifications.length > 0 && (
-                <Row label="Certifications" value={enriched.certifications.join(", ")} />
+              {(enriched.likelyCertifications?.length ?? 0) > 0 && (
+                <Row label="Likely Certifications (AI-inferred)" value={enriched.likelyCertifications?.join(", ") ?? "—"} />
               )}
               {enriched.dataCompletenessScore != null && (
                 <Row
