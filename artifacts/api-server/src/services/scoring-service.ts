@@ -37,7 +37,7 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
       const start = Date.now();
       const message = await client.messages.create({
         model: SCORING_MODEL,
-        max_tokens: 512,
+        max_tokens: 768,
         system: SCORING_PROMPT,
         messages: [
           {
