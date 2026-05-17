@@ -2010,8 +2010,12 @@ router.post(
     const [supplier] = await db
       .select({
         id: suppliersTable.id,
+        nombreCompleto: suppliersTable.nombreCompleto,
         description: suppliersTable.description,
+        municipio: suppliersTable.municipio,
+        department: suppliersTable.department,
         ingestionSource: suppliersTable.ingestionSource,
+        publishedToOriginStories: suppliersTable.publishedToOriginStories,
       })
       .from(suppliersTable)
       .where(eq(suppliersTable.id, supplierId))
@@ -2029,6 +2033,7 @@ router.post(
 
     const imageUrl = parsed.data.imageUrl?.trim() || null;
 
+    // Update the supplier flag + image URL
     await db
       .update(suppliersTable)
       .set({
@@ -2038,8 +2043,40 @@ router.post(
       })
       .where(eq(suppliersTable.id, supplierId));
 
+    // On first publish, seed an origin_stories row so the entry appears in
+    // /admin/origin-stories for future editing, visibility toggling, and deletion.
+    // On re-publish we leave the existing row untouched (admin may have enriched it).
+    if (!supplier.publishedToOriginStories) {
+      // Fetch category hint from product placeholders if available
+      const [placeholder] = await db
+        .select({ categoryHint: productPlaceholdersTable.categoryHint })
+        .from(productPlaceholdersTable)
+        .where(eq(productPlaceholdersTable.supplierId, supplierId))
+        .limit(1);
+
+      const region = supplier.department
+        ? `${supplier.municipio}, ${supplier.department}`
+        : supplier.municipio;
+
+      await db.insert(originStoriesTable).values({
+        productId:       null,
+        productCategory: placeholder?.categoryHint ?? null,
+        farmerName:      supplier.nombreCompleto,
+        farmerPhoto:     imageUrl ?? null,
+        farmName:        supplier.nombreCompleto,
+        region,
+        story:           supplier.description,
+        challenges:      "",
+        impact:          "",
+        images:          imageUrl ? [imageUrl] : [],
+        published:       true,
+      });
+
+      req.log.info({ supplierId }, "admin: origin_stories row seeded from ingestion publish");
+    }
+
     req.log.info(
-      { supplierId, imageUrl },
+      { supplierId, imageUrl, firstPublish: !supplier.publishedToOriginStories },
       "admin: supplier published to Origin Stories",
     );
     res.json({ success: true });
@@ -2193,41 +2230,59 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
 
   const fingerprint = computeSupplierFingerprint(nombreCompleto, country);
 
-  const [supplier] = await db
-    .insert(suppliersTable)
-    .values({
-      nombreCompleto,
-      whatsappNumber: whatsappNumber ?? null,
-      email: email ?? null,
-      municipio,
-      department: department ?? null,
-      vereda: vereda ?? null,
-      supplierType: supplierType ?? "FARMER",
-      // Only persist the free-text label when type is OTHER; clear it otherwise.
-      customSupplierType: supplierType === "OTHER" ? (customSupplierType ?? null) : null,
-      status: "ACTIVE",
-      consentGiven: false,
-      normalizedName: normalizedName ?? null,
-      description: description ?? null,
-      sourceUrl: sourceUrl ?? null,
-      country: country ?? "Colombia",
-      supplierFingerprint: fingerprint,
-      ingestionSource: "ADMIN_ENTRY",
-      ingestionStatus: "DRAFT",
-      claimStatus: "UNCLAIMED",
-      createdByAdminId: adminId,
-      batchId: batchId ?? null,
-    })
-    .returning();
+  let supplier: typeof suppliersTable.$inferSelect;
+  try {
+    const [inserted] = await db
+      .insert(suppliersTable)
+      .values({
+        nombreCompleto,
+        whatsappNumber: whatsappNumber ?? null,
+        email: email ?? null,
+        municipio,
+        department: department ?? null,
+        vereda: vereda ?? null,
+        supplierType: supplierType ?? "FARMER",
+        // Only persist the free-text label when type is OTHER; clear it otherwise.
+        customSupplierType: supplierType === "OTHER" ? (customSupplierType ?? null) : null,
+        status: "ACTIVE",
+        consentGiven: false,
+        normalizedName: normalizedName ?? null,
+        description: description ?? null,
+        sourceUrl: sourceUrl ?? null,
+        country: country ?? "Colombia",
+        supplierFingerprint: fingerprint,
+        ingestionSource: "ADMIN_ENTRY",
+        ingestionStatus: "DRAFT",
+        claimStatus: "UNCLAIMED",
+        createdByAdminId: adminId,
+        batchId: batchId ?? null,
+      })
+      .returning();
+    if (!inserted) throw new Error("Insert returned no rows");
+    supplier = inserted;
+  } catch (err: any) {
+    req.log.error({ err, fingerprint }, "ingestion/suppliers: DB insert failed");
+    // PostgreSQL unique-constraint violation (code 23505) on supplierFingerprint
+    if (err?.code === "23505" || err?.constraint?.includes("fingerprint")) {
+      sendError(res, 409, `A supplier with a very similar name already exists in this country. Use the duplicate override if you are certain this is a distinct entity.`);
+      return;
+    }
+    sendError(res, 500, "Failed to save supplier — please try again. If the problem persists, contact support.");
+    return;
+  }
 
   // Create product placeholder if a category hint was supplied
-  if (categoryHint) {
-    await db.insert(productPlaceholdersTable).values({
-      supplierId: supplier.id,
-      categoryHint,
-      dataOrigin: "inferred",
-      verificationStatus: "unverified",
-    });
+  try {
+    if (categoryHint) {
+      await db.insert(productPlaceholdersTable).values({
+        supplierId: supplier.id,
+        categoryHint,
+        dataOrigin: "inferred",
+        verificationStatus: "unverified",
+      });
+    }
+  } catch (err: any) {
+    req.log.warn({ err, supplierId: supplier.id }, "ingestion/suppliers: product placeholder insert failed (non-fatal)");
   }
 
   logInteraction({

@@ -8,6 +8,9 @@ import {
   ChevronLeft,
   Loader2,
   ListOrdered,
+  X,
+  Eye,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,6 +110,10 @@ export default function AdminIngestionNew() {
   const [originPublished, setOriginPublished] = useState(false);
   const [originError, setOriginError] = useState<string | null>(null);
   const originFileInputRef = useRef<HTMLInputElement>(null);
+  // Track description that was auto-filled by AI so we can revert it on decline
+  const aiFilledDescriptionRef = useRef<string | null>(null);
+  // Origin story preview toggle (in success panel)
+  const [showOriginPreview, setShowOriginPreview] = useState(false);
 
   // Pre-fill form from URL query params (supplied by the discovery engine handoff).
   // Always starts from EMPTY_FORM so stale data from a previous lead never carries over.
@@ -196,9 +203,12 @@ export default function AdminIngestionNew() {
       }
       const data: EnrichedProfile = await res.json();
       setEnriched(data);
-      // Merge AI description back into form if form description is blank
+      // Merge AI description back into form if form description is blank; track it so we can revert on decline
       if (!form.description && data.description) {
         setForm((f) => ({ ...f, description: data.description }));
+        aiFilledDescriptionRef.current = data.description;
+      } else {
+        aiFilledDescriptionRef.current = null;
       }
     } catch (err) {
       setEnrichError(err instanceof Error ? err.message : "Enrichment failed.");
@@ -374,12 +384,71 @@ export default function AdminIngestionNew() {
 
         {/* Origin Stories section */}
         <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold text-white">Publish to Origin Stories</h2>
-            <p className="text-xs text-white/50 mt-0.5">
-              Feature this supplier on the public Origin Stories page. Requires a description.
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Publish to Origin Stories</h2>
+              <p className="text-xs text-white/50 mt-0.5">
+                Feature this supplier on the public Origin Stories page. Requires a description.
+              </p>
+            </div>
+            {hasDescription && !originPublished && (
+              <button
+                type="button"
+                onClick={() => setShowOriginPreview((v) => !v)}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-white/40 hover:border-emerald-400/40 hover:text-emerald-400 transition-colors"
+              >
+                <Eye className="h-3 w-3" />
+                {showOriginPreview ? "Hide preview" : "Preview card"}
+              </button>
+            )}
           </div>
+
+          {/* Public card preview */}
+          {showOriginPreview && hasDescription && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2">
+              <p className="text-[11px] text-emerald-400/70 font-medium uppercase tracking-wider">
+                How it will appear on the public Origin Stories page
+              </p>
+              <div className="rounded-lg overflow-hidden border border-white/10 bg-[#111] max-w-xs">
+                {/* Image area */}
+                <div className="h-40 bg-white/5 relative overflow-hidden">
+                  {(originImagePreview || originImageUrl) ? (
+                    <img
+                      src={originImagePreview ?? originImageUrl}
+                      alt="Cover"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white/20 text-xs">
+                      No image — add one below
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                    <div className="flex items-center text-white/90 text-xs gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {[savedSupplier.nombreCompleto ? null : null, form.municipio, form.department].filter(Boolean).join(", ") || "Colombia"}
+                    </div>
+                  </div>
+                </div>
+                {/* Card body */}
+                <div className="p-4 space-y-1.5">
+                  <div className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">
+                    {form.categoryHint || "Agricultural Supplier"}
+                  </div>
+                  <h3 className="text-base font-serif font-bold text-white leading-snug">
+                    {savedSupplier.nombreCompleto}
+                  </h3>
+                  <p className="text-[11px] text-white/40">
+                    {[form.municipio, form.department].filter(Boolean).join(", ") || "Colombia"}
+                  </p>
+                  <p className="text-xs text-white/60 line-clamp-4 leading-relaxed pt-1">
+                    {savedSupplier.description}
+                  </p>
+                  <p className="text-xs font-medium text-emerald-400 pt-1">Read full story →</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {!hasDescription && (
             <div className="flex items-start gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2.5 text-xs text-orange-300">
@@ -404,7 +473,7 @@ export default function AdminIngestionNew() {
                   Cover image <span className="text-white/30">(optional)</span>
                 </label>
 
-                {/* Preview */}
+                {/* Preview thumbnail */}
                 {(originImagePreview || originImageUrl) && (
                   <div className="relative w-full h-32 rounded-lg overflow-hidden border border-white/10">
                     <img
@@ -760,9 +829,30 @@ export default function AdminIngestionNew() {
 
         {enriched && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
-              <CheckCircle2 className="h-4 w-4" />
-              Enrichment complete — review and save
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                <CheckCircle2 className="h-4 w-4" />
+                Enrichment complete — review and save
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  // Revert description only if it was auto-filled by AI and hasn't been manually edited
+                  if (
+                    aiFilledDescriptionRef.current !== null &&
+                    form.description === aiFilledDescriptionRef.current
+                  ) {
+                    setForm((f) => ({ ...f, description: "" }));
+                  }
+                  aiFilledDescriptionRef.current = null;
+                  setEnriched(null);
+                  setEnrichError(null);
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-white/40 hover:border-red-400/40 hover:text-red-400 transition-colors"
+              >
+                <X className="h-3 w-3" />
+                Decline enrichment
+              </button>
             </div>
             <div className="grid gap-3 text-sm">
               <Row label="Normalized name" value={enriched.normalizedName} />
