@@ -2639,6 +2639,8 @@ router.get("/admin/origin-stories", ...adminOnly, async (_req, res): Promise<voi
   const rows = await db
     .select({
       id:              originStoriesTable.id,
+      supplierId:      originStoriesTable.supplierId,
+      supplierName:    suppliersTable.nombreCompleto,
       productId:       originStoriesTable.productId,
       productCategory: originStoriesTable.productCategory,
       farmerName:      originStoriesTable.farmerName,
@@ -2657,6 +2659,7 @@ router.get("/admin/origin-stories", ...adminOnly, async (_req, res): Promise<voi
       createdAt:       originStoriesTable.createdAt,
     })
     .from(originStoriesTable)
+    .leftJoin(suppliersTable, eq(suppliersTable.id, originStoriesTable.supplierId))
     .orderBy(desc(originStoriesTable.createdAt));
 
   res.json(rows);
@@ -2677,6 +2680,16 @@ router.get("/admin/products-simple", ...adminOnly, async (_req, res): Promise<vo
     .leftJoin(suppliersTable, eq(suppliersTable.id, productsTable.supplierId))
     .orderBy(productsTable.name);
 
+  res.json(rows);
+});
+
+// ── GET /api/admin/suppliers-simple ───────────────────────────────────────────
+// Minimal supplier list for dropdowns — id + display name only.
+router.get("/admin/suppliers-simple", ...adminOnly, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ id: suppliersTable.id, nombreCompleto: suppliersTable.nombreCompleto })
+    .from(suppliersTable)
+    .orderBy(suppliersTable.nombreCompleto);
   res.json(rows);
 });
 
@@ -2771,6 +2784,7 @@ const STORY_PRODUCT_CATEGORIES = [
 ] as const;
 
 const OriginStoryCreateBody = z.object({
+  supplierId:      z.number().int().positive().optional().nullable(),
   productCategory: z.string().min(1),
   farmerName:      z.string().min(1),
   farmerPhoto:     z.string().optional().or(z.literal("")),
@@ -2799,6 +2813,7 @@ router.post("/admin/origin-stories", ...adminOnly, async (req: Request, res: Res
   const d = parsed.data;
 
   const [story] = await db.insert(originStoriesTable).values({
+    supplierId:      d.supplierId ?? null,
     productId:       null,
     productCategory: d.productCategory,
     farmerName:      d.farmerName,
@@ -2837,6 +2852,7 @@ router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res
   if (!existing) { sendError(res, 404, "Story not found"); return; }
 
   const updateData: Partial<typeof originStoriesTable.$inferInsert> = {};
+  if (d.supplierId   !== undefined) updateData.supplierId   = d.supplierId ?? null;
   if (d.productCategory !== undefined) updateData.productCategory = d.productCategory;
   if (d.farmerName   !== undefined) updateData.farmerName   = d.farmerName;
   if (d.farmerPhoto  !== undefined) updateData.farmerPhoto  = d.farmerPhoto || null;

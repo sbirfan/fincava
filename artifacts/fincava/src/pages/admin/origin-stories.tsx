@@ -24,6 +24,8 @@ const STORY_PRODUCT_CATEGORIES = [
 
 interface AdminOriginStory {
   id: number;
+  supplierId: number | null;
+  supplierName: string | null;
   productId: number | null;
   productCategory: string | null;
   farmerName: string;
@@ -42,7 +44,13 @@ interface AdminOriginStory {
   createdAt: string;
 }
 
+interface SupplierOption {
+  id: number;
+  nombreCompleto: string;
+}
+
 type StoryDraft = {
+  supplierId: number | null;
   productCategory: string;
   farmerName: string;
   farmerPhoto: string;
@@ -61,6 +69,7 @@ type StoryDraft = {
 };
 
 const EMPTY_DRAFT: StoryDraft = {
+  supplierId: null,
   productCategory: "",
   farmerName: "",
   farmerPhoto: "",
@@ -81,6 +90,7 @@ const EMPTY_DRAFT: StoryDraft = {
 function draftFromStory(s: AdminOriginStory): StoryDraft {
   const isKnownDept = COLOMBIAN_DEPARTMENTS.includes(s.region);
   return {
+    supplierId:      s.supplierId ?? null,
     productCategory: s.productCategory ?? "",
     farmerName:      s.farmerName,
     farmerPhoto:     s.farmerPhoto ?? "",
@@ -106,6 +116,7 @@ function resolvedRegion(d: StoryDraft): string {
 
 function draftToPayload(d: StoryDraft) {
   return {
+    supplierId:      d.supplierId ?? undefined,
     productCategory: d.productCategory,
     farmerName:      d.farmerName.trim(),
     farmerPhoto:     d.farmerPhoto.trim() || undefined,
@@ -549,6 +560,15 @@ function StoryCard({
             <p className="font-semibold text-white">{story.farmerName}</p>
             <p className="text-sm text-white/50">{story.farmName} · {story.region}</p>
             <div className="flex flex-wrap gap-2 mt-1.5">
+              {story.supplierName ? (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 flex items-center gap-1">
+                  <Link2 className="h-2.5 w-2.5" />{story.supplierName}
+                </span>
+              ) : (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  unlinked
+                </span>
+              )}
               {story.productCategory && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
                   {story.productCategory}
@@ -688,6 +708,7 @@ const textareaCls = `${inputCls} resize-none`;
 function StoryModal({
   initial,
   isEditing,
+  suppliers,
   onClose,
   onSave,
   isSaving,
@@ -695,6 +716,7 @@ function StoryModal({
 }: {
   initial: StoryDraft;
   isEditing: boolean;
+  suppliers: SupplierOption[];
   onClose: () => void;
   onSave: (d: StoryDraft) => void;
   isSaving: boolean;
@@ -724,6 +746,27 @@ function StoryModal({
         </div>
 
         <div className="px-6 py-5 space-y-4">
+          {/* Supplier link — determines which supplier page shows this story */}
+          <Field label="Link to Supplier">
+            <select
+              className={inputCls}
+              value={form.supplierId ?? ""}
+              onChange={(e) =>
+                set("supplierId")(e.target.value ? Number(e.target.value) : null)
+              }
+            >
+              <option value="">— unlinked (won't appear on any supplier page) —</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombreCompleto}</option>
+              ))}
+            </select>
+            {form.supplierId && (
+              <p className="mt-1 text-xs text-emerald-400">
+                This story will appear on the supplier's public page when published.
+              </p>
+            )}
+          </Field>
+
           {/* Product Category — simple fixed list, no FK */}
           <Field label="Product" required>
             <select
@@ -907,6 +950,15 @@ export default function AdminOriginStories() {
     },
   });
 
+  const { data: suppliers = [] } = useQuery<SupplierOption[]>({
+    queryKey: ["admin", "suppliers-simple"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/suppliers-simple", { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+  });
+
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "origin-stories"] });
 
   const createMutation = useMutation({
@@ -1055,6 +1107,7 @@ export default function AdminOriginStories() {
         <StoryModal
           initial={modalState.editing ? draftFromStory(modalState.editing) : EMPTY_DRAFT}
           isEditing={!!modalState.editing}
+          suppliers={suppliers}
           onClose={() => { setModalState({ open: false, editing: null }); setSaveError(""); }}
           onSave={handleSave}
           isSaving={createMutation.isPending || patchMutation.isPending}
