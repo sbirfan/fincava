@@ -1326,9 +1326,9 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     return;
   }
 
-  // Fetch products linked to this supplier.
-  const supplierProducts = await db
-    .select({
+  // Fetch products and origin story row in parallel.
+  const [[...supplierProducts], [storyRow]] = await Promise.all([
+    db.select({
       id: productsTable.id,
       name: productsTable.name,
       category: productsTable.category,
@@ -1342,7 +1342,20 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
       images: productsTable.images,
     })
     .from(productsTable)
-    .where(eq(productsTable.supplierId, supplierId));
+    .where(eq(productsTable.supplierId, supplierId)),
+
+    // Origin story — prefer origin_stories row by supplierId FK (set at publish
+    // time and updated by Prompt 2). Falls back to suppliers.description for
+    // legacy suppliers that pre-date the supplierId column.
+    db.select({
+      story:       originStoriesTable.story,
+      farmerPhoto: originStoriesTable.farmerPhoto,
+      images:      originStoriesTable.images,
+    })
+    .from(originStoriesTable)
+    .where(and(eq(originStoriesTable.supplierId, supplierId), eq(originStoriesTable.published, true)))
+    .limit(1),
+  ]);
 
   // Derive phase flags.
   const isCertified = supplier.claimStatus === "CLAIMED";
@@ -1360,6 +1373,9 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
   // Derive product categories from linked products.
   const productCategories = [...new Set(supplierProducts.map((p) => p.category).filter(Boolean))];
 
+  const originStoryText = storyRow?.story ?? supplier.description ?? null;
+  const originStoryImageUrl = storyRow?.farmerPhoto ?? storyRow?.images?.[0] ?? supplier.originStoryImageUrl ?? null;
+
   // Internal lifecycle fields (status, sellableStatus) are intentionally omitted
   // from the public response to avoid leaking pipeline metadata.
   res.json({
@@ -1374,8 +1390,8 @@ router.get("/suppliers/:id/profile", async (req, res): Promise<void> => {
     memberSince: supplier.createdAt,
     public_trust_score,
     farmerName: supplier.registeredBy ?? null,
-    originStory: supplier.description ?? null,
-    originStoryImageUrl: supplier.originStoryImageUrl ?? null,
+    originStory: originStoryText,
+    originStoryImageUrl,
     products: supplierProducts,
     certificationDetails: [],
     productCategories,

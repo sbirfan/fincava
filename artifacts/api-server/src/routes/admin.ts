@@ -1738,8 +1738,8 @@ router.delete("/admin/suppliers/:id", ...adminOnly, async (req: Request, res: Re
       await tx.delete(economicsTable).where(eq(economicsTable.supplierId, id));
       await tx.delete(farmsTable).where(eq(farmsTable.supplierId, id));
 
-      // `as any` works around a Drizzle typing limitation for nullable integer columns.
       // Null out FK on products (preserve product catalogue rows for audit, just unlink).
+      // `as any` works around a Drizzle typing limitation for nullable integer columns.
       await tx
         .update(productsTable)
         .set({ supplierId: null } as any)
@@ -2851,6 +2851,12 @@ router.patch("/admin/origin-stories/:id", ...adminOnly, async (req: Request, res
   if (d.images       !== undefined) updateData.images       = d.images ?? [];
   if (d.videoUrl     !== undefined) updateData.videoUrl     = d.videoUrl || null;
   if (d.published    !== undefined) updateData.published    = d.published;
+
+  // Stamp EDITED whenever narrative content is saved manually — prevents
+  // seedOriginStory from overwriting admin edits on re-publish.
+  if (d.story !== undefined || d.challenges !== undefined || d.impact !== undefined) {
+    updateData.originStoryStatus = "EDITED";
+  }
 
   const [updated] = await db.update(originStoriesTable).set(updateData)
     .where(eq(originStoriesTable.id, id)).returning();
