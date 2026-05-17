@@ -29,7 +29,7 @@ import { computePublicTrustScore } from "../services/confidence-scorer";
 import { getAnthropicClient, SCORING_MODEL, DOCUMENT_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { parsePagination } from "../schemas";
-import { desc, asc, eq, and, gte, lte, sql, count, inArray, ilike, or, isNull, notInArray } from "drizzle-orm";
+import { desc, asc, eq, and, gte, lte, sql, count, inArray, ilike, or, isNull, isNotNull, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   evaluateSupplier,
@@ -607,6 +607,17 @@ router.get(
       .orderBy(farmsTable.supplierId, desc(farmsTable.id))
       .as("latest_farm");
 
+    // Subquery: at most one origin story per supplier — gives us storyPublished
+    const latestOriginStory = db
+      .selectDistinctOn([originStoriesTable.supplierId], {
+        supplierId: originStoriesTable.supplierId,
+        published: originStoriesTable.published,
+      })
+      .from(originStoriesTable)
+      .where(isNotNull(originStoriesTable.supplierId))
+      .orderBy(originStoriesTable.supplierId, desc(originStoriesTable.id))
+      .as("latest_origin_story");
+
     const conditions = [];
     if (pathway) conditions.push(eq(latestScores.pathway, pathway));
     if (municipio) conditions.push(eq(suppliersTable.municipio, municipio));
@@ -656,10 +667,12 @@ router.get(
         description: suppliersTable.description,
         publishedToOriginStories: suppliersTable.publishedToOriginStories,
         originStoryImageUrl: suppliersTable.originStoryImageUrl,
+        storyPublished: latestOriginStory.published,
       })
       .from(suppliersTable)
       .leftJoin(latestFarm, eq(latestFarm.supplierId, suppliersTable.id))
       .leftJoin(latestScores, eq(latestScores.supplierId, suppliersTable.id))
+      .leftJoin(latestOriginStory, eq(latestOriginStory.supplierId, suppliersTable.id))
       .orderBy(desc(suppliersTable.createdAt))
       .$dynamic();
 
