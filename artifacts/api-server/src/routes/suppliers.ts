@@ -1166,6 +1166,18 @@ router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
         imageUrl:   storyRow.images?.[0] ?? null,
         location:   storyRow.region,
       };
+    } else if (supplier.description?.trim()) {
+      // Tier 3 — legacy fallback: supplier was published before the supplierId FK
+      // column existed, so no origin_stories row is linked. Use suppliers.description
+      // directly so the public page still shows the story.
+      originStory = {
+        farmerName: supplier.registeredBy ?? supplier.nombreCompleto,
+        story:      supplier.description,
+        imageUrl:   supplier.originStoryImageUrl ?? null,
+        location:   supplier.department
+          ? `${supplier.municipio}, ${supplier.department}`
+          : (supplier.municipio ?? "Colombia"),
+      };
     }
   }
 
