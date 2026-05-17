@@ -2,6 +2,7 @@ import { pgTable, text, serial, integer, timestamp, boolean, real, pgEnum, index
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
+import { suppliersTable } from "./suppliers";
 
 export const productCategoryEnum = pgEnum("product_category", [
   "COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED", "TEXTILE", "OTHER"
@@ -49,6 +50,15 @@ export const productsTable = pgTable("products", {
 export const originStoriesTable = pgTable("origin_stories", {
   id: serial("id").primaryKey(),
   productId: integer("product_id").references(() => productsTable.id),
+  // FK for ingestion-sourced suppliers published via the ingestion panel.
+  // NULL for product-linked stories created before this column was added.
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  // Tracks content maturity of the story text.
+  // SEED_DRAFT  — placeholder created by Prompt 4 at publish time (warm but provisional)
+  // GENERATED   — full narrative from Prompt 2 (requires farm + economics data)
+  // EDITED      — admin has manually edited the story via the origin stories panel
+  // NULL        — legacy rows created before this column existed
+  originStoryStatus: text("origin_story_status"),
   productCategory: text("product_category"),
   farmerName: text("farmer_name").notNull(),
   farmerPhoto: text("farmer_photo"),

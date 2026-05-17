@@ -1,5 +1,6 @@
 export * from "./users";
 export * from "./companies";
+export * from "./suppliers";
 export * from "./products";
 export * from "./orders";
 export * from "./inquiries";
@@ -9,7 +10,6 @@ export * from "./rfqs";
 export * from "./shipments";
 export * from "./analytics";
 export * from "./financing";
-export * from "./suppliers";
 export * from "./supplier-evaluations";
 export * from "./supplier-state-transitions";
 export * from "./staff-roles";

@@ -1088,10 +1088,12 @@ router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
     supplier.sellableStatus === "SELLABLE" ||
     supplier.sellableStatus === "PUBLISHED";
 
-  // Origin story: prefer supplier-level fields (matches the /api/origin-stories
-  // list endpoint which uses publishedToOriginStories + description).
-  // Falls back to the origin_stories table via the products join for suppliers
-  // that have product-linked stories instead.
+  // Origin story — three-tier fallback chain:
+  //   Tier 1: origin_stories row by supplierId FK (ingestion-sourced suppliers,
+  //           story written by Prompt 4 at publish time or Prompt 2 after onboarding)
+  //   Tier 2: origin_stories row via products join (product-linked suppliers)
+  //   Tier 3: null — no story available yet
+  // suppliers.description is no longer used as origin story content.
   let originStory: {
     farmerName: string;
     story: string;
@@ -1099,17 +1101,33 @@ router.get("/suppliers/marketplace/:id", async (req, res): Promise<void> => {
     location: string;
   } | null = null;
 
-  if (supplier.publishedToOriginStories && supplier.description?.trim()) {
+  // Tier 1 — look up by supplierId FK
+  const [storyBySupplier] = await db
+    .select({
+      farmerName: originStoriesTable.farmerName,
+      story:      originStoriesTable.story,
+      images:     originStoriesTable.images,
+      farmerPhoto: originStoriesTable.farmerPhoto,
+      region:     originStoriesTable.region,
+    })
+    .from(originStoriesTable)
+    .where(
+      and(
+        eq(originStoriesTable.supplierId, supplierId),
+        eq(originStoriesTable.published, true),
+      ),
+    )
+    .limit(1);
+
+  if (storyBySupplier) {
     originStory = {
-      farmerName: supplier.registeredBy ?? supplier.nombreCompleto,
-      story:      supplier.description,
-      imageUrl:   supplier.originStoryImageUrl ?? null,
-      location:   supplier.department
-        ? `${supplier.municipio}, ${supplier.department}`
-        : (supplier.municipio ?? "Colombia"),
+      farmerName: storyBySupplier.farmerName,
+      story:      storyBySupplier.story,
+      imageUrl:   storyBySupplier.farmerPhoto ?? storyBySupplier.images?.[0] ?? supplier.originStoryImageUrl ?? null,
+      location:   storyBySupplier.region,
     };
   } else {
-    // Fallback: first published origin_stories row linked via products.
+    // Tier 2 — fallback: first published origin_stories row linked via products
     const [storyRow] = await db
       .select({
         farmerName: originStoriesTable.farmerName,

@@ -799,7 +799,7 @@ export default function AdminIngestionNew() {
       <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-white">Enhance with AI</h2>
+            <h2 className="text-sm font-semibold text-white">Analyse &amp; Fill Fields</h2>
             <p className="text-white/40 text-xs mt-0.5">
               Claude will infer a description, category hints, export readiness, and a completeness score.
             </p>
@@ -811,11 +811,11 @@ export default function AdminIngestionNew() {
           >
             {enriching ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Enhancing…
+                <Loader2 className="h-4 w-4 animate-spin" /> Analysing…
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4" /> Enhance with AI
+                <Sparkles className="h-4 w-4" /> Analyse &amp; Fill Fields
               </>
             )}
           </Button>

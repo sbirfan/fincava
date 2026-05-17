@@ -240,6 +240,11 @@ export default function AdminSuppliersPage() {
   const [scoreStatus, setScoreStatus] = useState<Record<number, "started" | "failed">>({});
   const [publishing, setPublishing] = useState<number | null>(null);
   const [publishError, setPublishError] = useState("");
+  // Delete supplier state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   // Origin Stories modal state
   const [originModalOpen, setOriginModalOpen] = useState(false);
   const [originImageUrl, setOriginImageUrl] = useState("");
@@ -732,6 +737,26 @@ export default function AdminSuppliersPage() {
       setOriginError(e.message || "Failed to update Supplier Network story flag");
     } finally {
       setStoryToggling(false);
+    }
+  }
+
+  async function deleteSupplier(supplierId: number) {
+    setDeleteDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(toErrMsg(json, res.status));
+      setSuppliers((prev) => prev.filter((s) => s.id !== supplierId));
+      setSelected(null);
+      setDeleteConfirmOpen(false);
+    } catch (e: any) {
+      setDeleteError(e.message || "Failed to delete supplier");
+    } finally {
+      setDeleteDeleting(false);
     }
   }
 
@@ -1645,6 +1670,77 @@ export default function AdminSuppliersPage() {
                   ? "Contactar por WhatsApp"
                   : "Contact via WhatsApp"}
               </a>
+            </div>
+
+            {/* ── Danger zone ──────────────────────────────────────────── */}
+            <div className="mt-6 border border-red-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-3">
+                {lang === "es" ? "Zona de peligro" : "Danger zone"}
+              </p>
+              <button
+                onClick={() => { setDeleteError(""); setDeleteConfirmOpen(true); }}
+                className="w-full py-2 rounded-lg text-sm font-medium border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 transition"
+              >
+                {lang === "es" ? "🗑 Eliminar proveedor permanentemente" : "🗑 Permanently delete supplier"}
+              </button>
+              <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+                {lang === "es"
+                  ? "Esta acción no se puede deshacer. Bloqueado si el proveedor tiene pedidos."
+                  : "This action cannot be undone. Blocked if supplier has any orders."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirmOpen && selected && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !deleteDeleting && setDeleteConfirmOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-red-200 w-full max-w-sm p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg shrink-0">
+                🗑
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">
+                  {lang === "es" ? "¿Eliminar proveedor?" : "Delete supplier?"}
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">{selected.nombreCompleto}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              {lang === "es"
+                ? "Se eliminarán permanentemente todos los datos asociados: finca, economía, cumplimiento, outputs de IA e interacciones. Esta acción no se puede deshacer."
+                : "All associated data will be permanently removed: farm, economics, compliance, AI outputs, and interactions. This action cannot be undone."}
+            </p>
+            {deleteError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => !deleteDeleting && setDeleteConfirmOpen(false)}
+                disabled={deleteDeleting}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition disabled:opacity-50"
+              >
+                {lang === "es" ? "Cancelar" : "Cancel"}
+              </button>
+              <button
+                onClick={() => deleteSupplier(selected.id)}
+                disabled={deleteDeleting}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition disabled:opacity-60"
+              >
+                {deleteDeleting
+                  ? (lang === "es" ? "Eliminando…" : "Deleting…")
+                  : (lang === "es" ? "Sí, eliminar" : "Yes, delete")}
+              </button>
             </div>
           </div>
         </div>

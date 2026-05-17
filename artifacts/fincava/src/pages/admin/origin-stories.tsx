@@ -424,7 +424,8 @@ function AIEnhanceField({
           {status === "loading" ? (
             <><span className="animate-spin inline-block h-3 w-3 border border-emerald-400 border-t-transparent rounded-full" /> Enhancing…</>
           ) : (
-            <><Sparkles className="h-3 w-3" /> Enhance with AI</>
+            <><Sparkles className="h-3 w-3" /> Rewrite in Farmer Voice</>
+
           )}
         </button>
       </div>

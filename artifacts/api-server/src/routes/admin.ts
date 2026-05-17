@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { z } from "zod";
 import { db, usersTable, profilesTable, companiesTable } from "@workspace/db";
 import { loansTable, repaymentsTable } from "@workspace/db";
-import { ordersTable, orderItemsTable, productsTable, originStoriesTable, staffRolesTable, suppliersTable, farmsTable } from "@workspace/db";
+import { ordersTable, orderItemsTable, productsTable, originStoriesTable, staffRolesTable, suppliersTable, farmsTable, economicsTable, complianceDocsTable, aiOutputsTable, interactionsTable, supplierContactsTable } from "@workspace/db";
 import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES, complianceRequirementsTable } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
@@ -12,6 +12,7 @@ import { computeTrustScore, getTrustTier } from "../services/trust-score-service
 import { adminOnly } from "../middleware/admin";
 import { AdminUserEditBody, AdminResetPasswordBody, AdminCreateUserBody, AdminOrderStatusBody, AdminLoanStatusBody, AdminSupplierStatusBody, AdminSupplierEditBody, StaffRoleBody, parsePagination, STAFF_ROLE_VALUES, BatchCreateBody, IngestionSupplierBody, EnrichmentRequestBody, IngestionStatusUpdateBody, DuplicateCheckQuery, DiscoveryRequestBody, BatchConfirmBody } from "../schemas";
 import { enrichSupplierWithAI } from "../services/ingestion-structuring-service";
+import { seedOriginStory } from "../services/origin-story-service";
 import { checkDuplicate, computeSupplierFingerprint, logDuplicateOverride } from "../services/duplicate-detector";
 import { discoverLeads } from "../services/discovery-engine";
 import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
@@ -1636,16 +1637,32 @@ router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<voi
       }
 
       // originStoriesTable.published toggle — surfaces story on Supplier Network page.
+      // Prefers the supplierId FK (ingestion-sourced suppliers); falls back to the
+      // products join for product-linked suppliers that pre-date the supplierId column.
       if (data.originStoryPublished !== undefined) {
-        const supplierProducts = await tx
-          .select({ id: productsTable.id })
-          .from(productsTable)
-          .where(eq(productsTable.supplierId, id));
-        if (supplierProducts.length > 0) {
+        const [bySupplier] = await tx
+          .select({ id: originStoriesTable.id })
+          .from(originStoriesTable)
+          .where(eq(originStoriesTable.supplierId, id))
+          .limit(1);
+
+        if (bySupplier) {
           await tx
             .update(originStoriesTable)
             .set({ published: data.originStoryPublished })
-            .where(inArray(originStoriesTable.productId, supplierProducts.map((p) => p.id)));
+            .where(eq(originStoriesTable.id, bySupplier.id));
+        } else {
+          // Fallback: product-linked stories (supplierId FK was null before this fix)
+          const supplierProducts = await tx
+            .select({ id: productsTable.id })
+            .from(productsTable)
+            .where(eq(productsTable.supplierId, id));
+          if (supplierProducts.length > 0) {
+            await tx
+              .update(originStoriesTable)
+              .set({ published: data.originStoryPublished })
+              .where(inArray(originStoriesTable.productId, supplierProducts.map((p) => p.id)));
+          }
         }
       }
 
@@ -1657,7 +1674,9 @@ router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<voi
       return;
     }
     // Partial-unique whatsapp index rejecting a duplicate.
-    if (err?.code === "23505") {
+    // Drizzle wraps PG errors — check both err.code and err.cause.code.
+    const pgCode = err?.code ?? err?.cause?.code;
+    if (pgCode === "23505") {
       res.status(409).json({
         error: { whatsappNumber: ["Another supplier already uses this WhatsApp number"] },
       });
@@ -1682,6 +1701,67 @@ router.patch("/admin/suppliers/:id", ...adminOnly, async (req, res): Promise<voi
     supplier: updated,
     primaryProduct: data.primaryProduct,
   });
+});
+
+// ── DELETE /api/admin/suppliers/:id ──────────────────────────────────────────
+// Permanently remove a supplier and all associated data.
+// Blocked if the supplier has any orders (financial records must be preserved).
+router.delete("/admin/suppliers/:id", ...adminOnly, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { sendError(res, 400, "Invalid supplier id"); return; }
+
+  // Check for orders first — do not allow deletion if transactional data exists.
+  const existingOrders = await db
+    .select({ id: ordersTable.id })
+    .from(ordersTable)
+    .where(eq(ordersTable.supplierId, id))
+    .limit(1);
+  if (existingOrders.length > 0) {
+    sendError(res, 409, "Cannot delete a supplier that has associated orders. Mark as INACTIVE instead.");
+    return;
+  }
+
+  // Wrap all deletes in a transaction. Tables with onDelete CASCADE are handled
+  // automatically by Postgres; we manually remove non-cascade child rows first.
+  await db.transaction(async (tx) => {
+    // Null out supplierId on origin_stories (FK is nullable — no row delete needed,
+    // but cleaner to remove the row entirely since it belongs to this supplier).
+    await tx.delete(originStoriesTable).where(eq(originStoriesTable.supplierId, id));
+
+    // Non-cascade child tables
+    await tx.delete(productPlaceholdersTable).where(eq(productPlaceholdersTable.supplierId, id));
+    await tx.delete(supplierContactsTable).where(eq(supplierContactsTable.supplierId, id));
+    await tx.delete(interactionsTable).where(eq(interactionsTable.supplierId, id));
+    await tx.delete(aiOutputsTable).where(eq(aiOutputsTable.supplierId, id));
+    await tx.delete(complianceDocsTable).where(eq(complianceDocsTable.supplierId, id));
+    await tx.delete(economicsTable).where(eq(economicsTable.supplierId, id));
+    await tx.delete(farmsTable).where(eq(farmsTable.supplierId, id));
+
+    // Null out FK on products (preserve product catalogue rows for audit, just unlink).
+    await tx
+      .update(productsTable)
+      .set({ supplierId: null } as any)
+      .where(eq(productsTable.supplierId, id));
+
+    // Finally delete the supplier (cascade tables auto-delete via Postgres).
+    const [deleted] = await tx
+      .delete(suppliersTable)
+      .where(eq(suppliersTable.id, id))
+      .returning({ id: suppliersTable.id });
+    if (!deleted) throw new Error("__SUPPLIER_NOT_FOUND__");
+  }).catch((err: any) => {
+    if (err?.message === "__SUPPLIER_NOT_FOUND__") {
+      sendError(res, 404, "Supplier not found");
+    } else {
+      req.log.error({ err, supplierId: id }, "admin: supplier delete failed");
+      sendError(res, 500, "Failed to delete supplier — please try again.");
+    }
+    return;
+  });
+
+  // If we reach here, the transaction succeeded.
+  req.log.info({ supplierId: id, adminId: req.userId }, "admin: supplier permanently deleted");
+  res.json({ success: true, deletedId: id });
 });
 
 // ── GET /api/admin/team ───────────────────────────────────────────────────────
@@ -2011,9 +2091,10 @@ router.post(
       .select({
         id: suppliersTable.id,
         nombreCompleto: suppliersTable.nombreCompleto,
-        description: suppliersTable.description,
         municipio: suppliersTable.municipio,
         department: suppliersTable.department,
+        supplierType: suppliersTable.supplierType,
+        registeredBy: suppliersTable.registeredBy,
         ingestionSource: suppliersTable.ingestionSource,
         publishedToOriginStories: suppliersTable.publishedToOriginStories,
       })
@@ -2023,11 +2104,6 @@ router.post(
 
     if (!supplier) {
       sendError(res, 404, "Supplier not found");
-      return;
-    }
-
-    if (!supplier.description?.trim()) {
-      sendError(res, 422, "A description is required before publishing to Origin Stories.");
       return;
     }
 
@@ -2043,36 +2119,47 @@ router.post(
       })
       .where(eq(suppliersTable.id, supplierId));
 
-    // On first publish, seed an origin_stories row so the entry appears in
-    // /admin/origin-stories for future editing, visibility toggling, and deletion.
-    // On re-publish we leave the existing row untouched (admin may have enriched it).
-    if (!supplier.publishedToOriginStories) {
-      // Fetch category hint from product placeholders if available
-      const [placeholder] = await db
-        .select({ categoryHint: productPlaceholdersTable.categoryHint })
-        .from(productPlaceholdersTable)
-        .where(eq(productPlaceholdersTable.supplierId, supplierId))
-        .limit(1);
+    // On first publish, call Prompt 4 (seedOriginStory) to generate a warm
+    // placeholder story and seed the origin_stories row. Never copies
+    // suppliers.description — that field holds B2B catalogue copy.
+    // On re-publish, seedOriginStory respects GENERATED/EDITED status and
+    // won't overwrite story text that has been enriched by admin or Prompt 2.
+    const [placeholder] = await db
+      .select({ categoryHint: productPlaceholdersTable.categoryHint })
+      .from(productPlaceholdersTable)
+      .where(eq(productPlaceholdersTable.supplierId, supplierId))
+      .limit(1);
 
-      const region = supplier.department
-        ? `${supplier.municipio}, ${supplier.department}`
-        : supplier.municipio;
+    const region = supplier.department
+      ? `${supplier.municipio}, ${supplier.department}`
+      : (supplier.municipio ?? "Colombia");
 
-      await db.insert(originStoriesTable).values({
-        productId:       null,
-        productCategory: placeholder?.categoryHint ?? null,
-        farmerName:      supplier.nombreCompleto,
-        farmerPhoto:     imageUrl ?? null,
-        farmName:        supplier.nombreCompleto,
-        region,
-        story:           supplier.description,
-        challenges:      "",
-        impact:          "",
-        images:          imageUrl ? [imageUrl] : [],
-        published:       true,
-      });
-
-      req.log.info({ supplierId }, "admin: origin_stories row seeded from ingestion publish");
+    try {
+      await seedOriginStory(
+        {
+          supplierId,
+          nombreCompleto: supplier.nombreCompleto,
+          region,
+          supplierType: supplier.supplierType,
+          categoryHint: placeholder?.categoryHint ?? null,
+          farmerName: supplier.registeredBy ?? supplier.nombreCompleto,
+          farmerPhoto: imageUrl,
+          imageUrl,
+        },
+        {
+          productCategory: placeholder?.categoryHint ?? null,
+          farmName: supplier.nombreCompleto,
+          region,
+          challenges: "",
+          impact: "",
+          images: imageUrl ? [imageUrl] : [],
+          published: true,
+        },
+      );
+      req.log.info({ supplierId }, "admin: origin_stories row seeded via Prompt 4");
+    } catch (seedErr) {
+      // Non-fatal: log and continue. The supplier is still marked published.
+      req.log.error({ supplierId, err: seedErr }, "admin: seedOriginStory failed during publish — continuing");
     }
 
     req.log.info(
@@ -2262,9 +2349,17 @@ router.post("/admin/ingestion/suppliers", ...adminOnly, async (req: Request, res
     supplier = inserted;
   } catch (err: any) {
     req.log.error({ err, fingerprint }, "ingestion/suppliers: DB insert failed");
-    // PostgreSQL unique-constraint violation (code 23505) on supplierFingerprint
-    if (err?.code === "23505" || err?.constraint?.includes("fingerprint")) {
-      sendError(res, 409, `A supplier with a very similar name already exists in this country. Use the duplicate override if you are certain this is a distinct entity.`);
+    // Drizzle wraps the raw PG error inside err.cause — check both levels.
+    const pgCode = err?.code ?? err?.cause?.code;
+    const pgDetail: string = err?.detail ?? err?.cause?.detail ?? err?.message ?? "";
+    if (pgCode === "23505") {
+      // Whatsapp number already in use
+      if (pgDetail.includes("whatsapp") || pgDetail.includes("suppliers_whatsapp_unique_idx")) {
+        sendError(res, 409, "This WhatsApp number is already registered to another supplier. Remove the number or check for a duplicate.");
+        return;
+      }
+      // Supplier fingerprint duplicate
+      sendError(res, 409, "A supplier with a very similar name already exists in this country. Use the duplicate override if you are certain this is a distinct entity.");
       return;
     }
     sendError(res, 500, "Failed to save supplier — please try again. If the problem persists, contact support.");
