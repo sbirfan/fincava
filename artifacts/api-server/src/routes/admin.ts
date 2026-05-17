@@ -2655,8 +2655,9 @@ router.get("/admin/origin-stories", ...adminOnly, async (_req, res): Promise<voi
       impact:          originStoriesTable.impact,
       images:          originStoriesTable.images,
       videoUrl:        originStoriesTable.videoUrl,
-      published:       originStoriesTable.published,
-      createdAt:       originStoriesTable.createdAt,
+      published:           originStoriesTable.published,
+      originStoryStatus:   originStoriesTable.originStoryStatus,
+      createdAt:           originStoriesTable.createdAt,
     })
     .from(originStoriesTable)
     .leftJoin(suppliersTable, eq(suppliersTable.id, originStoriesTable.supplierId))
@@ -2684,11 +2685,12 @@ router.get("/admin/products-simple", ...adminOnly, async (_req, res): Promise<vo
 });
 
 // ── GET /api/admin/suppliers-simple ───────────────────────────────────────────
-// Minimal supplier list for dropdowns — id + display name only.
+// Minimal supplier list for dropdowns — id + display name, active suppliers only.
 router.get("/admin/suppliers-simple", ...adminOnly, async (_req, res): Promise<void> => {
   const rows = await db
     .select({ id: suppliersTable.id, nombreCompleto: suppliersTable.nombreCompleto })
     .from(suppliersTable)
+    .where(eq(suppliersTable.status, "ACTIVE"))
     .orderBy(suppliersTable.nombreCompleto);
   res.json(rows);
 });

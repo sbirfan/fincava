@@ -41,6 +41,7 @@ interface AdminOriginStory {
   images: string[];
   videoUrl: string | null;
   published: boolean;
+  originStoryStatus: "SEED_DRAFT" | "GENERATED" | "EDITED" | null;
   createdAt: string;
 }
 
@@ -116,7 +117,7 @@ function resolvedRegion(d: StoryDraft): string {
 
 function draftToPayload(d: StoryDraft) {
   return {
-    supplierId:      d.supplierId ?? undefined,
+    supplierId:      d.supplierId,
     productCategory: d.productCategory,
     farmerName:      d.farmerName.trim(),
     farmerPhoto:     d.farmerPhoto.trim() || undefined,
@@ -567,6 +568,16 @@ function StoryCard({
               ) : (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   unlinked
+                </span>
+              )}
+              {story.originStoryStatus === "SEED_DRAFT" && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                  seed draft
+                </span>
+              )}
+              {story.originStoryStatus === "GENERATED" && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                  AI generated
                 </span>
               )}
               {story.productCategory && (
