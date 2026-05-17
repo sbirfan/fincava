@@ -123,9 +123,20 @@ export async function seedOriginStory(
   if (existing) {
     const status = existing.originStoryStatus;
     if (status === "GENERATED" || status === "EDITED") {
+      // Story text is protected — but always sync the cover image in case the
+      // admin re-published with a new photo.
+      if (input.farmerPhoto !== undefined || input.imageUrl !== undefined) {
+        await db
+          .update(originStoriesTable)
+          .set({
+            farmerPhoto: input.farmerPhoto ?? null,
+            images: input.imageUrl ? [input.imageUrl] : [],
+          })
+          .where(eq(originStoriesTable.id, existing.id));
+      }
       logger.info(
         { supplierId: input.supplierId, status },
-        "seedOriginStory: existing row has status %s — not overwriting",
+        "seedOriginStory: existing row has status %s — story text preserved, image updated",
         status,
       );
       return storyText;

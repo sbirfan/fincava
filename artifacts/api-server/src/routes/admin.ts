@@ -1723,33 +1723,36 @@ router.delete("/admin/suppliers/:id", ...adminOnly, async (req: Request, res: Re
 
   // Wrap all deletes in a transaction. Tables with onDelete CASCADE are handled
   // automatically by Postgres; we manually remove non-cascade child rows first.
-  await db.transaction(async (tx) => {
-    // Null out supplierId on origin_stories (FK is nullable — no row delete needed,
-    // but cleaner to remove the row entirely since it belongs to this supplier).
-    await tx.delete(originStoriesTable).where(eq(originStoriesTable.supplierId, id));
+  try {
+    await db.transaction(async (tx) => {
+      // Null out supplierId on origin_stories (FK is nullable — no row delete needed,
+      // but cleaner to remove the row entirely since it belongs to this supplier).
+      await tx.delete(originStoriesTable).where(eq(originStoriesTable.supplierId, id));
 
-    // Non-cascade child tables
-    await tx.delete(productPlaceholdersTable).where(eq(productPlaceholdersTable.supplierId, id));
-    await tx.delete(supplierContactsTable).where(eq(supplierContactsTable.supplierId, id));
-    await tx.delete(interactionsTable).where(eq(interactionsTable.supplierId, id));
-    await tx.delete(aiOutputsTable).where(eq(aiOutputsTable.supplierId, id));
-    await tx.delete(complianceDocsTable).where(eq(complianceDocsTable.supplierId, id));
-    await tx.delete(economicsTable).where(eq(economicsTable.supplierId, id));
-    await tx.delete(farmsTable).where(eq(farmsTable.supplierId, id));
+      // Non-cascade child tables
+      await tx.delete(productPlaceholdersTable).where(eq(productPlaceholdersTable.supplierId, id));
+      await tx.delete(supplierContactsTable).where(eq(supplierContactsTable.supplierId, id));
+      await tx.delete(interactionsTable).where(eq(interactionsTable.supplierId, id));
+      await tx.delete(aiOutputsTable).where(eq(aiOutputsTable.supplierId, id));
+      await tx.delete(complianceDocsTable).where(eq(complianceDocsTable.supplierId, id));
+      await tx.delete(economicsTable).where(eq(economicsTable.supplierId, id));
+      await tx.delete(farmsTable).where(eq(farmsTable.supplierId, id));
 
-    // Null out FK on products (preserve product catalogue rows for audit, just unlink).
-    await tx
-      .update(productsTable)
-      .set({ supplierId: null } as any)
-      .where(eq(productsTable.supplierId, id));
+      // `as any` works around a Drizzle typing limitation for nullable integer columns.
+      // Null out FK on products (preserve product catalogue rows for audit, just unlink).
+      await tx
+        .update(productsTable)
+        .set({ supplierId: null } as any)
+        .where(eq(productsTable.supplierId, id));
 
-    // Finally delete the supplier (cascade tables auto-delete via Postgres).
-    const [deleted] = await tx
-      .delete(suppliersTable)
-      .where(eq(suppliersTable.id, id))
-      .returning({ id: suppliersTable.id });
-    if (!deleted) throw new Error("__SUPPLIER_NOT_FOUND__");
-  }).catch((err: any) => {
+      // Finally delete the supplier (cascade tables auto-delete via Postgres).
+      const [deleted] = await tx
+        .delete(suppliersTable)
+        .where(eq(suppliersTable.id, id))
+        .returning({ id: suppliersTable.id });
+      if (!deleted) throw new Error("__SUPPLIER_NOT_FOUND__");
+    });
+  } catch (err: any) {
     if (err?.message === "__SUPPLIER_NOT_FOUND__") {
       sendError(res, 404, "Supplier not found");
     } else {
@@ -1757,9 +1760,8 @@ router.delete("/admin/suppliers/:id", ...adminOnly, async (req: Request, res: Re
       sendError(res, 500, "Failed to delete supplier — please try again.");
     }
     return;
-  });
+  }
 
-  // If we reach here, the transaction succeeded.
   req.log.info({ supplierId: id, adminId: req.userId }, "admin: supplier permanently deleted");
   res.json({ success: true, deletedId: id });
 });
