@@ -2,17 +2,18 @@ import { useListOriginStories } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function OriginStories() {
+  const { t } = useLanguage();
+  const os = t.originStories;
   const { data: stories, isLoading } = useListOriginStories();
 
   return (
     <div className="bg-background min-h-screen">
       <div className="bg-secondary text-secondary-foreground py-20 px-4 text-center">
-        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Origin Stories</h1>
-        <p className="text-lg md:text-xl max-w-2xl mx-auto opacity-90">
-          Behind every premium product is a story of soil, dedication, and generations of knowledge. Meet the faces behind Colombia's finest exports.
-        </p>
+        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">{os.heading}</h1>
+        <p className="text-lg md:text-xl max-w-2xl mx-auto opacity-90">{os.description}</p>
       </div>
 
       <div className="container mx-auto px-4 py-16">
@@ -54,7 +55,7 @@ export default function OriginStories() {
                     </p>
                     
                     <div className="mt-auto flex items-center text-sm font-medium text-primary group-hover:underline">
-                      Read full story &rarr;
+                      {os.readMore}
                     </div>
                   </div>
                 </div>
@@ -62,7 +63,7 @@ export default function OriginStories() {
             ))
           ) : (
             <div className="col-span-full text-center py-20 text-muted-foreground">
-              No origin stories available at the moment.
+              {os.noStories}
             </div>
           )}
         </div>

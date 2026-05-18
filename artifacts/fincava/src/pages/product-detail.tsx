@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { resolveImageUrl, safeImageUrl } from "@/lib/utils";
 import { ComplianceBadges } from "@/components/compliance-widget";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function ProductDetail() {
   const params = useParams();
@@ -26,6 +27,8 @@ export default function ProductDetail() {
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { t } = useLanguage();
+  const pd = t.productDetail;
 
   const [orderOpen, setOrderOpen] = useState(false);
   const [qty, setQty] = useState("");
@@ -35,7 +38,6 @@ export default function ProductDetail() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Inquiry dialog state — declared here (before any early returns) to satisfy rules of hooks
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [inquiryMessage, setInquiryMessage] = useState("");
   const [inquiryQty, setInquiryQty] = useState("");
@@ -116,9 +118,9 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <div className="container mx-auto px-4 py-24 text-center">
-        <h2 className="text-2xl font-bold mb-4">Product not found</h2>
+        <h2 className="text-2xl font-bold mb-4">{pd.notFound}</h2>
         <Link href="/marketplace">
-          <Button>Back to Marketplace</Button>
+          <Button>{pd.backToMarketplace}</Button>
         </Link>
       </div>
     );
@@ -163,7 +165,7 @@ export default function ProductDetail() {
         }),
       });
       if (!res.ok) throw new Error(await res.text());
-      toast({ title: "Inquiry sent!", description: "The supplier has been notified and will respond via your dashboard." });
+      toast({ title: pd.inquirySent, description: pd.inquirySentDesc });
       setInquiryOpen(false);
       setInquiryMessage("");
       setInquiryQty("");
@@ -178,7 +180,7 @@ export default function ProductDetail() {
     <div className="container mx-auto px-4 py-8 md:py-12">
       {/* Breadcrumbs */}
       <div className="flex items-center text-sm text-muted-foreground mb-8">
-        <Link href="/marketplace" className="hover:text-primary">Marketplace</Link>
+        <Link href="/marketplace" className="hover:text-primary">{pd.backToMarketplace}</Link>
         <ChevronRight className="w-4 h-4 mx-2" />
         <span className="capitalize">{product.category}</span>
         <ChevronRight className="w-4 h-4 mx-2" />
@@ -197,7 +199,7 @@ export default function ProductDetail() {
           </div>
           {product.images && product.images.length > 1 && (
             <div className="grid grid-cols-4 gap-4">
-              {product.images.slice(1).map((img, idx) => (
+              {product.images.slice(1).map((img: string, idx: number) => (
                 <div key={idx} className="aspect-square rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity">
                   <img src={resolveImageUrl(img)} alt={`${product.name} ${idx+1}`} className="w-full h-full object-cover" />
                 </div>
@@ -213,10 +215,10 @@ export default function ProductDetail() {
               <Badge variant="outline" className="uppercase tracking-wide">{product.category}</Badge>
               {product.featured && <Badge className="bg-primary text-primary-foreground">Featured</Badge>}
             </div>
-            
+
             <h1 className="text-3xl md:text-4xl font-serif font-bold mb-3">{product.name}</h1>
 
-            {/* Farmer Identity — replaces generic supplier line */}
+            {/* Farmer Identity */}
             {story ? (
               <div className="flex items-center gap-3 mb-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
                 {safeImageUrl(story.farmerPhoto) && (
@@ -272,7 +274,7 @@ export default function ProductDetail() {
                 ) : (
                   <span className="text-2xl font-bold text-muted-foreground">Price on request</span>
                 )}
-                <span className="text-muted-foreground ml-2">/ kg (USD)</span>
+                <span className="text-muted-foreground ml-2">/ {pd.kg} (USD)</span>
               </div>
               {product.pricePerKgUSD > 0 && p.directTrade && (
                 <p className="text-xs text-emerald-600 flex items-center gap-1">
@@ -284,15 +286,15 @@ export default function ProductDetail() {
 
             <div className="bg-muted/50 rounded-lg p-4 mb-8 space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Min. Order</span>
-                <span className="font-medium">{product.minOrderKg} kg</span>
+                <span className="text-muted-foreground">{pd.minOrder}</span>
+                <span className="font-medium">{product.minOrderKg} {pd.kg}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Available</span>
-                <span className="font-medium">{product.availableKg} kg</span>
+                <span className="text-muted-foreground">{pd.available}</span>
+                <span className="font-medium">{product.availableKg} {pd.kg}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Origin</span>
+                <span className="text-muted-foreground">{pd.origin}</span>
                 <span className="font-medium flex items-center">
                   <MapPin className="w-3 h-3 mr-1" />
                   {product.origin}
@@ -300,7 +302,7 @@ export default function ProductDetail() {
               </div>
               {story?.elevation && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Elevation</span>
+                  <span className="text-muted-foreground">{pd.altitude}</span>
                   <span className="font-medium flex items-center">
                     <Mountain className="w-3 h-3 mr-1" />{story.elevation}
                   </span>
@@ -308,15 +310,14 @@ export default function ProductDetail() {
               )}
             </div>
 
-            {/* Place Order button — hidden until ENABLE_TRANSACTIONS is on. Dialog preserved below. */}
             {ENABLE_TRANSACTIONS && (
               <Button className="w-full h-12 text-lg mb-3" onClick={openOrderDialog}>
                 <Package className="w-5 h-5 mr-2" />
-                Place Order
+                {pd.addToCart}
               </Button>
             )}
             <Button variant="outline" className="w-full h-11 mb-4" onClick={handleInquiry}>
-              Request Quote / Inquiry
+              {pd.inquire}
             </Button>
             {ENABLE_TRANSACTIONS && (
               <p className="text-center text-xs text-muted-foreground flex items-center justify-center">
@@ -328,11 +329,10 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* MEET THE FARMER — Full story section */}
+      {/* MEET THE FARMER */}
       {story && (
         <div className="mb-16 rounded-2xl overflow-hidden border bg-card">
           <div className="grid grid-cols-1 lg:grid-cols-5">
-            {/* Farmer portrait */}
             <div className="lg:col-span-2 relative min-h-[300px] bg-muted">
               {safeImageUrl(story.farmerPhoto) ? (
                 <img src={safeImageUrl(story.farmerPhoto)} alt={story.farmerName} className="w-full h-full object-cover object-top absolute inset-0" />
@@ -349,11 +349,9 @@ export default function ProductDetail() {
               </div>
             </div>
 
-            {/* Story content */}
             <div className="lg:col-span-3 p-8">
-              <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Meet the Farmer</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">{pd.aboutFarmer}</p>
 
-              {/* Farm quick stats */}
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {story.yearsFarming && (
                   <div className="text-center p-3 bg-muted rounded-lg">
@@ -379,7 +377,6 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          {/* Challenges + Impact row */}
           <div className="grid grid-cols-1 md:grid-cols-2 border-t divide-y md:divide-y-0 md:divide-x">
             <div className="p-8">
               <h4 className="font-serif font-bold text-lg mb-3 flex items-center gap-2">
@@ -404,32 +401,32 @@ export default function ProductDetail() {
         <Tabs defaultValue="details" className="w-full">
           <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent mb-8">
             <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-              Product Details
+              {pd.productDetails}
             </TabsTrigger>
             <TabsTrigger value="certifications" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-              Certifications
+              {pd.certifications}
             </TabsTrigger>
             <TabsTrigger value="supplier" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
               About Supplier
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="details" className="space-y-8">
             <div>
               <h3 className="text-xl font-serif font-bold mb-4">Description</h3>
               <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{product.description}</p>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
               {product.altitude && (
                 <div className="flex justify-between py-3 border-b">
-                  <span className="text-muted-foreground">Altitude</span>
+                  <span className="text-muted-foreground">{pd.altitude}</span>
                   <span className="font-medium">{product.altitude}</span>
                 </div>
               )}
               {product.process && (
                 <div className="flex justify-between py-3 border-b">
-                  <span className="text-muted-foreground">Process</span>
+                  <span className="text-muted-foreground">{pd.process}</span>
                   <span className="font-medium">{product.process}</span>
                 </div>
               )}
@@ -447,17 +444,17 @@ export default function ProductDetail() {
               )}
               {product.harvestSeason && (
                 <div className="flex justify-between py-3 border-b">
-                  <span className="text-muted-foreground">Harvest Season</span>
+                  <span className="text-muted-foreground">{pd.harvest}</span>
                   <span className="font-medium">{product.harvestSeason}</span>
                 </div>
               )}
             </div>
           </TabsContent>
-          
+
           <TabsContent value="certifications">
             {product.supplierCertifications && product.supplierCertifications.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {product.supplierCertifications.map(cert => (
+                {product.supplierCertifications.map((cert: any) => (
                   <div key={cert.id} className="border rounded-lg p-6 flex flex-col items-center text-center">
                     <ShieldCheck className="w-10 h-10 text-primary mb-4" />
                     <h4 className="font-bold mb-1">{cert.type}</h4>
@@ -472,7 +469,7 @@ export default function ProductDetail() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="supplier">
             <div className="border rounded-lg p-8">
               <div className="flex items-center gap-4 mb-6">
@@ -494,7 +491,6 @@ export default function ProductDetail() {
               {product.supplierDescription && (
                 <p className="text-muted-foreground mb-6">{product.supplierDescription}</p>
               )}
-              {/* CC-4: show verified compliance badges when the product is linked to a farmer supplier */}
               {p.supplierId && (
                 <div className="mb-6">
                   <ComplianceBadges supplierId={p.supplierId} className="flex-wrap" />
@@ -513,14 +509,14 @@ export default function ProductDetail() {
         <div className="border-t pt-16">
           <h2 className="text-2xl font-serif font-bold mb-8">Similar Products</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {similarProducts.slice(0, 4).map(prod => (
+            {similarProducts.slice(0, 4).map((prod: any) => (
               <ProductCard key={prod.id} product={prod} />
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Place Order Dialog ── */}
+      {/* Place Order Dialog */}
       <Dialog open={orderOpen} onOpenChange={setOrderOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -532,7 +528,7 @@ export default function ProductDetail() {
 
           <div className="space-y-4 mt-2">
             <div>
-              <Label htmlFor="qty">Quantity (kg) <span className="text-destructive">*</span></Label>
+              <Label htmlFor="qty">{pd.quantityKg} <span className="text-destructive">*</span></Label>
               <Input
                 id="qty"
                 type="number"
@@ -558,8 +554,8 @@ export default function ProductDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["FOB", "CIF", "CFR", "EXW", "DDP"].map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  {["FOB", "CIF", "CFR", "EXW", "DDP"].map(term => (
+                    <SelectItem key={term} value={term}>{term}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -611,11 +607,11 @@ export default function ProductDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Request Quote / Inquiry Dialog ── */}
+      {/* Request Quote / Inquiry Dialog */}
       <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">Request Quote / Inquiry</DialogTitle>
+            <DialogTitle className="font-serif text-xl">{pd.inquiryForm}</DialogTitle>
             <DialogDescription>
               {product && (product.pricePerKgUSD > 0 ? `${product.name} · $${product.pricePerKgUSD.toFixed(2)} / kg` : product.name)}
             </DialogDescription>
@@ -623,7 +619,7 @@ export default function ProductDetail() {
 
           <div className="space-y-4 mt-2">
             <div>
-              <Label htmlFor="inquiry-qty">Quantity (kg) — optional</Label>
+              <Label htmlFor="inquiry-qty">{pd.quantityKg} — optional</Label>
               <Input
                 id="inquiry-qty"
                 type="number"
@@ -637,11 +633,11 @@ export default function ProductDetail() {
 
             <div>
               <Label htmlFor="inquiry-msg">
-                Message <span className="text-destructive">*</span>
+                {pd.yourMessage} <span className="text-destructive">*</span>
               </Label>
               <Textarea
                 id="inquiry-msg"
-                placeholder="Describe your requirements, timeline, certifications needed, etc."
+                placeholder={pd.messagePlaceholder}
                 value={inquiryMessage}
                 onChange={(e) => setInquiryMessage(e.target.value)}
                 className="mt-1 min-h-[100px]"
@@ -649,7 +645,7 @@ export default function ProductDetail() {
             </div>
 
             <Button className="w-full h-11" onClick={submitInquiry} disabled={inquirySubmitting || !inquiryMessage.trim()}>
-              {inquirySubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending…</> : "Send Inquiry"}
+              {inquirySubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending…</> : pd.sendInquiry}
             </Button>
             <p className="text-xs text-center text-muted-foreground">
               The supplier will be notified and can respond in your dashboard.

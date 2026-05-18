@@ -4,12 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
-
-function statusLabel(status: string): string {
-  if (status === "RESPONDED") return "Responded";
-  if (status === "CLOSED") return "Closed";
-  return "Pending";
-}
+import { useLanguage } from "@/contexts/LanguageContext";
 
 function statusVariant(status: string): "default" | "secondary" | "outline" {
   if (status === "RESPONDED") return "default";
@@ -23,13 +18,21 @@ function statusClassName(status: string): string {
 }
 
 export default function BuyerInquiries() {
+  const { t } = useLanguage();
+  const inq = t.buyerDash.inquiries;
   const { data: inquiries, isLoading } = useListBuyerInquiries();
+
+  function statusLabel(status: string): string {
+    if (status === "RESPONDED") return inq.responded;
+    if (status === "CLOSED") return inq.closed;
+    return inq.pending;
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight">My Inquiries</h1>
-        <p className="text-muted-foreground mt-2">Track the status of your product inquiries.</p>
+        <h1 className="text-3xl font-serif font-bold tracking-tight">{inq.heading}</h1>
+        <p className="text-muted-foreground mt-2">{inq.description}</p>
       </div>
 
       {isLoading ? (
@@ -49,25 +52,22 @@ export default function BuyerInquiries() {
                     {new Date(inquiry.createdAt).toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })}
                   </p>
                 </div>
-                <Badge
-                  variant={statusVariant(inquiry.status)}
-                  className={statusClassName(inquiry.status)}
-                >
+                <Badge variant={statusVariant(inquiry.status)} className={statusClassName(inquiry.status)}>
                   {statusLabel(inquiry.status)}
                 </Badge>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Supplier</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">{inq.supplier}</p>
                     <p>{inquiry.supplierName}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Quantity Requested</p>
-                    <p>{inquiry.quantityKg ? `${inquiry.quantityKg} kg` : "Not specified"}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">{inq.quantityRequested}</p>
+                    <p>{inquiry.quantityKg ? `${inquiry.quantityKg} kg` : inq.notSpecified}</p>
                   </div>
                   <div className="col-span-full">
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Message</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">{inq.message}</p>
                     <p className="text-sm bg-muted/50 p-3 rounded-md">{inquiry.message}</p>
                   </div>
                 </div>
@@ -78,12 +78,10 @@ export default function BuyerInquiries() {
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-lg font-medium mb-2">No inquiries yet.</p>
-            <p className="text-muted-foreground mb-3">
-              to find Colombian producers.
-            </p>
+            <p className="text-lg font-medium mb-2">{inq.noInquiries}</p>
+            <p className="text-muted-foreground mb-3">{inq.browsePrompt}</p>
             <Link href="/suppliers">
-              <Button variant="outline" size="sm">Browse the Supplier Network</Button>
+              <Button variant="outline" size="sm">{inq.browseBtn}</Button>
             </Link>
           </CardContent>
         </Card>

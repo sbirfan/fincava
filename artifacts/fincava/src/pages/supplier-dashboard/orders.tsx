@@ -1,6 +1,5 @@
 import { useListSupplierOrders, useUpdateOrderStatus } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,8 +7,11 @@ import { UpdateOrderStatusBodyStatus } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListSupplierOrdersQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function SupplierOrders() {
+  const { t } = useLanguage();
+  const o = t.supplierDash.orders;
   const { data: orders, isLoading } = useListSupplierOrders();
   const updateStatus = useUpdateOrderStatus();
   const queryClient = useQueryClient();
@@ -18,7 +20,7 @@ export default function SupplierOrders() {
   const handleStatusChange = (id: number, newStatus: UpdateOrderStatusBodyStatus) => {
     updateStatus.mutate({ id, data: { status: newStatus } }, {
       onSuccess: () => {
-        toast({ title: "Order status updated" });
+        toast({ title: o.orderUpdated });
         queryClient.invalidateQueries({ queryKey: getListSupplierOrdersQueryKey() });
       }
     });
@@ -27,8 +29,8 @@ export default function SupplierOrders() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight">Manage Orders</h1>
-        <p className="text-muted-foreground mt-2">Track fulfillment and update status for your buyer orders.</p>
+        <h1 className="text-3xl font-serif font-bold tracking-tight">{o.heading}</h1>
+        <p className="text-muted-foreground mt-2">{o.description}</p>
       </div>
 
       {isLoading ? (
@@ -43,13 +45,13 @@ export default function SupplierOrders() {
             <Card key={order.id}>
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 gap-4">
                 <div>
-                  <CardTitle className="text-lg font-serif">Order #{order.id}</CardTitle>
+                  <CardTitle className="text-lg font-serif">{o.order}{order.id}</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Buyer: {order.buyerName} &bull; {format(new Date(order.createdAt), 'MMM dd, yyyy')}
+                    {o.buyer}: {order.buyerName} &bull; {format(new Date(order.createdAt), 'MMM dd, yyyy')}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-muted-foreground">Status:</span>
+                  <span className="text-sm font-medium text-muted-foreground">{o.status}</span>
                   <Select 
                     defaultValue={order.status} 
                     onValueChange={(val) => handleStatusChange(order.id, val as UpdateOrderStatusBodyStatus)}
@@ -70,20 +72,20 @@ export default function SupplierOrders() {
               <CardContent className="pt-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-muted/30 p-4 rounded-lg border">
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Total Value</p>
+                    <p className="text-xs text-muted-foreground mb-1">{o.totalValue}</p>
                     <p className="font-bold text-lg">${order.totalUSD.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Items</p>
+                    <p className="text-xs text-muted-foreground mb-1">{o.items}</p>
                     <p className="font-medium">{order.itemCount}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Incoterm</p>
+                    <p className="text-xs text-muted-foreground mb-1">{o.incoterm}</p>
                     <p className="font-medium">{order.incoterm}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Destination</p>
-                    <p className="font-medium">{order.destinationPort || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground mb-1">{o.destination}</p>
+                    <p className="font-medium">{order.destinationPort || o.na}</p>
                   </div>
                 </div>
               </CardContent>
@@ -93,8 +95,8 @@ export default function SupplierOrders() {
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-xl font-serif font-bold mb-2">No orders yet</p>
-            <p className="text-muted-foreground">When buyers place orders for your products, they will appear here.</p>
+            <p className="text-xl font-serif font-bold mb-2">{o.emptyHeading}</p>
+            <p className="text-muted-foreground">{o.emptyDesc}</p>
           </CardContent>
         </Card>
       )}

@@ -1,0 +1,11 @@
+artifacts/fincava/src/pages/buyer-onboarding.tsx
+artifacts/fincava/src/pages/buyer-register.tsx
+artifacts/fincava/src/pages/forgot-password.tsx
+artifacts/fincava/src/pages/home.tsx
+artifacts/fincava/src/pages/login.tsx
+artifacts/fincava/src/pages/officer-register.tsx
+artifacts/fincava/src/pages/onboarding.tsx
+artifacts/fincava/src/pages/register.tsx
+artifacts/fincava/src/pages/reset-password.tsx
+artifacts/fincava/src/pages/supplier-detail.tsx
+artifacts/fincava/src/pages/verify-email.tsx

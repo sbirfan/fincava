@@ -13,8 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin, Calendar, Package, DollarSign, Clock, ArrowLeft, Send, Award } from "lucide-react";
 import { Link } from "wouter";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function RFQDetail() {
+  const { t } = useLanguage();
+  const rd = t.rfqDetail;
   const params = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -45,7 +48,7 @@ export default function RFQDetail() {
       body: JSON.stringify(data),
     }).then(r => r.json()),
     onSuccess: () => {
-      toast({ title: "Bid submitted!", description: "The buyer will review your proposal." });
+      toast({ title: rd.bidSubmitted, description: rd.bidSubmittedDesc });
       queryClient.invalidateQueries({ queryKey: [`/api/rfqs/${params.id}`] });
       setShowBidForm(false);
     },
@@ -57,7 +60,7 @@ export default function RFQDetail() {
       credentials: "include",
     }).then(r => r.json()),
     onSuccess: () => {
-      toast({ title: "Bid awarded!", description: "The supplier has been notified." });
+      toast({ title: rd.bidAwarded, description: rd.bidAwardedDesc });
       queryClient.invalidateQueries({ queryKey: [`/api/rfqs/${params.id}`] });
     },
   });
@@ -71,8 +74,8 @@ export default function RFQDetail() {
 
   if (!rfq || rfq.error) return (
     <div className="container mx-auto px-4 py-20 text-center">
-      <p className="text-xl">RFQ not found</p>
-      <Link href="/rfqs"><Button variant="outline" className="mt-4">Back to RFQs</Button></Link>
+      <p className="text-xl">{rd.notFound}</p>
+      <Link href="/rfqs"><Button variant="outline" className="mt-4">{rd.back}</Button></Link>
     </div>
   );
 
@@ -83,7 +86,7 @@ export default function RFQDetail() {
     <div className="container mx-auto px-4 py-10 max-w-5xl">
       <Link href="/rfqs">
         <Button variant="ghost" size="sm" className="mb-6 -ml-2">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back to RFQs
+          <ArrowLeft className="w-4 h-4 mr-2" /> {rd.back}
         </Button>
       </Link>
 
@@ -103,12 +106,12 @@ export default function RFQDetail() {
 
               <div className="grid grid-cols-2 gap-4 border-t pt-4">
                 {[
-                  { icon: Package, label: "Volume", value: `${rfq.quantityKg?.toLocaleString()} kg` },
-                  { icon: MapPin, label: "Destination", value: rfq.destination },
-                  { icon: DollarSign, label: "Target Price", value: rfq.targetPriceUSD ? `$${rfq.targetPriceUSD}/kg` : "Open" },
-                  { icon: Calendar, label: "Deadline", value: `${days} days left` },
-                  { icon: Clock, label: "Incoterm", value: rfq.incoterm },
-                  { icon: MapPin, label: "Port", value: rfq.destinationPort ?? "TBD" },
+                  { icon: Package, label: rd.volume, value: `${rfq.quantityKg?.toLocaleString()} kg` },
+                  { icon: MapPin, label: rd.destination, value: rfq.destination },
+                  { icon: DollarSign, label: rd.targetPrice, value: rfq.targetPriceUSD ? `$${rfq.targetPriceUSD}/kg` : rd.open },
+                  { icon: Calendar, label: rd.deadline, value: rd.daysLeft.replace("{days}", String(days)) },
+                  { icon: Clock, label: rd.incoterm, value: rfq.incoterm },
+                  { icon: MapPin, label: rd.port, value: rfq.destinationPort ?? rd.tbd },
                 ].map(item => (
                   <div key={item.label} className="flex items-start gap-3">
                     <item.icon className="w-4 h-4 text-primary mt-0.5" />
@@ -122,18 +125,20 @@ export default function RFQDetail() {
             </CardContent>
           </Card>
 
-          {/* Bids section — only visible to the RFQ owner or a supplier viewing their own bid */}
+          {/* Bids section */}
           {rfq.responses && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">
-                  {isOwner ? `Bids Received (${rfq.responseCount ?? rfq.responses.length})` : "Your Bid"}
+                  {isOwner
+                    ? `${rd.bidsReceivedLabel} (${rfq.responseCount ?? rfq.responses.length})`
+                    : rd.yourBid}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {rfq.responses.length === 0 ? (
                   <p className="text-muted-foreground text-sm text-center py-8">
-                    {isOwner ? "No bids yet. Suppliers will be able to respond once the RFQ is live." : "You have not submitted a bid yet."}
+                    {isOwner ? rd.noBidsOwner : rd.noBidsSupplier}
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -143,28 +148,32 @@ export default function RFQDetail() {
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-semibold">{r.supplierName}</span>
-                              {r.supplierVerified && <Badge variant="outline" className="text-xs text-primary border-primary/30">Verified</Badge>}
+                              {r.supplierVerified && (
+                                <Badge variant="outline" className="text-xs text-primary border-primary/30">{rd.verified}</Badge>
+                              )}
                               <TrustBadge score={r.trustScore ?? 0} size="sm" />
                             </div>
                             <p className="text-xs text-muted-foreground">{r.supplierRegion}</p>
                           </div>
                           <div className="text-right">
                             <div className="text-2xl font-bold text-primary">${r.pricePerKgUSD}</div>
-                            <div className="text-xs text-muted-foreground">per kg</div>
+                            <div className="text-xs text-muted-foreground">{rd.perKg}</div>
                           </div>
                         </div>
                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{r.message}</p>
                         <div className="flex items-center justify-between">
                           <div className="flex gap-4 text-sm">
-                            <span className="text-muted-foreground">Lead time: <strong>{r.leadTimeDays}d</strong></span>
-                            {rfq.quantityKg && <span className="text-muted-foreground">Total: <strong>${(r.pricePerKgUSD * rfq.quantityKg).toLocaleString()}</strong></span>}
+                            <span className="text-muted-foreground">{rd.leadTime} <strong>{r.leadTimeDays}d</strong></span>
+                            {rfq.quantityKg && (
+                              <span className="text-muted-foreground">{rd.total} <strong>${(r.pricePerKgUSD * rfq.quantityKg).toLocaleString()}</strong></span>
+                            )}
                           </div>
                           {isOwner && rfq.status === "OPEN" && !r.awarded && (
                             <Button size="sm" onClick={() => awardBid.mutate(r.id)} disabled={awardBid.isPending}>
-                              <Award className="w-3 h-3 mr-1" /> Award Bid
+                              <Award className="w-3 h-3 mr-1" /> {rd.awardBid}
                             </Button>
                           )}
-                          {r.awarded && <Badge className="bg-primary text-white">Awarded</Badge>}
+                          {r.awarded && <Badge className="bg-primary text-white">{rd.awarded}</Badge>}
                         </div>
                       </div>
                     ))}
@@ -180,30 +189,30 @@ export default function RFQDetail() {
               <CardContent className="p-6">
                 {!showBidForm ? (
                   <Button className="w-full" onClick={() => setShowBidForm(true)}>
-                    <Send className="w-4 h-4 mr-2" /> Submit Your Bid
+                    <Send className="w-4 h-4 mr-2" /> {rd.submitYourBid}
                   </Button>
                 ) : (
                   <div className="space-y-4">
-                    <h3 className="font-semibold">Submit Bid</h3>
+                    <h3 className="font-semibold">{rd.submitBidHeading}</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label>Price per kg (USD)</Label>
-                        <Input type="number" step="0.01" value={bid.pricePerKgUSD} onChange={e => setBid(b => ({ ...b, pricePerKgUSD: e.target.value }))} placeholder="e.g. 12.50" />
+                        <Label>{rd.priceLabel}</Label>
+                        <Input type="number" step="0.01" value={bid.pricePerKgUSD} onChange={e => setBid(b => ({ ...b, pricePerKgUSD: e.target.value }))} placeholder={rd.pricePlaceholder} />
                       </div>
                       <div>
-                        <Label>Lead Time (days)</Label>
-                        <Input type="number" value={bid.leadTimeDays} onChange={e => setBid(b => ({ ...b, leadTimeDays: e.target.value }))} placeholder="e.g. 21" />
+                        <Label>{rd.leadTimeLabel}</Label>
+                        <Input type="number" value={bid.leadTimeDays} onChange={e => setBid(b => ({ ...b, leadTimeDays: e.target.value }))} placeholder={rd.leadTimePlaceholder} />
                       </div>
                     </div>
                     <div>
-                      <Label>Message to Buyer</Label>
-                      <Textarea rows={4} value={bid.message} onChange={e => setBid(b => ({ ...b, message: e.target.value }))} placeholder="Describe your product, certifications, available quantity, and any relevant details..." />
+                      <Label>{rd.messageLabel}</Label>
+                      <Textarea rows={4} value={bid.message} onChange={e => setBid(b => ({ ...b, message: e.target.value }))} placeholder={rd.messagePlaceholder} />
                     </div>
                     <div className="flex gap-3">
                       <Button onClick={() => submitBid.mutate(bid)} disabled={submitBid.isPending || !bid.pricePerKgUSD || !bid.leadTimeDays || !bid.message}>
-                        {submitBid.isPending ? "Submitting..." : "Submit Bid"}
+                        {submitBid.isPending ? rd.submitting : rd.submit}
                       </Button>
-                      <Button variant="outline" onClick={() => setShowBidForm(false)}>Cancel</Button>
+                      <Button variant="outline" onClick={() => setShowBidForm(false)}>{rd.cancel}</Button>
                     </div>
                   </div>
                 )}
@@ -216,20 +225,23 @@ export default function RFQDetail() {
         <div className="space-y-4">
           <Card>
             <CardContent className="p-5">
-              <h3 className="font-semibold mb-3 text-sm">Buyer</h3>
+              <h3 className="font-semibold mb-3 text-sm">{rd.buyerLabel}</h3>
               <p className="font-medium">{rfq.buyerName}</p>
-              {rfq.buyerCountry && <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{rfq.buyerCountry}</p>}
+              {rfq.buyerCountry && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                  <MapPin className="w-3 h-3" />{rfq.buyerCountry}
+                </p>
+              )}
             </CardContent>
           </Card>
 
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-5">
-              <h3 className="font-semibold text-sm mb-2 text-primary">Why respond?</h3>
+              <h3 className="font-semibold text-sm mb-2 text-primary">{rd.whyRespond}</h3>
               <ul className="text-xs text-muted-foreground space-y-1.5">
-                <li>✓ Direct contact with verified buyer</li>
-                <li>✓ Competitive pricing visibility</li>
-                <li>✓ Build your trade history</li>
-                <li>✓ Improve your trust score</li>
+                {rd.whyReasons.map((reason, i) => (
+                  <li key={i}>✓ {reason}</li>
+                ))}
               </ul>
             </CardContent>
           </Card>

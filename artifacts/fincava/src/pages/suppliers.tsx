@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, MapPin, ShieldCheck, Star, Leaf, ArrowLeft } from "lucide-react";
 import { TrustBadge } from "@/components/trust-badge";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MarketplaceSupplier {
   id: number;
@@ -33,6 +34,8 @@ interface OnboardingSupplier {
 }
 
 export default function Suppliers() {
+  const { t } = useLanguage();
+  const s = t.suppliers;
   const [search, setSearch] = useState("");
   const [suppliers, setSuppliers] = useState<MarketplaceSupplier[]>([]);
   const [onboardingSuppliers, setOnboardingSuppliers] = useState<OnboardingSupplier[]>([]);
@@ -43,18 +46,18 @@ export default function Suppliers() {
     fetch("/api/suppliers/marketplace?include_onboarding=true", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        const list: MarketplaceSupplier[] = (data.suppliers ?? []).map((s: any) => ({
-          id: s.id,
-          name: s.name ?? s.nombreCompleto ?? "",
-          region: s.region ?? s.municipio ?? null,
-          country: s.country ?? "Colombia",
-          description: s.description ?? null,
-          logoUrl: s.logoUrl ?? null,
-          verified: !!(s.claimStatus === "CLAIMED" || s.verified),
-          avgRating: s.avgRating ?? null,
-          trustScore: s.public_trust_score ?? s.trustScore ?? null,
-          productCategories: s.productCategories ?? (s.products ?? []).map((p: any) => p.category).filter(Boolean),
-          productCount: s.productCount ?? (s.products ?? []).length,
+        const list: MarketplaceSupplier[] = (data.suppliers ?? []).map((sup: any) => ({
+          id: sup.id,
+          name: sup.name ?? sup.nombreCompleto ?? "",
+          region: sup.region ?? sup.municipio ?? null,
+          country: sup.country ?? "Colombia",
+          description: sup.description ?? null,
+          logoUrl: sup.logoUrl ?? null,
+          verified: !!(sup.claimStatus === "CLAIMED" || sup.verified),
+          avgRating: sup.avgRating ?? null,
+          trustScore: sup.public_trust_score ?? sup.trustScore ?? null,
+          productCategories: sup.productCategories ?? (sup.products ?? []).map((p: any) => p.category).filter(Boolean),
+          productCount: sup.productCount ?? (sup.products ?? []).length,
         }));
         setSuppliers(list);
         setOnboardingSuppliers(data.onboarding_suppliers ?? []);
@@ -70,19 +73,19 @@ export default function Suppliers() {
 
   const filteredExportReady = q
     ? suppliers.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          (s.region ?? "").toLowerCase().includes(q) ||
-          s.productCategories.some((c) => c.toLowerCase().includes(q)),
+        (sup) =>
+          sup.name.toLowerCase().includes(q) ||
+          (sup.region ?? "").toLowerCase().includes(q) ||
+          sup.productCategories.some((c) => c.toLowerCase().includes(q)),
       )
     : suppliers;
 
   const filteredOnboarding = q
     ? onboardingSuppliers.filter(
-        (s) =>
-          (s.name ?? "").toLowerCase().includes(q) ||
-          (s.region ?? "").toLowerCase().includes(q) ||
-          s.productCategories.some((c) => c.toLowerCase().includes(q)),
+        (sup) =>
+          (sup.name ?? "").toLowerCase().includes(q) ||
+          (sup.region ?? "").toLowerCase().includes(q) ||
+          sup.productCategories.some((c) => c.toLowerCase().includes(q)),
       )
     : onboardingSuppliers;
 
@@ -95,23 +98,20 @@ export default function Suppliers() {
         <Link href="/dashboard">
           <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+            {s.backToDashboard}
           </Button>
         </Link>
       </div>
 
       {/* Page header */}
       <div className="max-w-3xl mx-auto text-center mb-12">
-        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Supplier Network</h1>
-        <p className="text-lg text-muted-foreground">
-          Connecting global buyers with Colombia's finest agricultural producers. Explore verified
-          exporters and discover emerging farms building their export journey.
-        </p>
+        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">{s.heading}</h1>
+        <p className="text-lg text-muted-foreground">{s.description}</p>
         <div className="mt-8 max-w-md mx-auto relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
           <Input
             className="pl-10 h-12 text-base rounded-full bg-background border-border"
-            placeholder="Search by company name, region, or product..."
+            placeholder={s.searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -119,7 +119,6 @@ export default function Suppliers() {
       </div>
 
       {isLoading ? (
-        /* Loading skeleton */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i} className="overflow-hidden">
@@ -135,46 +134,38 @@ export default function Suppliers() {
           ))}
         </div>
       ) : bothEmpty ? (
-        /* Page-level empty state — neither section has any results */
         <div className="text-center py-20 bg-card border rounded-lg border-dashed">
-          <p className="text-lg font-medium mb-2">No suppliers found</p>
+          <p className="text-lg font-medium mb-2">{s.noSuppliersFound}</p>
           {q ? (
             <>
-              <p className="text-muted-foreground mb-4">
-                Try adjusting your search to see more results.
-              </p>
+              <p className="text-muted-foreground mb-4">{s.adjustSearch}</p>
               <Button variant="outline" onClick={() => setSearch("")}>
-                Clear Search
+                {s.clearSearch}
               </Button>
             </>
           ) : (
-            <p className="text-muted-foreground">
-              Fincava is currently in beta. We are onboarding a limited group of suppliers and buyers to shape the platform and build the first trusted trade network. Early participants gain priority access and visibility as the network grows.
-            </p>
+            <p className="text-muted-foreground">{s.beta}</p>
           )}
         </div>
       ) : (
         <div className="space-y-16">
-          {/* ── Section A: Export Ready ─────────────────────────────────────────── */}
+          {/* Section A: Export Ready */}
           <section>
             <div className="flex items-center gap-2 mb-6">
               <ShieldCheck className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-2xl font-serif font-semibold">Export Ready</h2>
+              <h2 className="text-2xl font-serif font-semibold">{s.exportReady}</h2>
               <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium text-xs">
-                Verified
+                {s.verified}
               </Badge>
             </div>
 
             {filteredExportReady.length === 0 ? (
-              /* Section A per-section empty state */
               <div className="text-center py-12 bg-card border rounded-lg border-dashed">
-                <p className="text-base font-medium mb-1">No export-ready suppliers found</p>
+                <p className="text-base font-medium mb-1">{s.noExportReadySearch}</p>
                 {q ? (
-                  <p className="text-sm text-muted-foreground">Try a different search term.</p>
+                  <p className="text-sm text-muted-foreground">{s.tryDifferentSearch}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Fincava is currently in beta. We are onboarding a limited group of suppliers and buyers to shape the platform and build the first trusted trade network. Early participants gain priority access and visibility as the network grows.
-                  </p>
+                  <p className="text-sm text-muted-foreground">{s.beta}</p>
                 )}
               </div>
             ) : (
@@ -185,21 +176,15 @@ export default function Suppliers() {
                       <div className="h-24 bg-primary/5 relative">
                         <div className="absolute -bottom-8 left-6 w-16 h-16 rounded-full border-4 border-card bg-background overflow-hidden flex items-center justify-center">
                           {supplier.logoUrl ? (
-                            <img
-                              src={supplier.logoUrl}
-                              alt={supplier.name}
-                              className="w-full h-full object-cover"
-                            />
+                            <img src={supplier.logoUrl} alt={supplier.name} className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-xl font-bold text-primary">
-                              {supplier.name.charAt(0)}
-                            </span>
+                            <span className="text-xl font-bold text-primary">{supplier.name.charAt(0)}</span>
                           )}
                         </div>
                         {supplier.verified && (
                           <div className="absolute top-4 right-4 bg-background/90 backdrop-blur-sm px-2 py-1 rounded-md flex items-center text-xs font-medium text-primary">
                             <ShieldCheck className="w-3 h-3 mr-1" />
-                            Verified
+                            {s.verified}
                           </div>
                         )}
                       </div>
@@ -233,20 +218,13 @@ export default function Suppliers() {
 
                         <div className="space-y-4 border-t pt-4 mt-auto">
                           <div>
-                            <span className="text-xs text-muted-foreground block mb-2">
-                              Categories
-                            </span>
+                            <span className="text-xs text-muted-foreground block mb-2">{s.categories}</span>
                             <div className="flex flex-wrap gap-1.5">
                               {supplier.productCategories.slice(0, 3).map((cat, idx) => (
-                                <Badge key={idx} variant="outline" className="font-normal">
-                                  {cat}
-                                </Badge>
+                                <Badge key={idx} variant="outline" className="font-normal">{cat}</Badge>
                               ))}
                               {supplier.productCategories.length > 3 && (
-                                <Badge
-                                  variant="outline"
-                                  className="font-normal text-muted-foreground"
-                                >
+                                <Badge variant="outline" className="font-normal text-muted-foreground">
                                   +{supplier.productCategories.length - 3}
                                 </Badge>
                               )}
@@ -254,10 +232,8 @@ export default function Suppliers() {
                           </div>
 
                           <div className="flex justify-between items-center text-sm">
-                            <span className="font-medium">{supplier.productCount} Products</span>
-                            <span className="text-primary group-hover:underline">
-                              View Profile &rarr;
-                            </span>
+                            <span className="font-medium">{supplier.productCount} {s.products}</span>
+                            <span className="text-primary group-hover:underline">{s.viewProfile}</span>
                           </div>
                         </div>
                       </CardContent>
@@ -268,75 +244,49 @@ export default function Suppliers() {
             )}
           </section>
 
-          {/* ── Section B: Building Export Readiness ────────────────────────────── */}
+          {/* Section B: Building Export Readiness */}
           <section>
             <div className="flex items-center gap-2 mb-6">
               <Leaf className="w-5 h-5 text-amber-600" />
-              <h2 className="text-2xl font-serif font-semibold">Building Export Readiness</h2>
+              <h2 className="text-2xl font-serif font-semibold">{s.building}</h2>
               <Badge className="bg-amber-100 text-amber-800 border border-amber-200 font-medium text-xs">
-                Coming Soon
+                {s.comingSoon}
               </Badge>
             </div>
 
             {filteredOnboarding.length === 0 ? (
-              /* Section B per-section empty state */
               <div className="text-center py-10 bg-card border rounded-lg border-dashed">
                 {q ? (
-                  <p className="text-sm text-muted-foreground">
-                    No results in this section for your search.
-                  </p>
+                  <p className="text-sm text-muted-foreground">{s.noResultsSearch}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No farms are currently preparing for export. Check back soon.
-                  </p>
+                  <p className="text-sm text-muted-foreground">{s.noFarms}</p>
                 )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredOnboarding.map((supplier) => (
-                  <Card
-                    key={supplier.id}
-                    className="h-full overflow-hidden border-border flex flex-col"
-                  >
+                  <Card key={supplier.id} className="h-full overflow-hidden border-border flex flex-col">
                     {supplier.imageUrl && (
                       <div className="h-40 bg-muted overflow-hidden">
-                        <img
-                          src={supplier.imageUrl}
-                          alt={supplier.name ?? "Supplier"}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={supplier.imageUrl} alt={supplier.name ?? "Supplier"} className="w-full h-full object-cover" />
                       </div>
                     )}
-                    <CardContent
-                      className={`px-6 pb-6 flex-1 flex flex-col ${supplier.imageUrl ? "pt-4" : "pt-6"}`}
-                    >
-                      <h3 className="font-serif font-bold text-xl mb-1 line-clamp-1">
-                        {supplier.name ?? "—"}
-                      </h3>
+                    <CardContent className={`px-6 pb-6 flex-1 flex flex-col ${supplier.imageUrl ? "pt-4" : "pt-6"}`}>
+                      <h3 className="font-serif font-bold text-xl mb-1 line-clamp-1">{supplier.name ?? "—"}</h3>
                       <div className="flex items-center text-sm text-muted-foreground mb-3">
                         <MapPin className="w-3.5 h-3.5 mr-1" />
-                        {[supplier.region, supplier.department].filter(Boolean).join(", ") ||
-                          "Colombia"}
+                        {[supplier.region, supplier.department].filter(Boolean).join(", ") || "Colombia"}
                       </div>
-                      <p className="text-sm text-muted-foreground mb-4 flex-1 leading-relaxed">
-                        {supplier.storyExcerpt}
-                      </p>
+                      <p className="text-sm text-muted-foreground mb-4 flex-1 leading-relaxed">{supplier.storyExcerpt}</p>
                       {supplier.productCategories.length > 0 && (
                         <div className="mb-4">
-                          <span className="text-xs text-muted-foreground block mb-2">
-                            Categories
-                          </span>
+                          <span className="text-xs text-muted-foreground block mb-2">{s.categories}</span>
                           <div className="flex flex-wrap gap-1.5">
                             {supplier.productCategories.slice(0, 3).map((cat, idx) => (
-                              <Badge key={idx} variant="outline" className="font-normal text-xs">
-                                {cat}
-                              </Badge>
+                              <Badge key={idx} variant="outline" className="font-normal text-xs">{cat}</Badge>
                             ))}
                             {supplier.productCategories.length > 3 && (
-                              <Badge
-                                variant="outline"
-                                className="font-normal text-xs text-muted-foreground"
-                              >
+                              <Badge variant="outline" className="font-normal text-xs text-muted-foreground">
                                 +{supplier.productCategories.length - 3}
                               </Badge>
                             )}
@@ -344,7 +294,7 @@ export default function Suppliers() {
                         </div>
                       )}
                       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-3 py-2 mt-auto">
-                        This supplier is preparing for export — check back soon
+                        {s.preparingNote}
                       </p>
                     </CardContent>
                   </Card>

@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, Package, Globe, DollarSign, FileQuestion, BarChart2, AlertCircle } from "lucide-react";
+import { TrendingUp, DollarSign, FileQuestion, BarChart2, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MarketData {
   trendingProducts: Array<{ name: string; category: string; price: number; inquiries: number }>;
@@ -39,6 +40,9 @@ const COMPLIANCE_ALERTS = [
 ];
 
 export default function BuyerMarketIntel() {
+  const { t } = useLanguage();
+  const mi = t.buyerDash.marketIntel;
+
   const { data, isLoading } = useQuery<MarketData>({
     queryKey: ["/api/markets/intelligence"],
     queryFn: () => fetch("/api/markets/intelligence").then(r => r.json()),
@@ -47,8 +51,8 @@ export default function BuyerMarketIntel() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-serif font-bold">Market Intelligence</h1>
-        <p className="text-muted-foreground">Price benchmarks, demand signals, and regulatory alerts for Colombian agricultural commodities</p>
+        <h1 className="text-3xl font-serif font-bold">{mi.heading}</h1>
+        <p className="text-muted-foreground">{mi.description}</p>
       </div>
 
       {/* Market Signal Cards */}
@@ -73,10 +77,10 @@ export default function BuyerMarketIntel() {
 
       <Tabs defaultValue="prices">
         <TabsList>
-          <TabsTrigger value="prices">Price Benchmarks</TabsTrigger>
-          <TabsTrigger value="trending">Trending</TabsTrigger>
-          <TabsTrigger value="rfqs">Open RFQs</TabsTrigger>
-          <TabsTrigger value="alerts">Compliance Alerts</TabsTrigger>
+          <TabsTrigger value="prices">{mi.priceBenchmarks}</TabsTrigger>
+          <TabsTrigger value="trending">{mi.trending}</TabsTrigger>
+          <TabsTrigger value="rfqs">{mi.openRfqs}</TabsTrigger>
+          <TabsTrigger value="alerts">{mi.complianceAlerts}</TabsTrigger>
         </TabsList>
 
         {/* Price Benchmarks */}
@@ -85,7 +89,7 @@ export default function BuyerMarketIntel() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-primary" />
-                Colombian Export Price Benchmarks (FOB Cartagena, USD)
+                {mi.priceBenchmarksTitle}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -93,11 +97,11 @@ export default function BuyerMarketIntel() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground">
-                      <th className="text-left py-2 pr-4">Product</th>
-                      <th className="text-right py-2 pr-4">Low</th>
-                      <th className="text-right py-2 pr-4">Average</th>
-                      <th className="text-right py-2 pr-4">High</th>
-                      <th className="text-right py-2">Unit</th>
+                      <th className="text-left py-2 pr-4">{mi.product}</th>
+                      <th className="text-right py-2 pr-4">{mi.low}</th>
+                      <th className="text-right py-2 pr-4">{mi.average}</th>
+                      <th className="text-right py-2 pr-4">{mi.high}</th>
+                      <th className="text-right py-2">{mi.unit}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -115,9 +119,7 @@ export default function BuyerMarketIntel() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-muted-foreground mt-4 pt-3 border-t">
-                Indicative benchmarks based on recent platform data. Prices vary by quality grade, certification level, and contracted volume. Updated weekly.
-              </p>
+              <p className="text-xs text-muted-foreground mt-4 pt-3 border-t">{mi.priceBenchmarksNote}</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -126,7 +128,12 @@ export default function BuyerMarketIntel() {
         <TabsContent value="trending" className="pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
-              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" />Most Inquired Products</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  {mi.mostInquired}
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 {isLoading ? (
                   <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10" />)}</div>
@@ -141,18 +148,23 @@ export default function BuyerMarketIntel() {
                         </div>
                         <div className="text-right shrink-0">
                           <p className="font-bold text-primary text-sm">${p.price}/kg</p>
-                          <p className="text-xs text-muted-foreground">{p.inquiries} inquiries</p>
+                          <p className="text-xs text-muted-foreground">{p.inquiries} {mi.inquiries}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-sm text-center py-6">No data yet.</p>
+                  <p className="text-muted-foreground text-sm text-center py-6">{mi.noData}</p>
                 )}
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><BarChart2 className="w-5 h-5 text-primary" />Category Avg Prices</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-primary" />
+                  {mi.categoryAvg}
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 {isLoading ? (
                   <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10" />)}</div>
@@ -176,8 +188,13 @@ export default function BuyerMarketIntel() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2"><FileQuestion className="w-5 h-5 text-primary" />Open Sourcing Requests</CardTitle>
-                <Link href="/rfqs"><Button variant="outline" size="sm">View All RFQs</Button></Link>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileQuestion className="w-5 h-5 text-primary" />
+                  {mi.openSourcingRequests}
+                </CardTitle>
+                <Link href="/rfqs">
+                  <Button variant="outline" size="sm">{mi.viewAllRfqs}</Button>
+                </Link>
               </div>
             </CardHeader>
             <CardContent>
@@ -191,11 +208,11 @@ export default function BuyerMarketIntel() {
                       <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                         <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(100, (count / 5) * 100)}%` }} />
                       </div>
-                      <span className="text-sm font-bold text-primary w-16 text-right">{count} open</span>
+                      <span className="text-sm font-bold text-primary w-16 text-right">{count} {mi.openCount}</span>
                     </div>
                   ))}
                   {Object.keys(data?.openRfqsByCategory ?? {}).length === 0 && (
-                    <p className="text-muted-foreground text-sm text-center py-8">No open RFQs right now. Check back or post a sourcing request.</p>
+                    <p className="text-muted-foreground text-sm text-center py-8">{mi.noOpenRfqs}</p>
                   )}
                 </div>
               )}
@@ -203,7 +220,10 @@ export default function BuyerMarketIntel() {
           </Card>
           <div className="mt-4">
             <Link href="/dashboard/rfqs">
-              <Button className="w-full"><FileQuestion className="w-4 h-4 mr-2" />Post a New RFQ</Button>
+              <Button className="w-full">
+                <FileQuestion className="w-4 h-4 mr-2" />
+                {mi.postRfq}
+              </Button>
             </Link>
           </div>
         </TabsContent>
@@ -230,7 +250,7 @@ export default function BuyerMarketIntel() {
                 </CardContent>
               </Card>
             ))}
-            <p className="text-xs text-muted-foreground text-center pt-2">Regulatory updates are sourced from official trade bodies. Always verify with a trade compliance advisor.</p>
+            <p className="text-xs text-muted-foreground text-center pt-2">{mi.regulatoryNote}</p>
           </div>
         </TabsContent>
       </Tabs>

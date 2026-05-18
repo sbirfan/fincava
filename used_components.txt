@@ -1,0 +1,2 @@
+artifacts/fincava/src/components/layout/footer.tsx
+artifacts/fincava/src/components/layout/navbar.tsx

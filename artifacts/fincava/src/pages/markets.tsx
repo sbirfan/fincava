@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Package, Globe, AlertCircle, CheckCircle2, FileText, FlaskConical, Award, BookOpen } from "lucide-react";
+import { TrendingUp, Package, AlertCircle, CheckCircle2, FileText, FlaskConical, Award, BookOpen } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MarketData {
   trendingProducts: Array<{ name: string; category: string; price: number; inquiries: number }>;
@@ -14,35 +15,31 @@ interface MarketData {
   avgPricesByCategory: Record<string, number>;
 }
 
-const MARKETS = [
+const MARKETS_STATIC = [
   {
-    id: "uae", name: "UAE & Gulf", flag: "🇦🇪", growth: "+34%", signal: "HIGH",
+    id: "uae", flag: "🇦🇪", growth: "+34%", signal: "HIGH",
     image: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=600",
-    description: "The Gulf Cooperation Council is Fincava's fastest-growing market, driven by rising specialty coffee culture, demand for organic health foods, and a large South Asian diaspora population creating demand for tropical fruits.",
     topProducts: ["Specialty Coffee", "Hass Avocado", "Goldenberry Powder", "Maca"],
     ports: ["Jebel Ali (Dubai)", "Abu Dhabi Port", "Khalifa Port"],
     currency: "USD",
   },
   {
-    id: "china", name: "China & East Asia", flag: "🇨🇳", growth: "+28%", signal: "HIGH",
+    id: "china", flag: "🇨🇳", growth: "+28%", signal: "HIGH",
     image: "https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=600",
-    description: "China's premium food segment is booming. Consumers are paying premiums for traceable, origin-certified products. Colombia's SCA-graded coffees and certified cacao are attracting significant importer interest.",
     topProducts: ["Specialty Coffee", "Fine Flavor Cacao", "Processed Superfood Powders"],
     ports: ["Shanghai Port", "Guangzhou Nansha", "Tianjin Port"],
     currency: "USD/RMB",
   },
   {
-    id: "korea", name: "South Korea", flag: "🇰🇷", growth: "+19%", signal: "MEDIUM",
+    id: "korea", flag: "🇰🇷", growth: "+19%", signal: "MEDIUM",
     image: "https://images.unsplash.com/photo-1538485399081-7191377e8241?w=600",
-    description: "South Korea has one of the world's highest per-capita coffee consumption rates. Specialty single-origin beans from Colombian regions like Huila and Nariño command premium shelf placement.",
     topProducts: ["Specialty Coffee", "Cold Brew Grade Coffee", "Cacao"],
     ports: ["Busan New Port", "Incheon Port"],
     currency: "USD/KRW",
   },
   {
-    id: "west-africa", name: "West Africa", flag: "🌍", growth: "+42%", signal: "EMERGING",
+    id: "west-africa", flag: "🌍", growth: "+42%", signal: "EMERGING",
     image: "https://images.unsplash.com/photo-1522776851755-3914469f0ca2?w=600",
-    description: "Nigeria, Ghana, and Côte d'Ivoire represent a rapidly growing middle class with increasing disposable income and appetite for premium imported goods. The lowest cost-of-entry of Fincava's target markets.",
     topProducts: ["Coffee", "Cacao", "Processed Goods"],
     ports: ["Apapa Port (Lagos)", "Tema Port (Ghana)"],
     currency: "USD",
@@ -116,6 +113,8 @@ const signalColor: Record<string, string> = {
 };
 
 export default function Markets() {
+  const { t } = useLanguage();
+  const mk = t.markets;
   const [productFilter, setProductFilter] = useState("COFFEE");
 
   const { data: intelligence, isLoading } = useQuery<MarketData>({
@@ -123,11 +122,17 @@ export default function Markets() {
     queryFn: () => fetch("/api/markets/intelligence").then(r => r.json()),
   });
 
+  const MARKETS = MARKETS_STATIC.map((m, i) => ({
+    ...m,
+    name: mk.marketProfiles[i]?.name ?? m.id,
+    description: mk.marketProfiles[i]?.description ?? "",
+  }));
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-3xl mx-auto text-center mb-12">
-        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Market Intelligence</h1>
-        <p className="text-lg text-muted-foreground">Current demand signals, price benchmarks, and compliance requirements for Colombia's top export markets.</p>
+        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">{mk.heading}</h1>
+        <p className="text-lg text-muted-foreground">{mk.description}</p>
       </div>
 
       {/* Global signals bar */}
@@ -150,10 +155,10 @@ export default function Markets() {
 
       <Tabs defaultValue="markets" className="w-full">
         <TabsList className="mb-8">
-          <TabsTrigger value="markets">Market Profiles</TabsTrigger>
-          <TabsTrigger value="demand">Demand Signals</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance Guide</TabsTrigger>
-          <TabsTrigger value="prices">Price Benchmarks</TabsTrigger>
+          <TabsTrigger value="markets">{mk.tabs.marketProfiles}</TabsTrigger>
+          <TabsTrigger value="demand">{mk.tabs.demandSignals}</TabsTrigger>
+          <TabsTrigger value="compliance">{mk.tabs.complianceGuide}</TabsTrigger>
+          <TabsTrigger value="prices">{mk.tabs.priceBenchmarks}</TabsTrigger>
         </TabsList>
 
         {/* Market Profiles */}
@@ -177,13 +182,13 @@ export default function Markets() {
                   <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{market.description}</p>
                   <div className="space-y-3">
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1.5">Top Products in Demand</p>
+                      <p className="text-xs text-muted-foreground mb-1.5">{mk.topProducts}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {market.topProducts.map(p => <Badge key={p} variant="outline" className="text-xs">{p}</Badge>)}
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1.5">Main Entry Ports</p>
+                      <p className="text-xs text-muted-foreground mb-1.5">{mk.mainPorts}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {market.ports.map(p => <span key={p} className="text-xs bg-muted px-2 py-0.5 rounded">{p}</span>)}
                       </div>
@@ -199,7 +204,12 @@ export default function Markets() {
         <TabsContent value="demand">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
-              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" />Trending Products</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  {mk.trendingProducts}
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 {isLoading ? (
                   <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10" />)}</div>
@@ -214,7 +224,7 @@ export default function Markets() {
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-primary text-sm">${p.price}/kg</p>
-                          <p className="text-xs text-muted-foreground">{p.inquiries} inquiries</p>
+                          <p className="text-xs text-muted-foreground">{p.inquiries} {mk.inquiries}</p>
                         </div>
                       </div>
                     ))}
@@ -224,7 +234,12 @@ export default function Markets() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Package className="w-5 h-5 text-primary" />Open RFQs by Category</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Package className="w-5 h-5 text-primary" />
+                  {mk.openRfqsByCategory}
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 {isLoading ? (
                   <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12" />)}</div>
@@ -235,7 +250,7 @@ export default function Markets() {
                         <div className="flex-1">
                           <div className="flex justify-between text-sm mb-1">
                             <span className="font-medium">{cat}</span>
-                            <span className="text-primary font-bold">{count} RFQ{count !== 1 ? "s" : ""}</span>
+                            <span className="text-primary font-bold">{count} {mk.rfqCount}</span>
                           </div>
                           <div className="h-2 rounded-full bg-muted overflow-hidden">
                             <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (count / 5) * 100)}%` }} />
@@ -244,7 +259,7 @@ export default function Markets() {
                       </div>
                     ))}
                     {Object.keys(intelligence?.openRfqsByCategory ?? {}).length === 0 && (
-                      <p className="text-muted-foreground text-sm text-center py-6">No open RFQs right now.</p>
+                      <p className="text-muted-foreground text-sm text-center py-6">{mk.noOpenRfqs}</p>
                     )}
                   </div>
                 )}
@@ -256,16 +271,16 @@ export default function Markets() {
         {/* Compliance Guide */}
         <TabsContent value="compliance">
           <div className="mb-6 flex gap-4 items-center">
-            <p className="text-sm text-muted-foreground">Filter by product:</p>
+            <p className="text-sm text-muted-foreground">{mk.filterByProduct}</p>
             <Select value={productFilter} onValueChange={setProductFilter}>
               <SelectTrigger className="w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="COFFEE">Coffee</SelectItem>
-                <SelectItem value="CACAO">Cacao</SelectItem>
-                <SelectItem value="AVOCADO">Avocado</SelectItem>
-                <SelectItem value="SUPERFOOD">Superfoods</SelectItem>
+                <SelectItem value="COFFEE">{mk.products.COFFEE}</SelectItem>
+                <SelectItem value="CACAO">{mk.products.CACAO}</SelectItem>
+                <SelectItem value="AVOCADO">{mk.products.AVOCADO}</SelectItem>
+                <SelectItem value="SUPERFOOD">{mk.products.SUPERFOOD}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -277,7 +292,7 @@ export default function Markets() {
                 <Card key={market.id} className="opacity-60">
                   <CardContent className="p-5">
                     <h3 className="font-semibold mb-2">{market.flag} {market.name}</h3>
-                    <p className="text-sm text-muted-foreground">No specific requirements documented for this product in this market.</p>
+                    <p className="text-sm text-muted-foreground">{mk.noRequirements}</p>
                   </CardContent>
                 </Card>
               );
@@ -298,15 +313,15 @@ export default function Markets() {
                             </div>
                             <div>
                               <span className={r.mandatory ? "font-medium" : "text-muted-foreground"}>{r.req}</span>
-                              {r.mandatory && <span className="text-xs text-primary ml-1.5">Required</span>}
+                              {r.mandatory && <span className="text-xs text-primary ml-1.5">{mk.required}</span>}
                             </div>
                           </div>
                         );
                       })}
                     </div>
                     <div className="mt-4 pt-3 border-t flex gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" />{reqs.filter(r => r.mandatory).length} mandatory</span>
-                      <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3 text-amber-500" />{reqs.filter(r => !r.mandatory).length} recommended</span>
+                      <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" />{reqs.filter(r => r.mandatory).length} {mk.mandatory}</span>
+                      <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3 text-amber-500" />{reqs.filter(r => !r.mandatory).length} {mk.recommended}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -321,15 +336,15 @@ export default function Markets() {
             {Object.entries(intelligence?.avgPricesByCategory ?? { COFFEE: 18.50, CACAO: 3.50, AVOCADO: 1.80, SUPERFOOD: 30.00, EXOTIC_FRUIT: 3.20 }).map(([cat, price]) => (
               <Card key={cat}>
                 <CardContent className="p-5">
-                  <p className="text-sm text-muted-foreground mb-1">Average Price</p>
-                  <p className="text-3xl font-bold text-primary mb-1">${price}<span className="text-base font-normal text-muted-foreground">/kg</span></p>
+                  <p className="text-sm text-muted-foreground mb-1">{mk.avgPrice}</p>
+                  <p className="text-3xl font-bold text-primary mb-1">${price}<span className="text-base font-normal text-muted-foreground">{mk.perKg}</span></p>
                   <p className="font-semibold">{cat}</p>
-                  <p className="text-xs text-muted-foreground mt-2">Colombian export grade, FOB Cartagena</p>
+                  <p className="text-xs text-muted-foreground mt-2">{mk.colombianExport}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-6">Prices are indicative benchmarks based on recent Fincava platform data. Actual prices vary by quality grade, certification, and volume.</p>
+          <p className="text-xs text-muted-foreground text-center mt-6">{mk.priceDisclaimer}</p>
         </TabsContent>
       </Tabs>
     </div>

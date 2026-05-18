@@ -9,10 +9,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Search, SlidersHorizontal, Users, Handshake, Leaf, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const PAGE_SIZE = 20;
 
 export default function Marketplace() {
+  const { t } = useLanguage();
+  const m = t.marketplace;
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [sort, setSort] = useState<string>("newest");
@@ -38,7 +41,6 @@ export default function Marketplace() {
 
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
-  // Server already applies impact filters; keep client-side pass as safety fallback.
   const products = (data?.products ?? []) as any[];
   const filteredProducts = products.filter(p => {
     if (filterSmallholder && !p.smallholder) return false;
@@ -65,8 +67,8 @@ export default function Marketplace() {
     <div className="container mx-auto px-4 py-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">Marketplace</h1>
-          <p className="text-muted-foreground">Discover premium agricultural products from verified Colombian producers.</p>
+          <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">{m.heading}</h1>
+          <p className="text-muted-foreground">{m.description}</p>
         </div>
       </div>
 
@@ -76,17 +78,17 @@ export default function Marketplace() {
           <div className="bg-card border border-border rounded-lg p-5">
             <div className="flex items-center gap-2 font-medium border-b pb-3 mb-4">
               <SlidersHorizontal className="w-4 h-4" />
-              Filters
+              {m.filters.title}
             </div>
             
             <div className="space-y-5">
               <div>
-                <label className="text-sm font-medium mb-2 block">Search</label>
+                <label className="text-sm font-medium mb-2 block">{m.filters.search}</label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input 
                     type="search"
-                    placeholder="Search products..." 
+                    placeholder={m.filters.searchPlaceholder}
                     className="pl-9"
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); resetPage(); }}
@@ -95,32 +97,32 @@ export default function Marketplace() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Category</label>
+                <label className="text-sm font-medium mb-2 block">{m.filters.category}</label>
                 <Select value={category} onValueChange={(v) => { setCategory(v); resetPage(); }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All Categories" />
+                    <SelectValue placeholder={m.filters.allCategories} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="Coffee">Coffee</SelectItem>
-                    <SelectItem value="Cacao">Cacao</SelectItem>
-                    <SelectItem value="Exotic Fruits">Exotic Fruits</SelectItem>
-                    <SelectItem value="Superfoods">Superfoods</SelectItem>
+                    <SelectItem value="all">{m.filters.allCategories}</SelectItem>
+                    <SelectItem value="Coffee">{m.filters.coffee}</SelectItem>
+                    <SelectItem value="Cacao">{m.filters.cacao}</SelectItem>
+                    <SelectItem value="Exotic Fruits">{m.filters.exoticFruits}</SelectItem>
+                    <SelectItem value="Superfoods">{m.filters.superfoods}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Sort By</label>
+                <label className="text-sm font-medium mb-2 block">{m.filters.sortBy}</label>
                 <Select value={sort} onValueChange={(v) => { setSort(v); resetPage(); }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Newest" />
+                    <SelectValue placeholder={m.filters.newest} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="newest">Newest Arrivals</SelectItem>
-                    <SelectItem value="price_asc">Price: Low to High</SelectItem>
-                    <SelectItem value="price_desc">Price: High to Low</SelectItem>
-                    <SelectItem value="rating">Highest Rated</SelectItem>
+                    <SelectItem value="newest">{m.filters.newest}</SelectItem>
+                    <SelectItem value="price_asc">{m.filters.priceLow}</SelectItem>
+                    <SelectItem value="price_desc">{m.filters.priceHigh}</SelectItem>
+                    <SelectItem value="rating">{m.filters.topRated}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -129,7 +131,7 @@ export default function Marketplace() {
               <div>
                 <div className="text-sm font-medium mb-3 pb-2 border-b flex items-center gap-1.5">
                   <Leaf className="w-3.5 h-3.5 text-primary" />
-                  Impact Sourcing
+                  {m.filters.impactSourcing}
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-start gap-2.5">
@@ -141,9 +143,9 @@ export default function Marketplace() {
                     />
                     <Label htmlFor="directTrade" className="text-sm leading-snug cursor-pointer">
                       <span className="flex items-center gap-1.5 font-medium">
-                        <Handshake className="w-3 h-3 text-emerald-600" /> Direct Trade
+                        <Handshake className="w-3 h-3 text-emerald-600" /> {m.filters.directTrade}
                       </span>
-                      <span className="text-xs text-muted-foreground">No commodity brokers</span>
+                      <span className="text-xs text-muted-foreground">{m.filters.directTradeDesc}</span>
                     </Label>
                   </div>
 
@@ -156,9 +158,9 @@ export default function Marketplace() {
                     />
                     <Label htmlFor="smallholder" className="text-sm leading-snug cursor-pointer">
                       <span className="flex items-center gap-1.5 font-medium">
-                        <Users className="w-3 h-3 text-amber-600" /> Smallholder Farm
+                        <Users className="w-3 h-3 text-amber-600" /> {m.filters.smallholder}
                       </span>
-                      <span className="text-xs text-muted-foreground">Under 10 hectares</span>
+                      <span className="text-xs text-muted-foreground">{m.filters.smallholderDesc}</span>
                     </Label>
                   </div>
 
@@ -170,8 +172,8 @@ export default function Marketplace() {
                       className="mt-0.5"
                     />
                     <Label htmlFor="womenLed" className="text-sm leading-snug cursor-pointer">
-                      <span className="font-medium text-sm">Women-Led Farm</span>
-                      <span className="text-xs text-muted-foreground block">Female-owned or managed</span>
+                      <span className="font-medium text-sm">{m.filters.womenLed}</span>
+                      <span className="text-xs text-muted-foreground block">{m.filters.womenLedDesc}</span>
                     </Label>
                   </div>
 
@@ -184,9 +186,9 @@ export default function Marketplace() {
                     />
                     <Label htmlFor="organic" className="text-sm leading-snug cursor-pointer">
                       <span className="flex items-center gap-1.5 font-medium">
-                        <Leaf className="w-3 h-3 text-green-600" /> Certified Organic
+                        <Leaf className="w-3 h-3 text-green-600" /> {m.filters.organic}
                       </span>
-                      <span className="text-xs text-muted-foreground">No synthetic inputs</span>
+                      <span className="text-xs text-muted-foreground">{m.filters.organicDesc}</span>
                     </Label>
                   </div>
                 </div>
@@ -197,7 +199,7 @@ export default function Marketplace() {
                 className="w-full"
                 onClick={clearAll}
               >
-                Clear All Filters
+                {m.filters.clearAll}
               </Button>
             </div>
           </div>
@@ -210,10 +212,10 @@ export default function Marketplace() {
             <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between text-sm">
               <span className="text-primary font-medium flex items-center gap-1.5">
                 <Leaf className="w-3.5 h-3.5" />
-                Impact filters active — showing {filteredProducts.length} matching products
+                {m.impactActive} ({filteredProducts.length})
               </span>
               <button onClick={() => { setFilterSmallholder(false); setFilterWomenLed(false); setFilterDirectTrade(false); setFilterOrganic(false); }} className="text-muted-foreground hover:text-foreground text-xs">
-                Clear
+                {m.clear}
               </button>
             </div>
           )}
@@ -233,16 +235,16 @@ export default function Marketplace() {
               ))
             ) : (
               <div className="col-span-full text-center py-20 bg-card border rounded-lg border-dashed">
-                <p className="text-lg font-medium mb-2">Export-ready products are being listed.</p>
-                <p className="text-muted-foreground mb-4">Verified suppliers are preparing their first shipments.</p>
+                <p className="text-lg font-medium mb-2">{m.emptyHeading}</p>
+                <p className="text-muted-foreground mb-4">{m.emptyDesc}</p>
                 <Button variant="outline" onClick={clearAll}>
-                  Clear Filters
+                  {m.clearFilters}
                 </Button>
               </div>
             )}
           </div>
 
-          {/* Pagination controls — shown only when more than one page exists */}
+          {/* Pagination controls */}
           {totalPages > 1 && (
             <div className="mt-8 flex items-center justify-center gap-3">
               <Button
@@ -252,10 +254,10 @@ export default function Marketplace() {
                 disabled={page <= 1 || isLoading}
               >
                 <ChevronLeft className="w-4 h-4 mr-1" />
-                Prev
+                {m.prev}
               </Button>
               <span className="text-sm text-muted-foreground tabular-nums">
-                Page {page} of {totalPages}
+                {m.pageOf.replace("{page}", String(page)).replace("{total}", String(totalPages))}
               </span>
               <Button
                 variant="outline"
@@ -263,7 +265,7 @@ export default function Marketplace() {
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages || isLoading}
               >
-                Next
+                {m.next}
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>

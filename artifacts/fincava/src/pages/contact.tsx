@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Mail, Phone, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -20,6 +21,8 @@ const contactSchema = z.object({
 });
 
 export default function Contact() {
+  const { t } = useLanguage();
+  const c = t.contact;
   const { toast } = useToast();
   
   const form = useForm<z.infer<typeof contactSchema>>({
@@ -37,8 +40,8 @@ export default function Contact() {
   function onSubmit(values: z.infer<typeof contactSchema>) {
     console.log(values);
     toast({
-      title: "Message sent",
-      description: "We'll get back to you as soon as possible.",
+      title: c.successTitle,
+      description: c.successDesc,
     });
     form.reset();
   }
@@ -46,49 +49,49 @@ export default function Contact() {
   return (
     <div className="container mx-auto px-4 py-16 max-w-5xl">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-serif font-bold mb-4">Contact Us</h1>
-        <p className="text-lg text-muted-foreground">Have questions about sourcing or joining the platform? Our team is here to help.</p>
+        <h1 className="text-4xl font-serif font-bold mb-4">{c.heading}</h1>
+        <p className="text-lg text-muted-foreground">{c.description}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <div>
           <Card className="border-none shadow-none bg-transparent">
             <CardHeader className="px-0">
-              <CardTitle className="text-2xl font-serif">Get in Touch</CardTitle>
+              <CardTitle className="text-2xl font-serif">{c.getInTouch}</CardTitle>
               <CardDescription className="text-base">
-                Fill out the form and a Fincava representative will contact you within 24 hours.
+                {c.getInTouchDesc}
               </CardDescription>
             </CardHeader>
             <CardContent className="px-0 space-y-8 mt-4">
               <div className="flex items-start">
                 <MapPin className="w-5 h-5 text-primary mr-4 mt-0.5" />
                 <div>
-                  <h4 className="font-medium">San Gil Office</h4>
-                  <p className="text-muted-foreground text-sm">calle 13 No. 8 - 14, San Gil, Santander, Colombia</p>
+                  <h4 className="font-medium">{c.officeLabel}</h4>
+                  <p className="text-muted-foreground text-sm">{c.officeAddress}</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <Mail className="w-5 h-5 text-primary mr-4 mt-0.5" />
                 <div>
-                  <h4 className="font-medium">Email Us</h4>
+                  <h4 className="font-medium">{c.emailLabel}</h4>
                   <p className="text-muted-foreground text-sm">info@fincava.com</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <Phone className="w-5 h-5 text-primary mr-4 mt-0.5" />
                 <div>
-                  <h4 className="font-medium">Phone</h4>
-                  <p className="text-muted-foreground text-sm">Colombia: +57 316 656 3613</p>
-                  <p className="text-muted-foreground text-sm">US: +1 512 360 0118</p>
+                  <h4 className="font-medium">{c.phoneLabel}</h4>
+                  <p className="text-muted-foreground text-sm">{c.phoneColombia}</p>
+                  <p className="text-muted-foreground text-sm">{c.phoneUS}</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <MessageCircle className="w-5 h-5 text-[#25D366] mr-4 mt-0.5" />
                 <div>
-                  <h4 className="font-medium">WhatsApp Support</h4>
-                  <p className="text-muted-foreground text-sm">US: +1 512 360 0118</p>
+                  <h4 className="font-medium">{c.whatsappLabel}</h4>
+                  <p className="text-muted-foreground text-sm">{c.whatsappUS}</p>
                   <Button variant="outline" className="mt-3 text-[#25D366] border-[#25D366] hover:bg-[#25D366] hover:text-white" onClick={() => window.open('https://wa.me/15123600118', '_blank')}>
-                    Chat on WhatsApp
+                    {c.chatBtn}
                   </Button>
                 </div>
               </div>
@@ -106,9 +109,9 @@ export default function Contact() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Full Name</FormLabel>
+                        <FormLabel>{c.fullName}</FormLabel>
                         <FormControl>
-                          <Input placeholder="John Doe" {...field} />
+                          <Input placeholder={c.fullNamePlaceholder} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -120,9 +123,9 @@ export default function Contact() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel>{c.emailField}</FormLabel>
                           <FormControl>
-                            <Input placeholder="john@example.com" type="email" {...field} />
+                            <Input placeholder={c.emailPlaceholder} type="email" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -133,9 +136,9 @@ export default function Contact() {
                       name="phone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone (Optional)</FormLabel>
+                          <FormLabel>{c.phone}</FormLabel>
                           <FormControl>
-                            <Input placeholder="+1 555 000 0000" type="tel" {...field} />
+                            <Input placeholder={c.phonePlaceholder} type="tel" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -148,9 +151,9 @@ export default function Contact() {
                       name="company"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Company (Optional)</FormLabel>
+                          <FormLabel>{c.company}</FormLabel>
                           <FormControl>
-                            <Input placeholder="Acme Inc." {...field} />
+                            <Input placeholder={c.companyPlaceholder} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -161,17 +164,17 @@ export default function Contact() {
                       name="userType"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>I am a (Optional)</FormLabel>
+                          <FormLabel>{c.iAm}</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Select type" />
+                                <SelectValue placeholder={c.iAmPlaceholder} />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="BUYER">Buyer</SelectItem>
-                              <SelectItem value="SUPPLIER">Supplier</SelectItem>
-                              <SelectItem value="OTHER">Other</SelectItem>
+                              <SelectItem value="BUYER">{c.buyer}</SelectItem>
+                              <SelectItem value="SUPPLIER">{c.supplier}</SelectItem>
+                              <SelectItem value="OTHER">{c.other}</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -184,10 +187,10 @@ export default function Contact() {
                     name="message"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Message</FormLabel>
+                        <FormLabel>{c.message}</FormLabel>
                         <FormControl>
                           <Textarea 
-                            placeholder="How can we help you?" 
+                            placeholder={c.messagePlaceholder}
                             className="min-h-[120px]"
                             {...field} 
                           />
@@ -196,7 +199,7 @@ export default function Contact() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full">Send Message</Button>
+                  <Button type="submit" className="w-full">{c.sendBtn}</Button>
                 </form>
               </Form>
             </CardContent>

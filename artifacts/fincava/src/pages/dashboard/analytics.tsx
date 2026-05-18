@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, ShoppingCart, DollarSign, Package, FlaskConical } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const VOLUME_DATA = [
   { month: "Oct", orders: 2, value: 8400 },
@@ -46,14 +47,17 @@ interface TrendingProduct {
   pricePerKgUSD: number;
 }
 
-const SAMPLE_STAT_CARDS = [
-  { label: "Total Orders", value: "42", change: "+18% MoM", icon: ShoppingCart, color: "text-primary" },
-  { label: "Trade Value", value: "$189K", change: "+31% MoM", icon: DollarSign, color: "text-green-600" },
-  { label: "Products Sourced", value: "8", change: "Active", icon: Package, color: "text-amber-600" },
-  { label: "Avg Order Value", value: "$4,500", change: "+12% MoM", icon: TrendingUp, color: "text-blue-600" },
-];
-
 export default function AnalyticsDashboard() {
+  const { t } = useLanguage();
+  const an = t.buyerDash.analytics;
+
+  const SAMPLE_STAT_CARDS = [
+    { label: an.totalOrders, value: "42", change: "+18% MoM", icon: ShoppingCart, color: "text-primary" },
+    { label: an.tradeValue, value: "$189K", change: "+31% MoM", icon: DollarSign, color: "text-green-600" },
+    { label: an.productsSourced, value: "8", change: "Active", icon: Package, color: "text-amber-600" },
+    { label: an.avgOrderValue, value: "$4,500", change: "+12% MoM", icon: TrendingUp, color: "text-blue-600" },
+  ];
+
   const { data: trending, isLoading } = useQuery<TrendingProduct[]>({
     queryKey: ["/api/analytics/trending"],
     queryFn: () =>
@@ -78,16 +82,16 @@ export default function AnalyticsDashboard() {
     <div className="space-y-8">
       <div>
         <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-3xl font-serif font-bold tracking-tight">Analytics</h1>
+          <h1 className="text-3xl font-serif font-bold tracking-tight">{an.heading}</h1>
           <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 gap-1.5 text-xs font-medium">
             <FlaskConical className="w-3 h-3" />
-            Sample analytics
+            {an.sampleBadge}
           </Badge>
         </div>
-        <p className="text-muted-foreground mt-1">Trade volume, product performance, and regional demand signals.</p>
+        <p className="text-muted-foreground mt-1">{an.description}</p>
       </div>
 
-      {/* Sample stat cards — illustrative data only */}
+      {/* Sample stat cards */}
       <div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {SAMPLE_STAT_CARDS.map(card => (
@@ -107,15 +111,13 @@ export default function AnalyticsDashboard() {
             </Card>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground mt-2 ml-1">
-          These figures are illustrative. Live order data will appear here once transactions are active on your account.
-        </p>
+        <p className="text-xs text-muted-foreground mt-2 ml-1">{an.sampleNote}</p>
       </div>
 
       {/* Trade volume line chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif text-lg">Trade Volume — Last 7 Months</CardTitle>
+          <CardTitle className="font-serif text-lg">{an.tradeVolumeTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={260}>
@@ -137,10 +139,9 @@ export default function AnalyticsDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Product performance bar chart */}
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle className="font-serif text-lg">Product Performance</CardTitle>
+            <CardTitle className="font-serif text-lg">{an.productPerformance}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -163,10 +164,9 @@ export default function AnalyticsDashboard() {
           </CardContent>
         </Card>
 
-        {/* Category breakdown pie */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="font-serif text-lg">By Category</CardTitle>
+            <CardTitle className="font-serif text-lg">{an.categoryBreakdown}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -201,7 +201,7 @@ export default function AnalyticsDashboard() {
       {/* Regional demand */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif text-lg">Regional Demand Index</CardTitle>
+          <CardTitle className="font-serif text-lg">{an.regionalDemand}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -218,7 +218,7 @@ export default function AnalyticsDashboard() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-4">Index score based on RFQ volume, inquiry frequency, and market intel signals (0–100).</p>
+          <p className="text-xs text-muted-foreground mt-4">{an.regionalDemandDesc}</p>
         </CardContent>
       </Card>
     </div>

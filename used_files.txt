@@ -1,0 +1,17 @@
+artifacts/fincava/src/pages/admin/suppliers.tsx
+artifacts/fincava/src/pages/dashboard/ai-assistant.tsx
+artifacts/fincava/src/pages/dashboard/index.tsx
+artifacts/fincava/src/pages/dashboard/profile.tsx
+artifacts/fincava/src/pages/officer/compliance.tsx
+artifacts/fincava/src/pages/officer/dashboard.tsx
+artifacts/fincava/src/pages/buyer-onboarding.tsx
+artifacts/fincava/src/pages/buyer-register.tsx
+artifacts/fincava/src/pages/forgot-password.tsx
+artifacts/fincava/src/pages/home.tsx
+artifacts/fincava/src/pages/login.tsx
+artifacts/fincava/src/pages/officer-register.tsx
+artifacts/fincava/src/pages/onboarding.tsx
+artifacts/fincava/src/pages/register.tsx
+artifacts/fincava/src/pages/reset-password.tsx
+artifacts/fincava/src/pages/supplier-detail.tsx
+artifacts/fincava/src/pages/verify-email.tsx

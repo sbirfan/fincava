@@ -14,8 +14,11 @@ import { Loader2, Ship } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMySupplierProfileQueryKey } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 function ExportModeCard() {
+  const { t } = useLanguage();
+  const pr = t.supplierDash.profile;
   const { toast } = useToast();
   const [mode, setMode] = useState("");
   const [partnerName, setPartnerName] = useState("");
@@ -52,9 +55,9 @@ function ExportModeCard() {
         }),
       });
       if (!r.ok) throw new Error("Failed");
-      toast({ title: "Export mode saved" });
+      toast({ title: pr.exportSaved });
     } catch {
-      toast({ title: "Error", description: "Could not save export mode", variant: "destructive" });
+      toast({ title: "Error", description: pr.exportError, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -67,43 +70,41 @@ function ExportModeCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Ship className="h-4 w-4 text-muted-foreground" />
-          Export Mode Declaration
+          {pr.exportMode}
         </CardTitle>
-        <CardDescription>
-          How you export your products — helps us match you with the right buyers and compliance pathways.
-        </CardDescription>
+        <CardDescription>{pr.exportModeDesc}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">How do you export?</label>
+          <label className="text-sm font-medium">{pr.exportLabel}</label>
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value)}
             className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="">Select an option…</option>
-            <option value="direct">Direct — I export directly to international buyers</option>
-            <option value="intermediary">Through an intermediary — I work with an exporter or agent</option>
-            <option value="not_sure">Not sure yet</option>
+            <option value="">{pr.exportPlaceholder}</option>
+            <option value="direct">{pr.direct}</option>
+            <option value="intermediary">{pr.intermediary}</option>
+            <option value="not_sure">{pr.notSure}</option>
           </select>
         </div>
 
         {mode === "intermediary" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Intermediary / Partner Name</label>
+              <label className="text-sm font-medium">{pr.partnerName}</label>
               <Input
                 value={partnerName}
                 onChange={(e) => setPartnerName(e.target.value)}
-                placeholder="e.g. Café Exports Colombia S.A.S."
+                placeholder={pr.partnerNamePlaceholder}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Partner Role</label>
+              <label className="text-sm font-medium">{pr.partnerRole}</label>
               <Input
                 value={partnerRole}
                 onChange={(e) => setPartnerRole(e.target.value)}
-                placeholder="e.g. Export agent, Cooperative"
+                placeholder={pr.partnerRolePlaceholder}
               />
             </div>
           </div>
@@ -112,7 +113,7 @@ function ExportModeCard() {
         <div className="flex justify-end pt-1">
           <Button onClick={save} disabled={!mode || saving}>
             {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Save
+            {pr.save}
           </Button>
         </div>
       </CardContent>
@@ -132,6 +133,8 @@ const profileSchema = z.object({
 });
 
 export default function SupplierProfile() {
+  const { t } = useLanguage();
+  const pr = t.supplierDash.profile;
   const { data: profile, isLoading } = useGetMySupplierProfile();
   const updateProfile = useUpdateSupplierProfile();
   const { toast } = useToast();
@@ -169,12 +172,12 @@ export default function SupplierProfile() {
   function onSubmit(values: z.infer<typeof profileSchema>) {
     updateProfile.mutate({ data: values }, {
       onSuccess: () => {
-        toast({ title: "Profile updated successfully" });
+        toast({ title: pr.profileUpdated });
         queryClient.invalidateQueries({ queryKey: getGetMySupplierProfileQueryKey() });
       },
       onError: (error: any) => {
         toast({ 
-          title: "Failed to update profile", 
+          title: pr.updateFailed, 
           description: error?.data?.error ?? error?.message,
           variant: "destructive" 
         });
@@ -194,16 +197,16 @@ export default function SupplierProfile() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight">Company Profile</h1>
-        <p className="text-muted-foreground mt-2">Update your public supplier presence on Fincava.</p>
+        <h1 className="text-3xl font-serif font-bold tracking-tight">{pr.heading}</h1>
+        <p className="text-muted-foreground mt-2">{pr.description}</p>
       </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <Card>
             <CardHeader>
-              <CardTitle>Business Identity</CardTitle>
-              <CardDescription>How buyers see you in the marketplace.</CardDescription>
+              <CardTitle>{pr.businessIdentity}</CardTitle>
+              <CardDescription>{pr.businessIdentityDesc}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -212,7 +215,7 @@ export default function SupplierProfile() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company Name</FormLabel>
+                      <FormLabel>{pr.companyName}</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -225,9 +228,9 @@ export default function SupplierProfile() {
                   name="type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Business Type</FormLabel>
+                      <FormLabel>{pr.businessType}</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Cooperative, Farm, Exporter" {...field} />
+                        <Input placeholder={pr.businessTypePlaceholder} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -240,7 +243,7 @@ export default function SupplierProfile() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Company Description</FormLabel>
+                    <FormLabel>{pr.companyDescription}</FormLabel>
                     <FormControl>
                       <Textarea className="min-h-[120px]" {...field} />
                     </FormControl>
@@ -255,7 +258,7 @@ export default function SupplierProfile() {
                   name="country"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Country</FormLabel>
+                      <FormLabel>{pr.country}</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -268,9 +271,9 @@ export default function SupplierProfile() {
                   name="region"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Region / Department</FormLabel>
+                      <FormLabel>{pr.region}</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Huila, Antioquia" {...field} />
+                        <Input placeholder={pr.regionPlaceholder} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -281,9 +284,9 @@ export default function SupplierProfile() {
                   name="website"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Website (Optional)</FormLabel>
+                      <FormLabel>{pr.website}</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://" {...field} />
+                        <Input placeholder={pr.websitePlaceholder} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -295,8 +298,8 @@ export default function SupplierProfile() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Origin Story</CardTitle>
-              <CardDescription>Connect with buyers through your heritage and farming practices.</CardDescription>
+              <CardTitle>{pr.originStory}</CardTitle>
+              <CardDescription>{pr.originStoryDesc}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <FormField
@@ -304,7 +307,7 @@ export default function SupplierProfile() {
                 name="farmerName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Lead Farmer / Founder Name (Optional)</FormLabel>
+                    <FormLabel>{pr.farmerName}</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -317,9 +320,9 @@ export default function SupplierProfile() {
                 name="originStory"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>The Story Behind Your Farm (Optional)</FormLabel>
+                    <FormLabel>{pr.storyLabel}</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Share the history of your farm, generations of knowledge, or unique practices..." className="min-h-[160px]" {...field} />
+                      <Textarea placeholder={pr.storyPlaceholder} className="min-h-[160px]" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -331,7 +334,7 @@ export default function SupplierProfile() {
           <div className="flex justify-end">
             <Button type="submit" disabled={updateProfile.isPending}>
               {updateProfile.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Save Changes
+              {pr.saveChanges}
             </Button>
           </div>
         </form>

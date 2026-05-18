@@ -7,8 +7,7 @@ import { ComplianceProgressWidget } from "@/components/compliance-widget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-
-// ── Profile completeness types ─────────────────────────────────────────────────
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type ProfileCompleteness = {
   hasFarmData: boolean;
@@ -34,9 +33,9 @@ type MyProfileResponse =
       profileCompleteness: ProfileCompleteness;
     };
 
-// ── Self-completion widget ─────────────────────────────────────────────────────
-
 function ProfileCompletenessWidget() {
+  const { t } = useLanguage();
+  const s = t.supplierDash.index;
   const [data, setData] = useState<MyProfileResponse | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimDone, setClaimDone] = useState(false);
@@ -70,46 +69,38 @@ function ProfileCompletenessWidget() {
 
   if (data === null) return null;
 
-  // Email not yet verified — show verification prompt only.
-  // Do NOT show onboarding links: the supplier record is present but the
-  // security gate blocks linkage until the user confirms email ownership.
   if (!data.found && data.reason === "email_unverified") {
     return (
       <Card className="border-l-4 border-l-blue-400">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-blue-500" />
-            <CardTitle className="text-base font-serif">Verify your email</CardTitle>
+            <CardTitle className="text-base font-serif">{s.verifyEmail}</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <p className="text-sm text-muted-foreground">
-            Please verify your email address to activate your supplier profile. Check your inbox for a verification link from Fincava.
-          </p>
+          <p className="text-sm text-muted-foreground">{s.verifyEmailDesc}</p>
         </CardContent>
       </Card>
     );
   }
 
-  // Genuinely no supplier record found for this account.
   if (!data.found) {
     return (
       <Card className="border-l-4 border-l-amber-500">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Leaf className="w-4 h-4 text-amber-600" />
-            <CardTitle className="text-base font-serif">Connect your farm profile</CardTitle>
+            <CardTitle className="text-base font-serif">{s.connectProfile}</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <p className="text-sm text-muted-foreground">
-            Your farmer record is not yet linked to this account. Connect it to see your graduation status and profile completeness.
-          </p>
+          <p className="text-sm text-muted-foreground">{s.connectProfileDesc}</p>
           <Link
             href="/onboarding"
             className="mt-3 block w-full text-center text-sm font-medium bg-amber-600 text-white py-2 px-4 rounded-md hover:bg-amber-700 transition-colors"
           >
-            Connect farm profile
+            {s.connectBtn}
           </Link>
         </CardContent>
       </Card>
@@ -118,38 +109,13 @@ function ProfileCompletenessWidget() {
 
   const { supplierId, supplier, profileCompleteness: pc } = data;
   const isClaimed = claimDone || supplier.claimStatus === "CLAIMED";
-  // NOTE: onboardingBase (/onboarding?supplierId=X&prefill=1) is intentionally
-  // removed here. That route calls GET /api/suppliers/:id (admin-only) and submits
-  // with a supplierId body field that triggers the admin-only update path — both
-  // return 403 for supplier-role users. A dedicated supplier self-edit flow is
-  // tracked for a future release. Until then all dimension links are null.
 
   const dimensions = [
-    {
-      label: "Farm data",
-      done: pc.hasFarmData,
-      link: null,
-    },
-    {
-      label: "Economics",
-      done: pc.hasEconomicsData,
-      link: null,
-    },
-    {
-      label: "Compliance docs",
-      done: pc.hasComplianceData,
-      link: null,
-    },
-    {
-      label: "AI readiness score",
-      done: pc.hasAiScore,
-      link: null,
-    },
-    {
-      label: "Graduated",
-      done: pc.isGraduated,
-      link: null,
-    },
+    { label: s.farmData, done: pc.hasFarmData, link: null },
+    { label: s.economics, done: pc.hasEconomicsData, link: null },
+    { label: s.complianceDocs, done: pc.hasComplianceData, link: null },
+    { label: s.aiScore, done: pc.hasAiScore, link: null },
+    { label: s.graduated, done: pc.isGraduated, link: null },
   ];
 
   const completedCount = dimensions.filter((d) => d.done).length;
@@ -160,11 +126,8 @@ function ProfileCompletenessWidget() {
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Leaf className="w-4 h-4 text-[#1B5E20]" />
-          <CardTitle className="text-base font-serif">Profile Completeness</CardTitle>
-          <Badge
-            variant="outline"
-            className="ml-auto text-xs font-semibold text-[#1B5E20] border-[#1B5E20]"
-          >
+          <CardTitle className="text-base font-serif">{s.profileCompleteness}</CardTitle>
+          <Badge variant="outline" className="ml-auto text-xs font-semibold text-[#1B5E20] border-[#1B5E20]">
             {pct}%
           </Badge>
         </div>
@@ -174,7 +137,6 @@ function ProfileCompletenessWidget() {
             {supplier.municipio ? ` · ${supplier.municipio}` : ""}
           </p>
         )}
-        {/* Progress bar */}
         <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
           <div
             className="h-full rounded-full bg-[#1B5E20] transition-all duration-500"
@@ -207,24 +169,17 @@ function ProfileCompletenessWidget() {
         </ul>
         {pct < 100 && (
           <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-center">
-            <p className="text-xs text-muted-foreground">
-              Profile editing coming soon — contact your Fincava representative to update your farm details.
-            </p>
+            <p className="text-xs text-muted-foreground">{s.editComingSoon}</p>
           </div>
         )}
 
-        {/* Claim profile section */}
         {!isClaimed && (
           <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3">
             <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-amber-800">Claim your profile</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Claiming links your farmer record to your account and boosts your public trust score.
-              </p>
-              {claimError && (
-                <p className="text-xs text-red-700 mt-1.5 font-medium">{claimError}</p>
-              )}
+              <p className="text-xs font-medium text-amber-800">{s.claimProfile}</p>
+              <p className="text-xs text-amber-700 mt-0.5">{s.claimDesc}</p>
+              {claimError && <p className="text-xs text-red-700 mt-1.5 font-medium">{claimError}</p>}
               <Button
                 size="sm"
                 variant="outline"
@@ -232,7 +187,7 @@ function ProfileCompletenessWidget() {
                 disabled={claiming}
                 onClick={() => handleClaim(supplierId)}
               >
-                {claiming ? "Claiming…" : "Claim profile"}
+                {claiming ? s.claiming : s.claimBtn}
               </Button>
             </div>
           </div>
@@ -240,14 +195,13 @@ function ProfileCompletenessWidget() {
         {isClaimed && (
           <div className="mt-3 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-2.5">
             <ShieldCheck className="w-4 h-4 text-green-600 shrink-0" />
-            <p className="text-xs text-green-700 font-medium">Profile claimed — trust score boosted</p>
+            <p className="text-xs text-green-700 font-medium">{s.claimSuccess}</p>
           </div>
         )}
 
-        {/* Graduation status — shown when any graduation data is available */}
         {(supplier.sellableStatus || supplier.graduationPathway) && (
           <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3 space-y-1.5">
-            <p className="text-xs font-medium text-gray-700">Graduation Status</p>
+            <p className="text-xs font-medium text-gray-700">{s.graduationStatus}</p>
             <div className="flex flex-wrap gap-2 items-center">
               {supplier.sellableStatus && (
                 <Badge variant="outline" className="text-xs">
@@ -256,13 +210,13 @@ function ProfileCompletenessWidget() {
               )}
               {supplier.graduationPathway && (
                 <Badge variant="outline" className="text-xs">
-                  Pathway {supplier.graduationPathway}
+                  {s.pathway} {supplier.graduationPathway}
                 </Badge>
               )}
             </div>
             {supplier.lastEvaluatedAt && (
               <p className="text-xs text-muted-foreground">
-                Last evaluated {new Date(supplier.lastEvaluatedAt).toLocaleDateString()}
+                {s.lastEvaluated} {new Date(supplier.lastEvaluatedAt).toLocaleDateString()}
               </p>
             )}
           </div>
@@ -272,9 +226,9 @@ function ProfileCompletenessWidget() {
   );
 }
 
-// ── Main dashboard ─────────────────────────────────────────────────────────────
-
 export default function SupplierDashboard() {
+  const { t } = useLanguage();
+  const s = t.supplierDash.index;
   const { data: stats, isLoading } = useGetSupplierStats();
 
   if (isLoading) {
@@ -293,14 +247,14 @@ export default function SupplierDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight">Supplier Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Manage your products, inquiries, and orders.</p>
+        <h1 className="text-3xl font-serif font-bold tracking-tight">{s.heading}</h1>
+        <p className="text-muted-foreground mt-2">{s.description}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Listed Products</CardTitle>
+            <CardTitle className="text-sm font-medium">{s.listedProducts}</CardTitle>
             <Package className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -309,7 +263,7 @@ export default function SupplierDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Active Inquiries</CardTitle>
+            <CardTitle className="text-sm font-medium">{s.activeInquiries}</CardTitle>
             <MessageSquare className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -318,7 +272,7 @@ export default function SupplierDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <CardTitle className="text-sm font-medium">{s.totalOrders}</CardTitle>
             <ShoppingCart className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -327,7 +281,7 @@ export default function SupplierDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">{s.totalRevenue}</CardTitle>
             <DollarSign className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -336,18 +290,14 @@ export default function SupplierDashboard() {
         </Card>
       </div>
 
-      {/* Profile completeness widget — visible only when the logged-in supplier
-          has a matching supplier record (email match). Renders nothing otherwise. */}
       <ProfileCompletenessWidget />
-
-      {/* Compliance readiness widget — shows CC requirement progress; hides when empty */}
       <ComplianceProgressWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-serif">Recent Inquiries</CardTitle>
-            <Link href="/supplier-dashboard/inquiries" className="text-sm text-primary hover:underline">View all</Link>
+            <CardTitle className="text-lg font-serif">{s.recentInquiries}</CardTitle>
+            <Link href="/supplier-dashboard/inquiries" className="text-sm text-primary hover:underline">{s.viewAll}</Link>
           </CardHeader>
           <CardContent>
             {stats?.recentInquiries && stats.recentInquiries.length > 0 ? (
@@ -366,7 +316,7 @@ export default function SupplierDashboard() {
               </div>
             ) : (
               <div className="text-center py-6 text-muted-foreground">
-                No recent inquiries.
+                {s.noInquiries}
               </div>
             )}
           </CardContent>
@@ -374,8 +324,8 @@ export default function SupplierDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-serif">Recent Orders</CardTitle>
-            <Link href="/supplier-dashboard/orders" className="text-sm text-primary hover:underline">View all</Link>
+            <CardTitle className="text-lg font-serif">{s.recentOrders}</CardTitle>
+            <Link href="/supplier-dashboard/orders" className="text-sm text-primary hover:underline">{s.viewAll}</Link>
           </CardHeader>
           <CardContent>
             {stats?.recentOrders && stats.recentOrders.length > 0 ? (
@@ -383,7 +333,7 @@ export default function SupplierDashboard() {
                 {stats.recentOrders.map((order) => (
                   <div key={order.id} className="flex items-center justify-between border-b last:border-0 pb-4 last:pb-0">
                     <div>
-                      <p className="font-medium text-sm text-muted-foreground">Order #{order.id}</p>
+                      <p className="font-medium text-sm text-muted-foreground">{s.order}{order.id}</p>
                       <p className="font-bold">${order.totalUSD.toLocaleString()}</p>
                     </div>
                     <Badge variant="outline">{order.status}</Badge>
@@ -392,7 +342,7 @@ export default function SupplierDashboard() {
               </div>
             ) : (
               <div className="text-center py-6 text-muted-foreground">
-                No recent orders.
+                {s.noOrders}
               </div>
             )}
           </CardContent>

@@ -12,6 +12,7 @@ import {
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Conversation {
   userId: number;
@@ -35,14 +36,13 @@ interface Message {
   createdAt: string;
 }
 
-// ── Disclaimer banner ─────────────────────────────────────────────────────────
-function TranslationBanner({ onDismiss }: { onDismiss: () => void }) {
+function TranslationBanner({ onDismiss, msgs }: { onDismiss: () => void; msgs: ReturnType<typeof useLanguage>["t"]["buyerDash"]["messages"] }) {
   return (
     <div className="mx-4 mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 flex items-start gap-3">
       <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
       <div className="flex-1 text-xs text-amber-300/90 leading-relaxed">
-        <span className="font-semibold">Auto-translated</span> — This conversation is being shown in a translated language. Translation is powered by AI and may have limitations, especially for agricultural terminology.{" "}
-        <span className="text-amber-400/70">Original messages are available per message below.</span>
+        <span className="font-semibold">{msgs.translationBannerTitle}</span> — {msgs.translationBannerDesc}{" "}
+        <span className="text-amber-400/70">{msgs.translationOriginalNote}</span>
       </div>
       <button onClick={onDismiss} className="text-amber-400/60 hover:text-amber-300 shrink-0">
         <X className="h-3.5 w-3.5" />
@@ -51,15 +51,16 @@ function TranslationBanner({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-// ── Individual message bubble ─────────────────────────────────────────────────
 function MessageBubble({
   msg,
   isMe,
   showTranslated,
+  msgs,
 }: {
   msg: Message;
   isMe: boolean;
   showTranslated: boolean;
+  msgs: ReturnType<typeof useLanguage>["t"]["buyerDash"]["messages"];
 }) {
   const [seeOriginal, setSeeOriginal] = useState(false);
 
@@ -99,7 +100,7 @@ function MessageBubble({
             )}
           >
             {seeOriginal ? <Eye className="h-2.5 w-2.5" /> : <EyeOff className="h-2.5 w-2.5" />}
-            {seeOriginal ? "Show translation" : "Read original"}
+            {seeOriginal ? msgs.showTranslation : msgs.readOriginal}
           </button>
         )}
       </div>
@@ -107,15 +108,16 @@ function MessageBubble({
   );
 }
 
-// ── Escalation modal ──────────────────────────────────────────────────────────
 function EscalateModal({
   otherId,
   otherName,
   onClose,
+  msgs,
 }: {
   otherId: number;
   otherName: string;
   onClose: () => void;
+  msgs: ReturnType<typeof useLanguage>["t"]["buyerDash"]["messages"];
 }) {
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
@@ -140,11 +142,9 @@ function EscalateModal({
         {done ? (
           <div className="text-center space-y-3 py-4">
             <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
-            <p className="font-semibold text-foreground">Request sent to Fincava</p>
-            <p className="text-sm text-muted-foreground">
-              Our team will review your conversation and reach out to both parties within 24 hours.
-            </p>
-            <Button onClick={onClose} className="mt-2">Close</Button>
+            <p className="font-semibold text-foreground">{msgs.escalateSuccess}</p>
+            <p className="text-sm text-muted-foreground">{msgs.escalateSuccessDesc}</p>
+            <Button onClick={onClose} className="mt-2">{msgs.escalateClose}</Button>
           </div>
         ) : (
           <>
@@ -152,10 +152,10 @@ function EscalateModal({
               <div>
                 <h2 className="font-semibold text-foreground flex items-center gap-2">
                   <LifeBuoy className="h-4 w-4 text-primary" />
-                  Contact Fincava for help
+                  {msgs.escalateHeading}
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  A Fincava team member will read your conversation with <strong>{otherName}</strong> and help facilitate the discussion.
+                  {msgs.escalateSubheading.replace("{name}", otherName)}
                 </p>
               </div>
               <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0">
@@ -164,16 +164,14 @@ function EscalateModal({
             </div>
 
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-300/80">
-              By submitting, a Fincava team member will be able to read the recent messages in this conversation to assist you.
+              {msgs.escalateAlert}
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                What needs clarification?
-              </label>
+              <label className="text-sm font-medium text-foreground">{msgs.escalateLabel}</label>
               <textarea
                 className="w-full h-28 bg-muted/40 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
-                placeholder="Describe what's unclear or confusing so we can help…"
+                placeholder={msgs.escalatePlaceholder}
                 value={note}
                 onChange={e => setNote(e.target.value)}
                 maxLength={1000}
@@ -182,17 +180,17 @@ function EscalateModal({
             </div>
 
             {escalate.isError && (
-              <p className="text-xs text-red-400">Failed to send. Please try again.</p>
+              <p className="text-xs text-red-400">{msgs.escalateError}</p>
             )}
 
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+              <Button variant="outline" onClick={onClose} className="flex-1">{msgs.escalateCancel}</Button>
               <Button
                 onClick={() => escalate.mutate()}
                 disabled={!note.trim() || escalate.isPending}
                 className="flex-1"
               >
-                {escalate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send to Fincava"}
+                {escalate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : msgs.escalateSend}
               </Button>
             </div>
           </>
@@ -202,8 +200,9 @@ function EscalateModal({
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export default function BuyerMessages() {
+  const { t } = useLanguage();
+  const msgs = t.buyerDash.messages;
   const { user } = useAuth();
   const qc = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -213,7 +212,6 @@ export default function BuyerMessages() {
   const [escalateOpen, setEscalateOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Reset translation state when switching conversations
   useEffect(() => {
     setShowTranslated(false);
     setBannerDismissed(false);
@@ -289,7 +287,6 @@ export default function BuyerMessages() {
     if (next && messages) {
       const needsTranslation = messages.some(m => !m.translatedContent);
       if (needsTranslation) {
-        // Detect the viewer's target language from browser
         const browserLang = navigator.language.toLowerCase().startsWith("es") ? "es" : "en";
         translate.mutate(browserLang);
       }
@@ -309,13 +306,14 @@ export default function BuyerMessages() {
           otherId={selectedConv.userId}
           otherName={selectedConv.userName}
           onClose={() => setEscalateOpen(false)}
+          msgs={msgs}
         />
       )}
 
       <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
         <div>
-          <h1 className="text-3xl font-serif font-bold tracking-tight">Messages</h1>
-          <p className="text-muted-foreground mt-1">Live conversations with your suppliers.</p>
+          <h1 className="text-3xl font-serif font-bold tracking-tight">{msgs.heading}</h1>
+          <p className="text-muted-foreground mt-1">{msgs.description}</p>
         </div>
 
         <Card className="flex-1 overflow-hidden flex border-border min-h-0">
@@ -323,7 +321,7 @@ export default function BuyerMessages() {
           <div className="w-[280px] shrink-0 border-r flex flex-col bg-muted/10">
             <div className="p-4 border-b font-semibold font-serif bg-card flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-primary" />
-              Conversations
+              {msgs.conversations}
             </div>
             <div className="flex-1 overflow-y-auto p-2">
               {loadingConvs ? (
@@ -361,7 +359,7 @@ export default function BuyerMessages() {
               ) : (
                 <div className="text-center p-6 text-muted-foreground text-sm mt-8">
                   <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  No active conversations yet.
+                  {msgs.noConversations}
                 </div>
               )}
             </div>
@@ -382,17 +380,15 @@ export default function BuyerMessages() {
                   </div>
 
                   <div className="flex items-center gap-2 ml-auto">
-                    {/* Live indicator */}
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-xs text-muted-foreground">Live</span>
+                      <span className="text-xs text-muted-foreground">{msgs.live}</span>
                     </div>
 
-                    {/* Translation toggle */}
                     <button
                       onClick={handleToggleTranslation}
                       disabled={translationPending}
-                      title={showTranslated ? "Show original messages" : "Auto-translate messages"}
+                      title={showTranslated ? msgs.showOriginals : msgs.autoTranslate}
                       className={cn(
                         "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors",
                         showTranslated
@@ -404,24 +400,23 @@ export default function BuyerMessages() {
                         ? <Loader2 className="h-3 w-3 animate-spin" />
                         : <Languages className="h-3 w-3" />
                       }
-                      {showTranslated ? "Translated" : "Translate"}
+                      {showTranslated ? msgs.translated : msgs.translate}
                     </button>
 
-                    {/* Need help button */}
                     <button
                       onClick={() => setEscalateOpen(true)}
-                      title="Contact Fincava for clarification"
+                      title={msgs.contactFincava}
                       className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                     >
                       <LifeBuoy className="h-3 w-3" />
-                      Need help?
+                      {msgs.needHelp}
                     </button>
                   </div>
                 </div>
 
                 {/* Translation disclaimer banner */}
                 {showTranslated && !bannerDismissed && (
-                  <TranslationBanner onDismiss={() => setBannerDismissed(true)} />
+                  <TranslationBanner onDismiss={() => setBannerDismissed(true)} msgs={msgs} />
                 )}
 
                 {/* Message list */}
@@ -437,7 +432,7 @@ export default function BuyerMessages() {
                       {showTranslated && translationPending && (
                         <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
                           <Loader2 className="h-3 w-3 animate-spin" />
-                          Translating conversation…
+                          {msgs.translating}
                         </div>
                       )}
                       {messages.map(msg => (
@@ -446,12 +441,13 @@ export default function BuyerMessages() {
                           msg={msg}
                           isMe={msg.senderId === currentUserId}
                           showTranslated={showTranslated && hasAnyTranslation === true}
+                          msgs={msgs}
                         />
                       ))}
                     </>
                   ) : (
                     <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm py-12">
-                      No messages yet — send the first one.
+                      {msgs.noMessages}
                     </div>
                   )}
                   <div ref={bottomRef} />
@@ -464,7 +460,7 @@ export default function BuyerMessages() {
                     onSubmit={e => { e.preventDefault(); handleSend(); }}
                   >
                     <Input
-                      placeholder="Type a message…"
+                      placeholder={msgs.composePlaceholder}
                       value={draft}
                       onChange={e => setDraft(e.target.value)}
                       className="flex-1"
@@ -479,7 +475,7 @@ export default function BuyerMessages() {
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
                 <MessageSquare className="w-12 h-12 opacity-20" />
-                <p className="text-sm">Select a conversation to start messaging</p>
+                <p className="text-sm">{msgs.selectConversation}</p>
               </div>
             )}
           </div>
