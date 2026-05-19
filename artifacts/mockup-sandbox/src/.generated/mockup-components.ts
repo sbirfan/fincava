@@ -4,8 +4,8 @@ export const modules: ModuleMap = {
   "./components/mockups/beta-section/BetaSection.tsx": () => import("../components/mockups/beta-section/BetaSection.tsx"),
   "./components/mockups/beta-section/BetaSectionV1.tsx": () => import("../components/mockups/beta-section/BetaSectionV1.tsx"),
   "./components/mockups/beta-section/BetaSectionV2.tsx": () => import("../components/mockups/beta-section/BetaSectionV2.tsx"),
+  "./components/mockups/buyer-supplier/Combined.tsx": () => import("../components/mockups/buyer-supplier/Combined.tsx"),
   "./components/mockups/logo-preview/HeroPreview.tsx": () => import("../components/mockups/logo-preview/HeroPreview.tsx"),
   "./components/mockups/logo-preview/NavbarPreview.tsx": () => import("../components/mockups/logo-preview/NavbarPreview.tsx"),
-  "./components/mockups/value-flow/ValueFlow.tsx": () => import("../components/mockups/value-flow/ValueFlow.tsx"),
-  "./components/mockups/buyer-supplier/Combined.tsx": () => import("../components/mockups/buyer-supplier/Combined.tsx")
+  "./components/mockups/value-flow/ValueFlow.tsx": () => import("../components/mockups/value-flow/ValueFlow.tsx")
 };
