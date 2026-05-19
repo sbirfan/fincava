@@ -41,9 +41,6 @@ export function Navbar() {
         {/* Brand */}
         <Link href="/" className="mr-8 flex items-center gap-2.5 shrink-0">
           <img src="/fincava-logo.png" alt="Fincava" className="h-10 w-auto object-contain" />
-          <span className="hidden sm:block text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full leading-tight tracking-wide border border-border">
-            Commerce OS
-          </span>
         </Link>
 
         {/* Desktop nav links */}
@@ -147,9 +144,6 @@ export function Navbar() {
               {/* Header */}
               <div className="flex items-center gap-2.5 px-5 py-4 border-b">
                 <img src="/fincava-logo.png" alt="Fincava" className="h-9 w-auto object-contain" />
-                <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full leading-tight tracking-wide border border-border">
-                  Commerce OS
-                </span>
               </div>
 
               {/* Nav links */}
