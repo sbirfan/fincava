@@ -57,7 +57,6 @@ export class NotFoundError extends Error {
 type ComplianceRow = typeof complianceDocsTable.$inferSelect;
 type EvaluationRow = typeof supplierEvaluationsTable.$inferSelect;
 type TransitionRow = typeof supplierStateTransitionsTable.$inferSelect;
-type RequirementRow = typeof supplierRequirementStatusTable.$inferSelect;
 
 type SellableState = "NOT_READY" | "ELIGIBLE" | "SELLABLE" | "PUBLISHED" | "INACTIVE";
 
@@ -72,95 +71,41 @@ export const STATE_ORDER: Record<SellableState, number> = {
   PUBLISHED: 3,
 };
 
-// ── States that represent an open/incomplete requirement (Item 1) ─────────────
-// A requirement in any of these states is treated as NOT met for eligibility.
-const OPEN_REQUIREMENT_STATES = new Set([
-  "not_started",
-  "not_sure",
-  "self_serve_in_progress",
-  "assisted_in_progress",
-  "managed_service_candidate",
-  "needs_fix",
-]);
-
-// The terminal states that satisfy a requirement
-const SATISFIED_REQUIREMENT_STATES = new Set([
-  "submitted",
-  "conditionally_approved",
-  "verified",
-]);
-
-// ── Threshold-required requirement codes ──────────────────────────────────────
-// Maps THRESHOLDS.eligibility.requiredFields to CC-1 requirement codes.
-// Legacy compliance_docs booleans are kept as a fallback when no CC-1 rows exist.
-const FIELD_TO_REQUIREMENT_CODE: Record<string, string | null> = {
-  rutDian: "DIAN_RUT",
-  icaRegistration: "ICA_REGISTRO",
-  fitosanitario: "FITOSANITARIO",
-  consentGiven: null, // supplier-row boolean — no CC-1 code, checked directly
-};
-
 // ── Pure computation helpers ──────────────────────────────────────────────────
 
-// Item 1: computeEligibility reads CC-1 requirement_status rows.
-// Falls back to compliance_docs booleans when no CC-1 row exists for a field,
-// preserving backward compatibility for suppliers scored before CC-1 backfill.
-export function computeEligibility(
-  supplier: Supplier,
-  compliance: ComplianceRow | null,
-  requirementRows: RequirementRow[],
-): { eligibilityStatus: "PASS" | "FAIL"; missingFields: string[] } {
-  const byCode = new Map<string, RequirementRow>(
-    requirementRows.map((r) => [r.requirementCode, r]),
-  );
+// Required requirement codes for graduation eligibility — Phase I
+// CC-2 (ICA_CONTEXT) and CC-3 (FNC_COFFEE) added when those flows ship
+const REQUIRED_CODES = ['DIAN_RUT'] as const;
 
-  const missingFields: string[] = [];
+// Item 1: computeEligibility reads supplier_requirement_status (CC-1 table).
+// compliance_docs table retained as write-through cache — NOT the eligibility gate.
+export async function computeEligibility(supplierId: number): Promise<{
+  eligible: boolean;
+  gaps: string[];
+}> {
+  const rows = await db
+    .select({
+      requirementCode: supplierRequirementStatusTable.requirementCode,
+      state:           supplierRequirementStatusTable.state,
+    })
+    .from(supplierRequirementStatusTable)
+    .where(eq(supplierRequirementStatusTable.supplierId, supplierId));
 
-  for (const field of THRESHOLDS.eligibility.requiredFields) {
-    const reqCode = FIELD_TO_REQUIREMENT_CODE[field] ?? null;
+  const stateMap = new Map(rows.map(r => [r.requirementCode, r.state]));
 
-    if (reqCode === null) {
-      // Direct supplier-row check (consentGiven)
-      if (!supplier.consentGiven) missingFields.push(field);
-      continue;
-    }
+  const gaps: string[] = [];
 
-    const row = byCode.get(reqCode);
-
-    if (row) {
-      // CC-1 row exists — use it as the source of truth
-      if (!SATISFIED_REQUIREMENT_STATES.has(row.state)) {
-        missingFields.push(field);
-      }
-    } else {
-      // No CC-1 row yet — fall back to compliance_docs boolean
-      const legacyValue = getLegacyFieldValue(field, compliance);
-      if (!legacyValue) missingFields.push(field);
+  for (const code of REQUIRED_CODES) {
+    const state = stateMap.get(code);
+    if (state !== 'verified' && state !== 'conditionally_approved') {
+      gaps.push(code);
     }
   }
 
   return {
-    eligibilityStatus: missingFields.length === 0 ? "PASS" : "FAIL",
-    missingFields,
+    eligible: gaps.length === 0,
+    gaps,
   };
-}
-
-function getLegacyFieldValue(
-  key: string,
-  compliance: ComplianceRow | null,
-): boolean {
-  switch (key) {
-    case "rutDian":
-      return compliance?.rutDian ?? false;
-    case "icaRegistration":
-      return compliance?.icaRegistro ?? false;
-    case "fitosanitario":
-      return compliance?.fitosanitarioCert ?? false;
-    case "consentGiven":
-      return false;
-    default:
-      return false;
-  }
 }
 
 export function computeSellableStatus(
@@ -281,24 +226,20 @@ export async function previewEvaluation(
       `AI output missing or incomplete for supplier ${supplierId}`,
     );
 
+  // LEGACY: compliance_docs booleans kept as write-through cache.
+  // Eligibility gate now reads supplier_requirement_status — see computeEligibility().
+  // Do not remove this table. Schedule for deprecation after Phase 3 validation.
   const [complianceRow] = await db
     .select()
     .from(complianceDocsTable)
     .where(eq(complianceDocsTable.supplierId, supplierId))
     .orderBy(desc(complianceDocsTable.id))
     .limit(1);
-  const compliance: ComplianceRow | null = complianceRow ?? null;
+  const _compliance: ComplianceRow | null = complianceRow ?? null;
 
-  const requirementRows = await db
-    .select()
-    .from(supplierRequirementStatusTable)
-    .where(eq(supplierRequirementStatusTable.supplierId, supplierId));
-
-  const { eligibilityStatus, missingFields } = computeEligibility(
-    supplier,
-    compliance,
-    requirementRows,
-  );
+  const { eligible, gaps } = await computeEligibility(supplierId);
+  const eligibilityStatus: "PASS" | "FAIL" = eligible ? "PASS" : "FAIL";
+  const missingFields = gaps;
   const commercialScore = ai.exportReadinessScore;
   const sellableStatus = computeSellableStatus(eligibilityStatus, commercialScore);
   const pathway = parsePathway(ai.pathway);
@@ -366,27 +307,29 @@ export async function evaluateSupplier(supplierId: number): Promise<{
       );
     }
 
-    // 3. Fetch compliance_docs (legacy fallback).
+    // 3. Fetch compliance_docs — retained for audit trail / write-through cache.
+    // LEGACY: compliance_docs booleans kept as write-through cache.
+    // Eligibility gate now reads supplier_requirement_status — see computeEligibility().
+    // Do not remove this table. Schedule for deprecation after Phase 3 validation.
     const [complianceRow] = await tx
       .select()
       .from(complianceDocsTable)
       .where(eq(complianceDocsTable.supplierId, supplierId))
       .orderBy(desc(complianceDocsTable.id))
       .limit(1);
-    const compliance: ComplianceRow | null = complianceRow ?? null;
+    const _compliance: ComplianceRow | null = complianceRow ?? null;
 
-    // 4. Fetch CC-1 requirement_status rows (Item 1 — primary eligibility source).
-    const requirementRows = await tx
-      .select()
-      .from(supplierRequirementStatusTable)
-      .where(eq(supplierRequirementStatusTable.supplierId, supplierId));
+    // 4. Compute eligibility from supplier_requirement_status (CC-1 primary gate).
+    const { eligible, gaps } = await computeEligibility(supplierId);
+
+    if (!eligible) {
+      logger.info({ supplierId, gaps }, 'graduation: supplier not eligible — missing requirements');
+    }
+
+    const eligibilityStatus: "PASS" | "FAIL" = eligible ? "PASS" : "FAIL";
+    const missingFields = gaps;
 
     // 5–9. Compute evaluation outputs.
-    const { eligibilityStatus, missingFields } = computeEligibility(
-      supplier,
-      compliance,
-      requirementRows,
-    );
     const commercialScore = ai.exportReadinessScore;
     const sellableStatus = computeSellableStatus(eligibilityStatus, commercialScore);
     const pathway = parsePathway(ai.pathway);
@@ -474,7 +417,7 @@ export async function evaluateSupplier(supplierId: number): Promise<{
         toState: sellableStatus,
         score: commercialScore,
         thresholdVersion: THRESHOLDS.version,
-        eligibilitySource: requirementRows.length > 0 ? "cc1_requirement_status" : "compliance_docs_legacy",
+        eligibilitySource: "cc1_requirement_status",
       },
       "graduation: evaluate",
     );

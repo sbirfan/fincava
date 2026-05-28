@@ -1,9 +1,10 @@
 // Item 7 — Unit tests for graduation service pure functions and gap analysis service.
-// Tests only pure/side-effect-free functions — no DB calls, no network.
+// computeEligibility is async + DB-dependent (CC-2 refactor); its tests use vi.mock.
+// All other functions are pure / side-effect-free.
 // DB-dependent functions (evaluateSupplier, previewEvaluation) are integration-tested
 // via the admin compliance queue e2e flows.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   computeEligibility,
   computeSellableStatus,
@@ -15,172 +16,77 @@ import {
   REQUIREMENT_REGISTRY,
 } from "../services/gap-analysis-service";
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
+// ── DB mock (computeEligibility is now async + DB-dependent) ──────────────────
 
-const BASE_SUPPLIER = {
-  id: 1,
-  userId: null,
-  nombreCompleto: "Juan Café",
-  whatsappNumber: "573001234567",
-  email: null,
-  municipio: "Pitalito",
-  department: "Huila",
-  vereda: null,
-  supplierType: "FARMER" as const,
-  registeredBy: null,
-  status: "ACTIVE" as const,
-  consentGiven: true,
-  consentDate: new Date(),
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  eligibilityStatus: null,
-  commercialScore: null,
-  sellableStatus: null,
-  graduationPathway: null,
-  nextActions: null,
-  commercialScoreAtOnboarding: null,
-  lastEvaluatedAt: null,
-  thresholdVersion: null,
-  normalizedName: null,
-  description: null,
-  sourceUrl: null,
-  sourceType: null,
-  supplierFingerprint: null,
-  claimStatus: "UNCLAIMED" as const,
-  claimToken: null,
-  ingestionSource: "FIELD_COLLECTED" as const,
-  ingestionStatus: null,
-  createdByAdminId: null,
-  batchId: null,
-  country: "Colombia",
-  dataCompletenessScore: null,
-  confidenceScore: null,
-  customSupplierType: null,
-  publishedToOriginStories: false,
-  originStoryImageUrl: null,
-};
-
-const BASE_COMPLIANCE = {
-  id: 1,
-  supplierId: 1,
-  rutDian: true,
-  icaRegistro: true,
-  fitosanitarioCert: true,
-  dianExportador: true,
-  complianceScore: null,
-  lastReviewedAt: null,
-};
-
-const makeReqRow = (
-  code: string,
-  agency: string,
-  state: string,
-) => ({
-  id: 1,
-  supplierId: 1,
-  requirementCode: code,
-  agency,
-  state,
-  selectedMode: null,
-  adminRequired: false,
-  confidenceScore: null,
-  visibleNote: null,
-  internalNote: null,
-  verifiedAt: null,
-  expiresAt: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
+vi.mock("@workspace/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workspace/db")>();
+  return {
+    ...actual,
+    db: {
+      select: vi.fn(),
+    },
+  };
 });
+
+// selectMock helper — configures the db.select() chain for a given rows result.
+// Each call to computeEligibility does: db.select({...}).from(...).where(...)
+function mockDbRows(rows: { requirementCode: string; state: string }[]) {
+  const { db } = require("@workspace/db");
+  const chain = { from: vi.fn() };
+  chain.from.mockReturnValue({ where: vi.fn().mockResolvedValue(rows) });
+  (db.select as ReturnType<typeof vi.fn>).mockReturnValue(chain);
+}
 
 // ── computeEligibility ────────────────────────────────────────────────────────
 
 describe("computeEligibility", () => {
-  it("returns PASS when all CC-1 requirements are verified", () => {
-    const rows = [
-      makeReqRow("DIAN_RUT", "DIAN", "verified"),
-      makeReqRow("ICA_REGISTRO", "ICA", "verified"),
-      makeReqRow("FITOSANITARIO", "ICA", "verified"),
-    ];
-    const result = computeEligibility(BASE_SUPPLIER, BASE_COMPLIANCE, rows);
-    expect(result.eligibilityStatus).toBe("PASS");
-    expect(result.missingFields).toHaveLength(0);
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it("returns FAIL when a CRITICAL CC-1 requirement is not_started", () => {
-    const rows = [
-      makeReqRow("DIAN_RUT", "DIAN", "not_started"),
-      makeReqRow("ICA_REGISTRO", "ICA", "verified"),
-      makeReqRow("FITOSANITARIO", "ICA", "verified"),
-    ];
-    const result = computeEligibility(BASE_SUPPLIER, BASE_COMPLIANCE, rows);
-    expect(result.eligibilityStatus).toBe("FAIL");
-    expect(result.missingFields).toContain("rutDian");
+  it("returns eligible=true when DIAN_RUT is verified", async () => {
+    mockDbRows([{ requirementCode: "DIAN_RUT", state: "verified" }]);
+    const result = await computeEligibility(1);
+    expect(result.eligible).toBe(true);
+    expect(result.gaps).toHaveLength(0);
   });
 
-  it("returns FAIL when a requirement is in_progress (not yet satisfied)", () => {
-    const rows = [
-      makeReqRow("DIAN_RUT", "DIAN", "self_serve_in_progress"),
-      makeReqRow("ICA_REGISTRO", "ICA", "verified"),
-      makeReqRow("FITOSANITARIO", "ICA", "verified"),
-    ];
-    const result = computeEligibility(BASE_SUPPLIER, BASE_COMPLIANCE, rows);
-    expect(result.eligibilityStatus).toBe("FAIL");
-    expect(result.missingFields).toContain("rutDian");
+  it("returns eligible=false when DIAN_RUT is not_started", async () => {
+    mockDbRows([{ requirementCode: "DIAN_RUT", state: "not_started" }]);
+    const result = await computeEligibility(1);
+    expect(result.eligible).toBe(false);
+    expect(result.gaps).toContain("DIAN_RUT");
   });
 
-  it("treats conditionally_approved as satisfied", () => {
-    const rows = [
-      makeReqRow("DIAN_RUT", "DIAN", "conditionally_approved"),
-      makeReqRow("ICA_REGISTRO", "ICA", "verified"),
-      makeReqRow("FITOSANITARIO", "ICA", "verified"),
-    ];
-    const result = computeEligibility(BASE_SUPPLIER, BASE_COMPLIANCE, rows);
-    expect(result.eligibilityStatus).toBe("PASS");
+  it("returns eligible=false when DIAN_RUT is self_serve_in_progress", async () => {
+    mockDbRows([{ requirementCode: "DIAN_RUT", state: "self_serve_in_progress" }]);
+    const result = await computeEligibility(1);
+    expect(result.eligible).toBe(false);
+    expect(result.gaps).toContain("DIAN_RUT");
   });
 
-  it("treats submitted as satisfied", () => {
-    const rows = [
-      makeReqRow("DIAN_RUT", "DIAN", "submitted"),
-      makeReqRow("ICA_REGISTRO", "ICA", "submitted"),
-      makeReqRow("FITOSANITARIO", "ICA", "submitted"),
-    ];
-    const result = computeEligibility(BASE_SUPPLIER, BASE_COMPLIANCE, rows);
-    expect(result.eligibilityStatus).toBe("PASS");
+  it("treats conditionally_approved as eligible", async () => {
+    mockDbRows([{ requirementCode: "DIAN_RUT", state: "conditionally_approved" }]);
+    const result = await computeEligibility(1);
+    expect(result.eligible).toBe(true);
+    expect(result.gaps).toHaveLength(0);
   });
 
-  it("falls back to compliance_docs boolean when no CC-1 row exists", () => {
-    // No CC-1 rows — relies on compliance_docs (all true in BASE_COMPLIANCE)
-    const result = computeEligibility(BASE_SUPPLIER, BASE_COMPLIANCE, []);
-    expect(result.eligibilityStatus).toBe("PASS");
+  it("returns eligible=false when no requirement rows exist (no DIAN_RUT row = missing)", async () => {
+    mockDbRows([]);
+    const result = await computeEligibility(1);
+    expect(result.eligible).toBe(false);
+    expect(result.gaps).toContain("DIAN_RUT");
   });
 
-  it("fails via compliance_docs fallback when boolean is false and no CC-1 row", () => {
-    const compliance = { ...BASE_COMPLIANCE, rutDian: false };
-    const result = computeEligibility(BASE_SUPPLIER, compliance, []);
-    expect(result.eligibilityStatus).toBe("FAIL");
-    expect(result.missingFields).toContain("rutDian");
-  });
-
-  it("returns FAIL when consentGiven is false regardless of CC-1 rows", () => {
-    const supplier = { ...BASE_SUPPLIER, consentGiven: false };
-    const rows = [
-      makeReqRow("DIAN_RUT", "DIAN", "verified"),
-      makeReqRow("ICA_REGISTRO", "ICA", "verified"),
-      makeReqRow("FITOSANITARIO", "ICA", "verified"),
-    ];
-    const result = computeEligibility(supplier, BASE_COMPLIANCE, rows);
-    expect(result.eligibilityStatus).toBe("FAIL");
-    expect(result.missingFields).toContain("consentGiven");
-  });
-
-  it("reports all missing fields, not just the first", () => {
-    const rows = [
-      makeReqRow("DIAN_RUT", "DIAN", "not_started"),
-      makeReqRow("ICA_REGISTRO", "ICA", "not_started"),
-      makeReqRow("FITOSANITARIO", "ICA", "not_started"),
-    ];
-    const result = computeEligibility(BASE_SUPPLIER, BASE_COMPLIANCE, rows);
-    expect(result.missingFields.length).toBeGreaterThanOrEqual(3);
+  it("ignores non-required codes — only REQUIRED_CODES gate eligibility", async () => {
+    mockDbRows([
+      { requirementCode: "DIAN_RUT", state: "verified" },
+      { requirementCode: "ICA_REGISTRO", state: "not_started" },
+    ]);
+    const result = await computeEligibility(1);
+    expect(result.eligible).toBe(true);
+    expect(result.gaps).toHaveLength(0);
   });
 });
 
