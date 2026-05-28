@@ -1,0 +1,144 @@
+computeEligibility() Swap — Replit Agent Prompt
+File: artifacts/api-server/src/services/supplier-graduation-service.ts
+Commit: standalone, before Phase 3 work begins
+Risk: LOW — single function replacement, compliance_docs table untouched
+
+Context
+The graduation service currently gates eligibility on four boolean columns in
+compliance_docs (rutDian, icaRegistro, fitosanitarioCert, dianExportador).
+CC-1 introduced supplier_requirement_status — a richer per-requirement tracker.
+The backfill script has been run: all suppliers with compliance gaps now have
+supplier_requirement_status rows. CC-1A writes to both tables on every score run.
+This change swaps the eligibility gate to read from supplier_requirement_status
+instead of compliance_docs. The compliance_docs table is NOT removed — it
+remains as a write-through cache. Only the graduation eligibility gate changes.
+
+STEP 1 — Inspect Before Touching Anything
+Open artifacts/api-server/src/services/supplier-graduation-service.ts
+Find and copy:
+
+The full computeEligibility() function (or equivalent — the function that
+reads compliance_docs booleans to determine NOT_READY vs ELIGIBLE)
+The import block at the top of the file
+The line that calls computeEligibility() — what it receives and what it returns
+
+Report all three before making any changes.
+
+STEP 2 — Add Import
+In the import from '@workspace/db', add supplierRequirementStatus if not
+already present. It was created in CC-1B.
+Example — find the existing line that looks like:
+import { db, suppliersTable, complianceDocsTable, ... } from '@workspace/db';
+Add supplierRequirementStatus to that same import.
+
+STEP 3 — Replace computeEligibility()
+Find the existing computeEligibility() function. Replace the entire function
+body with the following. Keep the function signature identical — same name,
+same parameters, same return type.
+The new function checks whether all REQUIRED requirement codes for this supplier
+have a supplier_requirement_status row in verified or conditionally_approved
+state. If any required code is missing or in any other state, supplier is NOT_READY.
+typescript// Required requirement codes for graduation eligibility — Phase I
+// CC-2 (ICA_CONTEXT) and CC-3 (FNC_COFFEE) added when those flows ship
+const REQUIRED_CODES = ['DIAN_RUT'] as const;
+
+async function computeEligibility(supplierId: number): Promise<{
+  eligible: boolean;
+  gaps: string[];
+}> {
+  const rows = await db
+    .select({
+      requirementCode: supplierRequirementStatus.requirementCode,
+      state:           supplierRequirementStatus.state,
+    })
+    .from(supplierRequirementStatus)
+    .where(eq(supplierRequirementStatus.supplierId, supplierId));
+
+  const stateMap = new Map(rows.map(r => [r.requirementCode, r.state]));
+
+  const gaps: string[] = [];
+
+  for (const code of REQUIRED_CODES) {
+    const state = stateMap.get(code);
+    if (state !== 'verified' && state !== 'conditionally_approved') {
+      gaps.push(code);
+    }
+  }
+
+  return {
+    eligible: gaps.length === 0,
+    gaps,
+  };
+}
+
+STEP 4 — Update the Call Site
+Find where computeEligibility() is called inside evaluateSupplier() or
+equivalent graduation function.
+The old call likely checked boolean fields directly and set status to NOT_READY
+with a reason. Update it to use the new return shape:
+typescriptconst { eligible, gaps } = await computeEligibility(supplierId);
+
+if (!eligible) {
+  // NOT_READY — log which codes are missing
+  logger.info({ supplierId, gaps }, 'graduation: supplier not eligible — missing requirements');
+  // return NOT_READY result — keep existing return shape, add gaps to internalNote
+  // if the existing code writes to supplier_evaluations, pass gaps.join(', ') as the reason
+}
+Preserve all existing behaviour around:
+
+Writing to supplierEvaluationsTable
+Writing to supplierStateTransitionsTable
+sellableStatus updates on suppliersTable
+Email notifications
+Sentry breadcrumbs
+
+Only the eligibility gate logic changes. Nothing else.
+
+STEP 5 — Add Legacy Comment to compliance_docs reads
+Find any remaining reads of complianceDocsTable booleans in this file.
+Add a comment above each one:
+typescript// LEGACY: compliance_docs booleans kept as write-through cache.
+// Eligibility gate now reads supplier_requirement_status — see computeEligibility().
+// Do not remove this table. Schedule for deprecation after Phase 3 validation.
+Do NOT delete those reads if they exist for other purposes (audit trail, reporting).
+Only the eligibility gate has changed.
+
+STEP 6 — Verify
+Run: pnpm tsc --noEmit
+Must pass with zero errors.
+Then test manually:
+
+Call evaluateSupplier() for supplier 2 (has 4 not_started rows from backfill)
+It should return NOT_READY with gaps: ['DIAN_RUT'] (or all 4 codes if your
+REQUIRED_CODES list includes them)
+Call evaluateSupplier() for a supplier with no requirement rows
+It should also return NOT_READY (no verified rows = not eligible)
+If you have a test supplier with a verified DIAN_RUT row, they should pass
+
+
+STEP 7 — Commit
+git add artifacts/api-server/src/services/supplier-graduation-service.ts
+git commit -m "refactor(graduation): swap computeEligibility to read supplier_requirement_status
+
+Eligibility gate now checks supplier_requirement_status.state IN (verified, conditionally_approved)
+compliance_docs table retained as write-through cache, not removed
+REQUIRED_CODES = ['DIAN_RUT'] for Phase I — ICA_CONTEXT and FNC_COFFEE added in CC-2/CC-3
+Backfill already run: all pre-CC-1A suppliers have requirement rows"
+
+
+What Must NOT Change
+
+Function signature of computeEligibility() — same name, same call site
+suppliersTable.sellableStatus write logic
+supplierEvaluationsTable audit trail
+supplierStateTransitionsTable audit trail
+Email notification logic
+compliance_docs table or its write path in scoring-service.ts
+Any other function in the graduation service
+
+Rollback
+If anything breaks:
+git revert HEAD
+pnpm tsc --noEmit
+The compliance_docs booleans are still accurate (CC-1A writes to both tables),
+so reverting instantly restores the old eligibility gate with no data loss.
