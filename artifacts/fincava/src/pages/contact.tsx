@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Mail, Phone, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useState } from "react";
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -24,7 +25,8 @@ export default function Contact() {
   const { t } = useLanguage();
   const c = t.contact;
   const { toast } = useToast();
-  
+  const [submitting, setSubmitting] = useState(false);
+
   const form = useForm<z.infer<typeof contactSchema>>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
@@ -37,13 +39,29 @@ export default function Contact() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof contactSchema>) {
-    console.log(values);
-    toast({
-      title: c.successTitle,
-      description: c.successDesc,
-    });
-    form.reset();
+  async function onSubmit(values: z.infer<typeof contactSchema>) {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? "Request failed");
+      }
+      toast({ title: c.successTitle, description: c.successDesc });
+      form.reset();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Could not send message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -199,7 +217,9 @@ export default function Contact() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full">{c.sendBtn}</Button>
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? "Sending…" : c.sendBtn}
+                  </Button>
                 </form>
               </Form>
             </CardContent>
