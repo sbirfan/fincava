@@ -15,7 +15,7 @@ const contactSchema = z.object({
   message: z.string().min(10),
 });
 
-router.post("/api/contact", async (req, res) => {
+router.post("/contact", async (req, res) => {
   const parsed = contactSchema.safeParse(req.body);
   if (!parsed.success) {
     sendError(res, 400, parsed.error.message);
