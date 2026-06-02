@@ -7,8 +7,8 @@
 //   5. Send WhatsApp confirmation (non-fatal if it fails)
 //   6. Retry up to 3 times with exponential backoff on any failure
 
-import { db, aiOutputsTable, supplierRequirementStatusTable, productsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, aiOutputsTable, supplierRequirementStatusTable, productsTable, complianceDocsTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
 import { getAnthropicClient, SCORING_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { logger } from "../lib/logger";
@@ -191,6 +191,56 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
             { supplierId, source: cultivoTriggersInvima ? "cultivo" : "products" },
             "scoreSupplier: INVIMA requirement seeded (processed/packaged product category)",
           );
+        }
+
+        // FIN-019: write AI-detected gaps back to compliance_docs booleans.
+        // Only the negative direction: gap detected → set field to false.
+        // Never sets a field to true from AI output (absence of gap ≠ compliance).
+        // Guard: skip fields where supplier_requirement_status is already
+        // verified or conditionally_approved (admin has confirmed the document).
+        const GAP_TO_COMPLIANCE_FIELD: Record<string, keyof typeof complianceDocsTable.$inferInsert> = {
+          DIAN_RUT:        "rutDian",
+          ICA_REGISTRO:    "icaRegistro",
+          FITOSANITARIO:   "fitosanitarioCert",
+          DIAN_EXPORTADOR: "dianExportador",
+        };
+        const relevantGaps = [...gapSet].filter((code) => code in GAP_TO_COMPLIANCE_FIELD);
+
+        if (relevantGaps.length > 0) {
+          // Fetch current requirement states to guard against downgrading admin-verified docs.
+          const currentStates = await db
+            .select({
+              requirementCode: supplierRequirementStatusTable.requirementCode,
+              state:           supplierRequirementStatusTable.state,
+            })
+            .from(supplierRequirementStatusTable)
+            .where(
+              inArray(supplierRequirementStatusTable.requirementCode, relevantGaps) &&
+              eq(supplierRequirementStatusTable.supplierId, supplierId)
+            );
+
+          const stateMap = new Map(currentStates.map((r) => [r.requirementCode, r.state]));
+          const PROTECTED_STATES = new Set(["verified", "conditionally_approved"]);
+
+          const fieldsToFalse: Partial<Record<string, boolean>> = {};
+          for (const code of relevantGaps) {
+            const state = stateMap.get(code);
+            if (!PROTECTED_STATES.has(state ?? "")) {
+              const field = GAP_TO_COMPLIANCE_FIELD[code]!;
+              fieldsToFalse[field] = false;
+            }
+          }
+
+          if (Object.keys(fieldsToFalse).length > 0) {
+            await db
+              .update(complianceDocsTable)
+              .set(fieldsToFalse)
+              .where(eq(complianceDocsTable.supplierId, supplierId));
+            logger.info(
+              { supplierId, fields: Object.keys(fieldsToFalse) },
+              "FIN-019: compliance_docs updated from AI-detected gaps",
+            );
+          }
         }
       } catch (complianceErr) {
         logger.warn(
