@@ -82,6 +82,7 @@ const AdminPublicMetrics = lazy(() => import("@/pages/admin/public-metrics"));
 const AdminOriginStories = lazy(() => import("@/pages/admin/origin-stories"));
 const AdminComplianceQueue = lazy(() => import("@/pages/admin/compliance-queue"));
 const AdminManagedCases = lazy(() => import("@/pages/admin/managed-cases"));
+const AdminIntroductions = lazy(() => import("@/pages/admin/introductions"));
 const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
 const OfficerCompliance = lazy(() => import("@/pages/officer/compliance"));
 
@@ -192,6 +193,7 @@ function Router() {
 
         {/* Admin */}
         <Route path="/admin" component={() => <PrivateRoute component={AdminDashboard} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/introductions" component={() => <PrivateRoute component={AdminIntroductions} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/users" component={() => <PrivateRoute component={AdminUsers} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/buyers" component={() => <PrivateRoute component={AdminBuyers} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/buyer-matches" component={() => <PrivateRoute component={AdminBuyerMatches} roles={["ADMIN"]} layout={AdminLayout} />} />

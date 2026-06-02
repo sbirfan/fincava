@@ -22,12 +22,14 @@ import {
   Leaf,
   ClipboardCheck,
   Briefcase,
+  Inbox,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Introductions", href: "/admin/introductions", icon: Inbox },
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Buyers", href: "/admin/buyers", icon: UserSquare2 },
   { name: "Buyer Matches", href: "/admin/buyer-matches", icon: Link2 },

@@ -5,6 +5,7 @@ import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, originStoriesTable, staffRolesTable, suppliersTable, farmsTable, economicsTable, complianceDocsTable, aiOutputsTable, interactionsTable, supplierContactsTable } from "@workspace/db";
 import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES, complianceRequirementsTable } from "@workspace/db";
+import { rfqsTable, rfqResponsesTable, inquiriesTable } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
 import { runMatching as runBuyerMatching, NotFoundError as MatchingNotFoundError } from "../services/buyer-matching-service";
 import { hashPassword } from "../lib/auth";
@@ -81,6 +82,80 @@ router.get("/admin/stats", ...adminOnly, async (_req, res): Promise<void> => {
     totalLoanPrincipal: Number(loanTotals?.totalPrincipal ?? 0),
     totalOutstanding: Number(loanTotals?.totalOutstanding ?? 0),
   });
+});
+
+// ── GET /api/admin/open-introductions (FIN-010) ──────────────────────────────
+router.get("/admin/open-introductions", ...adminOnly, async (_req, res): Promise<void> => {
+  const [openRfqs, pendingInquiries] = await Promise.all([
+    db.select().from(rfqsTable).where(eq(rfqsTable.status, "OPEN")).orderBy(desc(rfqsTable.createdAt)),
+    db.select().from(inquiriesTable).where(eq(inquiriesTable.status, "PENDING")).orderBy(desc(inquiriesTable.createdAt)),
+  ]);
+
+  // Enrich RFQs with buyer name + response counts
+  let rfqResult: any[] = [];
+  if (openRfqs.length > 0) {
+    const buyerIds = [...new Set(openRfqs.map(r => r.buyerId))];
+    const rfqIds = openRfqs.map(r => r.id);
+
+    const [profiles, responseCounts] = await Promise.all([
+      db.select({ userId: profilesTable.userId, firstName: profilesTable.firstName, lastName: profilesTable.lastName, country: profilesTable.country })
+        .from(profilesTable).where(inArray(profilesTable.userId, buyerIds)),
+      db.select({ rfqId: rfqResponsesTable.rfqId, cnt: count() })
+        .from(rfqResponsesTable).where(inArray(rfqResponsesTable.rfqId, rfqIds))
+        .groupBy(rfqResponsesTable.rfqId),
+    ]);
+
+    const profileMap = new Map(profiles.map(p => [p.userId, p]));
+    const countMap = new Map(responseCounts.map(r => [r.rfqId, Number(r.cnt)]));
+
+    rfqResult = openRfqs.map(rfq => {
+      const p = profileMap.get(rfq.buyerId);
+      return {
+        ...rfq,
+        deadline: rfq.deadline.toISOString(),
+        createdAt: rfq.createdAt.toISOString(),
+        buyerName: p ? `${p.firstName} ${p.lastName}` : "Buyer",
+        buyerCountry: p?.country ?? null,
+        responseCount: countMap.get(rfq.id) ?? 0,
+      };
+    });
+  }
+
+  // Enrich inquiries with product name and supplier name
+  let inquiryResult: any[] = [];
+  if (pendingInquiries.length > 0) {
+    const productIds = [...new Set(pendingInquiries.map(i => i.productId))];
+    const products = await db.select({ id: productsTable.id, name: productsTable.name, companyId: productsTable.companyId })
+      .from(productsTable).where(inArray(productsTable.id, productIds));
+    const companyIds = [...new Set(products.map(p => p.companyId))];
+    const companies = companyIds.length > 0
+      ? await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable).where(inArray(companiesTable.id, companyIds))
+      : [];
+
+    const productMap = new Map(products.map(p => [p.id, p]));
+    const companyMap = new Map(companies.map(c => [c.id, c]));
+
+    inquiryResult = pendingInquiries.map(i => {
+      const product = productMap.get(i.productId);
+      const company = product ? companyMap.get(product.companyId) : undefined;
+      return {
+        id: i.id,
+        productId: i.productId,
+        productName: product?.name ?? "Unknown Product",
+        supplierName: company?.name ?? "Unknown Supplier",
+        buyerName: i.buyerName,
+        buyerEmail: i.buyerEmail,
+        buyerCompany: i.company ?? null,
+        country: i.country ?? null,
+        quantityKg: i.quantityKg ?? null,
+        message: i.message,
+        status: i.status,
+        createdAt: i.createdAt.toISOString(),
+      };
+    });
+  }
+
+  res.json({ rfqs: rfqResult, inquiries: inquiryResult });
 });
 
 // ── GET /api/admin/users ─────────────────────────────────────────────────────
@@ -1160,126 +1235,6 @@ router.get("/admin/buyers/marketing-campaigns/:id", ...adminOnly, async (req, re
       failures,
     },
   });
-});
-
-// ── GET /admin/users/export ───────────────────────────────────────────────────
-router.get("/admin/users/export", ...adminOnly, async (req, res): Promise<void> => {
-  const data = await db
-    .select({
-      id: usersTable.id,
-      email: usersTable.email,
-      role: usersTable.role,
-      firstName: profilesTable.firstName,
-      lastName: profilesTable.lastName,
-      phone: profilesTable.phone,
-      country: profilesTable.country,
-      companyName: companiesTable.name,
-      createdAt: usersTable.createdAt,
-    })
-    .from(usersTable)
-    .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
-    .leftJoin(companiesTable, eq(companiesTable.userId, usersTable.id))
-    .orderBy(desc(usersTable.createdAt));
-
-  const esc = (v: string | number | Date | null | undefined): string => {
-    if (v == null) return "";
-    const s = String(v);
-    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-
-  const header = "id,email,role,firstName,lastName,phone,country,companyName,createdAt";
-  const rows = data.map((u) =>
-    [u.id, u.email, u.role, u.firstName, u.lastName, u.phone, u.country, u.companyName, u.createdAt]
-      .map(esc)
-      .join(",")
-  );
-  const csv = [header, ...rows].join("\n");
-  const ts = new Date().toISOString().slice(0, 10);
-  res.setHeader("Content-Type", "text/csv");
-  res.setHeader("Content-Disposition", `attachment; filename="fincava-users-${ts}.csv"`);
-  res.send(csv);
-});
-
-// ── POST /admin/users/import ──────────────────────────────────────────────────
-router.post("/admin/users/import", ...adminOnly, async (req, res): Promise<void> => {
-  const { rows } = req.body as { rows: unknown[] };
-  if (!Array.isArray(rows) || rows.length === 0) {
-    sendError(res, 400, "rows must be a non-empty array");
-    return;
-  }
-  if (rows.length > 500) {
-    sendError(res, 400, "Maximum 500 rows per import");
-    return;
-  }
-
-  const appBaseUrl =
-    process.env["FRONTEND_URL"] ??
-    (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
-
-  type ImportResult = { row: number; email: string; status: "created" | "skipped" | "error"; message?: string };
-  const results: ImportResult[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const parsed = AdminCreateUserBody.safeParse(rows[i]);
-    if (!parsed.success) {
-      const msg = Object.values(parsed.error.flatten().fieldErrors).flat().join("; ");
-      results.push({ row: i + 1, email: (rows[i] as Record<string, string>)?.email ?? "", status: "error", message: msg });
-      continue;
-    }
-    const { email, password, role, firstName, lastName, country, phone, companyName } = parsed.data;
-    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
-    if (existing) {
-      results.push({ row: i + 1, email, status: "skipped", message: "Email already registered" });
-      continue;
-    }
-    try {
-      const [user] = await db
-        .insert(usersTable)
-        .values({ email, passwordHash: await hashPassword(password), role })
-        .returning();
-      if (firstName || lastName || country || phone) {
-        await db.insert(profilesTable).values({
-          userId: user.id,
-          firstName: firstName ?? "",
-          lastName: lastName ?? "",
-          country: country ?? null,
-          phone: phone ?? null,
-          language: "en",
-        });
-      }
-      if (companyName) {
-        await db.insert(companiesTable).values({
-          userId: user.id,
-          name: companyName,
-          country: country ?? "",
-          type: "EXPORTER",
-          description: "",
-        });
-      }
-      results.push({ row: i + 1, email, status: "created" });
-      void Promise.resolve().then(async () => {
-        try {
-          const emailContent = adminCreatedAccountEmail({
-            firstName: firstName || "there",
-            email,
-            forgotPasswordUrl: `${appBaseUrl}/forgot-password`,
-          });
-          await sendEmail({ to: email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
-        } catch (err) {
-          logger.warn({ err, email }, "Import welcome email failed");
-        }
-      });
-    } catch (err: unknown) {
-      results.push({ row: i + 1, email, status: "error", message: (err as Error)?.message ?? "Unknown error" });
-    }
-  }
-
-  const summary = {
-    created: results.filter((r) => r.status === "created").length,
-    skipped: results.filter((r) => r.status === "skipped").length,
-    errors:  results.filter((r) => r.status === "error").length,
-  };
-  res.json({ results, summary });
 });
 
 // ── PATCH /api/admin/users/:id ───────────────────────────────────────────────
