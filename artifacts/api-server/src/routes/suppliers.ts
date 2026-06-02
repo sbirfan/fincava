@@ -287,6 +287,21 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
       }
       if (rutDianTrue) {
         await db.update(complianceDocsTable).set({ rutDian: true }).where(eq(complianceDocsTable.supplierId, updateSupplierId));
+        // FIN-023: also seed supplier_requirement_status so the eligibility gate
+        // (computeEligibility) sees DIAN_RUT as conditionally_approved.
+        // compliance_docs.rutDian alone does not affect the gate — only
+        // supplier_requirement_status.state is read by computeEligibility().
+        // onConflictDoNothing: never downgrades a verified or higher state set by admin.
+        await db
+          .insert(supplierRequirementStatusTable)
+          .values({
+            supplierId: updateSupplierId,
+            requirementCode: "DIAN_RUT",
+            agency: "DIAN",
+            state: "conditionally_approved",
+          })
+          .onConflictDoNothing();
+        logger.info({ supplierId: updateSupplierId }, "FIN-023: DIAN_RUT seeded to conditionally_approved from onboarding has_rut declaration");
       }
 
       // Interaction log.
@@ -450,6 +465,24 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
         { supplierId: supplier.id, field: "ica_registered", source: "body.ica_registered" },
         "ICA sync applied from onboarding metadata",
       );
+    }
+
+    // FIN-023: seed supplier_requirement_status so the eligibility gate sees
+    // DIAN_RUT as conditionally_approved when supplier self-declares has_rut.
+    // compliance_docs.rutDian alone does not affect computeEligibility() —
+    // only supplier_requirement_status.state is read by the graduation gate.
+    // onConflictDoNothing: never downgrades a verified or higher state set by admin.
+    if (rutDianTrue) {
+      await db
+        .insert(supplierRequirementStatusTable)
+        .values({
+          supplierId: supplier.id,
+          requirementCode: "DIAN_RUT",
+          agency: "DIAN",
+          state: "conditionally_approved",
+        })
+        .onConflictDoNothing();
+      logger.info({ supplierId: supplier.id }, "FIN-023: DIAN_RUT seeded to conditionally_approved from onboarding has_rut declaration");
     }
 
     await db.insert(interactionsTable).values({
@@ -1708,7 +1741,7 @@ router.get("/suppliers/:id", requireAuth, requireAdmin, async (req, res): Promis
 
 // ── POST /api/admin/suppliers/:id/transition ─────────────────────────────────
 const VALID_SELLABLE_STATES = ["NOT_READY", "ELIGIBLE", "SELLABLE", "PUBLISHED", "INACTIVE"] as const;
-const VALID_ADMIN_ACTORS    = ["ADMIN", "FOUNDER"] as const;
+const VALID_ADMIN_ACTORS    = ["ADMIN"] as const;
 
 router.post(
   "/admin/suppliers/:id/transition",
@@ -1725,11 +1758,11 @@ router.post(
 
     // Validate actor — SYSTEM is forbidden from this endpoint.
     if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
-      sendError(res, 400, "actor must be ADMIN or FOUNDER");
+      sendError(res, 400, "actor must be ADMIN");
       return;
     }
 
-    // Validate justification — required for ADMIN and FOUNDER.
+    // Validate justification — required for ADMIN.
     if (!justification || justification.trim() === "") {
       sendError(res, 400, "justification is required");
       return;
@@ -1745,7 +1778,7 @@ router.post(
       const result = await transitionTo(
         supplierId,
         toState as (typeof VALID_SELLABLE_STATES)[number],
-        actor as "ADMIN" | "FOUNDER",
+        actor as "ADMIN",
         { justification },
       );
       res.json({ transition: result.transition });
@@ -1780,7 +1813,7 @@ router.post(
 
     // Validate actor — SYSTEM is forbidden from this endpoint.
     if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
-      sendError(res, 400, "actor must be ADMIN or FOUNDER");
+      sendError(res, 400, "actor must be ADMIN");
       return;
     }
 
@@ -1810,7 +1843,7 @@ router.post(
     try {
       const result = await markPublished(
         supplierId,
-        actor as "ADMIN" | "FOUNDER",
+        actor as "ADMIN",
         justification,
       );
       res.json({ transition: result.transition });
@@ -1846,7 +1879,7 @@ router.post(
     const { actor, justification } = req.body as Record<string, string>;
 
     if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
-      sendError(res, 400, "actor must be ADMIN or FOUNDER");
+      sendError(res, 400, "actor must be ADMIN");
       return;
     }
     if (!justification || justification.trim() === "") {
@@ -1873,7 +1906,7 @@ router.post(
       const result = await transitionTo(
         supplierId,
         "SELLABLE",
-        actor as "ADMIN" | "FOUNDER",
+        actor as "ADMIN",
         { justification },
       );
       res.json({ transition: result });
@@ -1894,7 +1927,7 @@ router.post(
 
 // ── POST /api/admin/suppliers/:id/suspend ────────────────────────────────────
 // Transitions a supplier to INACTIVE (suspended).
-// Only ADMIN or FOUNDER can suspend. Suspension is reversible via the existing
+// Only ADMIN can suspend. Suspension is reversible via the existing
 // POST /admin/suppliers/:id/transition endpoint (restore to ELIGIBLE or SELLABLE).
 router.post(
   "/admin/suppliers/:id/suspend",
@@ -1910,7 +1943,7 @@ router.post(
     const { actor, justification } = req.body as Record<string, string>;
 
     if (!actor || !(VALID_ADMIN_ACTORS as readonly string[]).includes(actor)) {
-      sendError(res, 400, "actor must be ADMIN or FOUNDER");
+      sendError(res, 400, "actor must be ADMIN");
       return;
     }
 
@@ -1939,7 +1972,7 @@ router.post(
       const result = await transitionTo(
         supplierId,
         "INACTIVE",
-        actor as "ADMIN" | "FOUNDER",
+        actor as "ADMIN",
         { justification },
       );
 
