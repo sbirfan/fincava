@@ -6,7 +6,10 @@ import { productsTable } from "./products";
 import { suppliersTable } from "./suppliers";
 
 export const orderStatusEnum = pgEnum("order_status", [
-  "INQUIRY", "SAMPLE_REQUESTED", "QUOTED", "CONFIRMED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "COMPLETED", "CANCELLED"
+  // B2B statuses
+  "INQUIRY", "SAMPLE_REQUESTED", "QUOTED", "CONFIRMED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "COMPLETED", "CANCELLED",
+  // Retail statuses (TDD §2.2.3) — forward-only; cannot be removed from enum
+  "AUTHORIZED", "READY_TO_SHIP", "CAPTURED", "IN_TRANSIT", "DELIVERED_RETAIL", "REFUNDED",
 ]);
 
 // feeStatus values: PENDING | WAIVED | COLLECTED | EXEMPT
@@ -29,6 +32,9 @@ export const ordersTable = pgTable("orders", {
   feePercentage: real("fee_percentage"),
   feeAmountUSD:  real("fee_amount_usd"),
   feeStatus:     text("fee_status"),
+  // ── B2B / Retail discriminator (TDD §1.5) ─────────────────────────────────
+  // 'b2b' for all existing orders; 'retail' for orders with a retail_order_details child.
+  channel: text("channel").notNull().default("b2b"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

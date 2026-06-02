@@ -1,4 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, boolean, real, pgEnum, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+// Note: retail column additions live here per additive-only constraint (TDD §2.2)
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
@@ -43,8 +45,22 @@ export const productsTable = pgTable("products", {
   familiesSupported: integer("families_supported"),
   supplierId: integer("supplier_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+  // ── Retail SKU columns (TDD §2.2.1) — null = not retail-enabled; B2B queries ignore these ──
+  retailEnabled:     boolean("retail_enabled").notNull().default(false),
+  retailPriceCop:    integer("retail_price_cop"),        // centavos; null = not priced
+  retailStockUnits:  integer("retail_stock_units"),       // unit count (bags, boxes)
+  retailUnitWeightG: integer("retail_unit_weight_g"),     // grams per unit
+  retailUnitLabel:   text("retail_unit_label"),           // e.g. "Bolsa 250g"
+  retailMaxPerOrder: integer("retail_max_per_order"),     // buyer purchase cap per order
+  lastReplenishedAt: timestamp("last_replenished_at", { withTimezone: true }),
+  nextWindowStart:   timestamp("next_window_start", { withTimezone: true }),
+  nextWindowEnd:     timestamp("next_window_end", { withTimezone: true }),
 },
-(t) => [index("products_company_id_idx").on(t.companyId)],
+(t) => [
+  index("products_company_id_idx").on(t.companyId),
+  index("idx_products_retail_enabled").on(t.id).where(sql`retail_enabled = true AND active = true`),
+],
 );
 
 export const originStoriesTable = pgTable("origin_stories", {
@@ -74,6 +90,14 @@ export const originStoriesTable = pgTable("origin_stories", {
   videoUrl: text("video_url"),
   published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+  // ── Retail bilingual + farmer approval columns (TDD §2.2.2) ──────────────────
+  farmerApprovedAt: timestamp("farmer_approved_at", { withTimezone: true }),
+  farmerVoiceEs:    text("farmer_voice_es"),
+  farmerVoiceEn:    text("farmer_voice_en"),
+  buyerCopyEs:      text("buyer_copy_es"),
+  buyerCopyEn:      text("buyer_copy_en"),
+  translatedBy:     text("translated_by"),   // 'human' | 'sonnet_assisted' | null
 });
 
 export const insertProductSchema = createInsertSchema(productsTable).omit({ id: true, createdAt: true });

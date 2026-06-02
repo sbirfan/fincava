@@ -134,6 +134,83 @@
       "when": 1748822400000,
       "tag": "0015_supplier_payment_methods",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1748908800000,
+      "tag": "0016_retail_products_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1748908801000,
+      "tag": "0017_retail_origin_stories_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1748908802000,
+      "tag": "0018_retail_order_status_enum",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1748908803000,
+      "tag": "0019_retail_buyer_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1748908804000,
+      "tag": "0020_retail_auth_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1748908805000,
+      "tag": "0021_retail_order_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1748908806000,
+      "tag": "0022_retail_payment_transactions",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1748908807000,
+      "tag": "0023_retail_waitlists",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1748908808000,
+      "tag": "0024_retail_shipping_zones",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1748908809000,
+      "tag": "0025_retail_shipping_zones_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1748908810000,
+      "tag": "0026_retail_harvest_updates",
+      "breakpoints": true
     }
   ]
 }

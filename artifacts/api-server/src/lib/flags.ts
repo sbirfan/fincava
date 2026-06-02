@@ -34,12 +34,15 @@ export const ENABLE_FINANCE = boolFlag("ENABLE_FINANCE", false);
 /** Layer III — logistics/shipment and payment milestone endpoints. */
 export const ENABLE_LOGISTICS = boolFlag("ENABLE_LOGISTICS", false);
 
+/** Layer IV — retail storefront (domestic Colombian catalog + checkout). */
+export const ENABLE_RETAIL = boolFlag("ENABLE_RETAIL", false);
+
 // ── Deploy-time flag validation (FIN-096) ────────────────────────────────────
 // Expected flag states for each platform phase. Any deviation is logged as a
 // structured warning at startup — never a hard failure, so staging/preview
 // environments can legitimately differ from the production baseline.
 
-type FlagName = "ENABLE_INTELLIGENCE_PUBLIC" | "ENABLE_MATCHING" | "ENABLE_TRANSACTIONS" | "ENABLE_FINANCE" | "ENABLE_LOGISTICS";
+type FlagName = "ENABLE_INTELLIGENCE_PUBLIC" | "ENABLE_MATCHING" | "ENABLE_TRANSACTIONS" | "ENABLE_FINANCE" | "ENABLE_LOGISTICS" | "ENABLE_RETAIL";
 
 interface PhaseBaseline {
   phase: string;
@@ -55,6 +58,7 @@ const PHASE_BASELINES: Record<string, PhaseBaseline> = {
       ENABLE_TRANSACTIONS:        false,
       ENABLE_FINANCE:             false,
       ENABLE_LOGISTICS:           false,
+      ENABLE_RETAIL:              false,
     },
   },
   "4": {
@@ -65,6 +69,7 @@ const PHASE_BASELINES: Record<string, PhaseBaseline> = {
       ENABLE_TRANSACTIONS:        false,
       ENABLE_FINANCE:             false,
       ENABLE_LOGISTICS:           false,
+      ENABLE_RETAIL:              false,
     },
   },
   "5": {
@@ -75,6 +80,7 @@ const PHASE_BASELINES: Record<string, PhaseBaseline> = {
       ENABLE_TRANSACTIONS:        true,
       ENABLE_FINANCE:             false,
       ENABLE_LOGISTICS:           false,
+      ENABLE_RETAIL:              true,
     },
   },
 };
@@ -85,6 +91,7 @@ const LIVE_FLAGS: Record<FlagName, boolean> = {
   ENABLE_TRANSACTIONS,
   ENABLE_FINANCE,
   ENABLE_LOGISTICS,
+  ENABLE_RETAIL,
 };
 
 /**

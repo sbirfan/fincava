@@ -31,6 +31,7 @@ Set `FINCAVA_PHASE` in Replit Secrets to the current phase number so the validat
 | `ENABLE_LOGISTICS` | **unset or `false`** | Future phase |
 | `ENABLE_MATCHING` | **unset or `false`** | Admin-only today |
 | `ENABLE_INTELLIGENCE_PUBLIC` | **unset or `false`** | Legal review pending |
+| `ENABLE_RETAIL` | **unset or `false`** | Retail storefront not yet launched |
 
 ### Phase 4 — Pre-Retail Setup (future)
 

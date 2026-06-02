@@ -13,3 +13,8 @@ export const ENABLE_FINANCE: boolean =
 export const ENABLE_LOGISTICS: boolean =
   import.meta.env.VITE_ENABLE_LOGISTICS === "true" ||
   import.meta.env.VITE_ENABLE_LOGISTICS === "1";
+
+/** Layer IV — retail storefront (domestic Colombian catalog + checkout). */
+export const ENABLE_RETAIL: boolean =
+  import.meta.env.VITE_ENABLE_RETAIL === "true" ||
+  import.meta.env.VITE_ENABLE_RETAIL === "1";
