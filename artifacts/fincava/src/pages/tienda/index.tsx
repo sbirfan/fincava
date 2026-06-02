@@ -162,7 +162,15 @@ export default function TiendaIndex() {
         </div>
       )}
 
-      {isError && <p className="text-destructive text-sm py-8">{ti.loadError}</p>}
+      {isError && (
+        <p className="text-destructive text-sm py-8">
+          {ti.loadError.split('info@fincava.com')[0]}
+          <a href="mailto:info@fincava.com" className="underline hover:text-destructive/80">
+            info@fincava.com
+          </a>
+          {ti.loadError.split('info@fincava.com')[1]}
+        </p>
+      )}
 
       {!isLoading && !isError && products.length === 0 && (
         <div className="text-center py-20 border border-border rounded-xl border-dashed bg-card">
