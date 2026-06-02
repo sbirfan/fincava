@@ -26,6 +26,9 @@ const en = {
     marketIntelligence: "Market Intelligence",
     language: "Language",
     copyright: "All rights reserved.",
+    retailStore: "Retail Store",
+    shopCatalog: "Browse Catalog",
+    shopAuth: "Sign In",
   },
   home: {
     hero: {
@@ -1472,6 +1475,9 @@ const es: typeof en = {
     marketIntelligence: "Inteligencia de Mercado",
     language: "Idioma",
     copyright: "Todos los derechos reservados.",
+    retailStore: "Tienda",
+    shopCatalog: "Ver Catálogo",
+    shopAuth: "Iniciar sesión",
   },
   home: {
     hero: {

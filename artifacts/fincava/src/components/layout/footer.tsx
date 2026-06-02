@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import { ENABLE_RETAIL } from "@/lib/flags";
 
 export function Footer() {
   const { lang, setLang, t } = useLanguage();
@@ -9,7 +10,7 @@ export function Footer() {
   return (
     <footer className="border-t bg-card">
       <div className="container mx-auto px-4 py-12 md:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className={`grid grid-cols-1 gap-8 ${ENABLE_RETAIL ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
           <div className="space-y-4">
             <h3 className="font-serif text-xl font-bold text-primary">Fincava</h3>
             <p className="text-sm text-muted-foreground">{f.tagline}</p>
@@ -23,6 +24,16 @@ export function Footer() {
               <li><Link href="/origin-stories" className="hover:text-primary">{f.originStories}</Link></li>
             </ul>
           </div>
+
+          {ENABLE_RETAIL && (
+            <div>
+              <h4 className="font-semibold mb-4">{f.retailStore}</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><Link href="/tienda" className="hover:text-primary">{f.shopCatalog}</Link></li>
+                <li><Link href="/tienda/auth" className="hover:text-primary">{f.shopAuth}</Link></li>
+              </ul>
+            </div>
+          )}
 
           <div>
             <h4 className="font-semibold mb-4">{f.company}</h4>
