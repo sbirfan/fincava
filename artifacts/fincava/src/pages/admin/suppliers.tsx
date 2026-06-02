@@ -237,7 +237,9 @@ export default function AdminSuppliersPage() {
   const [docSupplierId, setDocSupplierId] = useState<number | null>(null);
   const [docLang, setDocLang] = useState<"en" | "es">(lang === "es" ? "es" : "en");
   const [scoring, setScoring] = useState<number | null>(null);
-  const [scoreStatus, setScoreStatus] = useState<Record<number, "started" | "failed">>({});
+  type ScoreStatusVal = "polling" | "done" | "timeout" | "failed";
+  const [scoreStatus, setScoreStatus] = useState<Record<number, ScoreStatusVal>>({});
+  const scorePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [publishing, setPublishing] = useState<number | null>(null);
   const [publishError, setPublishError] = useState("");
   // Delete supplier state
@@ -303,6 +305,12 @@ export default function AdminSuppliersPage() {
   }, [filterPathway, filterStatus]);
 
   useEffect(() => {
+    return () => {
+      if (scorePollRef.current) clearInterval(scorePollRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     setPublishError("");
   }, [selected?.id]);
 
@@ -334,6 +342,22 @@ export default function AdminSuppliersPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function silentRefreshSupplier(supplierId: number) {
+    try {
+      const params = new URLSearchParams();
+      if (filterPathway) params.set("pathway", filterPathway);
+      if (filterStatus) params.set("status", filterStatus);
+      const res = await fetch(`/api/suppliers/admin-list?${params}`, { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list: Supplier[] = data.data ?? [];
+      const fresh = list.find((s) => s.id === supplierId);
+      if (!fresh) return;
+      setSuppliers((prev) => prev.map((s) => s.id === supplierId ? fresh : s));
+      setSelected((prev) => prev && prev.id === supplierId ? fresh : prev);
+    } catch { /* ignore */ }
   }
 
   async function updateSupplierStatus(supplierId: number, status: string, reason?: "REJECTED" | "SUSPENDED") {
@@ -555,6 +579,7 @@ export default function AdminSuppliersPage() {
   }
 
   async function scoreNow(supplierId: number) {
+    if (scorePollRef.current) { clearInterval(scorePollRef.current); scorePollRef.current = null; }
     setScoring(supplierId);
     try {
       const res = await fetch(`/api/admin/suppliers/${supplierId}/score`, {
@@ -566,8 +591,29 @@ export default function AdminSuppliersPage() {
         const j = await res.json().catch(() => ({}));
         throw new Error(toErrMsg(j, res.status));
       }
-      setScoreStatus((prev) => ({ ...prev, [supplierId]: "started" }));
-      setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
+      setScoreStatus((prev) => ({ ...prev, [supplierId]: "polling" }));
+      let attempts = 0;
+      const MAX_ATTEMPTS = 15;
+      scorePollRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const pollRes = await fetch(`/api/suppliers/${supplierId}`, { credentials: "include" });
+          if (!pollRes.ok) return;
+          const data = await pollRes.json();
+          const freshCompleteness: ProfileCompleteness | undefined = data.profileCompleteness;
+          if (freshCompleteness?.hasAiScore) {
+            if (scorePollRef.current) { clearInterval(scorePollRef.current); scorePollRef.current = null; }
+            setCompleteness(freshCompleteness);
+            void silentRefreshSupplier(supplierId);
+            setScoreStatus((prev) => ({ ...prev, [supplierId]: "done" }));
+            setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 8000);
+          } else if (attempts >= MAX_ATTEMPTS) {
+            if (scorePollRef.current) { clearInterval(scorePollRef.current); scorePollRef.current = null; }
+            setScoreStatus((prev) => ({ ...prev, [supplierId]: "timeout" }));
+            setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 10000);
+          }
+        } catch { /* keep polling */ }
+      }, 3000);
     } catch (e: any) {
       setScoreStatus((prev) => ({ ...prev, [supplierId]: "failed" }));
       setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
@@ -1465,25 +1511,35 @@ export default function AdminSuppliersPage() {
             <div className="mt-6">
               <button
                 onClick={() => scoreNow(selected.id)}
-                disabled={scoring === selected.id}
+                disabled={scoring === selected.id || scoreStatus[selected.id] === "polling"}
                 className={`w-full py-2.5 rounded-lg text-sm font-medium transition border ${
-                  scoreStatus[selected.id] === "started"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                    : scoreStatus[selected.id] === "failed"
-                      ? "bg-red-50 text-red-600 border-red-200"
-                      : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                  scoreStatus[selected.id] === "polling"
+                    ? "bg-amber-50 text-amber-700 border-amber-300 cursor-wait"
+                    : scoreStatus[selected.id] === "done"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      : scoreStatus[selected.id] === "timeout"
+                        ? "bg-yellow-50 text-yellow-700 border-yellow-300"
+                        : scoreStatus[selected.id] === "failed"
+                          ? "bg-red-50 text-red-600 border-red-200"
+                          : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
                 } disabled:opacity-60`}
               >
                 {scoring === selected.id
-                  ? (lang === "es" ? "Iniciando score…" : "Starting score…")
-                  : scoreStatus[selected.id] === "started"
-                    ? (lang === "es" ? "✓ Pipeline iniciado" : "✓ Pipeline started")
-                    : scoreStatus[selected.id] === "failed"
-                      ? (lang === "es" ? "✗ Error al iniciar" : "✗ Failed to start")
-                      : (lang === "es" ? "⚡ Score Now" : "⚡ Score Now")}
+                  ? (lang === "es" ? "Iniciando…" : "Starting…")
+                  : scoreStatus[selected.id] === "polling"
+                    ? (lang === "es" ? "⏳ Evaluando con IA…" : "⏳ Scoring in progress…")
+                    : scoreStatus[selected.id] === "done"
+                      ? (lang === "es" ? "✓ Score completado — actualizado" : "✓ Score complete — refreshed")
+                      : scoreStatus[selected.id] === "timeout"
+                        ? (lang === "es" ? "⏱ Scoring activo — refresca manualmente" : "⏱ Scoring running — refresh manually")
+                        : scoreStatus[selected.id] === "failed"
+                          ? (lang === "es" ? "✗ Error al iniciar" : "✗ Failed to start")
+                          : (lang === "es" ? "⚡ Score Now" : "⚡ Score Now")}
               </button>
               <p className="text-[10px] text-gray-400 text-center mt-1">
-                {lang === "es" ? "Re-ejecuta el pipeline de evaluación IA" : "Re-runs the AI evaluation pipeline"}
+                {scoreStatus[selected.id] === "polling"
+                  ? (lang === "es" ? "El score IA tarda ~15–30 s. El panel se actualizará solo." : "AI scoring takes ~15–30 s. The panel will update automatically.")
+                  : (lang === "es" ? "Re-ejecuta el pipeline de evaluación IA" : "Re-runs the AI evaluation pipeline")}
               </p>
             </div>
 
