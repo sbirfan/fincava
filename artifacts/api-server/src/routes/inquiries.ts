@@ -7,7 +7,7 @@ import {
   UpdateInquiryStatusBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
-import { sendEmail, newInquiryEmail } from "../lib/email";
+import { sendEmail, newInquiryEmail, newInquiryAdminAlertEmail, getAdminEmails } from "../lib/email";
 import { logger } from "../lib/logger";
 import { sendError } from "../lib/response";
 
@@ -105,6 +105,23 @@ router.post("/inquiries", requireAuth, async (req, res): Promise<void> => {
       });
 
       await sendEmail({ to: user.email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+
+      // FIN-009: also alert the operator so they can triage the introduction.
+      const adminEmails = await getAdminEmails();
+      if (adminEmails.length > 0) {
+        const adminAlert = newInquiryAdminAlertEmail({
+          buyerName: inquiry.buyerName,
+          buyerEmail: inquiry.buyerEmail,
+          buyerCompany: inquiry.company ?? null,
+          buyerCountry: inquiry.country ?? null,
+          productName: product.name,
+          supplierName: company.name,
+          messagePreview: inquiry.message,
+          quantityKg: inquiry.quantityKg ?? null,
+          adminUrl: `${appBaseUrl}/admin/inquiries`,
+        });
+        await sendEmail({ to: adminEmails, subject: adminAlert.subject, html: adminAlert.html, text: adminAlert.text });
+      }
     } catch (err) {
       logger.warn({ err, inquiryId: inquiry.id }, "New inquiry email failed");
     }

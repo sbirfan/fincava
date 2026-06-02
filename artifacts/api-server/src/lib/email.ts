@@ -595,6 +595,72 @@ export function rfqAwardEmail(opts: {
   return { html, text, subject };
 }
 
+// ── New inquiry — operator admin alert ───────────────────────────────────────
+
+export function newInquiryAdminAlertEmail(opts: {
+  buyerName: string;
+  buyerEmail: string;
+  buyerCompany?: string | null;
+  buyerCountry?: string | null;
+  productName: string;
+  supplierName: string;
+  messagePreview: string;
+  quantityKg?: number | null;
+  adminUrl: string;
+}): { html: string; text: string; subject: string } {
+  const rawPreview = opts.messagePreview.length > 300
+    ? `${opts.messagePreview.slice(0, 300)}…`
+    : opts.messagePreview;
+  const subject = `[FINCAVA] New inquiry — ${opts.buyerName} → ${opts.supplierName}`;
+  const html = baseTemplate(`
+    <p>A buyer has submitted a new inquiry on Fincava.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Buyer</td><td style="padding:6px 0;font-weight:600;">${esc(opts.buyerName)}${opts.buyerCompany ? ` · ${esc(opts.buyerCompany)}` : ""}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Email</td><td style="padding:6px 0;">${esc(opts.buyerEmail)}</td></tr>
+      ${opts.buyerCountry ? `<tr><td style="padding:6px 0;color:#78716c;">Country</td><td style="padding:6px 0;">${esc(opts.buyerCountry)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;color:#78716c;">Product</td><td style="padding:6px 0;">${esc(opts.productName)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Supplier</td><td style="padding:6px 0;">${esc(opts.supplierName)}</td></tr>
+      ${opts.quantityKg ? `<tr><td style="padding:6px 0;color:#78716c;">Quantity</td><td style="padding:6px 0;">${opts.quantityKg.toLocaleString()} kg</td></tr>` : ""}
+    </table>
+    <p style="background:#f5f5f4;border-left:3px solid #16a34a;padding:12px 16px;margin:0 0 20px;font-size:14px;font-family:system-ui,sans-serif;color:#44403c;">${esc(rawPreview)}</p>
+    <p><a href="${opts.adminUrl}" class="btn">View in admin panel</a></p>
+  `);
+  const text = `New inquiry on Fincava\n\nBuyer: ${opts.buyerName}${opts.buyerCompany ? ` (${opts.buyerCompany})` : ""}${opts.buyerCountry ? `, ${opts.buyerCountry}` : ""}\nEmail: ${opts.buyerEmail}\nProduct: ${opts.productName}\nSupplier: ${opts.supplierName}${opts.quantityKg ? `\nQuantity: ${opts.quantityKg.toLocaleString()} kg` : ""}\n\nMessage:\n${rawPreview}\n\nAdmin panel: ${opts.adminUrl}`;
+  return { html, text, subject };
+}
+
+// ── New RFQ — operator admin alert ───────────────────────────────────────────
+
+export function newRfqAdminAlertEmail(opts: {
+  buyerName: string;
+  buyerEmail: string;
+  rfqTitle: string;
+  productCategory: string;
+  quantityKg: number;
+  destination: string;
+  deadline: string;
+  targetPriceUSD?: number | null;
+  adminUrl: string;
+}): { html: string; text: string; subject: string } {
+  const subject = `[FINCAVA] New RFQ — ${opts.buyerName} · ${opts.productCategory}`;
+  const html = baseTemplate(`
+    <p>A buyer has submitted a new RFQ on Fincava.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#78716c;width:140px;">Buyer</td><td style="padding:6px 0;font-weight:600;">${esc(opts.buyerName)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Email</td><td style="padding:6px 0;">${esc(opts.buyerEmail)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Title</td><td style="padding:6px 0;font-weight:600;">${esc(opts.rfqTitle)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Category</td><td style="padding:6px 0;">${esc(opts.productCategory)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Volume</td><td style="padding:6px 0;">${opts.quantityKg.toLocaleString()} kg</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Destination</td><td style="padding:6px 0;">${esc(opts.destination)}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c;">Deadline</td><td style="padding:6px 0;">${esc(opts.deadline)}</td></tr>
+      ${opts.targetPriceUSD ? `<tr><td style="padding:6px 0;color:#78716c;">Target price</td><td style="padding:6px 0;">$${opts.targetPriceUSD.toFixed(2)} / kg</td></tr>` : ""}
+    </table>
+    <p><a href="${opts.adminUrl}" class="btn">View in admin panel</a></p>
+  `);
+  const text = `New RFQ on Fincava\n\nBuyer: ${opts.buyerName}\nEmail: ${opts.buyerEmail}\nTitle: ${opts.rfqTitle}\nCategory: ${opts.productCategory}\nVolume: ${opts.quantityKg.toLocaleString()} kg\nDestination: ${opts.destination}\nDeadline: ${opts.deadline}${opts.targetPriceUSD ? `\nTarget price: $${opts.targetPriceUSD.toFixed(2)} / kg` : ""}\n\nAdmin panel: ${opts.adminUrl}`;
+  return { html, text, subject };
+}
+
 // ── Loan repaid notification (buyer-facing) ───────────────────────────────────
 
 export function loanRepaidBuyerEmail(opts: {

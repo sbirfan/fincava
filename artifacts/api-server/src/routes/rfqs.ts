@@ -5,7 +5,7 @@ import {
   farmsTable, suppliersTable,
 } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
-import { sendEmail, rfqResponseEmail, rfqAwardEmail } from "../lib/email";
+import { sendEmail, rfqResponseEmail, rfqAwardEmail, newRfqAdminAlertEmail, getAdminEmails } from "../lib/email";
 import { logger } from "../lib/logger";
 import { sendError } from "../lib/response";
 import { getAnthropicClient } from "../lib/anthropic";
@@ -156,6 +156,44 @@ router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
   }).returning();
 
   res.status(201).json({ ...rfq, deadline: rfq.deadline.toISOString(), createdAt: rfq.createdAt.toISOString() });
+
+  // FIN-009: fire-and-forget admin alert — operator needs to triage new RFQs promptly.
+  void Promise.resolve().then(async () => {
+    try {
+      const appBaseUrl = process.env["FRONTEND_URL"]
+        ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+      const [buyerProfile] = await db
+        .select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName, email: usersTable.email })
+        .from(profilesTable)
+        .innerJoin(usersTable, eq(usersTable.id, profilesTable.userId))
+        .where(eq(profilesTable.userId, userId));
+
+      const buyerName = buyerProfile
+        ? `${buyerProfile.firstName ?? ""} ${buyerProfile.lastName ?? ""}`.trim() || buyerProfile.email
+        : `Buyer #${userId}`;
+      const buyerEmail = buyerProfile?.email ?? "";
+
+      const adminEmails = await getAdminEmails();
+      if (adminEmails.length === 0) return;
+
+      const alertContent = newRfqAdminAlertEmail({
+        buyerName,
+        buyerEmail,
+        rfqTitle: rfq.title,
+        productCategory: rfq.productCategory,
+        quantityKg: rfq.quantityKg,
+        destination: rfq.destination,
+        deadline: rfq.deadline.toISOString().split("T")[0]!,
+        targetPriceUSD: rfq.targetPriceUSD ?? null,
+        adminUrl: `${appBaseUrl}/admin/rfqs`,
+      });
+
+      await sendEmail({ to: adminEmails, subject: alertContent.subject, html: alertContent.html, text: alertContent.text });
+    } catch (err) {
+      logger.warn({ err, rfqId: rfq.id }, "New RFQ admin alert email failed");
+    }
+  });
 });
 
 router.post("/rfqs/:id/respond", requireAuth, async (req, res): Promise<void> => {
