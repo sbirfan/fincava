@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Loader2, Mail, KeyRound, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Button } from "@/components/ui/button";
 
 type Step = "input" | "otp-sent" | "link-sent";
 type Channel = "MAGIC_LINK" | "EMAIL_OTP";
@@ -58,61 +59,64 @@ export default function TiendaAuth() {
   }
 
   return (
-    <div className="flex items-center justify-center bg-[#0a140e] px-4 py-12">
+    <div className="container mx-auto px-4 py-12 flex items-center justify-center">
       <div className="w-full max-w-sm space-y-6">
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
+        <div className="rounded-xl border border-border bg-card p-6 space-y-5 shadow-sm">
 
           {step === "input" && (
             <>
               <div>
-                <h1 className="text-lg font-semibold text-white">{ti.authTitle}</h1>
-                <p className="text-white/40 text-sm mt-1">{ti.authSub}</p>
+                <h1 className="text-lg font-semibold text-foreground">{ti.authTitle}</h1>
+                <p className="text-muted-foreground text-sm mt-1">{ti.authSub}</p>
               </div>
               <div>
-                <label className="block text-sm text-white/60 mb-1">{ti.emailLabel}</label>
+                <label className="block text-sm font-medium text-foreground mb-1">{ti.emailLabel}</label>
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && requestToken("MAGIC_LINK")}
                   placeholder={ti.emailPlaceholder}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2.5 text-sm placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   autoFocus
                 />
               </div>
               <div className="space-y-2">
-                <button
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90"
                   onClick={() => requestToken("MAGIC_LINK")}
                   disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
                 >
-                  {loading && channel === "MAGIC_LINK" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                  {loading && channel === "MAGIC_LINK" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
                   {ti.sendLink}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
                   onClick={() => requestToken("EMAIL_OTP")}
                   disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-white/70 text-sm font-medium transition-colors"
                 >
-                  {loading && channel === "EMAIL_OTP" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  {loading && channel === "EMAIL_OTP" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <KeyRound className="h-4 w-4 mr-2" />}
                   {ti.sendCode}
-                </button>
+                </Button>
               </div>
             </>
           )}
 
           {step === "link-sent" && (
             <div className="text-center space-y-4 py-2">
-              <Mail className="h-10 w-10 text-emerald-400 mx-auto" />
-              <div>
-                <p className="text-white font-semibold">{ti.checkEmail}</p>
-                <p className="text-white/40 text-sm mt-1">
-                  {ti.linkSent} <span className="text-white/70">{email}</span>.
-                </p>
-                <p className="text-white/30 text-xs mt-2">{ti.linkExpiry}</p>
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                <Mail className="h-7 w-7 text-primary" />
               </div>
-              <button onClick={() => setStep("input")} className="flex items-center gap-1 text-white/40 hover:text-white/70 text-sm mx-auto transition-colors">
+              <div>
+                <p className="font-semibold text-foreground">{ti.checkEmail}</p>
+                <p className="text-muted-foreground text-sm mt-1">
+                  {ti.linkSent} <span className="text-foreground font-medium">{email}</span>.
+                </p>
+                <p className="text-muted-foreground text-xs mt-2">{ti.linkExpiry}</p>
+              </div>
+              <button onClick={() => setStep("input")} className="flex items-center gap-1 text-muted-foreground hover:text-foreground text-sm mx-auto transition-colors">
                 <ArrowLeft className="h-3.5 w-3.5" /> {ti.changeEmail}
               </button>
             </div>
@@ -121,9 +125,9 @@ export default function TiendaAuth() {
           {step === "otp-sent" && (
             <div className="space-y-4">
               <div>
-                <p className="text-white font-semibold">{ti.enterCode}</p>
-                <p className="text-white/40 text-sm mt-1">
-                  {ti.codeSent} <span className="text-white/70">{email}</span>.
+                <p className="font-semibold text-foreground">{ti.enterCode}</p>
+                <p className="text-muted-foreground text-sm mt-1">
+                  {ti.codeSent} <span className="text-foreground font-medium">{email}</span>.
                 </p>
               </div>
               <input
@@ -134,26 +138,26 @@ export default function TiendaAuth() {
                 onChange={e => setOtp(e.target.value.replace(/\D/g, ""))}
                 onKeyDown={e => e.key === "Enter" && verifyOtp()}
                 placeholder="000000"
-                className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-3 text-2xl text-center font-mono tracking-[0.5em] placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
+                className="w-full rounded-lg border border-border bg-background text-foreground px-3 py-3 text-2xl text-center font-mono tracking-[0.5em] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 autoFocus
               />
-              <button
+              <Button
+                className="w-full bg-primary hover:bg-primary/90"
                 onClick={verifyOtp}
                 disabled={loading || otp.length !== 6}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 {ti.verifyCode}
-              </button>
-              <div className="flex items-center justify-between text-xs text-white/30">
-                <button onClick={() => requestToken("EMAIL_OTP")} className="hover:text-white/60 transition-colors">{ti.resendCode}</button>
-                <button onClick={() => setStep("input")} className="hover:text-white/60 transition-colors">{ti.changeEmail}</button>
+              </Button>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <button onClick={() => requestToken("EMAIL_OTP")} className="hover:text-foreground transition-colors">{ti.resendCode}</button>
+                <button onClick={() => setStep("input")} className="hover:text-foreground transition-colors">{ti.changeEmail}</button>
               </div>
             </div>
           )}
         </div>
 
-        <p className="text-center text-xs text-white/20">{ti.terms}</p>
+        <p className="text-center text-xs text-muted-foreground">{ti.terms}</p>
       </div>
     </div>
   );

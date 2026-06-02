@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Leaf, ShieldCheck, Users, MapPin, Loader2, Clock } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface RetailProductDetail {
   id: number;
@@ -77,77 +79,72 @@ export default function TiendaProducto() {
   const p = res?.data;
   const shipping = shippingRes?.data;
 
-  // Pick bilingual content based on current language
   const farmerVoice = lang === "es" ? p?.originStory?.farmerVoiceEs : (p?.originStory?.farmerVoiceEn ?? p?.originStory?.farmerVoiceEs);
   const buyerCopy = lang === "es" ? p?.originStory?.buyerCopyEs : (p?.originStory?.buyerCopyEn ?? p?.originStory?.buyerCopyEs);
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a140e]">
-      <Loader2 className="h-6 w-6 text-emerald-400 animate-spin" />
+    <div className="flex items-center justify-center py-32">
+      <Loader2 className="h-6 w-6 text-primary animate-spin" />
     </div>
   );
 
   if (isError || !p) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a140e]">
-      <div className="text-center space-y-3">
-        <p className="text-white/40">{ti.notFound}</p>
-        <Link href="/tienda">
-          <span className="text-emerald-400 text-sm hover:underline cursor-pointer">← {ti.navBack}</span>
-        </Link>
-      </div>
+    <div className="container mx-auto px-4 py-16 text-center space-y-3">
+      <p className="text-muted-foreground">{ti.notFound}</p>
+      <Link href="/tienda">
+        <span className="text-primary text-sm hover:underline cursor-pointer">← {ti.navBack}</span>
+      </Link>
     </div>
   );
 
   const mainImage = p.images?.[0] ?? null;
   const inStock = p.stockState === "IN_STOCK";
   const totalCents = (p.retailPriceCop ?? 0) * qty + (shipping?.rateCents ?? 0);
-
-  // Format visit date in current language locale
   const visitLocale = lang === "es" ? "es-CO" : "en-GB";
   const visitDateStr = p.verificationSignal
     ? new Date(p.verificationSignal.visitedAt).toLocaleDateString(visitLocale, { day: "numeric", month: "long", year: "numeric" })
     : null;
-
   const nextWindowStr = p.nextWindowStart
     ? new Date(p.nextWindowStart).toLocaleDateString(visitLocale, { month: "long", year: "numeric" })
     : null;
 
   return (
-    <div className="bg-[#0a140e] text-white">
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {/* Back link */}
-        <Link href="/tienda">
-          <span className="flex items-center gap-2 text-white/60 hover:text-white text-sm transition-colors cursor-pointer w-fit">
-            <ArrowLeft className="h-4 w-4" /> {ti.navBack}
-          </span>
-        </Link>
+    <div className="container mx-auto px-4 py-8 space-y-6">
+      {/* Back link */}
+      <Link href="/tienda">
+        <span className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm transition-colors cursor-pointer w-fit">
+          <ArrowLeft className="h-4 w-4" /> {ti.navBack}
+        </span>
+      </Link>
 
       <div className="grid md:grid-cols-2 gap-10">
         {/* Left — image + story */}
         <div className="space-y-6">
-          <div className="rounded-2xl overflow-hidden aspect-square bg-white/5">
+          <div className="rounded-xl overflow-hidden aspect-square bg-muted border border-border">
             {mainImage
               ? <img src={mainImage} alt={p.name} className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center"><Leaf className="h-16 w-16 text-white/10" /></div>
+              : <div className="w-full h-full flex items-center justify-center"><Leaf className="h-16 w-16 text-muted-foreground/30" /></div>
             }
           </div>
 
           {p.originStory && (
-            <div className="space-y-3">
-              {p.originStory.farmerPhoto && (
-                <img src={p.originStory.farmerPhoto} alt={p.originStory.farmerName} className="w-16 h-16 rounded-full object-cover border-2 border-emerald-500/30" />
-              )}
-              <div>
-                <p className="text-white font-semibold">{p.originStory.farmerName}</p>
-                <p className="text-white/40 text-sm">{p.originStory.farmName} · {p.originStory.region}</p>
+            <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                {p.originStory.farmerPhoto && (
+                  <img src={p.originStory.farmerPhoto} alt={p.originStory.farmerName} className="w-12 h-12 rounded-full object-cover border-2 border-primary/20" />
+                )}
+                <div>
+                  <p className="font-semibold text-foreground">{p.originStory.farmerName}</p>
+                  <p className="text-muted-foreground text-sm">{p.originStory.farmName} · {p.originStory.region}</p>
+                </div>
               </div>
               {(farmerVoice || p.originStory.story) && (
-                <blockquote className="border-l-2 border-emerald-500/40 pl-4 text-white/60 text-sm italic leading-relaxed">
+                <blockquote className="border-l-2 border-primary/40 pl-4 text-muted-foreground text-sm italic leading-relaxed">
                   "{farmerVoice ?? p.originStory.story}"
                 </blockquote>
               )}
               {buyerCopy && (
-                <p className="text-white/50 text-sm leading-relaxed">{buyerCopy}</p>
+                <p className="text-muted-foreground text-sm leading-relaxed">{buyerCopy}</p>
               )}
             </div>
           )}
@@ -156,43 +153,45 @@ export default function TiendaProducto() {
         {/* Right — purchase panel */}
         <div className="space-y-5">
           <div>
-            <p className="text-white/40 text-sm">{ti.categories[p.category as keyof typeof ti.categories] ?? p.category}</p>
-            <h1 className="text-2xl font-bold text-white mt-0.5">{p.name}</h1>
-            <p className="text-white/50 text-sm flex items-center gap-1 mt-1">
-              <MapPin className="h-3.5 w-3.5" /> {p.supplier.municipio}, {p.supplier.department}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {ti.categories[p.category as keyof typeof ti.categories] ?? p.category}
+            </p>
+            <h1 className="text-2xl md:text-3xl font-serif font-bold text-foreground mt-1">{p.name}</h1>
+            <p className="text-muted-foreground text-sm flex items-center gap-1 mt-1.5">
+              <MapPin className="h-3.5 w-3.5 shrink-0" /> {p.supplier.municipio}, {p.supplier.department}
             </p>
           </div>
 
           {/* Badges */}
           <div className="flex flex-wrap gap-2">
             {p.organic && (
-              <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+              <Badge variant="outline" className="gap-1 border-emerald-200 text-emerald-700 bg-emerald-50">
                 <Leaf className="h-3 w-3" /> {ti.organic}
-              </span>
+              </Badge>
             )}
             {p.womenLed && (
-              <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/25">
+              <Badge variant="outline" className="gap-1 border-violet-200 text-violet-700 bg-violet-50">
                 <Users className="h-3 w-3" /> {ti.womenLed}
-              </span>
+              </Badge>
             )}
             {p.complianceBadges.map(b => (
-              <span key={b.requirementCode} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/25">
+              <Badge key={b.requirementCode} variant="outline" className="gap-1 border-sky-200 text-sky-700 bg-sky-50">
                 <ShieldCheck className="h-3 w-3" /> {b.badgeLabel ?? b.requirementCode}
-              </span>
+              </Badge>
             ))}
           </div>
 
           {/* Verification signal */}
           {p.verificationSignal && visitDateStr && (
-            <div className="flex items-center gap-2 text-xs text-white/40 border border-white/10 rounded-lg px-3 py-2 bg-white/5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground border border-border rounded-lg px-3 py-2 bg-muted/50">
+              <ShieldCheck className="h-3.5 w-3.5 text-primary shrink-0" />
               {ti.verifiedVisit} {visitDateStr}
             </div>
           )}
 
-          {/* Stock state */}
+          {/* Out of stock notice */}
           {!inStock && (
-            <div className="flex items-center gap-2 text-sm text-amber-300 border border-amber-500/20 rounded-lg px-3 py-2 bg-amber-500/10">
+            <div className="flex items-center gap-2 text-sm text-amber-700 border border-amber-200 rounded-lg px-3 py-2 bg-amber-50">
               <Clock className="h-4 w-4 shrink-0" />
               <span>
                 {ti.outOfStock}{" "}
@@ -205,9 +204,9 @@ export default function TiendaProducto() {
           {/* Price */}
           {p.retailPriceCop && (
             <div>
-              <p className="text-3xl font-bold text-emerald-300">{formatCOP(p.retailPriceCop)}</p>
+              <p className="text-3xl font-bold text-primary">{formatCOP(p.retailPriceCop)}</p>
               {p.retailUnitLabel && (
-                <p className="text-white/30 text-sm">
+                <p className="text-muted-foreground text-sm">
                   {lang === "es" ? "por" : "per"} {p.retailUnitLabel}
                   {p.retailUnitWeightG ? ` (${p.retailUnitWeightG}g)` : ""}
                 </p>
@@ -218,30 +217,30 @@ export default function TiendaProducto() {
           {/* Quantity */}
           {inStock && (
             <div>
-              <label className="block text-sm text-white/50 mb-1.5">{ti.quantity}</label>
+              <label className="block text-sm font-medium text-foreground mb-1.5">{ti.quantity}</label>
               <div className="flex items-center gap-3">
-                <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-lg border border-white/10 text-white/60 hover:bg-white/10 transition-colors text-lg">−</button>
-                <span className="text-white font-semibold w-8 text-center">{qty}</span>
-                <button onClick={() => setQty(q => Math.min(p.retailMaxPerOrder ?? 10, q + 1))} className="w-9 h-9 rounded-lg border border-white/10 text-white/60 hover:bg-white/10 transition-colors text-lg">+</button>
-                {p.retailStockUnits && <span className="text-white/30 text-xs ml-1">{p.retailStockUnits} {lang === "es" ? "disponibles" : "available"}</span>}
+                <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-lg border border-border text-foreground hover:bg-muted transition-colors text-lg">−</button>
+                <span className="text-foreground font-semibold w-8 text-center">{qty}</span>
+                <button onClick={() => setQty(q => Math.min(p.retailMaxPerOrder ?? 10, q + 1))} className="w-9 h-9 rounded-lg border border-border text-foreground hover:bg-muted transition-colors text-lg">+</button>
+                {p.retailStockUnits && <span className="text-muted-foreground text-xs ml-1">{p.retailStockUnits} {lang === "es" ? "disponibles" : "available"}</span>}
               </div>
             </div>
           )}
 
           {/* Shipping estimate */}
           <div>
-            <label className="block text-sm text-white/50 mb-1.5">{ti.shippingEstimate}</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">{ti.shippingEstimate}</label>
             <select
               value={dept}
               onChange={e => setDept(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-[#0a140e] text-white px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
+              className="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">{ti.selectDept}</option>
               {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
             {shipping && (
-              <p className="text-white/40 text-xs mt-1.5">
-                {lang === "es" ? "Envío:" : "Shipping:"} <span className="text-white/70">{formatCOP(shipping.rateCents)}</span>
+              <p className="text-muted-foreground text-xs mt-1.5">
+                {lang === "es" ? "Envío:" : "Shipping:"} <span className="text-foreground font-medium">{formatCOP(shipping.rateCents)}</span>
                 {shipping.estimated && ` ${ti.shippingEstimated}`}
                 {p.retailPriceCop && ` · ${lang === "es" ? "Total:" : "Total:"} ${formatCOP(totalCents)}`}
               </p>
@@ -251,19 +250,18 @@ export default function TiendaProducto() {
           {/* CTA */}
           {inStock ? (
             <Link href="/tienda/auth">
-              <button className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors">
+              <Button size="lg" className="w-full bg-primary hover:bg-primary/90">
                 {ti.buy} — {p.retailPriceCop ? formatCOP(p.retailPriceCop * qty) : ti.verPrice}
-              </button>
+              </Button>
             </Link>
           ) : (
-            <button className="w-full py-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-sm hover:bg-amber-500/20 transition-colors">
+            <Button size="lg" variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50">
               {ti.joinWaitlist}
-            </button>
+            </Button>
           )}
 
-          <p className="text-xs text-white/20 text-center">{ti.paymentNote}</p>
+          <p className="text-xs text-muted-foreground text-center">{ti.paymentNote}</p>
         </div>
-      </div>
       </div>
     </div>
   );

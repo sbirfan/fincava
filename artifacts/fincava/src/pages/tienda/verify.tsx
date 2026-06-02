@@ -39,20 +39,20 @@ export default function TiendaVerify() {
   }, [setLocation, ti.invalidLink]);
 
   return (
-    <div className="flex items-center justify-center bg-[#0a140e] px-4 py-16">
+    <div className="container mx-auto px-4 py-24 flex items-center justify-center">
       <div className="text-center space-y-4 max-w-sm">
         {status === "loading" ? (
           <>
-            <Loader2 className="h-10 w-10 text-emerald-400 animate-spin mx-auto" />
-            <p className="text-white font-semibold">{ti.verifying}</p>
-            <p className="text-white/40 text-sm">{ti.verifyingNote}</p>
+            <Loader2 className="h-10 w-10 text-primary animate-spin mx-auto" />
+            <p className="font-semibold text-foreground">{ti.verifying}</p>
+            <p className="text-muted-foreground text-sm">{ti.verifyingNote}</p>
           </>
         ) : (
           <>
-            <XCircle className="h-10 w-10 text-red-400 mx-auto" />
-            <p className="text-white font-semibold">{ti.invalidLink}</p>
-            <p className="text-white/40 text-sm">{message}</p>
-            <a href="/tienda/auth" className="inline-block mt-2 text-sm text-emerald-400 hover:underline">
+            <XCircle className="h-10 w-10 text-destructive mx-auto" />
+            <p className="font-semibold text-foreground">{ti.invalidLink}</p>
+            <p className="text-muted-foreground text-sm">{message}</p>
+            <a href="/tienda/auth" className="inline-block mt-2 text-sm text-primary hover:underline">
               {ti.requestNew}
             </a>
           </>
