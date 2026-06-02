@@ -58,13 +58,8 @@ export default function TiendaAuth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a140e] px-4">
+    <div className="flex items-center justify-center bg-[#0a140e] px-4 py-12">
       <div className="w-full max-w-sm space-y-6">
-
-        <div className="text-center">
-          <p className="font-serif text-2xl font-bold text-white">Fincava</p>
-          <p className="text-white/40 text-sm mt-1">{ti.tagline}</p>
-        </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
 

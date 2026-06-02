@@ -217,11 +217,11 @@ function Router() {
         <Route path="/admin/compliance-queue" component={() => <PrivateRoute component={AdminComplianceQueue} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/managed-cases" component={() => <PrivateRoute component={AdminManagedCases} roles={["ADMIN"]} layout={AdminLayout} />} />
 
-        {/* Retail storefront — gated by ENABLE_RETAIL; public routes, no auth required */}
-        {ENABLE_RETAIL && <Route path="/tienda" component={() => <TiendaIndex />} />}
-        {ENABLE_RETAIL && <Route path="/tienda/producto/:id" component={() => <TiendaProducto />} />}
-        {ENABLE_RETAIL && <Route path="/tienda/auth" component={() => <TiendaAuth />} />}
-        {ENABLE_RETAIL && <Route path="/tienda/auth/verify" component={() => <TiendaVerify />} />}
+        {/* Retail storefront — gated by ENABLE_RETAIL; wrapped in AppLayout for navbar/footer/language toggle */}
+        {ENABLE_RETAIL && <Route path="/tienda" component={() => <AppLayout><TiendaIndex /></AppLayout>} />}
+        {ENABLE_RETAIL && <Route path="/tienda/producto/:id" component={() => <AppLayout><TiendaProducto /></AppLayout>} />}
+        {ENABLE_RETAIL && <Route path="/tienda/auth" component={() => <AppLayout><TiendaAuth /></AppLayout>} />}
+        {ENABLE_RETAIL && <Route path="/tienda/auth/verify" component={() => <AppLayout><TiendaVerify /></AppLayout>} />}
 
         {/* Field officer tool — FIN-058/059: accessible to FIELD_OFFICER and ADMIN roles */}
         <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN", "FIELD_OFFICER"]} />} />

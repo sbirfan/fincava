@@ -99,19 +99,7 @@ export default function TiendaIndex() {
   const activeFilters = [category, inStock, organic, womenLed].filter(Boolean).length;
 
   return (
-    <div className="min-h-screen bg-[#0a140e] text-white">
-      {/* Header */}
-      <header className="border-b border-white/10 px-4 py-4 flex items-center justify-between sticky top-0 bg-[#0a140e]/95 backdrop-blur z-10">
-        <Link href="/">
-          <span className="font-serif text-xl font-bold text-white cursor-pointer">
-            Fincava <span className="text-emerald-400 text-sm font-sans">tienda</span>
-          </span>
-        </Link>
-        <Link href="/tienda/auth">
-          <span className="text-sm text-white/60 hover:text-white transition-colors cursor-pointer">{ti.access}</span>
-        </Link>
-      </header>
-
+    <div className="bg-[#0a140e] text-white">
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         {/* Hero */}
         <div>

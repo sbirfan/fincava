@@ -113,16 +113,16 @@ export default function TiendaProducto() {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#0a140e] text-white">
-      <header className="border-b border-white/10 px-4 py-4 sticky top-0 bg-[#0a140e]/95 backdrop-blur z-10">
+    <div className="bg-[#0a140e] text-white">
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        {/* Back link */}
         <Link href="/tienda">
           <span className="flex items-center gap-2 text-white/60 hover:text-white text-sm transition-colors cursor-pointer w-fit">
             <ArrowLeft className="h-4 w-4" /> {ti.navBack}
           </span>
         </Link>
-      </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-8 grid md:grid-cols-2 gap-10">
+      <div className="grid md:grid-cols-2 gap-10">
         {/* Left — image + story */}
         <div className="space-y-6">
           <div className="rounded-2xl overflow-hidden aspect-square bg-white/5">
@@ -263,6 +263,7 @@ export default function TiendaProducto() {
 
           <p className="text-xs text-white/20 text-center">{ti.paymentNote}</p>
         </div>
+      </div>
       </div>
     </div>
   );

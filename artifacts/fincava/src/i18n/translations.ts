@@ -1379,11 +1379,11 @@ const en = {
     validUntil: "Valid until:",
   },
   tienda: {
-    tagline: "Verified Colombian coffee, direct from the farmer",
+    tagline: "Verified Colombian products, direct from the farmer",
     verifiedBy: "Verified by Fincava. Nationwide delivery.",
     navBack: "Back to catalog",
     // catalog
-    heroTitle: "Colombian coffee, direct from the farmer",
+    heroTitle: "Colombian products, direct from the farmer",
     heroSub: "Verified by Fincava. We ship across Colombia.",
     filters: "Filters",
     clearFilters: "Clear",
@@ -2825,10 +2825,10 @@ const es: typeof en = {
     validUntil: "Válido hasta:",
   },
   tienda: {
-    tagline: "Café colombiano verificado, directo del productor",
+    tagline: "Productos colombianos verificados, directo del productor",
     verifiedBy: "Verificado por Fincava. Enviamos a todo Colombia.",
     navBack: "Volver al catálogo",
-    heroTitle: "Café colombiano directo del productor",
+    heroTitle: "Productos colombianos, directo del productor",
     heroSub: "Verificado por Fincava. Enviamos a todo Colombia.",
     filters: "Filtros",
     clearFilters: "Limpiar",

@@ -39,7 +39,7 @@ export default function TiendaVerify() {
   }, [setLocation, ti.invalidLink]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a140e] px-4">
+    <div className="flex items-center justify-center bg-[#0a140e] px-4 py-16">
       <div className="text-center space-y-4 max-w-sm">
         {status === "loading" ? (
           <>
