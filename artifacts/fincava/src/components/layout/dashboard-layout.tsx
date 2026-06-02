@@ -4,12 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { ENABLE_TRANSACTIONS, ENABLE_FINANCE } from "@/lib/flags";
-import { 
-  LayoutDashboard, 
-  Package, 
-  MessageSquare, 
-  ShoppingCart, 
-  User, 
+import {
+  LayoutDashboard,
+  Package,
+  MessageSquare,
+  ShoppingCart,
+  User,
   LogOut,
   Menu,
   ShieldCheck,
@@ -21,6 +21,7 @@ import {
   Mail,
   X,
   Sparkles,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -70,6 +71,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'Performance', href: `${basePath}/performance`, icon: BarChart2, hidden: true },
     // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Company Profile', href: `${basePath}/profile`, icon: User },
+    { name: 'Método de Pago', href: `${basePath}/payment-method`, icon: Wallet },
   ] : [
     { name: 'Overview', href: basePath, icon: LayoutDashboard },
     { name: 'My RFQs', href: `${basePath}/rfqs`, icon: FileQuestion },

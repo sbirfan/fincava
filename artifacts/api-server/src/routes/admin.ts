@@ -5,7 +5,7 @@ import { loansTable, repaymentsTable } from "@workspace/db";
 import { ordersTable, orderItemsTable, productsTable, originStoriesTable, staffRolesTable, suppliersTable, farmsTable, economicsTable, complianceDocsTable, aiOutputsTable, interactionsTable, supplierContactsTable } from "@workspace/db";
 import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES, complianceRequirementsTable } from "@workspace/db";
-import { rfqsTable, rfqResponsesTable, inquiriesTable } from "@workspace/db";
+import { rfqsTable, rfqResponsesTable, inquiriesTable, supplierPaymentMethodsTable } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
 import { runMatching as runBuyerMatching, NotFoundError as MatchingNotFoundError } from "../services/buyer-matching-service";
 import { hashPassword } from "../lib/auth";
@@ -2857,6 +2857,15 @@ router.get("/admin/products-simple", ...adminOnly, async (_req, res): Promise<vo
     .orderBy(productsTable.name);
 
   res.json(rows);
+});
+
+// ── GET /api/admin/suppliers/:id/payment-method (FIN-113) ────────────────────
+router.get("/admin/suppliers/:id/payment-method", ...adminOnly, async (req, res): Promise<void> => {
+  const supplierId = parseInt(req.params.id as string);
+  if (isNaN(supplierId)) { sendError(res, 400, "Invalid supplier id"); return; }
+  const [method] = await db.select().from(supplierPaymentMethodsTable)
+    .where(eq(supplierPaymentMethodsTable.supplierId, supplierId));
+  res.json(method ?? null);
 });
 
 // ── GET /api/admin/suppliers-simple ───────────────────────────────────────────

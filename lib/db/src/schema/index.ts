@@ -24,3 +24,4 @@ export * from "./officer-applications";
 export * from "./marketing-campaigns";
 export * from "./public-metrics";
 export * from "./compliance-concierge";
+export * from "./supplier-payment-methods";

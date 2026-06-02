@@ -65,6 +65,7 @@ const SupplierProfile = lazy(() => import("@/pages/supplier-dashboard/profile"))
 const SupplierRFQs = lazy(() => import("@/pages/supplier-dashboard/rfqs"));
 const SupplierPerformance = lazy(() => import("@/pages/supplier-dashboard/performance"));
 const SupplierFinance = lazy(() => import("@/pages/supplier-dashboard/finance"));
+const SupplierPaymentMethod = lazy(() => import("@/pages/supplier-dashboard/payment-method"));
 
 // Admin — lazy
 const AdminDashboard = lazy(() => import("@/pages/admin/index"));
@@ -188,6 +189,7 @@ function Router() {
         <Route path="/supplier-dashboard/performance" component={() => <PrivateRoute component={SupplierPerformance} roles={["ADMIN"]} layout={DashboardLayout} />} />
         {ENABLE_FINANCE && <Route path="/supplier-dashboard/finance" component={() => <PrivateRoute component={SupplierFinance} roles={["SUPPLIER"]} layout={DashboardLayout} />} />}
         <Route path="/supplier-dashboard/profile" component={() => <PrivateRoute component={SupplierProfile} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
+        <Route path="/supplier-dashboard/payment-method" component={() => <PrivateRoute component={SupplierPaymentMethod} roles={["SUPPLIER"]} layout={DashboardLayout} />} />
         {/* AI Assistant — admin-only (intelligence layer) */}
         <Route path="/supplier-dashboard/ai-assistant" component={() => <PrivateRoute component={AiAssistant} roles={["ADMIN"]} layout={DashboardLayout} />} />
 

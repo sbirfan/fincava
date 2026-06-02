@@ -15,6 +15,7 @@ import {
   usersTable,
   profilesTable,
   supplierRequirementStatusTable,
+  supplierPaymentMethodsTable,
 } from "@workspace/db";
 import { requireAuth, verifyToken } from "../lib/auth";
 import {
@@ -2292,6 +2293,58 @@ router.post(
     }
   },
 );
+
+// ── GET /api/supplier/payment-method (FIN-113) ───────────────────────────────
+router.get("/supplier/payment-method", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const [supplier] = await db.select({ id: suppliersTable.id })
+    .from(suppliersTable).where(eq(suppliersTable.userId, userId));
+  if (!supplier) { sendError(res, 403, "Supplier not found"); return; }
+
+  const [method] = await db.select().from(supplierPaymentMethodsTable)
+    .where(eq(supplierPaymentMethodsTable.supplierId, supplier.id));
+  res.json(method ?? null);
+});
+
+// ── PUT /api/supplier/payment-method (FIN-113) ───────────────────────────────
+router.put("/supplier/payment-method", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const [supplier] = await db.select({ id: suppliersTable.id })
+    .from(suppliersTable).where(eq(suppliersTable.userId, userId));
+  if (!supplier) { sendError(res, 403, "Supplier not found"); return; }
+
+  const { preferred, nequiPhone, bankName, bankAccountNumber, bankAccountType, bankHolderName, bankHolderIdType, bankHolderId } = req.body;
+
+  if (preferred !== "NEQUI" && preferred !== "BANK_TRANSFER") {
+    sendError(res, 400, "preferred must be NEQUI or BANK_TRANSFER"); return;
+  }
+  if (preferred === "NEQUI" && !nequiPhone) {
+    sendError(res, 400, "nequiPhone is required when preferred is NEQUI"); return;
+  }
+  if (preferred === "BANK_TRANSFER" && (!bankName || !bankAccountNumber)) {
+    sendError(res, 400, "bankName and bankAccountNumber are required when preferred is BANK_TRANSFER"); return;
+  }
+
+  const values = {
+    supplierId: supplier.id,
+    preferred,
+    nequiPhone:        nequiPhone ?? null,
+    bankName:          bankName ?? null,
+    bankAccountNumber: bankAccountNumber ?? null,
+    bankAccountType:   bankAccountType ?? null,
+    bankHolderName:    bankHolderName ?? null,
+    bankHolderIdType:  bankHolderIdType ?? null,
+    bankHolderId:      bankHolderId ?? null,
+    updatedAt:         new Date(),
+  };
+
+  const [upserted] = await db.insert(supplierPaymentMethodsTable)
+    .values({ ...values, createdAt: new Date() })
+    .onConflictDoUpdate({ target: supplierPaymentMethodsTable.supplierId, set: values })
+    .returning();
+
+  res.json(upserted);
+});
 
 export default router;
 
