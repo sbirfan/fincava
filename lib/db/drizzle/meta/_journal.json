@@ -211,6 +211,13 @@
       "when": 1748908810000,
       "tag": "0026_retail_harvest_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1748995200000,
+      "tag": "0027_retail_order_details_product_cols",
+      "breakpoints": true
     }
   ]
 }

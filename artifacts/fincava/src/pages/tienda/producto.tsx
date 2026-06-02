@@ -249,7 +249,7 @@ export default function TiendaProducto() {
 
           {/* CTA */}
           {inStock ? (
-            <Link href="/tienda/auth">
+            <Link href={`/tienda/checkout?productId=${p.id}&qty=${qty}`}>
               <Button size="lg" className="w-full bg-primary hover:bg-primary/90">
                 {ti.buy} — {p.retailPriceCop ? formatCOP(p.retailPriceCop * qty) : ti.verPrice}
               </Button>

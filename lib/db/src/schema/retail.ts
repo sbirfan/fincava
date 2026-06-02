@@ -68,6 +68,15 @@ export const retailOrderDetailsTable = pgTable("retail_order_details", {
   orderId:                    integer("order_id").notNull().unique().references(() => ordersTable.id, { onDelete: "cascade" }),
   retailBuyerProfileId:       integer("retail_buyer_profile_id").references(() => retailBuyerProfilesTable.id, { onDelete: "set null" }),
 
+  // Product snapshot (denormalised at order time)
+  productId:                  integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
+  unitQuantity:               integer("unit_quantity").notNull().default(1),
+  unitLabel:                  text("unit_label"),           // e.g. "Bolsa 250g"
+  productPriceCents:          integer("product_price_cents"), // retailPriceCop at order time
+
+  // Guest order access token (SHA-256 hash; raw token emailed to buyer)
+  orderAccessTokenHash:       text("order_access_token_hash"),
+
   shippingName:               text("shipping_name").notNull(),
   shippingAddressLine1:       text("shipping_address_line1").notNull(),
   shippingAddressLine2:       text("shipping_address_line2"),

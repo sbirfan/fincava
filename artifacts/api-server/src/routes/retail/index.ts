@@ -8,8 +8,12 @@ const router: IRouter = Router();
 
 import authRouter from "./auth";
 import catalogRouter from "./catalog";
+import ordersRouter from "./orders";
+import adminOrdersRouter from "./adminOrders";
 
 router.use(authRouter);
 router.use(catalogRouter);
+router.use(ordersRouter);
+router.use(adminOrdersRouter);
 
 export default router;

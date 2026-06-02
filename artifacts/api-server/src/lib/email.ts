@@ -1043,3 +1043,125 @@ export function verificationEmail(opts: { firstName: string; verifyUrl: string }
   const text = `Hello ${opts.firstName},\n\nThank you for registering on Fincava. Please verify your email address by visiting the link below:\n\n${opts.verifyUrl}\n\nThis link expires in 24 hours. If you didn't register, please ignore this email.\n\n— Equipo Fincava`;
   return { html, text, subject };
 }
+
+// ── Retail order emails (Sprint 3) ────────────────────────────────────────────
+
+function formatCOP(cents: number): string {
+  return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(cents / 100);
+}
+
+// T-B1: Buyer order confirmation (ES + EN)
+export function retailOrderConfirmationEmail(opts: {
+  buyerFirstName: string;
+  farmerName: string;
+  productName: string;
+  quantity: number;
+  unitLabel: string | null;
+  totalCents: number;
+  shippingDepartment: string;
+  orderId: number;
+  orderStatusUrl: string;
+  lang?: "es" | "en";
+}): { html: string; text: string; subject: string } {
+  const es = opts.lang !== "en";
+  const subject = es
+    ? `Tu pedido está confirmado — ${opts.farmerName} lo está preparando`
+    : `Your order is confirmed — ${opts.farmerName} is preparing it`;
+  const unitStr = opts.unitLabel ? ` × ${opts.unitLabel}` : "";
+  const html = baseTemplate(`
+    <p>${es ? `Hola ${esc(opts.buyerFirstName)}` : `Hi ${esc(opts.buyerFirstName)}`},</p>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${es ? "¡Tu pedido está confirmado! ✓" : "Your order is confirmed! ✓"}</h2>
+    <p>${es ? `<strong>${esc(opts.farmerName)}</strong> está preparando tu pedido.` : `<strong>${esc(opts.farmerName)}</strong> is preparing your order.`}</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#666;">${es ? "Producto" : "Product"}</td><td style="padding:6px 0;font-weight:600;">${esc(opts.productName)}${unitStr}</td></tr>
+      <tr><td style="padding:6px 0;color:#666;">${es ? "Cantidad" : "Quantity"}</td><td style="padding:6px 0;">${opts.quantity}</td></tr>
+      <tr><td style="padding:6px 0;color:#666;">${es ? "Entrega a" : "Deliver to"}</td><td style="padding:6px 0;">${esc(opts.shippingDepartment)}</td></tr>
+      <tr><td style="padding:6px 0;color:#666;font-weight:600;">${es ? "Total" : "Total"}</td><td style="padding:6px 0;font-weight:700;color:#14532d;">${formatCOP(opts.totalCents)}</td></tr>
+    </table>
+    <p class="note">${es ? "Tu pago solo se cobra cuando el pedido esté listo para enviar." : "Your payment is only charged when your order is ready to ship."}</p>
+    <p><a href="${esc(opts.orderStatusUrl)}" class="btn">${es ? "Ver estado del pedido" : "Track my order"}</a></p>
+    <p class="note">${es ? "Número de pedido:" : "Order number:"} #${opts.orderId}</p>
+  `);
+  const text = es
+    ? `¡Tu pedido está confirmado!\n\n${opts.farmerName} está preparando: ${opts.productName} × ${opts.quantity}\nEntrega: ${opts.shippingDepartment}\nTotal: ${formatCOP(opts.totalCents)}\n\nTu pago solo se cobra cuando esté listo para enviar.\n\nEstado del pedido: ${opts.orderStatusUrl}\n\n— Equipo Fincava`
+    : `Your order is confirmed!\n\n${opts.farmerName} is preparing: ${opts.productName} × ${opts.quantity}\nDeliver to: ${opts.shippingDepartment}\nTotal: ${formatCOP(opts.totalCents)}\n\nPayment is only charged when ready to ship.\n\nTrack order: ${opts.orderStatusUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+// T-A1: Admin new retail order alert
+export function retailAdminOrderAlertEmail(opts: {
+  productName: string;
+  quantity: number;
+  unitLabel: string | null;
+  buyerName: string;
+  buyerEmail: string;
+  buyerCity: string;
+  totalCents: number;
+  orderId: number;
+  adminOrderUrl: string;
+}): { html: string; text: string; subject: string } {
+  const unitStr = opts.unitLabel ? ` × ${opts.unitLabel}` : "";
+  const subject = `Nuevo pedido retail — ${esc(opts.productName)}${unitStr} × ${opts.quantity} — ${esc(opts.buyerCity)}`;
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">Nuevo pedido retail #${opts.orderId}</h2>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#666;">Producto</td><td style="padding:6px 0;font-weight:600;">${esc(opts.productName)}${unitStr} × ${opts.quantity}</td></tr>
+      <tr><td style="padding:6px 0;color:#666;">Comprador</td><td style="padding:6px 0;">${esc(opts.buyerName)} &lt;${esc(opts.buyerEmail)}&gt;</td></tr>
+      <tr><td style="padding:6px 0;color:#666;">Ciudad de entrega</td><td style="padding:6px 0;">${esc(opts.buyerCity)}</td></tr>
+      <tr><td style="padding:6px 0;color:#666;font-weight:600;">Total</td><td style="padding:6px 0;font-weight:700;color:#14532d;">${formatCOP(opts.totalCents)}</td></tr>
+    </table>
+    <p><a href="${esc(opts.adminOrderUrl)}" class="btn">Ver pedido en Admin</a></p>
+  `);
+  const text = `Nuevo pedido retail #${opts.orderId}\n\n${opts.productName} × ${opts.quantity}\nComprador: ${opts.buyerName} <${opts.buyerEmail}>\nEntrega: ${opts.buyerCity}\nTotal: ${formatCOP(opts.totalCents)}\n\nAdmin: ${opts.adminOrderUrl}`;
+  return { html, text, subject };
+}
+
+// T-B6: Shipping notification
+export function retailShippingEmail(opts: {
+  buyerFirstName: string;
+  farmerName: string;
+  carrier: string;
+  trackingNumber: string;
+  lang?: "es" | "en";
+}): { html: string; text: string; subject: string } {
+  const es = opts.lang !== "en";
+  const subject = es
+    ? `Tu pedido está en camino — ${opts.carrier} ${opts.trackingNumber}`
+    : `Your order is on its way — ${opts.carrier} ${opts.trackingNumber}`;
+  const html = baseTemplate(`
+    <p>${es ? `Hola ${esc(opts.buyerFirstName)}` : `Hi ${esc(opts.buyerFirstName)}`},</p>
+    <p>${es ? `<strong>${esc(opts.farmerName)}</strong> envió tu pedido.` : `<strong>${esc(opts.farmerName)}</strong> has shipped your order.`}</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#666;">${es ? "Transportista" : "Carrier"}</td><td style="padding:6px 0;font-weight:600;">${esc(opts.carrier)}</td></tr>
+      <tr><td style="padding:6px 0;color:#666;">${es ? "Número de guía" : "Tracking number"}</td><td style="padding:6px 0;font-weight:600;">${esc(opts.trackingNumber)}</td></tr>
+    </table>
+  `);
+  const text = es
+    ? `Tu pedido está en camino.\nTransportista: ${opts.carrier}\nGuía: ${opts.trackingNumber}\n\n— Equipo Fincava`
+    : `Your order is on its way.\nCarrier: ${opts.carrier}\nTracking: ${opts.trackingNumber}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+// T-B8: Post-delivery review request
+export function retailReviewRequestEmail(opts: {
+  buyerFirstName: string;
+  farmerName: string;
+  lang?: "es" | "en";
+}): { html: string; text: string; subject: string } {
+  const es = opts.lang !== "en";
+  const subject = es
+    ? `¿Cómo estuvo tu pedido de ${opts.farmerName}?`
+    : `How was your order from ${opts.farmerName}?`;
+  const html = baseTemplate(`
+    <p>${es ? `Hola ${esc(opts.buyerFirstName)}` : `Hi ${esc(opts.buyerFirstName)}`},</p>
+    <p>${es
+      ? `Tu pedido de <strong>${esc(opts.farmerName)}</strong> fue entregado. ¿Qué le dirías a ${esc(opts.farmerName)} sobre su producto?`
+      : `Your order from <strong>${esc(opts.farmerName)}</strong> has been delivered. What would you tell ${esc(opts.farmerName)} about their product?`
+    }</p>
+    <p class="note">${es ? "Responde a este correo con tu comentario — se lo haremos llegar al productor." : "Reply to this email with your feedback — we'll pass it along to the farmer."}</p>
+  `);
+  const text = es
+    ? `Hola ${opts.buyerFirstName}, tu pedido de ${opts.farmerName} fue entregado. ¿Qué le dirías sobre su producto? Responde este correo. — Equipo Fincava`
+    : `Hi ${opts.buyerFirstName}, your order from ${opts.farmerName} has been delivered. What would you say about their product? Reply to this email. — Equipo Fincava`;
+  return { html, text, subject };
+}
