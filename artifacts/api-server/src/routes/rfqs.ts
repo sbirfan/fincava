@@ -169,10 +169,10 @@ router.post("/rfqs", requireAuth, async (req, res): Promise<void> => {
         .innerJoin(usersTable, eq(usersTable.id, profilesTable.userId))
         .where(eq(profilesTable.userId, userId));
 
-      const buyerName = buyerProfile
-        ? `${buyerProfile.firstName ?? ""} ${buyerProfile.lastName ?? ""}`.trim() || buyerProfile.email
-        : `Buyer #${userId}`;
-      const buyerEmail = buyerProfile?.email ?? "";
+      if (!buyerProfile?.email) return;
+
+      const buyerName = `${buyerProfile.firstName ?? ""} ${buyerProfile.lastName ?? ""}`.trim() || buyerProfile.email;
+      const buyerEmail = buyerProfile.email;
 
       const adminEmails = await getAdminEmails();
       if (adminEmails.length === 0) return;

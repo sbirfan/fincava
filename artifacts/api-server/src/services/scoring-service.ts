@@ -8,7 +8,7 @@
 //   6. Retry up to 3 times with exponential backoff on any failure
 
 import { db, aiOutputsTable, supplierRequirementStatusTable, productsTable, complianceDocsTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getAnthropicClient, SCORING_MODEL } from "../lib/anthropic";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { logger } from "../lib/logger";
@@ -215,8 +215,10 @@ export async function scoreSupplier(supplierId: number): Promise<void> {
             })
             .from(supplierRequirementStatusTable)
             .where(
-              inArray(supplierRequirementStatusTable.requirementCode, relevantGaps) &&
-              eq(supplierRequirementStatusTable.supplierId, supplierId)
+              and(
+                inArray(supplierRequirementStatusTable.requirementCode, relevantGaps),
+                eq(supplierRequirementStatusTable.supplierId, supplierId)
+              )
             );
 
           const stateMap = new Map(currentStates.map((r) => [r.requirementCode, r.state]));
