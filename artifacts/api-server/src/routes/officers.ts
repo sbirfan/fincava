@@ -9,7 +9,7 @@ const router = Router();
 router.post("/officers/register", async (req, res) => {
   const parsed = OfficerRegistrationBody.safeParse(req.body);
   if (!parsed.success) {
-    sendError(res, 400, parsed.error.message);
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
     return;
   }
 

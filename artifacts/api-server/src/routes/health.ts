@@ -13,19 +13,21 @@ async function dbPing(): Promise<{ ok: boolean; error?: string }> {
   }
 }
 
-router.get("/healthz", async (_req, res) => {
+router.get("/healthz", async (req, res) => {
   const db_result = await dbPing();
   if (!db_result.ok) {
-    res.status(503).json({ status: "degraded", db: "error", error: db_result.error });
+    req.log?.warn({ err: db_result.error }, "health: db probe failed");
+    res.status(503).json({ status: "degraded", db: "error" });
     return;
   }
   res.json({ status: "ok", db: "ok" });
 });
 
-router.get("/health", async (_req, res) => {
+router.get("/health", async (req, res) => {
   const db_result = await dbPing();
   if (!db_result.ok) {
-    res.status(503).json({ status: "degraded", db: "error", error: db_result.error });
+    req.log?.warn({ err: db_result.error }, "health: db probe failed");
+    res.status(503).json({ status: "degraded", db: "error" });
     return;
   }
   res.json({ status: "ok", db: "ok" });
