@@ -12,6 +12,13 @@ Run this before every production deploy. All items must be checked before traffi
 - [ ] `RESEND_API_KEY` set — verify with a test email if recently rotated
 - [ ] `JWT_SECRET` unchanged (rotation requires coordinated session invalidation)
 
+### Required for retail (set before enabling `ENABLE_RETAIL=true`)
+
+- [ ] `TWILIO_SMS_FROM` — Twilio SMS sender number (e.g. `+12025551234`). **Different from `TWILIO_WHATSAPP_FROM`.**
+- [ ] `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` — already set for WhatsApp; confirm still valid
+- [ ] `WOMPI_PUBLIC_KEY`, `WOMPI_PRIVATE_KEY`, `WOMPI_EVENTS_SECRET`, `WOMPI_SANDBOX=true` — Wompi sandbox credentials (needed for Sprint 5, not Sprint 2–4)
+- [ ] Retail migrations 0016–0026 applied to production DB
+
 ---
 
 ## Feature Flag Verification

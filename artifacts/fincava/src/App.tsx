@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from "react";
-import { ENABLE_TRANSACTIONS, ENABLE_FINANCE } from "./lib/flags";
+import { ENABLE_TRANSACTIONS, ENABLE_FINANCE, ENABLE_RETAIL } from "./lib/flags";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -84,6 +84,11 @@ const AdminOriginStories = lazy(() => import("@/pages/admin/origin-stories"));
 const AdminComplianceQueue = lazy(() => import("@/pages/admin/compliance-queue"));
 const AdminManagedCases = lazy(() => import("@/pages/admin/managed-cases"));
 const AdminIntroductions = lazy(() => import("@/pages/admin/introductions"));
+
+// Retail (tienda) — gated by ENABLE_RETAIL; Sprint 2 replaces stubs with full pages
+const TiendaIndex = lazy(() => import("@/pages/tienda/index"));
+const TiendaProducto = lazy(() => import("@/pages/tienda/producto"));
+const TiendaAuth = lazy(() => import("@/pages/tienda/auth"));
 const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
 const OfficerCompliance = lazy(() => import("@/pages/officer/compliance"));
 
@@ -210,6 +215,11 @@ function Router() {
         <Route path="/admin/ingestion/discover" component={() => <PrivateRoute component={AdminIngestionDiscover} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/compliance-queue" component={() => <PrivateRoute component={AdminComplianceQueue} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/managed-cases" component={() => <PrivateRoute component={AdminManagedCases} roles={["ADMIN"]} layout={AdminLayout} />} />
+
+        {/* Retail storefront — gated by ENABLE_RETAIL; public routes, no auth required */}
+        {ENABLE_RETAIL && <Route path="/tienda" component={() => <TiendaIndex />} />}
+        {ENABLE_RETAIL && <Route path="/tienda/producto/:id" component={() => <TiendaProducto />} />}
+        {ENABLE_RETAIL && <Route path="/tienda/auth" component={() => <TiendaAuth />} />}
 
         {/* Field officer tool — FIN-058/059: accessible to FIELD_OFFICER and ADMIN roles */}
         <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN", "FIELD_OFFICER"]} />} />

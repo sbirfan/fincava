@@ -28,6 +28,7 @@ import adminManagedCasesRouter from "./adminManagedCases";
 import supplierExportModeRouter from "./supplierExportMode";
 import reviewSuggestionRouter from "./reviewSuggestion";
 import contactRouter from "./contact";
+import retailRouter from "./retail/index";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(adminManagedCasesRouter);
 router.use(supplierExportModeRouter);
 router.use(reviewSuggestionRouter);
 router.use(contactRouter);
+router.use(retailRouter);
 
 export default router;
