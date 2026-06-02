@@ -2,13 +2,13 @@ export type Language = "en" | "es";
 
 const en = {
   nav: {
-    products: "Products",
+    products: "B2B Marketplace",
     platform: "Platform",
     suppliers: "Supplier Network",
     markets: "Markets",
     impact: "Impact",
     investors: "Investors",
-    shop: "Shop",
+    shop: "Buy Direct",
     login: "Log in",
     getStarted: "Get Started",
     dashboard: "Dashboard",
@@ -1451,13 +1451,13 @@ const en = {
 
 const es: typeof en = {
   nav: {
-    products: "Productos",
+    products: "Marketplace B2B",
     platform: "Plataforma",
     suppliers: "Red de Proveedores",
     markets: "Mercados",
     impact: "Impacto",
     investors: "Inversores",
-    shop: "Tienda",
+    shop: "Comprar Directo",
     login: "Iniciar sesión",
     getStarted: "Comenzar",
     dashboard: "Panel",
