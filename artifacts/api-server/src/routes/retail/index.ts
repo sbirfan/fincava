@@ -6,8 +6,10 @@ import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
 
-// Sub-routers are imported and mounted here as each sprint completes.
-// Placeholder: router is exported empty so the mount in routes/index.ts
-// compiles and the /api/retail prefix is reserved.
+import authRouter from "./auth";
+import catalogRouter from "./catalog";
+
+router.use(authRouter);
+router.use(catalogRouter);
 
 export default router;

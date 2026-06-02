@@ -972,6 +972,64 @@ export function introductionEmail(opts: {
   return { html, text, subject };
 }
 
+// ── Retail auth emails (Sprint 2) ─────────────────────────────────────────────
+
+// T-B9: Magic link (ES + EN)
+export function retailMagicLinkEmail(opts: {
+  magicLinkUrl: string;
+  lang?: "es" | "en";
+}): { html: string; text: string; subject: string } {
+  const es = opts.lang !== "en";
+  const subject = es ? "Tu enlace de acceso a FINCAVA" : "Your FINCAVA access link";
+  const heading = es ? "Accede a FINCAVA" : "Access FINCAVA";
+  const body = es
+    ? "Toca el botón para acceder. El enlace es válido por <strong>15 minutos</strong>."
+    : "Tap the button below to sign in. This link is valid for <strong>15 minutes</strong>.";
+  const btnLabel = es ? "Acceder a FINCAVA" : "Sign in to FINCAVA";
+  const note = es
+    ? "Si no solicitaste este enlace, ignora este correo."
+    : "If you didn't request this link, you can safely ignore this email.";
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${heading}</h2>
+    <p>${body}</p>
+    <p><a href="${esc(opts.magicLinkUrl)}" class="btn">${btnLabel}</a></p>
+    <p class="note">${note}</p>
+    <p class="note">Si el botón no funciona, copia este enlace:<br/><a href="${esc(opts.magicLinkUrl)}" style="color:#16a34a;word-break:break-all;">${esc(opts.magicLinkUrl)}</a></p>
+  `);
+  const text = es
+    ? `Accede a FINCAVA usando este enlace (válido 15 min):\n${opts.magicLinkUrl}\n\n— Equipo Fincava`
+    : `Sign in to FINCAVA using this link (valid 15 min):\n${opts.magicLinkUrl}\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
+// T-B10: Email OTP — 6-digit code (ES + EN)
+export function retailOtpEmail(opts: {
+  otp: string;
+  lang?: "es" | "en";
+}): { html: string; text: string; subject: string } {
+  const es = opts.lang !== "en";
+  const subject = es ? `Tu código de FINCAVA: ${opts.otp}` : `Your FINCAVA code: ${opts.otp}`;
+  const heading = es ? "Tu código de acceso" : "Your access code";
+  const body = es
+    ? `Ingresa este código para acceder a FINCAVA. Válido por <strong>15 minutos</strong>.`
+    : `Enter this code to sign in to FINCAVA. Valid for <strong>15 minutes</strong>.`;
+  const note = es
+    ? "Si no solicitaste este código, ignora este correo."
+    : "If you didn't request this code, you can safely ignore this email.";
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 16px;font-size:18px;color:#14532d;">${heading}</h2>
+    <p>${body}</p>
+    <div style="margin:24px 0;text-align:center;">
+      <span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#14532d;font-family:monospace;">${esc(opts.otp)}</span>
+    </div>
+    <p class="note">${note}</p>
+  `);
+  const text = es
+    ? `Tu código de FINCAVA: ${opts.otp}\nVálido 15 minutos. No lo compartas.\n\n— Equipo Fincava`
+    : `Your FINCAVA code: ${opts.otp}\nValid 15 minutes. Do not share.\n\n— Equipo Fincava`;
+  return { html, text, subject };
+}
+
 export function verificationEmail(opts: { firstName: string; verifyUrl: string }): { html: string; text: string; subject: string } {
   const subject = "Confirm your email address — Fincava";
   const html = baseTemplate(`
