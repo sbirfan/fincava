@@ -1162,6 +1162,126 @@ router.get("/admin/buyers/marketing-campaigns/:id", ...adminOnly, async (req, re
   });
 });
 
+// ── GET /admin/users/export ───────────────────────────────────────────────────
+router.get("/admin/users/export", ...adminOnly, async (req, res): Promise<void> => {
+  const data = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      role: usersTable.role,
+      firstName: profilesTable.firstName,
+      lastName: profilesTable.lastName,
+      phone: profilesTable.phone,
+      country: profilesTable.country,
+      companyName: companiesTable.name,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+    .leftJoin(companiesTable, eq(companiesTable.userId, usersTable.id))
+    .orderBy(desc(usersTable.createdAt));
+
+  const esc = (v: string | number | Date | null | undefined): string => {
+    if (v == null) return "";
+    const s = String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const header = "id,email,role,firstName,lastName,phone,country,companyName,createdAt";
+  const rows = data.map((u) =>
+    [u.id, u.email, u.role, u.firstName, u.lastName, u.phone, u.country, u.companyName, u.createdAt]
+      .map(esc)
+      .join(",")
+  );
+  const csv = [header, ...rows].join("\n");
+  const ts = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="fincava-users-${ts}.csv"`);
+  res.send(csv);
+});
+
+// ── POST /admin/users/import ──────────────────────────────────────────────────
+router.post("/admin/users/import", ...adminOnly, async (req, res): Promise<void> => {
+  const { rows } = req.body as { rows: unknown[] };
+  if (!Array.isArray(rows) || rows.length === 0) {
+    sendError(res, 400, "rows must be a non-empty array");
+    return;
+  }
+  if (rows.length > 500) {
+    sendError(res, 400, "Maximum 500 rows per import");
+    return;
+  }
+
+  const appBaseUrl =
+    process.env["FRONTEND_URL"] ??
+    (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:25876");
+
+  type ImportResult = { row: number; email: string; status: "created" | "skipped" | "error"; message?: string };
+  const results: ImportResult[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const parsed = AdminCreateUserBody.safeParse(rows[i]);
+    if (!parsed.success) {
+      const msg = Object.values(parsed.error.flatten().fieldErrors).flat().join("; ");
+      results.push({ row: i + 1, email: (rows[i] as Record<string, string>)?.email ?? "", status: "error", message: msg });
+      continue;
+    }
+    const { email, password, role, firstName, lastName, country, phone, companyName } = parsed.data;
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+    if (existing) {
+      results.push({ row: i + 1, email, status: "skipped", message: "Email already registered" });
+      continue;
+    }
+    try {
+      const [user] = await db
+        .insert(usersTable)
+        .values({ email, passwordHash: await hashPassword(password), role })
+        .returning();
+      if (firstName || lastName || country || phone) {
+        await db.insert(profilesTable).values({
+          userId: user.id,
+          firstName: firstName ?? "",
+          lastName: lastName ?? "",
+          country: country ?? null,
+          phone: phone ?? null,
+          language: "en",
+        });
+      }
+      if (companyName) {
+        await db.insert(companiesTable).values({
+          userId: user.id,
+          name: companyName,
+          country: country ?? "",
+          type: "EXPORTER",
+          description: "",
+        });
+      }
+      results.push({ row: i + 1, email, status: "created" });
+      void Promise.resolve().then(async () => {
+        try {
+          const emailContent = adminCreatedAccountEmail({
+            firstName: firstName || "there",
+            email,
+            forgotPasswordUrl: `${appBaseUrl}/forgot-password`,
+          });
+          await sendEmail({ to: email, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+        } catch (err) {
+          logger.warn({ err, email }, "Import welcome email failed");
+        }
+      });
+    } catch (err: unknown) {
+      results.push({ row: i + 1, email, status: "error", message: (err as Error)?.message ?? "Unknown error" });
+    }
+  }
+
+  const summary = {
+    created: results.filter((r) => r.status === "created").length,
+    skipped: results.filter((r) => r.status === "skipped").length,
+    errors:  results.filter((r) => r.status === "error").length,
+  };
+  res.json({ results, summary });
+});
+
 // ── PATCH /api/admin/users/:id ───────────────────────────────────────────────
 router.patch("/admin/users/:id", ...adminOnly, async (req, res): Promise<void> => {
   const userId = parseInt(req.params.id as string, 10);
