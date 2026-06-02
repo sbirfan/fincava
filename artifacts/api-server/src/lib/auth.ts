@@ -162,6 +162,17 @@ export async function requireRole(role: "BUYER" | "SUPPLIER" | "ADMIN") {
   };
 }
 
+// FIN-058/059: FIELD_OFFICER middleware — grants access to officer-facing routes.
+// ADMIN always passes (admin can perform officer tasks for support/override).
+export function requireOfficerOrAdmin(req: Request, res: Response, next: NextFunction): void {
+  const userRole = (req as any).userRole;
+  if (userRole !== "FIELD_OFFICER" && userRole !== "ADMIN") {
+    res.status(403).json({ error: "Forbidden: officer or admin access required" });
+    return;
+  }
+  next();
+}
+
 export async function getUserWithProfile(userId: number) {
   const [row] = await db
     .select({ user: usersTable, profile: profilesTable })

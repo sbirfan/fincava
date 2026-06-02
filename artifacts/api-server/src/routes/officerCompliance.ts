@@ -19,7 +19,7 @@ import {
   complianceDocumentsV2Table,
   managedServiceCasesTable,
 } from "@workspace/db";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireOfficerOrAdmin } from "../lib/auth";
 import { sendError } from "../lib/response";
 import { logger } from "../lib/logger";
 import { and, eq, asc, desc } from "drizzle-orm";
@@ -57,6 +57,7 @@ function parseId(raw: string | string[] | undefined): number | null {
 router.get(
   "/officer/compliance/:supplierId",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseId(req.params.supplierId);
     if (!supplierId) { sendError(res, 400, "Invalid supplierId"); return; }
@@ -90,6 +91,7 @@ router.get(
 router.get(
   "/officer/compliance/guidance/:requirementCode",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const requirementCode = String(req.params.requirementCode ?? "").toUpperCase();
     const mode = String((req.query.mode as string) ?? "self_serve");
@@ -115,6 +117,7 @@ router.get(
 router.get(
   "/officer/compliance/:supplierId/requirements/:code",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseId(req.params.supplierId);
     if (!supplierId) { sendError(res, 400, "Invalid supplierId"); return; }
@@ -154,6 +157,7 @@ router.get(
 router.get(
   "/officer/compliance/:supplierId/documents",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseId(req.params.supplierId);
     if (!supplierId) { sendError(res, 400, "Invalid supplierId"); return; }
@@ -178,6 +182,7 @@ const ModeBody = z.object({
 router.post(
   "/officer/compliance/:supplierId/mode",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseId(req.params.supplierId);
     if (!supplierId) { sendError(res, 400, "Invalid supplierId"); return; }
@@ -239,6 +244,7 @@ const DocumentBody = z.object({
 router.post(
   "/officer/compliance/:supplierId/documents",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseId(req.params.supplierId);
     if (!supplierId) { sendError(res, 400, "Invalid supplierId"); return; }
@@ -277,6 +283,7 @@ router.post(
 router.post(
   "/officer/compliance/:supplierId/submit/:requirementCode",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseId(req.params.supplierId);
     if (!supplierId) { sendError(res, 400, "Invalid supplierId"); return; }
@@ -335,6 +342,7 @@ const ManagedServiceBody = z.object({
 router.post(
   "/officer/compliance/:supplierId/managed-service",
   requireAuth,
+  requireOfficerOrAdmin,
   async (req: Request, res: Response): Promise<void> => {
     const supplierId = parseId(req.params.supplierId);
     if (!supplierId) { sendError(res, 400, "Invalid supplierId"); return; }

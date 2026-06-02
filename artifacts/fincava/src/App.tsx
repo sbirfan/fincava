@@ -207,9 +207,9 @@ function Router() {
         <Route path="/admin/compliance-queue" component={() => <PrivateRoute component={AdminComplianceQueue} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/managed-cases" component={() => <PrivateRoute component={AdminManagedCases} roles={["ADMIN"]} layout={AdminLayout} />} />
 
-        {/* Field officer tool — accessible to ADMINs; extend to FIELD_OFFICER role when officer accounts are added */}
-        <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN"]} />} />
-        <Route path="/officer/compliance" component={() => <PrivateRoute component={OfficerCompliance} roles={["ADMIN"]} />} />
+        {/* Field officer tool — FIN-058/059: accessible to FIELD_OFFICER and ADMIN roles */}
+        <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN", "FIELD_OFFICER"]} />} />
+        <Route path="/officer/compliance" component={() => <PrivateRoute component={OfficerCompliance} roles={["ADMIN", "FIELD_OFFICER"]} />} />
 
         <Route component={() => <AppLayout><NotFound /></AppLayout>} />
       </Switch>
