@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { SlidersHorizontal, Leaf, Users, Package, X } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface RetailProduct {
   id: number;
@@ -21,17 +22,15 @@ interface RetailProduct {
   nextWindowEnd: string | null;
 }
 
-const CATEGORIES = ["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED"];
-const CAT_LABELS: Record<string, string> = {
-  COFFEE: "Café", CACAO: "Cacao", AVOCADO: "Aguacate",
-  EXOTIC_FRUIT: "Frutas exóticas", SUPERFOOD: "Superalimentos", PROCESSED: "Procesados",
-};
+const CATEGORIES = ["COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED"] as const;
 
 function formatCOP(cents: number): string {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(cents / 100);
 }
 
 function ProductCard({ p }: { p: RetailProduct }) {
+  const { t } = useLanguage();
+  const ti = t.tienda;
   const img = p.images?.[0] ?? null;
   return (
     <Link href={`/tienda/producto/${p.id}`}>
@@ -46,7 +45,7 @@ function ProductCard({ p }: { p: RetailProduct }) {
           <div className="flex items-start justify-between gap-2">
             <p className="text-white font-semibold text-sm leading-snug">{p.name}</p>
             <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium border ${p.stockState === "IN_STOCK" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" : "bg-amber-500/15 text-amber-300 border-amber-500/25"}`}>
-              {p.stockState === "IN_STOCK" ? "Disponible" : "Lista de espera"}
+              {p.stockState === "IN_STOCK" ? ti.available : ti.waitlist}
             </span>
           </div>
           <p className="text-white/40 text-xs">{p.supplierName} · {p.municipio}, {p.department}</p>
@@ -54,13 +53,13 @@ function ProductCard({ p }: { p: RetailProduct }) {
             <div>
               {p.retailPriceCop
                 ? <p className="text-emerald-300 font-bold text-sm">{formatCOP(p.retailPriceCop)}</p>
-                : <p className="text-white/20 text-sm">— precio no publicado</p>
+                : <p className="text-white/20 text-sm">—</p>
               }
               {p.retailUnitLabel && <p className="text-white/30 text-xs">{p.retailUnitLabel}</p>}
             </div>
             <div className="flex gap-1.5">
-              {p.organic && <span title="Orgánico"><Leaf className="h-3.5 w-3.5 text-emerald-400" /></span>}
-              {p.womenLed && <span title="Liderada por mujeres"><Users className="h-3.5 w-3.5 text-purple-400" /></span>}
+              {p.organic && <span title={ti.organic}><Leaf className="h-3.5 w-3.5 text-emerald-400" /></span>}
+              {p.womenLed && <span title={ti.womenLed}><Users className="h-3.5 w-3.5 text-purple-400" /></span>}
             </div>
           </div>
         </div>
@@ -70,6 +69,9 @@ function ProductCard({ p }: { p: RetailProduct }) {
 }
 
 export default function TiendaIndex() {
+  const { t } = useLanguage();
+  const ti = t.tienda;
+
   const [showFilters, setShowFilters] = useState(false);
   const [category, setCategory] = useState("");
   const [inStock, setInStock] = useState(false);
@@ -101,18 +103,20 @@ export default function TiendaIndex() {
       {/* Header */}
       <header className="border-b border-white/10 px-4 py-4 flex items-center justify-between sticky top-0 bg-[#0a140e]/95 backdrop-blur z-10">
         <Link href="/">
-          <span className="font-serif text-xl font-bold text-white cursor-pointer">Fincava <span className="text-emerald-400 text-sm font-sans">tienda</span></span>
+          <span className="font-serif text-xl font-bold text-white cursor-pointer">
+            Fincava <span className="text-emerald-400 text-sm font-sans">tienda</span>
+          </span>
         </Link>
         <Link href="/tienda/auth">
-          <span className="text-sm text-white/60 hover:text-white transition-colors cursor-pointer">Acceder</span>
+          <span className="text-sm text-white/60 hover:text-white transition-colors cursor-pointer">{ti.access}</span>
         </Link>
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* Hero line */}
+        {/* Hero */}
         <div>
-          <h1 className="text-2xl font-bold text-white">Café colombiano directo del productor</h1>
-          <p className="text-white/40 text-sm mt-1">Verificado por Fincava. Enviamos a todo Colombia.</p>
+          <h1 className="text-2xl font-bold text-white">{ti.heroTitle}</h1>
+          <p className="text-white/40 text-sm mt-1">{ti.heroSub}</p>
         </div>
 
         {/* Filter bar */}
@@ -122,23 +126,25 @@ export default function TiendaIndex() {
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${showFilters || activeFilters > 0 ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300" : "border-white/10 text-white/60 hover:bg-white/5"}`}
           >
             <SlidersHorizontal className="h-4 w-4" />
-            Filtros {activeFilters > 0 && `(${activeFilters})`}
+            {ti.filters} {activeFilters > 0 && `(${activeFilters})`}
           </button>
 
-          {/* Category chips */}
           {CATEGORIES.map(c => (
             <button
               key={c}
               onClick={() => { setCategory(category === c ? "" : c); setPage(1); }}
               className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${category === c ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300" : "border-white/10 text-white/50 hover:bg-white/5"}`}
             >
-              {CAT_LABELS[c] ?? c}
+              {ti.categories[c]}
             </button>
           ))}
 
           {activeFilters > 0 && (
-            <button onClick={() => { setCategory(""); setInStock(false); setOrganic(false); setWomenLed(false); setPage(1); }} className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-colors">
-              <X className="h-3 w-3" /> Limpiar
+            <button
+              onClick={() => { setCategory(""); setInStock(false); setOrganic(false); setWomenLed(false); setPage(1); }}
+              className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-colors"
+            >
+              <X className="h-3 w-3" /> {ti.clearFilters}
             </button>
           )}
         </div>
@@ -146,11 +152,11 @@ export default function TiendaIndex() {
         {/* Expanded filters */}
         {showFilters && (
           <div className="flex flex-wrap gap-3 p-4 rounded-xl border border-white/10 bg-white/5">
-            {[
-              { label: "Solo en stock", value: inStock, set: setInStock },
-              { label: "Orgánico", value: organic, set: setOrganic },
-              { label: "Liderada por mujeres", value: womenLed, set: setWomenLed },
-            ].map(({ label, value, set }) => (
+            {([
+              { label: ti.inStockOnly, value: inStock, set: setInStock },
+              { label: ti.organic, value: organic, set: setOrganic },
+              { label: ti.womenLed, value: womenLed, set: setWomenLed },
+            ] as { label: string; value: boolean; set: (v: boolean) => void }[]).map(({ label, value, set }) => (
               <label key={label} className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={value} onChange={e => { set(e.target.checked); setPage(1); }} className="accent-emerald-500 w-4 h-4" />
                 <span className="text-sm text-white/70">{label}</span>
@@ -168,12 +174,12 @@ export default function TiendaIndex() {
           </div>
         )}
 
-        {isError && <p className="text-red-400 text-sm">Error al cargar el catálogo. Intenta de nuevo.</p>}
+        {isError && <p className="text-red-400 text-sm">{ti.loadError}</p>}
 
         {!isLoading && !isError && products.length === 0 && (
           <div className="text-center py-16">
             <Package className="h-10 w-10 text-white/10 mx-auto mb-3" />
-            <p className="text-white/30 text-sm">No hay productos disponibles con estos filtros.</p>
+            <p className="text-white/30 text-sm">{ti.noProducts}</p>
           </div>
         )}
 
@@ -183,11 +189,10 @@ export default function TiendaIndex() {
           </div>
         )}
 
-        {/* Pagination */}
         {products.length === (data?.limit ?? 20) && (
           <div className="flex justify-center pt-4">
             <button onClick={() => setPage(p => p + 1)} className="px-6 py-2.5 rounded-lg border border-white/10 text-white/60 text-sm hover:bg-white/5 transition-colors">
-              Ver más
+              {ti.loadMore}
             </button>
           </div>
         )}

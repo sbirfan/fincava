@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Leaf, ShieldCheck, Users, MapPin, Loader2, Clock } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface RetailProductDetail {
   id: number;
@@ -45,6 +46,8 @@ function formatCOP(cents: number): string {
 }
 
 export default function TiendaProducto() {
+  const { t, lang } = useLanguage();
+  const ti = t.tienda;
   const [, params] = useRoute("/tienda/producto/:id");
   const id = params?.id;
 
@@ -74,6 +77,10 @@ export default function TiendaProducto() {
   const p = res?.data;
   const shipping = shippingRes?.data;
 
+  // Pick bilingual content based on current language
+  const farmerVoice = lang === "es" ? p?.originStory?.farmerVoiceEs : (p?.originStory?.farmerVoiceEn ?? p?.originStory?.farmerVoiceEs);
+  const buyerCopy = lang === "es" ? p?.originStory?.buyerCopyEs : (p?.originStory?.buyerCopyEn ?? p?.originStory?.buyerCopyEs);
+
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a140e]">
       <Loader2 className="h-6 w-6 text-emerald-400 animate-spin" />
@@ -83,8 +90,10 @@ export default function TiendaProducto() {
   if (isError || !p) return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a140e]">
       <div className="text-center space-y-3">
-        <p className="text-white/40">Producto no encontrado.</p>
-        <Link href="/tienda"><span className="text-emerald-400 text-sm hover:underline cursor-pointer">← Volver al catálogo</span></Link>
+        <p className="text-white/40">{ti.notFound}</p>
+        <Link href="/tienda">
+          <span className="text-emerald-400 text-sm hover:underline cursor-pointer">← {ti.navBack}</span>
+        </Link>
       </div>
     </div>
   );
@@ -93,13 +102,22 @@ export default function TiendaProducto() {
   const inStock = p.stockState === "IN_STOCK";
   const totalCents = (p.retailPriceCop ?? 0) * qty + (shipping?.rateCents ?? 0);
 
+  // Format visit date in current language locale
+  const visitLocale = lang === "es" ? "es-CO" : "en-GB";
+  const visitDateStr = p.verificationSignal
+    ? new Date(p.verificationSignal.visitedAt).toLocaleDateString(visitLocale, { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
+  const nextWindowStr = p.nextWindowStart
+    ? new Date(p.nextWindowStart).toLocaleDateString(visitLocale, { month: "long", year: "numeric" })
+    : null;
+
   return (
     <div className="min-h-screen bg-[#0a140e] text-white">
-      {/* Header */}
       <header className="border-b border-white/10 px-4 py-4 sticky top-0 bg-[#0a140e]/95 backdrop-blur z-10">
         <Link href="/tienda">
           <span className="flex items-center gap-2 text-white/60 hover:text-white text-sm transition-colors cursor-pointer w-fit">
-            <ArrowLeft className="h-4 w-4" /> Volver al catálogo
+            <ArrowLeft className="h-4 w-4" /> {ti.navBack}
           </span>
         </Link>
       </header>
@@ -114,7 +132,6 @@ export default function TiendaProducto() {
             }
           </div>
 
-          {/* Origin story */}
           {p.originStory && (
             <div className="space-y-3">
               {p.originStory.farmerPhoto && (
@@ -124,13 +141,13 @@ export default function TiendaProducto() {
                 <p className="text-white font-semibold">{p.originStory.farmerName}</p>
                 <p className="text-white/40 text-sm">{p.originStory.farmName} · {p.originStory.region}</p>
               </div>
-              {(p.originStory.farmerVoiceEs || p.originStory.story) && (
+              {(farmerVoice || p.originStory.story) && (
                 <blockquote className="border-l-2 border-emerald-500/40 pl-4 text-white/60 text-sm italic leading-relaxed">
-                  "{p.originStory.farmerVoiceEs ?? p.originStory.story}"
+                  "{farmerVoice ?? p.originStory.story}"
                 </blockquote>
               )}
-              {p.originStory.buyerCopyEs && (
-                <p className="text-white/50 text-sm leading-relaxed">{p.originStory.buyerCopyEs}</p>
+              {buyerCopy && (
+                <p className="text-white/50 text-sm leading-relaxed">{buyerCopy}</p>
               )}
             </div>
           )}
@@ -139,7 +156,7 @@ export default function TiendaProducto() {
         {/* Right — purchase panel */}
         <div className="space-y-5">
           <div>
-            <p className="text-white/40 text-sm">{p.category}</p>
+            <p className="text-white/40 text-sm">{ti.categories[p.category as keyof typeof ti.categories] ?? p.category}</p>
             <h1 className="text-2xl font-bold text-white mt-0.5">{p.name}</h1>
             <p className="text-white/50 text-sm flex items-center gap-1 mt-1">
               <MapPin className="h-3.5 w-3.5" /> {p.supplier.municipio}, {p.supplier.department}
@@ -150,12 +167,12 @@ export default function TiendaProducto() {
           <div className="flex flex-wrap gap-2">
             {p.organic && (
               <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                <Leaf className="h-3 w-3" /> Orgánico
+                <Leaf className="h-3 w-3" /> {ti.organic}
               </span>
             )}
             {p.womenLed && (
               <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/25">
-                <Users className="h-3 w-3" /> Liderada por mujeres
+                <Users className="h-3 w-3" /> {ti.womenLed}
               </span>
             )}
             {p.complianceBadges.map(b => (
@@ -166,10 +183,10 @@ export default function TiendaProducto() {
           </div>
 
           {/* Verification signal */}
-          {p.verificationSignal && (
+          {p.verificationSignal && visitDateStr && (
             <div className="flex items-center gap-2 text-xs text-white/40 border border-white/10 rounded-lg px-3 py-2 bg-white/5">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              Visitada por Fincava el {new Date(p.verificationSignal.visitedAt).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
+              {ti.verifiedVisit} {visitDateStr}
             </div>
           )}
 
@@ -178,9 +195,9 @@ export default function TiendaProducto() {
             <div className="flex items-center gap-2 text-sm text-amber-300 border border-amber-500/20 rounded-lg px-3 py-2 bg-amber-500/10">
               <Clock className="h-4 w-4 shrink-0" />
               <span>
-                Actualmente sin stock.{" "}
-                {p.nextWindowStart ? `Próxima cosecha: ${new Date(p.nextWindowStart).toLocaleDateString("es-CO", { month: "long", year: "numeric" })}.` : "Únete a la lista de espera."}
-                {p.waitlistCount > 0 && ` ${p.waitlistCount} personas esperando.`}
+                {ti.outOfStock}{" "}
+                {nextWindowStr ? `${ti.nextHarvest} ${nextWindowStr}.` : ti.joinWaitlistFallback}
+                {p.waitlistCount > 0 && ` ${p.waitlistCount} ${ti.peopleWaiting}`}
               </span>
             </div>
           )}
@@ -189,39 +206,44 @@ export default function TiendaProducto() {
           {p.retailPriceCop && (
             <div>
               <p className="text-3xl font-bold text-emerald-300">{formatCOP(p.retailPriceCop)}</p>
-              {p.retailUnitLabel && <p className="text-white/30 text-sm">por {p.retailUnitLabel}{p.retailUnitWeightG ? ` (${p.retailUnitWeightG}g)` : ""}</p>}
+              {p.retailUnitLabel && (
+                <p className="text-white/30 text-sm">
+                  {lang === "es" ? "por" : "per"} {p.retailUnitLabel}
+                  {p.retailUnitWeightG ? ` (${p.retailUnitWeightG}g)` : ""}
+                </p>
+              )}
             </div>
           )}
 
           {/* Quantity */}
           {inStock && (
             <div>
-              <label className="block text-sm text-white/50 mb-1.5">Cantidad</label>
+              <label className="block text-sm text-white/50 mb-1.5">{ti.quantity}</label>
               <div className="flex items-center gap-3">
                 <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-lg border border-white/10 text-white/60 hover:bg-white/10 transition-colors text-lg">−</button>
                 <span className="text-white font-semibold w-8 text-center">{qty}</span>
                 <button onClick={() => setQty(q => Math.min(p.retailMaxPerOrder ?? 10, q + 1))} className="w-9 h-9 rounded-lg border border-white/10 text-white/60 hover:bg-white/10 transition-colors text-lg">+</button>
-                {p.retailStockUnits && <span className="text-white/30 text-xs ml-1">{p.retailStockUnits} disponibles</span>}
+                {p.retailStockUnits && <span className="text-white/30 text-xs ml-1">{p.retailStockUnits} {lang === "es" ? "disponibles" : "available"}</span>}
               </div>
             </div>
           )}
 
           {/* Shipping estimate */}
           <div>
-            <label className="block text-sm text-white/50 mb-1.5">Estimar envío</label>
+            <label className="block text-sm text-white/50 mb-1.5">{ti.shippingEstimate}</label>
             <select
               value={dept}
               onChange={e => setDept(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-[#0a140e] text-white px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
             >
-              <option value="">Selecciona tu departamento…</option>
+              <option value="">{ti.selectDept}</option>
               {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
             {shipping && (
               <p className="text-white/40 text-xs mt-1.5">
-                Envío: <span className="text-white/70">{formatCOP(shipping.rateCents)}</span>
-                {shipping.estimated && " (estimado)"}
-                {p.retailPriceCop && ` · Total: ${formatCOP(totalCents)}`}
+                {lang === "es" ? "Envío:" : "Shipping:"} <span className="text-white/70">{formatCOP(shipping.rateCents)}</span>
+                {shipping.estimated && ` ${ti.shippingEstimated}`}
+                {p.retailPriceCop && ` · ${lang === "es" ? "Total:" : "Total:"} ${formatCOP(totalCents)}`}
               </p>
             )}
           </div>
@@ -230,16 +252,16 @@ export default function TiendaProducto() {
           {inStock ? (
             <Link href="/tienda/auth">
               <button className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors">
-                Comprar — {p.retailPriceCop ? formatCOP(p.retailPriceCop * qty) : "ver precio"}
+                {ti.buy} — {p.retailPriceCop ? formatCOP(p.retailPriceCop * qty) : ti.verPrice}
               </button>
             </Link>
           ) : (
             <button className="w-full py-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-sm hover:bg-amber-500/20 transition-colors">
-              Unirse a la lista de espera
+              {ti.joinWaitlist}
             </button>
           )}
 
-          <p className="text-xs text-white/20 text-center">Tu pago solo se cobra cuando el pedido esté listo para enviar.</p>
+          <p className="text-xs text-white/20 text-center">{ti.paymentNote}</p>
         </div>
       </div>
     </div>

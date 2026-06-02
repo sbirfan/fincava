@@ -1,11 +1,11 @@
-// Handles magic link clicks: /tienda/auth/verify?token=<raw>
-// Calls the backend verify endpoint, then redirects to /tienda (or redirect param).
-
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, XCircle } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function TiendaVerify() {
+  const { t } = useLanguage();
+  const ti = t.tienda;
   const [, setLocation] = useLocation();
   const [status, setStatus] = useState<"loading" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -17,7 +17,7 @@ export default function TiendaVerify() {
 
     if (!token) {
       setStatus("error");
-      setMessage("Enlace inválido — no se encontró el token.");
+      setMessage(ti.invalidLink);
       return;
     }
 
@@ -27,18 +27,16 @@ export default function TiendaVerify() {
       .then(async res => {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? "Enlace inválido o expirado.");
+          throw new Error(body.error ?? ti.invalidLink);
         }
         return res.json();
       })
-      .then(() => {
-        setLocation(redirect);
-      })
+      .then(() => setLocation(redirect))
       .catch((err: Error) => {
         setStatus("error");
         setMessage(err.message);
       });
-  }, [setLocation]);
+  }, [setLocation, ti.invalidLink]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a140e] px-4">
@@ -46,19 +44,16 @@ export default function TiendaVerify() {
         {status === "loading" ? (
           <>
             <Loader2 className="h-10 w-10 text-emerald-400 animate-spin mx-auto" />
-            <p className="text-white font-semibold">Verificando tu enlace…</p>
-            <p className="text-white/40 text-sm">Esto toma un momento.</p>
+            <p className="text-white font-semibold">{ti.verifying}</p>
+            <p className="text-white/40 text-sm">{ti.verifyingNote}</p>
           </>
         ) : (
           <>
             <XCircle className="h-10 w-10 text-red-400 mx-auto" />
-            <p className="text-white font-semibold">Enlace inválido o expirado</p>
+            <p className="text-white font-semibold">{ti.invalidLink}</p>
             <p className="text-white/40 text-sm">{message}</p>
-            <a
-              href="/tienda/auth"
-              className="inline-block mt-2 text-sm text-emerald-400 hover:underline"
-            >
-              Solicitar un nuevo enlace
+            <a href="/tienda/auth" className="inline-block mt-2 text-sm text-emerald-400 hover:underline">
+              {ti.requestNew}
             </a>
           </>
         )}

@@ -538,17 +538,11 @@ export default function Home() {
         <section className="py-20 bg-[#050f0a]">
           <div className="container mx-auto px-4 text-center space-y-6 max-w-2xl">
             <Sprout className="h-10 w-10 text-emerald-400 mx-auto" />
-            <h2 className="text-3xl font-bold text-white">
-              {lang === "es" ? "Café colombiano, directo del productor" : "Colombian coffee, direct from the farmer"}
-            </h2>
-            <p className="text-white/50 text-lg leading-relaxed">
-              {lang === "es"
-                ? "Compra café de especialidad verificado, cultivado por familias colombianas. Enviamos a todo el país."
-                : "Buy verified specialty coffee grown by Colombian farming families. We ship nationwide."}
-            </p>
+            <h2 className="text-3xl font-bold text-white">{t.tienda.heroTitle}</h2>
+            <p className="text-white/50 text-lg leading-relaxed">{t.tienda.heroSub}</p>
             <Link href="/tienda">
               <Button size="lg" className="bg-emerald-600 hover:bg-emerald-500 text-white h-12 px-8 text-base">
-                {lang === "es" ? "Ver la tienda" : "Browse the store"} <ArrowRight className="w-4 h-4 ml-2" />
+                {t.nav.shop} <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
           </div>
