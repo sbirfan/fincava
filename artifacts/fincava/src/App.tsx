@@ -89,6 +89,7 @@ const AdminIntroductions = lazy(() => import("@/pages/admin/introductions"));
 const TiendaIndex = lazy(() => import("@/pages/tienda/index"));
 const TiendaProducto = lazy(() => import("@/pages/tienda/producto"));
 const TiendaAuth = lazy(() => import("@/pages/tienda/auth"));
+const TiendaVerify = lazy(() => import("@/pages/tienda/verify"));
 const OfficerDashboard = lazy(() => import("@/pages/officer/dashboard"));
 const OfficerCompliance = lazy(() => import("@/pages/officer/compliance"));
 
@@ -220,6 +221,7 @@ function Router() {
         {ENABLE_RETAIL && <Route path="/tienda" component={() => <TiendaIndex />} />}
         {ENABLE_RETAIL && <Route path="/tienda/producto/:id" component={() => <TiendaProducto />} />}
         {ENABLE_RETAIL && <Route path="/tienda/auth" component={() => <TiendaAuth />} />}
+        {ENABLE_RETAIL && <Route path="/tienda/auth/verify" component={() => <TiendaVerify />} />}
 
         {/* Field officer tool — FIN-058/059: accessible to FIELD_OFFICER and ADMIN roles */}
         <Route path="/officer/dashboard" component={() => <PrivateRoute component={OfficerDashboard} roles={["ADMIN", "FIELD_OFFICER"]} />} />
