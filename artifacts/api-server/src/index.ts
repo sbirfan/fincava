@@ -12,6 +12,7 @@ import {
   type OnboardPayload,
 } from "./lib/pipeline-emitter";
 import { runOnboardPipeline } from "./services/onboard-pipeline";
+import { validateFlagsForPhase } from "./lib/flags";
 
 const rawPort = process.env["PORT"];
 
@@ -39,6 +40,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  validateFlagsForPhase(logger);
   startEmailQueue();
   logListenerCounts();
   seedAdminAccounts().catch((e) => logger.error({ err: e }, "Admin seed failed"));
