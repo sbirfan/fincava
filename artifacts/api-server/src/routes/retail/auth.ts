@@ -76,7 +76,7 @@ router.post("/retail/auth/request", async (req, res): Promise<void> => {
   let sentChannel: string;
 
   if (channel === "EMAIL_OTP" || channel === "SMS_OTP") {
-    rawToken = String(Math.floor(100000 + Math.random() * 900000));
+    rawToken = String(crypto.randomInt(100000, 1000000));
     tokenType = channel === "SMS_OTP" ? "SMS_OTP" : "EMAIL_OTP";
   } else {
     rawToken = crypto.randomBytes(32).toString("hex");
