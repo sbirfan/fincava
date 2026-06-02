@@ -1,13 +1,16 @@
 import { Router } from "express";
-import { pool } from "@workspace/db";
+import { db, officerApplicationsTable } from "@workspace/db";
 import { OfficerRegistrationBody } from "../schemas";
+import { sendError } from "../lib/response";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
 router.post("/officers/register", async (req, res) => {
   const parsed = OfficerRegistrationBody.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    sendError(res, 400, parsed.error.message);
+    return;
   }
 
   const {
@@ -24,31 +27,22 @@ router.post("/officers/register", async (req, res) => {
     referral_code,
   } = parsed.data;
 
-  try {
-    await pool.query(
-      `INSERT INTO officer_applications
-        (full_name, email, phone, department, municipio, languages,
-         experience_years, has_motorcycle, available_days, motivation, referral_code)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [
-        full_name,
-        email ?? null,
-        phone,
-        department,
-        municipio,
-        JSON.stringify(languages),
-        experience_years ?? null,
-        has_motorcycle ?? null,
-        available_days ?? null,
-        motivation ?? null,
-        referral_code ?? null,
-      ]
-    );
+  await db.insert(officerApplicationsTable).values({
+    fullName: full_name,
+    email: email ?? null,
+    phone,
+    department,
+    municipio,
+    languages: languages && languages.length > 0 ? JSON.stringify(languages) : null,
+    experienceYears: experience_years ?? null,
+    hasMotorcycle: has_motorcycle ?? null,
+    availableDays: available_days ?? null,
+    motivation: motivation ?? null,
+    referralCode: referral_code ?? null,
+  });
 
-    return res.status(201).json({ success: true, message: "Officer application received" });
-  } catch (err: any) {
-    throw err;
-  }
+  logger.info({ email, department, municipio }, "officer application received");
+  res.status(201).json({ success: true, message: "Officer application received" });
 });
 
 export default router;
