@@ -40,6 +40,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
 export function useLanguage() {
   const ctx = useContext(LanguageContext);
-  if (!ctx) throw new Error("useLanguage must be used within LanguageProvider");
+  if (!ctx) {
+    // During HMR or initialization, provide a sensible default instead of throwing.
+    // This prevents crashes during dev server hot reloads before context re-initializes.
+    if (import.meta.env.DEV) {
+      return {
+        lang: "en" as const,
+        setLang: () => {},
+        t: translations["en"],
+      };
+    }
+    throw new Error("useLanguage must be used within LanguageProvider");
+  }
   return ctx;
 }
