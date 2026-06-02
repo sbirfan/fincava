@@ -69,6 +69,9 @@ export const INTERACTION_TYPES = {
   SUPPLIER_SELLABLE: "SUPPLIER_SELLABLE",
   // Duplicate management (T5)
   DUPLICATE_OVERRIDE: "DUPLICATE_OVERRIDE",
+  // Concierge introductions (FIN-006)
+  //   payload: { rfqId, supplierId, buyerEmail, supplierEmail, note? }
+  INTRODUCTION_MADE: "INTRODUCTION_MADE",
 } as const;
 
 export type InteractionType = (typeof INTERACTION_TYPES)[keyof typeof INTERACTION_TYPES];

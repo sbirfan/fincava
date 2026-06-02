@@ -915,6 +915,63 @@ export function buyerMatchReadyEmail(opts: {
   return { html, text, subject };
 }
 
+// ── Concierge introduction email (FIN-006, Template B) ───────────────────────
+
+export function introductionEmail(opts: {
+  buyerName: string;
+  buyerCompany: string | null;
+  supplierName: string;
+  supplierMunicipio: string | null;
+  supplierDepartment: string | null;
+  product: string;
+  quantityKg: number | null;
+  destination: string | null;
+  deadline: string | null;
+  supplierCertifications: string | null;
+  note: string | null;
+}): { html: string; text: string; subject: string } {
+  const subject = `Introduction: ${opts.buyerCompany ?? opts.buyerName} ↔ ${opts.supplierName} | ${opts.product}`;
+  const location = [opts.supplierMunicipio, opts.supplierDepartment].filter(Boolean).join(", ") || "Colombia";
+  const volumeLine = opts.quantityKg ? `, approximately ${opts.quantityKg.toLocaleString()} kg` : "";
+  const destLine = opts.destination ? ` for delivery to ${opts.destination}` : "";
+  const deadlineLine = opts.deadline ? ` by ${opts.deadline}` : "";
+  const certLine = opts.supplierCertifications ? `<p>Their products carry the following certifications/attributes: <strong>${esc(opts.supplierCertifications)}</strong>.</p>` : "";
+  const notePara = opts.note ? `<p><em>Operator note: ${esc(opts.note)}</em></p>` : "";
+
+  const html = baseTemplate(`
+    <p>Hi ${esc(opts.buyerName)} and ${esc(opts.supplierName)},</p>
+    <p>I'm pleased to introduce you both.</p>
+    <p><strong>${esc(opts.buyerName)}</strong>${opts.buyerCompany ? ` at <strong>${esc(opts.buyerCompany)}</strong>` : ""} is sourcing <strong>${esc(opts.product)}</strong>${volumeLine}${destLine}${deadlineLine}.</p>
+    <p><strong>${esc(opts.supplierName)}</strong> is a verified Fincava supplier based in <strong>${esc(location)}</strong>, producing ${esc(opts.product)}.</p>
+    ${certLine}
+    <p>I've verified ${esc(opts.supplierName)}'s profile on Fincava and believe this could be a strong fit.</p>
+    ${notePara}
+    <p>I'll leave you to connect directly from here. Please don't hesitate to copy me if you need any support — I'm happy to assist with questions, documentation, or translation.</p>
+    <p>Best,<br/>Irfan<br/>Fincava — Verified Colombian Agricultural Sourcing</p>
+  `);
+
+  const textLines = [
+    `Hi ${opts.buyerName} and ${opts.supplierName},`,
+    "",
+    "I'm pleased to introduce you both.",
+    "",
+    `${opts.buyerName}${opts.buyerCompany ? ` at ${opts.buyerCompany}` : ""} is sourcing ${opts.product}${volumeLine}${destLine}${deadlineLine}.`,
+    "",
+    `${opts.supplierName} is a verified Fincava supplier based in ${location}, producing ${opts.product}.`,
+    opts.supplierCertifications ? `Certifications/attributes: ${opts.supplierCertifications}.` : "",
+    "",
+    `I've verified ${opts.supplierName}'s profile on Fincava and believe this could be a strong fit.`,
+    opts.note ? `\nOperator note: ${opts.note}` : "",
+    "",
+    "I'll leave you to connect directly. Copy me if you need any support.",
+    "",
+    "Best,\nIrfan\nFincava — Verified Colombian Agricultural Sourcing",
+  ].filter(l => l !== null);
+  const text = textLines.join("\n");
+
+  return { html, text, subject };
+}
+
 export function verificationEmail(opts: { firstName: string; verifyUrl: string }): { html: string; text: string; subject: string } {
   const subject = "Confirm your email address — Fincava";
   const html = baseTemplate(`

@@ -21,7 +21,7 @@ import { runOnboardPipeline } from "../services/onboard-pipeline";
 import { randomUUID } from "crypto";
 import { and, desc, eq, inArray, count, sum, sql, ilike, or, isNull, type SQL } from "drizzle-orm";
 import { companyTypeEnum } from "@workspace/db";
-import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail, buyerRevisionRequestedEmail } from "../lib/email";
+import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail, buyerRevisionRequestedEmail, introductionEmail, getAdminEmails } from "../lib/email";
 import { logger } from "../lib/logger";
 import { logInteraction } from "../lib/interaction-logger";
 import { FEE_STATUSES } from "../constants/fee-status";
@@ -156,6 +156,106 @@ router.get("/admin/open-introductions", ...adminOnly, async (_req, res): Promise
   }
 
   res.json({ rfqs: rfqResult, inquiries: inquiryResult });
+});
+
+// ── POST /api/admin/rfqs/:id/introduce (FIN-006) ────────────────────────────
+router.post("/admin/rfqs/:id/introduce", ...adminOnly, async (req, res): Promise<void> => {
+  const rfqId = parseInt(req.params.id as string);
+  if (isNaN(rfqId)) { sendError(res, 400, "Invalid rfq id"); return; }
+
+  const supplierId = parseInt(req.body.supplierId as string);
+  if (isNaN(supplierId)) { sendError(res, 400, "supplierId is required"); return; }
+  const note: string | null = req.body.note ?? null;
+
+  // Load RFQ
+  const [rfq] = await db.select().from(rfqsTable).where(eq(rfqsTable.id, rfqId));
+  if (!rfq) { sendError(res, 404, "RFQ not found"); return; }
+  if (rfq.status !== "OPEN") { sendError(res, 409, `RFQ is already ${rfq.status.toLowerCase()}`); return; }
+
+  // Load buyer profile + email
+  const [buyerUser] = await db.select({ email: usersTable.email })
+    .from(usersTable).where(eq(usersTable.id, rfq.buyerId));
+  if (!buyerUser?.email) { sendError(res, 422, "Buyer email not found"); return; }
+
+  const [buyerProfile] = await db.select({ firstName: profilesTable.firstName, lastName: profilesTable.lastName })
+    .from(profilesTable).where(eq(profilesTable.userId, rfq.buyerId));
+  const buyerName = buyerProfile
+    ? `${buyerProfile.firstName ?? ""} ${buyerProfile.lastName ?? ""}`.trim()
+    : buyerUser.email.split("@")[0]!;
+
+  // Load supplier → company → user email
+  const [supplier] = await db.select({
+    id: suppliersTable.id,
+    nombreCompleto: suppliersTable.nombreCompleto,
+    municipio: suppliersTable.municipio,
+    department: suppliersTable.department,
+    userId: suppliersTable.userId,
+  }).from(suppliersTable).where(eq(suppliersTable.id, supplierId));
+  if (!supplier) { sendError(res, 404, "Supplier not found"); return; }
+
+  // Resolve company (via products → company)
+  const [firstProduct] = await db.select({ companyId: productsTable.companyId, certifications: productsTable.certifications })
+    .from(productsTable).where(and(eq(productsTable.supplierId, supplierId), eq(productsTable.active, true))).limit(1);
+
+  let supplierEmail: string | null = null;
+  let buyerCompany: string | null = null;
+
+  // Supplier email: prefer the company owner's email, fall back to supplier.userId
+  if (firstProduct?.companyId) {
+    const [company] = await db.select({ userId: companiesTable.userId })
+      .from(companiesTable).where(eq(companiesTable.id, firstProduct.companyId));
+    if (company) {
+      const [companyUser] = await db.select({ email: usersTable.email })
+        .from(usersTable).where(eq(usersTable.id, company.userId));
+      supplierEmail = companyUser?.email ?? null;
+    }
+  }
+  if (!supplierEmail && supplier.userId) {
+    const [supUser] = await db.select({ email: usersTable.email })
+      .from(usersTable).where(eq(usersTable.id, supplier.userId));
+    supplierEmail = supUser?.email ?? null;
+  }
+
+  // Buyer company from buyer_profiles if available
+  const [buyerBp] = await db.select({ companyName: buyerProfilesTable.companyName })
+    .from(buyerProfilesTable).where(eq(buyerProfilesTable.userId, rfq.buyerId)).limit(1).catch(() => [null]);
+  buyerCompany = (buyerBp as any)?.companyName ?? null;
+
+  const certifications = firstProduct?.certifications?.join(", ") ?? null;
+
+  const emailContent = introductionEmail({
+    buyerName,
+    buyerCompany,
+    supplierName: supplier.nombreCompleto,
+    supplierMunicipio: supplier.municipio,
+    supplierDepartment: supplier.department,
+    product: rfq.productCategory,
+    quantityKg: rfq.quantityKg,
+    destination: rfq.destination,
+    deadline: rfq.deadline.toISOString().split("T")[0]!,
+    supplierCertifications: certifications,
+    note,
+  });
+
+  // Send to both parties; CC admin emails
+  const adminEmails = await getAdminEmails();
+  const toAddresses = [buyerUser.email, ...(supplierEmail ? [supplierEmail] : [])];
+  await sendEmail({ to: toAddresses, subject: emailContent.subject, html: emailContent.html, text: emailContent.text });
+
+  // Update RFQ status to CLOSED
+  await db.update(rfqsTable).set({ status: "CLOSED" }).where(eq(rfqsTable.id, rfqId));
+
+  // Log the introduction
+  logInteraction({
+    eventType: "INTRODUCTION_MADE",
+    actorId: requesterIdOf(req),
+    actorType: "admin",
+    referenceId: rfqId,
+    referenceType: "rfq",
+    payload: { rfqId, supplierId, buyerEmail: buyerUser.email, supplierEmail, note },
+  });
+
+  res.json({ success: true, rfqId, supplierId });
 });
 
 // ── GET /api/admin/users ─────────────────────────────────────────────────────
