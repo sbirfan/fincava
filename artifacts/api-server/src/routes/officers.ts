@@ -4,7 +4,7 @@ import { OfficerRegistrationBody } from "../schemas";
 
 const router = Router();
 
-router.post("/api/officers/register", async (req, res) => {
+router.post("/officers/register", async (req, res) => {
   const parsed = OfficerRegistrationBody.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
