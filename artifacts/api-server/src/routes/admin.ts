@@ -3111,6 +3111,35 @@ router.post("/admin/backup/run", async (req: Request, res: Response, next: NextF
   });
 });
 
+// ── GET /api/admin/backup/list ────────────────────────────────────────────────
+// Returns available backups sorted newest-first. Used by operator before
+// choosing which file to restore. Requires admin JWT.
+import { objectStorageClient as _backupStorageClient } from "../lib/objectStorage";
+
+router.get("/admin/backup/list", ...adminOnly, async (_req: Request, res: Response): Promise<void> => {
+  const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!bucketId) { sendError(res, 503, "Object storage not configured"); return; }
+
+  try {
+    const bucket = _backupStorageClient.bucket(bucketId);
+    const [files] = await bucket.getFiles({ prefix: "fincava_" });
+
+    const backups = files
+      .filter((f) => f.name.endsWith(".dump"))
+      .map((f) => ({
+        filename: f.name,
+        sizeBytes: Number(f.metadata?.size ?? 0),
+        createdAt: f.metadata?.timeCreated ?? null,
+      }))
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+
+    res.json({ count: backups.length, backups });
+  } catch (err) {
+    logger.error({ err }, "backup/list: failed to list backups");
+    sendError(res, 500, "Failed to list backups");
+  }
+});
+
 // ── POST /api/admin/seed-compliance-requirements ─────────────────────────────
 // One-time idempotent seed for the compliance_requirements reference table.
 // Safe to call multiple times — uses ON CONFLICT DO NOTHING so existing rows

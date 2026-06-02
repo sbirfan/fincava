@@ -1244,8 +1244,108 @@ For urgent cases (buyer waiting): use manual transition to `SELLABLE` with justi
    ```
 3. If it errors: contact Irfan — do not proceed with schema-changing deployments until backup is confirmed
 
+**List available backups:**
+```
+GET https://fincava.com/api/admin/backup/list
+(admin session required)
+```
+Returns `{ count, backups: [{ filename, sizeBytes, createdAt }] }` sorted newest-first.
+Use this to confirm the most recent backup before a restore.
+
+---
+
+#### 17.4.1 Scheduler Setup (cron-job.org)
+
+The backup runs automatically via an external HTTPS cron caller. Set this up once:
+
+1. Go to **https://cron-job.org** — create a free account
+2. Click **"Create cronjob"**
+3. Fill in:
+   - **Title:** Fincava Daily Backup
+   - **URL:** `https://fincava.com/api/admin/backup/run`
+   - **Schedule:** Daily at 02:00 UTC (use "Custom" → `0 2 * * *`)
+   - **Request method:** POST
+   - **Headers:** add one header:
+     - Name: `X-Backup-Token`
+     - Value: `[BACKUP_SECRET_V2 value from Replit Secrets]`
+4. Save and enable the job
+5. Use "Execute now" to test — confirm the response is `{"success":true,...}`
+
+**Verification:** cron-job.org sends an email if a job fails. Add `irfan@fincava.com` as the notification email in account settings.
+
+---
+
+#### 17.4.2 Restore Procedure
+
+> ⚠️ **Restore overwrites the live database. Only do this during a planned maintenance window. Notify active users first.**
+
+**Prerequisites:**
+- Shell access to the Replit project (Replit Shell tab)
+- `DATABASE_URL` is set in environment (it always is on Replit)
+- `pg_restore` is available (pre-installed in Replit's Nix environment)
+
+**Step 1 — Identify the backup to restore**
+
+```bash
+# List backups via API (from any machine with admin session)
+curl -s https://fincava.com/api/admin/backup/list \
+  -H "Cookie: session=YOUR_ADMIN_SESSION" | python3 -m json.tool
+```
+
+Note the `filename` of the backup you want, e.g. `fincava_2026-06-02T02-00-00-000Z.dump`
+
+**Step 2 — Download the backup file to Replit Shell**
+
+```bash
+# In Replit Shell
+curl -O "https://storage.googleapis.com/$DEFAULT_OBJECT_STORAGE_BUCKET_ID/fincava_TIMESTAMP.dump"
+# Replace fincava_TIMESTAMP.dump with the actual filename from Step 1
+```
+
+Alternatively, use the Replit Object Storage panel to download the file directly.
+
+**Step 3 — Stop the application (maintenance window)**
+
+In the Replit dashboard, stop the running deployment. This prevents writes during restore.
+
+**Step 4 — Restore**
+
+```bash
+# In Replit Shell
+pg_restore --clean --if-exists -d "$DATABASE_URL" fincava_TIMESTAMP.dump
+```
+
+- `--clean` drops existing objects before recreating them
+- `--if-exists` suppresses errors for missing objects
+- Expected output: some harmless "does not exist" notices are normal
+
+**Step 5 — Verify**
+
+```bash
+# Quick sanity check — should return a row count
+psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM users;"
+psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM suppliers;"
+```
+
+**Step 6 — Restart application and run smoke test**
+
+1. Start the deployment in Replit dashboard
+2. `GET https://fincava.com/api/healthz` → `{ "status": "ok", "db": "ok" }`
+3. Log in as admin — confirm supplier list loads
+
+**Step 7 — Clean up**
+
+```bash
+rm fincava_TIMESTAMP.dump
+```
+
+**Post-restore:** document the incident (date, which backup used, reason) in the deal tracker incident log.
+
+---
+
 **Verification (weekly):**
-- Admin > Backup — confirm last run timestamp is from today or yesterday
+- Check cron-job.org dashboard — confirm last execution succeeded
+- `GET /api/admin/backup/list` — confirm newest backup is from today or yesterday
 
 ---
 
@@ -1388,6 +1488,7 @@ All URLs use the production domain `https://fincava.com`.
 | Health check | GET | `/api/health` |
 | Deep health check | GET | `/api/healthz` |
 | Trigger backup | POST | `/api/admin/backup/run` |
+| List backups | GET | `/api/admin/backup/list` |
 
 All `/api/admin/*` endpoints require an active ADMIN session cookie.
 
