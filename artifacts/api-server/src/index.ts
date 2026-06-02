@@ -1,3 +1,17 @@
+// ── Sentry — must initialise before any other imports execute ─────────────────
+import * as Sentry from "@sentry/node";
+if (process.env["SENTRY_DSN"]) {
+  Sentry.init({
+    dsn: process.env["SENTRY_DSN"],
+    release: process.env["APP_VERSION"],
+    environment: process.env["NODE_ENV"] ?? "development",
+    tracesSampleRate: 0, // No performance tracing at Phase I
+  });
+  // Expose on globalThis so existing pipeline shims activate automatically
+  // (onboard-pipeline.ts, scoring-service.ts already call globalThis.Sentry?.captureException)
+  (globalThis as any).Sentry = Sentry;
+}
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminAccounts } from "./lib/seed";

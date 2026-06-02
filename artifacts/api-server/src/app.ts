@@ -110,6 +110,7 @@ app.use("/api", router);
 
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   logger.error({ err }, "Unhandled error");
+  try { (globalThis as any).Sentry?.captureException?.(err); } catch {}
   const status = err.status ?? err.statusCode ?? 500;
   const message = err.expose ? err.message : "Internal server error";
   res.status(status).json({ error: message });
