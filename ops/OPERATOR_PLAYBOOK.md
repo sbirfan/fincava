@@ -1240,7 +1240,7 @@ For urgent cases (buyer waiting): use manual transition to `SELLABLE` with justi
 2. Send this request (using a tool like Postman or curl in Appendix A):
    ```
    POST https://fincava.com/api/admin/backup/run
-   Header: Authorization: Bearer [BACKUP_SECRET_V2 value]
+   Header: X-Backup-Token: [BACKUP_SECRET_V2 value]
    ```
 3. If it errors: contact Irfan — do not proceed with schema-changing deployments until backup is confirmed
 
@@ -1493,7 +1493,7 @@ curl https://fincava.com/api/health
 
 # Trigger manual backup (replace TOKEN with BACKUP_SECRET_V2 value)
 curl -X POST https://fincava.com/api/admin/backup/run \
-  -H "Authorization: Bearer TOKEN"
+  -H "X-Backup-Token: TOKEN"
 
 # Score a supplier (replace ID and SESSION with real values)
 curl -X POST https://fincava.com/api/admin/suppliers/ID/score \
