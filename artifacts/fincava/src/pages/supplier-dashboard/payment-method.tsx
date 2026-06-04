@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { Wallet, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Preferred = "NEQUI" | "BANK_TRANSFER";
 type IdType = "CC" | "NIT" | "CE";
@@ -101,147 +106,150 @@ export default function SupplierPaymentMethod() {
     <div className="max-w-xl space-y-6">
       <div>
         <div className="flex items-center gap-3">
-          <Wallet className="h-6 w-6 text-emerald-400" />
-          <h1 className="text-2xl font-bold text-white">Método de Pago</h1>
+          <Wallet className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold">Método de Pago</h1>
         </div>
-        <p className="text-white/50 mt-1 text-sm">
+        <p className="text-muted-foreground mt-1 text-sm">
           Configura cómo quieres recibir el pago cuando se cierre un trato. Fincava usará estos datos para transferirte los fondos.
         </p>
       </div>
 
       {/* Status badge */}
-      <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg border ${isConfigured ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300" : "bg-amber-500/10 border-amber-500/20 text-amber-300"}`}>
+      <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg border ${isConfigured ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
         {isConfigured
-          ? <><CheckCircle2 className="h-4 w-4" /> Configurado — {existing.preferred === "NEQUI" ? `Nequi ${existing.nequiPhone}` : `${existing.bankName} · ${existing.bankAccountNumber}`}</>
-          : <><AlertCircle className="h-4 w-4" /> Sin configurar — por favor configura tu método de pago para recibir fondos.</>}
+          ? <><CheckCircle2 className="h-4 w-4 shrink-0" /> Configurado — {existing.preferred === "NEQUI" ? `Nequi ${existing.nequiPhone}` : `${existing.bankName} · ${existing.bankAccountNumber}`}</>
+          : <><AlertCircle className="h-4 w-4 shrink-0" /> Sin configurar — por favor configura tu método de pago para recibir fondos.</>}
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-white/40 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Cargando…</div>
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+        </div>
       ) : (
-        <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-6">
-          {/* Method toggle */}
-          <div>
-            <label className="block text-xs text-white/40 uppercase tracking-wider mb-2">Método preferido</label>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Método preferido</CardTitle>
+            <CardDescription>Selecciona cómo quieres recibir tus pagos</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Method toggle */}
             <div className="flex gap-3">
               {(["NEQUI", "BANK_TRANSFER"] as Preferred[]).map((m) => (
                 <button
                   key={m}
                   onClick={() => setPreferred(m)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${preferred === m ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white"}`}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${preferred === m ? "bg-primary/10 text-primary border-primary/30" : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"}`}
                 >
                   {m === "NEQUI" ? "Nequi" : "Transferencia Bancaria"}
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Nequi branch */}
-          {preferred === "NEQUI" && (
-            <div>
-              <label className="block text-sm text-white/70 mb-1">
-                Número de teléfono Nequi <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="tel"
-                value={nequiPhone}
-                onChange={(e) => setNequiPhone(e.target.value)}
-                placeholder="+573001234567"
-                className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
-              />
-              <p className="text-xs text-white/30 mt-1">El número registrado en tu cuenta Nequi (con código de país +57).</p>
-            </div>
-          )}
-
-          {/* Bank transfer branch */}
-          {preferred === "BANK_TRANSFER" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-white/70 mb-1">Banco <span className="text-red-400">*</span></label>
-                  <select
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-[#0a140e] text-white px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
-                  >
-                    <option value="">Seleccionar banco…</option>
-                    {COLOMBIAN_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-white/70 mb-1">Tipo de cuenta</label>
-                  <select
-                    value={bankAccountType}
-                    onChange={(e) => setBankAccountType(e.target.value as AccountType)}
-                    className="w-full rounded-lg border border-white/10 bg-[#0a140e] text-white px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
-                  >
-                    <option value="AHORROS">Ahorros</option>
-                    <option value="CORRIENTE">Corriente</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-white/70 mb-1">Número de cuenta <span className="text-red-400">*</span></label>
-                <input
-                  type="text"
-                  value={bankAccountNumber}
-                  onChange={(e) => setBankAccountNumber(e.target.value)}
-                  placeholder="000-000000-00"
-                  className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
+            {/* Nequi branch */}
+            {preferred === "NEQUI" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="nequiPhone">
+                  Número de teléfono Nequi <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="nequiPhone"
+                  type="tel"
+                  value={nequiPhone}
+                  onChange={(e) => setNequiPhone(e.target.value)}
+                  placeholder="+573001234567"
                 />
+                <p className="text-xs text-muted-foreground">El número registrado en tu cuenta Nequi (con código de país +57).</p>
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm text-white/70 mb-1">Nombre del titular</label>
-                <input
-                  type="text"
-                  value={bankHolderName}
-                  onChange={(e) => setBankHolderName(e.target.value)}
-                  placeholder="Nombre completo del titular"
-                  className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-white/70 mb-1">Tipo de documento</label>
-                  <select
-                    value={bankHolderIdType}
-                    onChange={(e) => setBankHolderIdType(e.target.value as IdType)}
-                    className="w-full rounded-lg border border-white/10 bg-[#0a140e] text-white px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
-                  >
-                    <option value="CC">Cédula de Ciudadanía (CC)</option>
-                    <option value="NIT">NIT</option>
-                    <option value="CE">Cédula de Extranjería (CE)</option>
-                  </select>
+            {/* Bank transfer branch */}
+            {preferred === "BANK_TRANSFER" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankName">Banco <span className="text-destructive">*</span></Label>
+                    <Select value={bankName} onValueChange={setBankName}>
+                      <SelectTrigger id="bankName">
+                        <SelectValue placeholder="Seleccionar banco…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLOMBIAN_BANKS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankAccountType">Tipo de cuenta</Label>
+                    <Select value={bankAccountType} onValueChange={(v) => setBankAccountType(v as AccountType)}>
+                      <SelectTrigger id="bankAccountType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="AHORROS">Ahorros</SelectItem>
+                        <SelectItem value="CORRIENTE">Corriente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm text-white/70 mb-1">Número de documento</label>
-                  <input
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="bankAccountNumber">Número de cuenta <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="bankAccountNumber"
                     type="text"
-                    value={bankHolderId}
-                    onChange={(e) => setBankHolderId(e.target.value)}
-                    placeholder="1234567890"
-                    className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
+                    value={bankAccountNumber}
+                    onChange={(e) => setBankAccountNumber(e.target.value)}
+                    placeholder="000-000000-00"
                   />
                 </div>
-              </div>
-            </div>
-          )}
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
-            {isConfigured ? "Actualizar método de pago" : "Guardar método de pago"}
-          </button>
-        </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="bankHolderName">Nombre del titular</Label>
+                  <Input
+                    id="bankHolderName"
+                    type="text"
+                    value={bankHolderName}
+                    onChange={(e) => setBankHolderName(e.target.value)}
+                    placeholder="Nombre completo del titular"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankHolderIdType">Tipo de documento</Label>
+                    <Select value={bankHolderIdType} onValueChange={(v) => setBankHolderIdType(v as IdType)}>
+                      <SelectTrigger id="bankHolderIdType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CC">Cédula de Ciudadanía (CC)</SelectItem>
+                        <SelectItem value="NIT">NIT</SelectItem>
+                        <SelectItem value="CE">Cédula de Extranjería (CE)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankHolderId">Número de documento</Label>
+                    <Input
+                      id="bankHolderId"
+                      type="text"
+                      value={bankHolderId}
+                      onChange={(e) => setBankHolderId(e.target.value)}
+                      placeholder="1234567890"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Button onClick={handleSave} disabled={saving} className="gap-2">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+              {isConfigured ? "Actualizar método de pago" : "Guardar método de pago"}
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
-      <p className="text-xs text-white/20">
+      <p className="text-xs text-muted-foreground">
         Tus datos de pago son privados y solo son visibles para el equipo de Fincava. Solo se usarán para transferirte los fondos de tus ventas.
       </p>
     </div>
