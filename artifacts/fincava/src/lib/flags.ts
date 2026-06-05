@@ -1,6 +1,7 @@
 // flags.ts — frontend feature flags
 // Mirrors the backend lib/flags.ts contract.
-// All flags default to false; set the corresponding VITE_* env var to "true" or "1" to enable.
+// Most flags default to false; set the corresponding VITE_* env var to "true" or "1" to enable.
+// ENABLE_RETAIL defaults to true (Sprint 3 complete); set VITE_ENABLE_RETAIL="false" to disable.
 
 export const ENABLE_TRANSACTIONS: boolean =
   import.meta.env.VITE_ENABLE_TRANSACTIONS === "true" ||
@@ -14,7 +15,7 @@ export const ENABLE_LOGISTICS: boolean =
   import.meta.env.VITE_ENABLE_LOGISTICS === "true" ||
   import.meta.env.VITE_ENABLE_LOGISTICS === "1";
 
-/** Layer IV — retail storefront (domestic Colombian catalog + checkout). */
+/** Layer IV — retail storefront (domestic Colombian catalog + checkout).
+ *  Defaults ON — Sprint 3 complete and live. Set VITE_ENABLE_RETAIL=false to kill-switch. */
 export const ENABLE_RETAIL: boolean =
-  import.meta.env.VITE_ENABLE_RETAIL === "true" ||
-  import.meta.env.VITE_ENABLE_RETAIL === "1";
+  import.meta.env.VITE_ENABLE_RETAIL !== "false";
