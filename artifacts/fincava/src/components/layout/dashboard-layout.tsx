@@ -71,7 +71,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     { name: 'Performance', href: `${basePath}/performance`, icon: BarChart2, hidden: true },
     // AI Assistant link hidden until full production release. Route still exists at `${basePath}/ai-assistant`.
     { name: 'Company Profile', href: `${basePath}/profile`, icon: User },
-    { name: 'Método de Pago', href: `${basePath}/payment-method`, icon: Wallet },
+    { name: 'Payment Method', href: `${basePath}/payment-method`, icon: Wallet },
   ] : [
     { name: 'Overview', href: basePath, icon: LayoutDashboard },
     { name: 'My RFQs', href: `${basePath}/rfqs`, icon: FileQuestion },
