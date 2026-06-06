@@ -39,7 +39,155 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+### FIN-042 — Automated DB backup scheduler
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Added a daily Replit cron job to `POST /api/admin/backup/run` at 03:00 UTC (22:00 COT). Uses `BACKUP_SECRET_V2` from Replit Secrets for auth. The backup service already handled pg_dump, object storage upload, and 7-backup retention — this adds the missing schedule trigger.
+
+**Files:**  
+- `.replit` — added `[[cron]]` entry: `daily-db-backup`, schedule `0 3 * * *`
+
+**Validation:**  
+- [x] Cron entry added to `.replit`
+- [ ] First scheduled run at 03:00 UTC — verify `[cron] backup ok` in Replit logs
+- [ ] `GET /api/admin/backup/list` shows a new entry < 25h old next morning
+
+**Rollback:** Remove the `[[cron]]` block from `.replit`.
+
+---
+
+### FIN-011 — Operator playbook *(draft)*
+
+**Status:** Draft completed  
+**Completed by:** Claude Code + founder approval  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Created `docs/runbooks/OPERATOR_PLAYBOOK.md` — the single operator reference covering daily triage, the full supplier pipeline (onboard → score → graduate → publish), compliance queue, RFQ triage, introduction SOP, stuck supplier recovery, company/supplier linking, deploy ritual, feature flags, backup procedures, and secrets reference.
+
+**Files:**  
+- `docs/runbooks/OPERATOR_PLAYBOOK.md` — new file (~280 lines)
+
+**Validation:**  
+- [x] Document covers all Phase A operator workflows
+- [ ] Founder reads and confirms accuracy against actual Replit UI
+- [ ] Update after FIN-023 (compliance gate fix) and FIN-019 (AI gap writeback) land
+
+**Rollback:** N/A — documentation only.
+
+---
+
+## 2026-06-01
+
+### FIN-035 — Shallow health check (no DB probe)
+
+**Status:** Completed  
+**Completed by:** Founder (commit 4a6c482)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+`/healthz` and `/health` now execute `SELECT 1` against the DB and return `503 { status: "degraded", db: "error" }` if the probe fails. Previously the endpoint returned 200 regardless of DB state.
+
+**Files:**  
+- `artifacts/api-server/src/routes/health.ts` — added `dbPing()` function; both routes return 503 on failure
+
+**Validation:**  
+- [x] `GET /api/healthz` returns `200 { status: "ok", db: "ok" }` when DB is reachable
+- [x] Returns `503` when DB is unreachable (confirmed by code inspection 2026-06-06)
+
+**Rollback:** N/A — health check is non-destructive.
+
+---
+
+### FIN-004 — Contact form has no backend
+
+**Status:** Completed  
+**Completed by:** Founder (commit 56c27d5)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+`POST /api/contact` implemented in `contact.ts` — validates name/email/phone/company/message via Zod, sends formatted email via Resend to the operator inbox. Frontend `contact.tsx` already submits to `/api/contact`. Submissions no longer go to `console.log` only.
+
+**Files:**  
+- `artifacts/api-server/src/routes/contact.ts` — new route with Zod validation + Resend email dispatch
+
+**Validation:**  
+- [x] Route mounted at `/api/contact` — confirmed in `index.ts`
+- [x] Frontend submits to `/api/contact` — confirmed in `contact.tsx`
+- [ ] Live end-to-end: submit contact form in production; confirm email arrives in operator inbox
+
+**Rollback:** N/A — additive route; removing it only silences submissions.
+
+---
+
+### FIN-036 — No error monitoring or alerting
+
+**Status:** Completed (code) — pending secret activation  
+**Completed by:** Founder (commit 671051c)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Sentry initialised in `instrument.ts` (first import in `index.ts`). Reads `SENTRY_DSN` from env — graceful no-op if not set. `tracesSampleRate: 0` for cost control at Phase I. Existing pipeline services (`onboard-pipeline.ts`, `scoring-service.ts`, `supplier-graduation-service.ts`) already call `globalThis.Sentry?.captureException()` — no changes needed there.
+
+**Files:**  
+- `artifacts/api-server/src/instrument.ts` — Sentry init with env-gated DSN
+
+**Validation:**  
+- [x] Code ships cleanly — no errors when `SENTRY_DSN` is absent
+- [x] `SENTRY_DSN` confirmed in Replit Secrets (2026-06-06)
+- [ ] Trigger a test error in production; confirm it appears in Sentry dashboard
+
+**Rollback:** Remove `SENTRY_DSN` from Replit Secrets — Sentry silently disables itself.
+
+---
+
+### FIN-003 — Officer registration API path bug
+
+**Status:** Completed  
+**Completed by:** Founder (commit 936cf44)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+`officers.ts` had `POST /api/officers/register` as the route path, but the router is already mounted at `/api` in `app.ts` — making the effective path `/api/api/officers/register`. Frontend called `/api/officers/register` → 404. Fixed by removing the `/api` prefix from the route declaration, yielding the correct path.
+
+**Files:**  
+- `artifacts/api-server/src/routes/officers.ts` — changed `/api/officers/register` → `/officers/register`
+
+**Validation:**  
+- [x] Route path corrected — `POST /api/officers/register` now resolves correctly
+- [x] Backfill confirmed by code inspection (2026-06-06)
+
+**Rollback:** N/A — one-character path fix; no data affected.
+
+---
+
 ## 2026-06-06
+
+### FIN-053 — `UPLOAD_TOKEN_SECRET` in `.replit` shared env
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Removed hardcoded `UPLOAD_TOKEN_SECRET` from the committed `.replit` `[userenv.shared]` block. Secret moved to Replit Secrets (inaccessible to anyone with repo access). No behaviour change — `storage.ts` reads from `process.env.UPLOAD_TOKEN_SECRET` as before; upload signing continues to work.
+
+**Files:**  
+- `.replit` — deleted one line from `[userenv.shared]`
+
+**Validation:**  
+- [x] `grep UPLOAD_TOKEN_SECRET .replit` returns nothing
+- [x] Secret confirmed in Replit Secrets by founder
+- [ ] Verify upload flow still works after next Replit deploy (storage.ts logs a warning if the env var is missing — absence of that warning confirms the secret is being read from Secrets correctly)
+
+**Rollback:**  
+Re-add the line to `.replit` — though the value is already in git history, so rotation is preferred if this ever becomes a concern (`openssl rand -hex 32`).
+
+---
 
 ### Observation — graduation-service ESM import failure (6 tests, pre-existing)
 

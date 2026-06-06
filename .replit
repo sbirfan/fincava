@@ -97,3 +97,15 @@ ENABLE_TRANSACTIONS = "true"
 [userenv.production]
 CORS_ORIGIN = "https://fincava.com,https://fincava.replit.app"
 
+<<<<<<< HEAD
+=======
+# ── FIN-042: Automated daily DB backup ───────────────────────────────────────
+# Runs at 03:00 UTC daily (22:00 Colombia / COT).
+# Calls POST /api/admin/backup/run with BACKUP_SECRET_V2 from Replit Secrets.
+# Response is echoed to Replit deployment logs for visibility.
+# Retention policy (7 backups) is enforced inside backup-service.ts.
+[[cron]]
+name    = "daily-db-backup"
+schedule = "0 3 * * *"
+command  = "curl -sf -X POST http://localhost:8080/api/admin/backup/run -H \"x-backup-token: $BACKUP_SECRET_V2\" && echo '[cron] backup ok' || echo '[cron] backup FAILED'"
+>>>>>>> 0e340934aba4504f3e08401dc02a949decfb3100
