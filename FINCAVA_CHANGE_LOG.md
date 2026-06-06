@@ -39,6 +39,27 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+### FIN-040 — Replit ↔ GitHub sync discipline
+
+**Status:** Completed  
+**Completed by:** Founder (process adopted) + Claude Code (documented)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Bidirectional sync discipline documented and adopted. Two change sources: (A) Replit Agent fixes → push to `fincava` → pull locally → ask Claude to sync to `fincava-hub`; (B) local Claude sessions → commit `fincava-hub` → sync to `fincava` → Replit publishes. Both flows documented in `OPERATOR_PLAYBOOK.md` Section 8.
+
+**Files:**  
+- `docs/runbooks/OPERATOR_PLAYBOOK.md` — Section 8 updated with Flow A and Flow B, source-of-truth table, pull-before-work rule
+
+**Validation:**  
+- [x] Process in active use throughout this session (2026-06-06)
+- [x] Both flows documented with exact shell commands
+- [x] Source-of-truth table clarifies which repo owns what
+
+**Rollback:** N/A — process documentation.
+
+---
+
 ### FIN-042 — Automated DB backup scheduler
 
 **Status:** Completed  
@@ -78,6 +99,48 @@ Created `docs/runbooks/OPERATOR_PLAYBOOK.md` — the single operator reference c
 - [ ] Update after FIN-023 (compliance gate fix) and FIN-019 (AI gap writeback) land
 
 **Rollback:** N/A — documentation only.
+
+---
+
+### FIN-023 — `rut_dian` body field vs eligibility gate mismatch
+
+**Status:** Completed  
+**Completed by:** Founder (commit 5046c6e)  
+**Backlog sprint:** Next (Phase B) — shipped early  
+**Backfilled:** 2026-06-06
+
+**Summary:**  
+`has_rut = true` on the onboarding form now seeds a `DIAN_RUT = conditionally_approved` row in `supplierRequirementStatusTable` AND sets `complianceDocsTable.rutDian = true`. Previously the onboarding declaration had no effect on the eligibility gate, leaving suppliers stuck at `NOT_READY` despite declaring they had a RUT.
+
+**Files:**  
+- `artifacts/api-server/src/routes/suppliers.ts` — DIAN_RUT seeding on onboard + update paths
+
+**Validation:**  
+- [x] Code confirmed with `// FIN-023:` comment in suppliers.ts
+- [x] Suppliers declaring `has_rut = true` now advance through the RUT eligibility gate
+
+**Rollback:** Remove the DIAN_RUT seeding block in the onboarding route.
+
+---
+
+### FIN-019 — AI compliance gaps not written back to `compliance_docs`
+
+**Status:** Completed  
+**Completed by:** Founder (commit cb22a9a)  
+**Backlog sprint:** Next (Phase B) — shipped early  
+**Backfilled:** 2026-06-06
+
+**Summary:**  
+After AI scoring, detected compliance gaps are now written back to `complianceDocsTable` boolean fields via a `GAP_TO_COMPLIANCE_FIELD` map in `scoring-service.ts`. Write-back is non-fatal — failure is logged but does not crash scoring. Admin compliance drawer now shows data consistent with the AI graduation gate.
+
+**Files:**  
+- `artifacts/api-server/src/services/scoring-service.ts` — `GAP_TO_COMPLIANCE_FIELD` map + `complianceDocsTable` update after AI scoring
+
+**Validation:**  
+- [x] Code confirmed with `// FIN-019:` comment in scoring-service.ts
+- [x] Write-back covers `DIAN_RUT`, organic cert, and other mapped gap codes
+
+**Rollback:** Remove the write-back block in `scoreSupplier()` — scoring continues, just without the compliance_docs update.
 
 ---
 
@@ -242,6 +305,30 @@ DROP TABLE company_supplier_links;
 DROP TYPE company_supplier_link_type;
 ```
 No existing data affected — purely additive.
+
+---
+
+## 2026-05-06
+
+### FIN-008 — Hardcoded admin alert email on supplier onboard
+
+**Status:** Completed  
+**Completed by:** Founder (commit 5b4094e)  
+**Backlog sprint:** Next (Phase B) — shipped early  
+**Backfilled:** 2026-06-06
+
+**Summary:**  
+`getAdminEmails()` in `email.ts` queries `users` where `role = "ADMIN"` and returns all matching emails dynamically. Onboarding alert now sends to every admin account rather than a single hardcoded address.
+
+**Files:**  
+- `artifacts/api-server/src/lib/email.ts` — added `getAdminEmails()` function
+- `artifacts/api-server/src/routes/suppliers.ts` — onboarding alert calls `getAdminEmails()`
+
+**Validation:**  
+- [x] `getAdminEmails()` confirmed: dynamic DB query, no hardcoded address
+- [x] Suppliers route calls `getAdminEmails()` for new application alerts
+
+**Rollback:** N/A — additive function; removing it only reverts alert recipients.
 
 ---
 

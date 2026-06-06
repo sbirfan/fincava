@@ -25,14 +25,7 @@
 
 ---
 
-### FIN-040 — Replit ↔ GitHub sync discipline
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | First in Phase A sequence; prevents production running stale or divergent code before any other changes ship |
-| **Dependencies** | None |
-| **Expected outcome** | Written deploy ritual adopted: GitHub is source of truth; pre-deploy check (`git fetch` / compare to `origin/main`); no blind Replit pulls; team knows recovery steps from `docs/TAKEOVER_PLAN.md` |
-| **Estimated effort** | Small (process) |
+~~### FIN-040 — Replit ↔ GitHub sync discipline~~ ✅ **Completed 2026-06-06** — see Section 5.
 
 ---
 
@@ -81,36 +74,15 @@
 
 ---
 
-### FIN-023 — `rut_dian` body field vs eligibility gate mismatch
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | First Phase B trust fix; suppliers incorrectly stuck NOT_READY block sellable supply |
-| **Dependencies** | Onboarding route review; deploy via FIN-040 discipline |
-| **Expected outcome** | Onboarding declarations align with `compliance_docs.rutDian`; eligible suppliers can progress through graduation when RUT criteria met |
-| **Estimated effort** | Small |
+~~### FIN-023 — `rut_dian` body field vs eligibility gate mismatch~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
-### FIN-019 — AI compliance gaps not written back to `compliance_docs`
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Core trust credibility; follows FIN-023 in Phase B sequence |
-| **Dependencies** | FIN-023 (cleaner gate inputs); scoring pipeline |
-| **Expected outcome** | After AI scoring, `compliance_docs` booleans reflect AI-verified gaps where policy allows; admin drawer shows data consistent with graduation gate |
-| **Estimated effort** | Small–Medium |
+~~### FIN-019 — AI compliance gaps not written back to `compliance_docs`~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
-### FIN-008 — Hardcoded admin alert email on supplier onboard
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Phase B ops; faster supplier application review |
-| **Dependencies** | `ADMIN_EMAIL` env var in Replit Secrets |
-| **Expected outcome** | New supplier applications alert configurable operator address; no hardcoded single mailbox in code |
-| **Estimated effort** | Tiny |
+~~### FIN-008 — Hardcoded admin alert email on supplier onboard~~ ✅ **Completed 2026-05-06** — see Section 5.
 
 ---
 
@@ -346,6 +318,10 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 
 | Completed | FIN ID | Title | Verified outcome (summary) |
 |-----------|--------|-------|----------------------------|
+| 2026-05-06 | FIN-008 | Hardcoded admin alert email | `getAdminEmails()` queries DB for all ADMIN users dynamically. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-023 | `rut_dian` vs eligibility gate mismatch | `has_rut=true` now seeds DIAN_RUT requirement + sets `complianceDocs.rutDian`. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-019 | AI gaps not written back to `compliance_docs` | `GAP_TO_COMPLIANCE_FIELD` map in scoring-service writes back after AI scoring. Backfilled 2026-06-06. |
+| 2026-06-06 | FIN-040 | Replit ↔ GitHub sync discipline | Bidirectional ritual documented in OPERATOR_PLAYBOOK.md §8. Flow A (Replit Agent → fincava → fincava-hub) and Flow B (local dev → fincava-hub → fincava) both covered. Process in active use. |
 | 2026-06-01 | FIN-003 | Officer registration API path bug | Route had `/api` prefix inside a router already mounted at `/api` → double path. Removed prefix. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-004 | Contact form has no backend | `POST /api/contact` wired to Resend; submissions reach operator inbox. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-035 | Shallow health check (no DB probe) | `/healthz` + `/health` both probe DB via `SELECT 1`; return 503 on failure. Backfilled 2026-06-06. |

@@ -289,41 +289,80 @@ primary link automatically demotes the previous one.
 
 ---
 
-## 8. Deploy ritual
+## 8. Deploy ritual (FIN-040)
 
-Follow this every time you push changes to production. (FIN-040)
+There are two change sources. Pick the right flow for where the change originated.
+
+---
+
+### Flow A — Replit Agent made a fix
+
+Use this after a Replit test session where the agent produced changes you want to keep.
 
 ```
-# 1. Confirm local is clean and up to date
-git fetch origin
-git status              # should be clean
-git log origin/main..HEAD  # should be empty (nothing unpushed)
+# 1. In Replit shell — commit and push to fincava (prod repo)
+git add -p                        # review each change before staging
+git commit -m "fix: <description>"
+git push origin main              # Replit → fincava (GitHub)
 
-# 2. Pull latest in both repos
-cd ~/GitHub/fincava-hub && git pull origin main
-cd ~/GitHub/fincava     && git pull origin main
+# 2. On your local machine — pull fincava
+cd ~/GitHub/fincava && git pull origin main
 
-# 3. Run tests locally (if code changed)
-pnpm --filter @workspace/api-server run test
-pnpm --filter @workspace/api-server run typecheck
+# 3. Ask Claude to sync fincava → fincava-hub
+# "sync fincava to fincava-hub" — Claude diffs, copies changed files,
+# commits to fincava-hub, and pushes both repos.
 
-# 4. Push to GitHub (triggers review)
-git push origin main   # from fincava-hub
-# sync to fincava and push
-
-# 5. In Replit — click Publish
-# Replit pulls from GitHub and runs the deploy workflow.
-# Monitor the deploy log for errors.
-
-# 6. Verify post-deploy
+# 4. Verify
 curl https://fincava.replit.app/api/healthz
 # Expected: { "status": "ok", "db": "ok" }
 ```
 
-**If the deploy fails:**
+---
+
+### Flow B — Local dev session (Claude / direct edit)
+
+Use this after a Claude Code session that made changes in fincava-hub.
+
+```
+# Claude handles steps 1–3 automatically:
+# 1. Commits and pushes fincava-hub → GitHub
+# 2. Syncs changed files to fincava
+# 3. Commits and pushes fincava → GitHub
+
+# 4. In Replit — click Publish
+# Replit pulls from fincava (GitHub) and applies the deploy workflow.
+# Monitor the deploy log for errors.
+
+# 5. Verify post-deploy
+curl https://fincava.replit.app/api/healthz
+# Expected: { "status": "ok", "db": "ok" }
+```
+
+---
+
+### Source of truth summary
+
+| Repo | Role | Who writes to it |
+|------|------|-----------------|
+| `fincava-hub` | Pre-prod / Cloudflare / local dev | Claude Code sessions |
+| `fincava` | Production / Replit | Replit Agent fixes; synced from fincava-hub |
+
+**Rule:** Always pull before you start work. Whoever touched code last pushes first.
+
+```
+# Start of any local dev session
+cd ~/GitHub/fincava-hub && git pull origin main
+cd ~/GitHub/fincava     && git pull origin main
+```
+
+---
+
+### If the deploy fails
+
 - Check Replit deploy log for the error
-- If DB migration failed: inspect `drizzle.__drizzle_migrations` table
-- Rollback: revert the commit in GitHub and re-publish
+- If DB migration failed: inspect `drizzle.__drizzle_migrations` table —
+  look for a row with no `finished_at`
+- Rollback: revert the commit in GitHub → re-publish
 
 ---
 
