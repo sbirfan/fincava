@@ -25,14 +25,7 @@
 
 ---
 
-### FIN-040 — Replit ↔ GitHub sync discipline
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | First in Phase A sequence; prevents production running stale or divergent code before any other changes ship |
-| **Dependencies** | None |
-| **Expected outcome** | Written deploy ritual adopted: GitHub is source of truth; pre-deploy check (`git fetch` / compare to `origin/main`); no blind Replit pulls; team knows recovery steps from `docs/TAKEOVER_PLAN.md` |
-| **Estimated effort** | Small (process) |
+~~### FIN-040 — Replit ↔ GitHub sync discipline~~ ✅ **Completed 2026-06-06** — see Section 5.
 
 ---
 
@@ -346,6 +339,7 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 
 | Completed | FIN ID | Title | Verified outcome (summary) |
 |-----------|--------|-------|----------------------------|
+| 2026-06-06 | FIN-040 | Replit ↔ GitHub sync discipline | Bidirectional ritual documented in OPERATOR_PLAYBOOK.md §8. Flow A (Replit Agent → fincava → fincava-hub) and Flow B (local dev → fincava-hub → fincava) both covered. Process in active use. |
 | 2026-06-01 | FIN-003 | Officer registration API path bug | Route had `/api` prefix inside a router already mounted at `/api` → double path. Removed prefix. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-004 | Contact form has no backend | `POST /api/contact` wired to Resend; submissions reach operator inbox. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-035 | Shallow health check (no DB probe) | `/healthz` + `/health` both probe DB via `SELECT 1`; return 503 on failure. Backfilled 2026-06-06. |

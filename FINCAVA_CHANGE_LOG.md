@@ -39,6 +39,27 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+### FIN-040 — Replit ↔ GitHub sync discipline
+
+**Status:** Completed  
+**Completed by:** Founder (process adopted) + Claude Code (documented)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Bidirectional sync discipline documented and adopted. Two change sources: (A) Replit Agent fixes → push to `fincava` → pull locally → ask Claude to sync to `fincava-hub`; (B) local Claude sessions → commit `fincava-hub` → sync to `fincava` → Replit publishes. Both flows documented in `OPERATOR_PLAYBOOK.md` Section 8.
+
+**Files:**  
+- `docs/runbooks/OPERATOR_PLAYBOOK.md` — Section 8 updated with Flow A and Flow B, source-of-truth table, pull-before-work rule
+
+**Validation:**  
+- [x] Process in active use throughout this session (2026-06-06)
+- [x] Both flows documented with exact shell commands
+- [x] Source-of-truth table clarifies which repo owns what
+
+**Rollback:** N/A — process documentation.
+
+---
+
 ### FIN-042 — Automated DB backup scheduler
 
 **Status:** Completed  
