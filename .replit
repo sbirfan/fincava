@@ -96,3 +96,4 @@ ENABLE_TRANSACTIONS = "true"
 
 [userenv.production]
 CORS_ORIGIN = "https://fincava.com,https://fincava.replit.app"
+
