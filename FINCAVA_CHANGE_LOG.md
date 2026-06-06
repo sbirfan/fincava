@@ -144,6 +144,26 @@ After AI scoring, detected compliance gaps are now written back to `complianceDo
 
 ---
 
+### Repo health check — 2026-06-06 (post .replit stabilisation)
+
+**Status:** All 10 checks passed  
+**Verified by:** Founder (Replit shell)
+
+| Check | Result |
+|-------|--------|
+| Git state | ✅ Clean, up to date with origin/main |
+| `.replit` — modules, cron, no secrets | ✅ `modules = ["nodejs-24"]` only; FIN-042 cron present; no `packages` under `[nix]`; `UPLOAD_TOKEN_SECRET` absent |
+| Migration journal — idx 31 + 32 | ✅ `0028_company_supplier_links` and `0032_shiny_wendell_rand` both present |
+| Migration files on disk | ✅ Both `.sql` files present |
+| `0032` idempotency | ✅ `ADD VALUE IF NOT EXISTS 'FOUNDER'` |
+| Key files (admin.ts, test, schema, playbook) | ✅ All present |
+| FIN-001 schema (`linkTypeEnum`, `companySupplierLinksTable`) | ✅ Defined in `companies.ts` |
+| No secrets in committed files | ✅ `UPLOAD_TOKEN_SECRET=` not found in `.replit` |
+| Nix / Node | ✅ Node v24.13.0, no nix errors |
+| App boots — `/api/healthz` | ✅ `{"status":"ok","db":"ok"}` |
+
+---
+
 ## 2026-06-01
 
 ### FIN-035 — Shallow health check (no DB probe)
