@@ -6,6 +6,7 @@ import { ordersTable, orderItemsTable, productsTable, originStoriesTable, staffR
 import { buyerProfilesTable, buyerMatchesTable, buyerGapBriefsTable, buyerAdminActionsTable, marketingCampaignsTable, campaignLogsTable } from "@workspace/db";
 import { supplierIngestionBatchesTable, productPlaceholdersTable, INTERACTION_TYPES, complianceRequirementsTable } from "@workspace/db";
 import { rfqsTable, rfqResponsesTable, inquiriesTable, supplierPaymentMethodsTable } from "@workspace/db";
+import { companySupplierLinksTable } from "@workspace/db";
 import { escalateGap } from "../services/buyer-gap-service";
 import { runMatching as runBuyerMatching, NotFoundError as MatchingNotFoundError } from "../services/buyer-matching-service";
 import { hashPassword } from "../lib/auth";
@@ -193,15 +194,31 @@ router.post("/admin/rfqs/:id/introduce", ...adminOnly, async (req, res): Promise
   }).from(suppliersTable).where(eq(suppliersTable.id, supplierId));
   if (!supplier) { sendError(res, 404, "Supplier not found"); return; }
 
-  // Resolve company (via products → company)
-  const [firstProduct] = await db.select({ companyId: productsTable.companyId, certifications: productsTable.certifications })
-    .from(productsTable).where(and(eq(productsTable.supplierId, supplierId), eq(productsTable.active, true))).limit(1);
-
+  // Resolve supplier email — FIN-001 improved resolution order:
+  // 1. Primary company link (company_supplier_links is_primary=true) → company owner email
+  // 2. Any active product's company → company owner email (legacy path, pre-FIN-001 products)
+  // 3. supplier.userId fallback (web-registered suppliers without a company link)
   let supplierEmail: string | null = null;
   let buyerCompany: string | null = null;
 
-  // Supplier email: prefer the company owner's email, fall back to supplier.userId
-  if (firstProduct?.companyId) {
+  const [primaryLink] = await db
+    .select({ companyUserId: companiesTable.userId })
+    .from(companySupplierLinksTable)
+    .innerJoin(companiesTable, eq(companiesTable.id, companySupplierLinksTable.companyId))
+    .where(and(eq(companySupplierLinksTable.supplierId, supplierId), eq(companySupplierLinksTable.isPrimary, true)))
+    .limit(1);
+
+  if (primaryLink?.companyUserId) {
+    const [companyUser] = await db.select({ email: usersTable.email })
+      .from(usersTable).where(eq(usersTable.id, primaryLink.companyUserId));
+    supplierEmail = companyUser?.email ?? null;
+  }
+
+  // Legacy fallback: resolve via product → company (pre-FIN-001 products without a link)
+  // firstProduct is also used below for certifications — keep it in outer scope.
+  const [firstProduct] = await db.select({ companyId: productsTable.companyId, certifications: productsTable.certifications })
+    .from(productsTable).where(and(eq(productsTable.supplierId, supplierId), eq(productsTable.active, true))).limit(1);
+  if (!supplierEmail && firstProduct?.companyId) {
     const [company] = await db.select({ userId: companiesTable.userId })
       .from(companiesTable).where(eq(companiesTable.id, firstProduct.companyId));
     if (company) {
@@ -210,6 +227,8 @@ router.post("/admin/rfqs/:id/introduce", ...adminOnly, async (req, res): Promise
       supplierEmail = companyUser?.email ?? null;
     }
   }
+
+  // Final fallback: supplier.userId (web-registered suppliers)
   if (!supplierEmail && supplier.userId) {
     const [supUser] = await db.select({ email: usersTable.email })
       .from(usersTable).where(eq(usersTable.id, supplier.userId));
@@ -3198,6 +3217,101 @@ router.post("/admin/seed-compliance-requirements", ...adminOnly, async (_req, re
     alreadyPresent: COMPLIANCE_REQUIREMENTS_SEED.length - inserted,
     total: countAfter,
   });
+});
+
+// ── FIN-001: company_supplier_links CRUD ──────────────────────────────────────
+//
+// These three endpoints let an admin link a supplier record (graduation graph)
+// to a company record (marketplace graph). Supports the cooperative model:
+// one cooperative company → many farmer supplier members.
+
+const createLinkSchema = z.object({
+  companyId: z.number().int().positive(),
+  linkType:  z.enum(["MEMBER", "OWNER", "CONTRACTED"]).default("MEMBER"),
+  isPrimary: z.boolean().default(true),
+  notes:     z.string().max(500).optional(),
+});
+
+// GET /api/admin/suppliers/:id/links — list all company links for a supplier
+router.get("/admin/suppliers/:id/links", ...adminOnly, async (req, res): Promise<void> => {
+  const supplierId = parseInt(req.params.id as string);
+  if (isNaN(supplierId)) { sendError(res, 400, "Invalid supplier id"); return; }
+
+  const links = await db
+    .select({
+      id:        companySupplierLinksTable.id,
+      companyId: companySupplierLinksTable.companyId,
+      companyName: companiesTable.name,
+      companyType: companiesTable.type,
+      linkType:  companySupplierLinksTable.linkType,
+      isPrimary: companySupplierLinksTable.isPrimary,
+      linkedAt:  companySupplierLinksTable.linkedAt,
+      notes:     companySupplierLinksTable.notes,
+    })
+    .from(companySupplierLinksTable)
+    .innerJoin(companiesTable, eq(companiesTable.id, companySupplierLinksTable.companyId))
+    .where(eq(companySupplierLinksTable.supplierId, supplierId))
+    .orderBy(companySupplierLinksTable.isPrimary, companySupplierLinksTable.linkedAt);
+
+  res.json(links);
+});
+
+// POST /api/admin/suppliers/:id/links — create a new company ↔ supplier link
+router.post("/admin/suppliers/:id/links", ...adminOnly, async (req, res): Promise<void> => {
+  const supplierId = parseInt(req.params.id as string);
+  if (isNaN(supplierId)) { sendError(res, 400, "Invalid supplier id"); return; }
+
+  const parsed = createLinkSchema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, 400, parsed.error.message); return; }
+  const { companyId, linkType, isPrimary, notes } = parsed.data;
+
+  const adminId = requesterIdOf(req);
+
+  // Verify supplier and company both exist
+  const [supplier] = await db.select({ id: suppliersTable.id }).from(suppliersTable).where(eq(suppliersTable.id, supplierId));
+  if (!supplier) { sendError(res, 404, "Supplier not found"); return; }
+
+  const [company] = await db.select({ id: companiesTable.id }).from(companiesTable).where(eq(companiesTable.id, companyId));
+  if (!company) { sendError(res, 404, "Company not found"); return; }
+
+  // If this link is primary, demote any existing primary link for this supplier first
+  if (isPrimary) {
+    await db
+      .update(companySupplierLinksTable)
+      .set({ isPrimary: false })
+      .where(and(eq(companySupplierLinksTable.supplierId, supplierId), eq(companySupplierLinksTable.isPrimary, true)));
+  }
+
+  const [link] = await db
+    .insert(companySupplierLinksTable)
+    .values({ companyId, supplierId, linkType, isPrimary, linkedByAdminId: adminId, notes: notes ?? null })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!link) {
+    sendError(res, 409, "A link of this type already exists between this company and supplier");
+    return;
+  }
+
+  logger.info({ event: "COMPANY_SUPPLIER_LINK_CREATED", supplierId, companyId, linkType, isPrimary }, "FIN-001: link created");
+  res.status(201).json(link);
+});
+
+// DELETE /api/admin/suppliers/:id/links/:linkId — remove a link
+router.delete("/admin/suppliers/:id/links/:linkId", ...adminOnly, async (req, res): Promise<void> => {
+  const supplierId = parseInt(req.params.id as string);
+  const linkId     = parseInt(req.params.linkId as string);
+  if (isNaN(supplierId) || isNaN(linkId)) { sendError(res, 400, "Invalid id"); return; }
+
+  const deleted = await db
+    .delete(companySupplierLinksTable)
+    .where(and(eq(companySupplierLinksTable.id, linkId), eq(companySupplierLinksTable.supplierId, supplierId)))
+    .returning({ id: companySupplierLinksTable.id });
+
+  if (!deleted.length) { sendError(res, 404, "Link not found"); return; }
+
+  logger.info({ event: "COMPANY_SUPPLIER_LINK_DELETED", supplierId, linkId }, "FIN-001: link removed");
+  res.json({ success: true });
 });
 
 export default router;

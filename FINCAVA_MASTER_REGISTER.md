@@ -52,7 +52,9 @@
 |-------|-------|
 | **Category** | Architecture |
 | **Priority** | Must Do Now |
+| **Status** | **Resolved — 2026-06-06** |
 | **Description** | Farmer records (`suppliers`) and B2B web accounts (`companies`/`users`) are separate populations connected only by email matching on `my-profile`. No FK exists. |
+| **Resolution** | `company_supplier_links` join table added (migration `0028`). Many-to-many model supports cooperatives natively. Admin CRUD endpoints live at `GET/POST/DELETE /api/admin/suppliers/:id/links`. Introduce route email resolution improved. |
 | **Why it matters** | Breaks product linking, profile completeness, and operator mental model. |
 | **Business impact** | High confusion; manual reconciliation required |
 | **Revenue impact** | Blocks scalable supplier onboarding and listing accuracy |
