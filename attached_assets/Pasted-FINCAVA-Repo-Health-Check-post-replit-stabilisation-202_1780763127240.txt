@@ -1,0 +1,73 @@
+FINCAVA Repo Health Check — post .replit stabilisation (2026-06-06)
+
+Context
+-------
+We've had several git sync issues today involving .replit conflicts and
+a migration (0032_shiny_wendell_rand) that was applied in Replit but not
+reflected in fincava-hub. Everything should now be resolved. This prompt
+verifies the current state of the fincava (prod) repo is clean and healthy.
+
+Run each step in order. Stop and paste output here if anything is unexpected.
+
+Step 1 — Git state
+  git fetch origin
+  git status
+  git log --oneline -8
+  Expected: "nothing to commit, working tree clean", branch up to date with origin/main.
+
+Step 2 — .replit sanity check
+  head -3 .replit
+  grep -n "cron\|modules\|packages\|BACKUP" .replit
+  Expected:
+    Line 1: modules = ["nodejs-24"]   ← only nodejs, no python or postgresql
+    cron section present with daily-db-backup at 0 3 * * *
+    No "packages" line under [nix]
+    BACKUP_SECRET_V2 referenced in cron command
+
+Step 3 — Migration journal check
+  cat lib/db/drizzle/meta/_journal.json | grep '"tag"' | tail -5
+  Expected: last entries include 0028_company_supplier_links (idx 31)
+  and 0032_shiny_wendell_rand (idx 32). If 0032 is missing, flag it.
+
+Step 4 — Migration files present
+  ls lib/db/drizzle/*.sql | tail -5
+  Expected: 0028_company_supplier_links.sql and 0032_shiny_wendell_rand.sql
+  both present.
+
+Step 5 — 0032 migration content check
+  cat lib/db/drizzle/0032_shiny_wendell_rand.sql
+  Expected: contains "IF NOT EXISTS" on the ALTER TYPE line (idempotent).
+  If it says ADD VALUE 'FOUNDER' WITHOUT IF NOT EXISTS — flag it.
+
+Step 6 — Key app files present
+  ls artifacts/api-server/src/routes/admin.ts
+  ls artifacts/api-server/src/test/company-supplier-links.test.ts
+  ls lib/db/src/schema/companies.ts
+  ls docs/runbooks/OPERATOR_PLAYBOOK.md
+  Expected: all four files exist.
+
+Step 7 — Schema contains FIN-001 table
+  grep -n "company_supplier_links\|linkTypeEnum" lib/db/src/schema/companies.ts | head -5
+  Expected: companySupplierLinksTable and linkTypeEnum both defined.
+
+Step 8 — No secrets in committed files
+  grep -rn "UPLOAD_TOKEN_SECRET\s*=" .replit
+  Expected: no output (secret was removed in FIN-053).
+
+Step 9 — Nix environment
+  Confirm the Replit nix environment built successfully after the recent
+  .replit fix (modules = ["nodejs-24"] only).
+  Check: is the shell responsive? Can you run `node --version`?
+  Expected: Node 24.x, no nix build errors.
+
+Step 10 — App boots
+  pnpm --filter @workspace/api-server run dev &
+  sleep 8
+  curl -s http://localhost:8080/api/healthz
+  kill %1
+  Expected: { "status": "ok", "db": "ok" }
+
+Report format
+-------------
+For each step: ✅ pass / ⚠️ unexpected (paste output) / ❌ fail (paste error).
+If all 10 pass, we're clean. If any fail, paste the output and we'll fix it.
