@@ -41,6 +41,28 @@ Copy for each completed `FIN-###` item:
 
 ## 2026-06-06
 
+### FIN-053 — `UPLOAD_TOKEN_SECRET` in `.replit` shared env
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Removed hardcoded `UPLOAD_TOKEN_SECRET` from the committed `.replit` `[userenv.shared]` block. Secret moved to Replit Secrets (inaccessible to anyone with repo access). No behaviour change — `storage.ts` reads from `process.env.UPLOAD_TOKEN_SECRET` as before; upload signing continues to work.
+
+**Files:**  
+- `.replit` — deleted one line from `[userenv.shared]`
+
+**Validation:**  
+- [x] `grep UPLOAD_TOKEN_SECRET .replit` returns nothing
+- [x] Secret confirmed in Replit Secrets by founder
+- [ ] Verify upload flow still works after next Replit deploy (storage.ts logs a warning if the env var is missing — absence of that warning confirms the secret is being read from Secrets correctly)
+
+**Rollback:**  
+Re-add the line to `.replit` — though the value is already in git history, so rotation is preferred if this ever becomes a concern (`openssl rand -hex 32`).
+
+---
+
 ### Observation — graduation-service ESM import failure (6 tests, pre-existing)
 
 **Status:** Known issue — not introduced by FIN-001  

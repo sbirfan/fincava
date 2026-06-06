@@ -47,14 +47,7 @@
 
 ---
 
-### FIN-053 — `UPLOAD_TOKEN_SECRET` in `.replit` shared env
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Must Do Now security; secret exposure in repo config; quick win in Phase A |
-| **Dependencies** | Replit Secrets access |
-| **Expected outcome** | `UPLOAD_TOKEN_SECRET` removed from committed shared env; value lives only in Replit Secrets; uploads still work in production |
-| **Estimated effort** | Tiny |
+~~### FIN-053 — `UPLOAD_TOKEN_SECRET` in `.replit` shared env~~ ✅ **Completed 2026-06-06** — see Section 5.
 
 ---
 
@@ -395,7 +388,8 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 
 | Completed | FIN ID | Title | Verified outcome (summary) |
 |-----------|--------|-------|----------------------------|
-| 2026-06-06 | FIN-001 | Two supplier systems with no database link | `company_supplier_links` join table (migration `0028`) bridges `suppliers` ↔ `companies`. Many-to-many model supports cooperatives. Admin CRUD endpoints shipped. Both repos synced. Typecheck + 185/185 tests passing. Migration pending DB apply. |
+| 2026-06-06 | FIN-001 | Two supplier systems with no database link | `company_supplier_links` join table (migration `0028`) bridges `suppliers` ↔ `companies`. Many-to-many model supports cooperatives. Admin CRUD endpoints shipped. Both repos synced. Typecheck + 199/199 tests passing. Migration applied to dev + prod DB. |
+| 2026-06-06 | FIN-053 | `UPLOAD_TOKEN_SECRET` in `.replit` shared env | Secret removed from committed `.replit`; moved to Replit Secrets. One-line deletion, no behaviour change. |
 
 ---
 
