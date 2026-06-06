@@ -1,0 +1,1 @@
+ALTER TYPE "public"."actor" ADD VALUE IF NOT EXISTS 'FOUNDER';

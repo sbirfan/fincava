@@ -225,6 +225,13 @@
       "when": 1749168000000,
       "tag": "0028_company_supplier_links",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1780757434027,
+      "tag": "0032_shiny_wendell_rand",
+      "breakpoints": true
     }
   ]
 }
