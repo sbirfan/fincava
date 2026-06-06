@@ -83,7 +83,7 @@ Introduced `company_supplier_links` join table bridging the two supplier identit
 - [x] Migration applied to dev DB (Replit) — DDL applied directly; `drizzle-kit generate` confirms no further drift
 - [x] Manual smoke: `POST /admin/suppliers/29/links` → 201; `GET` → 200 with companyName/companyType; `DELETE` → 200 `{success:true}`; second `GET` → `[]`
 - [x] Introduce route: mounted and DB-connected; returns 409 "RFQ closed" (no open RFQs in dev DB — not a FIN-001 regression)
-- [ ] Migration applied to production DB (pending re-publish in Replit)
+- [x] Migration applied to production DB ✅ — publish flow applied `0028` correctly; `company_supplier_links` (8 cols) + `company_supplier_link_type` enum confirmed in prod
 
 **Incidental fixes applied during validation (Replit):**  
 - `0032_shiny_wendell_rand.sql` — changed `ALTER TYPE "public"."actor" ADD VALUE 'FOUNDER'` to `ADD VALUE IF NOT EXISTS 'FOUNDER'` to make it idempotent. `FOUNDER` is an audit-trail actor label (not a login role; `ADMIN` remains the highest auth role) that was already live in the DB but missing from the Drizzle snapshot.
