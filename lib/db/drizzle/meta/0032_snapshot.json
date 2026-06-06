@@ -1,6 +1,6 @@
 {
-  "id": "834e5471-b920-447d-9850-20e0b58afc75",
-  "prevId": "8b2ec2bf-2fa2-429d-ab06-5541806ec6cd",
+  "id": "8b2ec2bf-2fa2-429d-ab06-5541806ec6cd",
+  "prevId": "8c2e3c28-6ed3-4c97-8a8a-58495576698b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7795,8 +7795,7 @@
       "schema": "public",
       "values": [
         "SYSTEM",
-        "ADMIN",
-        "FOUNDER"
+        "ADMIN"
       ]
     }
   },

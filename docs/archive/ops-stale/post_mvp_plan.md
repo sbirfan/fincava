@@ -1,0 +1,213 @@
+# Post-MVP Plan — Structured Platform Evolution
+
+> Purpose: Define controlled evolution of Fincava platform after MVP validation
+> Status: Active
+> Owner: Syed (Irfan) Irfan
+> Last Updated: 2026-04-23
+
+---
+
+## Overview
+
+This document defines the **phased evolution of the platform** after MVP validation.
+
+Each phase:
+
+* Has a clear goal
+* Has strict priorities
+* Builds on previous validated capabilities
+* Prevents premature overbuilding
+
+---
+
+## Phase 2 — System Hardening
+
+### Goal
+
+Make the system **reliable, structured, and repeatable**.
+
+---
+
+### Priorities
+
+#### 1. Onboarding System Redesign
+
+* Structured onboarding schema (typed fields)
+* Progressive onboarding flow
+* Validation rules
+* AI input contract
+* Re-scoring trigger on update
+
+---
+
+#### 2. Supplier Visibility
+
+* Supplier dashboard (read-only)
+* Show:
+
+  * readiness status
+  * evaluation output
+  * gap indicators
+
+---
+
+#### 3. Marketplace Integration
+
+* Surface readiness in marketplace
+* SELLABLE / PUBLISHED signals visible
+
+---
+
+#### 4. Admin Operations
+
+* Onboarding queue
+* Approval pipeline
+* Lifecycle tracking
+
+---
+
+#### 5. Buyer Basics
+
+* Basic buyer profile
+* Minimal filtering
+* Manual matching support
+
+---
+
+## Phase 3 — Intelligence Layer
+
+### Goal
+
+Introduce **structured intelligence**, not full automation.
+
+---
+
+### Priorities
+
+#### 1. AI Knowledge Base
+
+* Export requirements (by product)
+* Compliance rules
+* Cost and timeline estimates
+
+---
+
+#### 2. AI Scoring v2
+
+* Explainable outputs
+* Structured pathways
+* Reduced black-box dependency
+
+---
+
+#### 3. Supplier Guidance
+
+* "Next best actions"
+* Gap resolution recommendations
+
+---
+
+#### 4. Buyer Matching (Initial)
+
+* Rule-based + AI-assisted
+* Not fully automated
+
+---
+
+## Phase 4 — Automation & Scale
+
+### Goal
+
+Reduce dependency on manual operations.
+
+---
+
+### Priorities
+
+#### 1. Job Queue
+
+* Durable async processing
+* Retry + recovery
+
+---
+
+#### 2. Workflow Automation
+
+* Onboarding automation
+* Approval flows
+* Notifications
+
+---
+
+#### 3. CRM Layer
+
+* Buyer tracking
+* Supplier tracking
+* Interaction history
+
+---
+
+## Phase 5 — Growth Engine
+
+### Goal
+
+Scale supply and demand intelligently.
+
+---
+
+### Priorities
+
+#### 1. Buyer Discovery
+
+* External data scanning
+* Lead identification
+
+---
+
+#### 2. Outreach Automation
+
+* Email generation
+* Campaign execution
+
+---
+
+#### 3. Market Intelligence
+
+* Demand signals
+* Pricing trends
+* Forecasting
+
+---
+
+## Phase 6 — AI-Native Platform
+
+### Goal
+
+Transition into **intelligent coordination system**
+
+---
+
+### Capabilities
+
+* AI agents (specialized roles)
+* Decision engine ("AI brain")
+* Continuous learning loops
+* Predictive scoring
+* Dynamic matching
+
+---
+
+## Execution Rules
+
+* No phase work begins without prior phase validation
+* MVP validation must be complete before Phase 2 expansion
+* Features must not skip phases
+* Every feature must have:
+
+  * Phase assignment
+  * Trigger condition
+  * Dependency chain
+
+---
+
+END

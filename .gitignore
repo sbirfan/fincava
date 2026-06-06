@@ -47,3 +47,16 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+artifacts/**/.env
+artifacts/**/.env.local
+
+# Auto-generated files — rebuilt on demand
+artifacts/mockup-sandbox/src/.generated/
