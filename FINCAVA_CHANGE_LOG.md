@@ -39,6 +39,111 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+### FIN-011 — Operator playbook *(final)*
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval  
+**Backlog sprint:** Next (Phase B) — finalised 2026-06-06
+
+**Summary:**  
+Playbook upgraded from Draft to Final. The FIN-023 "pending" note in Section 3 was removed (FIN-023 shipped 2026-06-01). Phase C tooling (FIN-009 email alerts, FIN-010 open-introductions endpoint, FIN-033 batch-confirm auto-scoring, FIN-006 introduce endpoint) documented in relevant sections. Status header updated.
+
+**Files:**  
+- `docs/runbooks/OPERATOR_PLAYBOOK.md` — status Draft → Final; §3 compliance note corrected; §4/§5 updated with FIN-010 endpoint and FIN-009 email context
+
+**Validation:**  
+- [x] Document reflects all shipped Phase A, B, and C workflows
+- [x] No stale "pending" notes for completed FIN items
+- [x] Playbook consistent with actual endpoints in `admin.ts`, `rfqs.ts`, `inquiries.ts`
+
+**Rollback:** N/A — documentation only.
+
+---
+
+### FIN-009 — Email notifications on new RFQ/inquiry *(backfill)*
+
+**Status:** Completed (shipped 2026-06-01; backfilled 2026-06-06)  
+**Completed by:** Founder (pre-existing implementation)  
+**Backlog sprint:** Future (Phase C)
+
+**Summary:**  
+RFQ creation fires `newRfqAdminAlertEmail` to all ADMIN users via `getAdminEmails()`. Inquiry creation fires `newInquiryEmail` to the matched supplier and `newInquiryAdminAlertEmail` to all admins. Both use fire-and-forget async; failures are logged, not thrown.
+
+**Files:**  
+- `artifacts/api-server/src/routes/rfqs.ts` — `newRfqAdminAlertEmail` on `POST /api/rfqs`
+- `artifacts/api-server/src/routes/inquiries.ts` — `newInquiryEmail` + `newInquiryAdminAlertEmail` on `POST /api/inquiries`
+
+**Validation:**  
+- [x] `sendEmail` + email helpers imported and called in both routes
+- [x] Admin alert goes to all admin users (dynamic via `getAdminEmails()`)
+- [x] Supplier notification sent on inquiry creation
+
+**Rollback:** Remove the fire-and-forget email blocks from each route; no schema change.
+
+---
+
+### FIN-010 — Admin "open introductions" dashboard *(backfill)*
+
+**Status:** Completed (shipped 2026-06-01; backfilled 2026-06-06)  
+**Completed by:** Founder (pre-existing implementation)  
+**Backlog sprint:** Future (Phase C)
+
+**Summary:**  
+`GET /api/admin/open-introductions` (commented `FIN-010` in source) returns RFQs and inquiries awaiting founder action. Provides the single triage view needed for daily concierge operations.
+
+**Files:**  
+- `artifacts/api-server/src/routes/admin.ts` — route at line 88, tagged `FIN-010`
+
+**Validation:**  
+- [x] Route exists and is protected by `adminOnly` middleware
+- [x] Referenced in operator playbook §4 triage flow
+
+**Rollback:** Remove the route from `admin.ts`.
+
+---
+
+### FIN-033 — Batch confirm auto-triggers scoring *(backfill)*
+
+**Status:** Completed (shipped 2026-06-01; backfilled 2026-06-06)  
+**Completed by:** Founder (pre-existing implementation)  
+**Backlog sprint:** Future (Phase C, optional)
+
+**Summary:**  
+The `POST /api/admin/ingestion/batch-confirm` handler calls `runOnboardPipeline()` for each confirmed supplier — emitting the post-onboard event if a listener exists, or running the pipeline directly otherwise. No separate "Score Now" click needed after batch confirmation.
+
+**Files:**  
+- `artifacts/api-server/src/routes/admin.ts` — lines 2763–2774, `runOnboardPipeline` call in batch-confirm loop
+
+**Validation:**  
+- [x] `import { runOnboardPipeline }` at top of admin.ts
+- [x] Pipeline triggered for every successfully confirmed supplier in the batch
+
+**Rollback:** Remove the `runOnboardPipeline` call from the batch-confirm loop; no schema change.
+
+---
+
+### FIN-006 — Concierge introduction workflow *(backfill)*
+
+**Status:** Completed (shipped pre-session; backfilled 2026-06-06)  
+**Completed by:** Founder (pre-existing implementation)  
+**Backlog sprint:** Future (Phase C)
+
+**Summary:**  
+`POST /api/admin/rfqs/:id/introduce` sends a bilingual introduction email to both buyer and supplier. Email resolution order: (1) supplier's primary company link → company owner email; (2) legacy product company; (3) `supplier.userId` email. Operator playbook §5 documents the full introduction SOP including matching, triggering the endpoint, and follow-up cadence.
+
+**Files:**  
+- `artifacts/api-server/src/routes/admin.ts` — introduce route at line 163; `introductionEmail` imported from `../lib/email`
+- `docs/runbooks/OPERATOR_PLAYBOOK.md` — §5 Introduction SOP
+
+**Validation:**  
+- [x] Route exists and guarded by `adminOnly`
+- [x] `introductionEmail` helper confirmed imported in admin.ts
+- [x] Email resolution order documented in playbook and verified against code
+
+**Rollback:** Remove the introduce route; no schema change.
+
+---
+
 ### FIN-040 — Replit ↔ GitHub sync discipline
 
 **Status:** Completed  

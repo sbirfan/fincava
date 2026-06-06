@@ -2,7 +2,7 @@
 
 **Audience:** Founder / solo operator  
 **Updated:** 2026-06-06  
-**Status:** Draft (FIN-011 Phase A) — finalise after FIN-023 and FIN-019 land
+**Status:** Final (FIN-011 closed)
 
 This is the single reference for running FINCAVA day-to-day. Every manual
 step, every admin endpoint, and every flag is documented here.
@@ -137,10 +137,10 @@ surfaced by the AI scoring pipeline.
 | Organic cert | `compliance_docs.organicCert` | Certifying body + expiry |
 | Phytosanitary | `compliance_docs.phytosanitary` | Valid certificate |
 
-> **Note (FIN-023 pending):** The `rut_dian` declaration in the onboarding
-> form does not yet align with the `compliance_docs.rutDian` gate. Until
-> FIN-023 lands, manually verify RUT status in the supplier drawer rather
-> than relying solely on the onboarding declaration.
+> **Note:** FIN-023 shipped 2026-06-01. `has_rut=true` in the onboarding form
+> now seeds the `DIAN_RUT` compliance requirement and sets `complianceDocs.rutDian`
+> automatically. The `compliance_docs.rutDian` gate reflects the onboarding
+> declaration accurately.
 
 ---
 
@@ -157,22 +157,26 @@ Buyers submit RFQs via the platform. Each RFQ has a status:
 | `AWARDED` | Buyer selected a supplier response |
 | `CLOSED` | Expired or cancelled |
 
-**Daily check:**
+**Unified open-introductions view (FIN-010):**
 ```
-GET /api/rfqs  (or admin UI → RFQs tab)
-Filter: status = OPEN
+GET /api/admin/open-introductions
 ```
+Returns all open RFQs and inquiries awaiting founder action in one call.
+Use the admin UI triage view or call directly.
 
-For each open RFQ, identify the best-matched supplier(s) and proceed to
-[Section 5](#5-introduction-sop).
-
-### Inquiries
-
-Direct buyer inquiries (not full RFQs):
+**Or per-type:**
 ```
+GET /api/rfqs             (admin UI → RFQs tab, filter status = OPEN)
 GET /api/admin/inquiries  (admin UI → Inquiries tab)
 ```
-Same triage: identify supplier, make introduction.
+
+> **FIN-009:** When a buyer submits a new RFQ or inquiry, you receive an
+> automatic admin alert email (sent to all ADMIN accounts via `getAdminEmails()`).
+> The supplier also receives a notification email on new inquiries. These are
+> fire-and-forget — check Sentry if you suspect email delivery failures.
+
+For each open item, identify the best-matched supplier and proceed to
+[Section 5](#5-introduction-sop).
 
 ---
 
@@ -453,5 +457,6 @@ Secrets → re-publish → verify healthz.
 ---
 
 *This playbook is a living document. Update it whenever a FIN item changes
-an operator-facing flow. Next scheduled update: after FIN-023 (compliance
-gate fix) and FIN-019 (AI gap writeback) land in Phase B.*
+an operator-facing flow. All Phase A, B, and C workflows are reflected as of
+2026-06-06. Next review: before first live transaction or when a new FIN item
+changes an operator-facing flow.*

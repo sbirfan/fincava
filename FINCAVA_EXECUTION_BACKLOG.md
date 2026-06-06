@@ -63,14 +63,7 @@
 
 ---
 
-### FIN-011 — Operator playbook documentation *(finalize phase)*
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Phase B completion of same register item; adds graduation, compliance PATCH, and introduction SOP detail after trust fixes land |
-| **Dependencies** | Current Sprint draft; FIN-023 and FIN-019 outcomes reflected in doc |
-| **Expected outcome** | **Final** playbook is single operator reference: ingestion, compliance queue, introduction handoff, env/flag deploy checklist (FIN-096), stuck-supplier recovery |
-| **Estimated effort** | Small |
+~~### FIN-011 — Operator playbook documentation *(finalize phase)*~~ ✅ **Completed 2026-06-06** — see Section 5.
 
 ---
 
@@ -93,47 +86,19 @@
 
 ---
 
-### FIN-009 — Email notifications on new RFQ/inquiry
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Phase C revenue loop; faster response without dashboard polling |
-| **Dependencies** | FIN-011 finalize (introduction SOP); Resend templates |
-| **Expected outcome** | Operator and/or supplier receive email when buyer creates RFQ or inquiry; measurable reduction in time-to-first-response |
-| **Estimated effort** | Small |
+~~### FIN-009 — Email notifications on new RFQ/inquiry~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
-### FIN-010 — Admin "open introductions" dashboard
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Phase C capstone for concierge revenue path; depends on operator process from FIN-011 |
-| **Dependencies** | FIN-011 (finalize); FIN-009 (optional but recommended first for parity) |
-| **Expected outcome** | Single admin view lists open RFQs, inquiries, and items awaiting founder action; supports daily concierge triage |
-| **Estimated effort** | Medium |
+~~### FIN-010 — Admin “open introductions” dashboard~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
-### FIN-033 — Ingestion batch confirm does not auto-trigger scoring (G9)
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Optional Phase C if engineering capacity; reduces manual “Score Now” after ingestion |
-| **Dependencies** | Stable scoring pipeline (FIN-019); FIN-037 not required for hook-only approach |
-| **Expected outcome** | Confirming ingestion batch triggers onboard/scoring pipeline without separate admin click |
-| **Estimated effort** | Small |
+~~### FIN-033 — Ingestion batch confirm does not auto-trigger scoring (G9)~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
-### FIN-006 — Concierge introduction workflow not operator-optimized
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Revenue dashboard #1; largely addressed by FIN-011 + FIN-010; closure item after Phase C tooling |
-| **Dependencies** | FIN-010; FIN-011 |
-| **Expected outcome** | Founder runs introductions from one queue with documented SLA; no multi-page hunting for open deals |
-| **Estimated effort** | Small (process validation; tooling via FIN-010) |
+~~### FIN-006 — Concierge introduction workflow not operator-optimized~~ ✅ **Completed 2026-06-06** — see Section 5.
 
 ---
 
@@ -330,6 +295,11 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 | 2026-06-06 | FIN-011 | Operator playbook (draft) | `docs/runbooks/OPERATOR_PLAYBOOK.md` created — full supplier pipeline, compliance, RFQ, intro SOP, deploy ritual, flags, backup, secrets. Finalise after FIN-023/019. |
 | 2026-06-06 | FIN-001 | Two supplier systems with no database link | `company_supplier_links` join table (migration `0028`) bridges `suppliers` ↔ `companies`. Many-to-many model supports cooperatives. Admin CRUD endpoints shipped. Both repos synced. Typecheck + 199/199 tests passing. Migration applied to dev + prod DB. |
 | 2026-06-06 | FIN-053 | `UPLOAD_TOKEN_SECRET` in `.replit` shared env | Secret removed from committed `.replit`; moved to Replit Secrets. One-line deletion, no behaviour change. |
+| 2026-06-01 | FIN-009 | Email notifications on new RFQ/inquiry | `rfqs.ts` sends `newRfqAdminAlertEmail` to all admin users on RFQ creation; `inquiries.ts` sends `newInquiryEmail` to supplier + `newInquiryAdminAlertEmail` to admins. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-010 | Admin "open introductions" dashboard | `GET /api/admin/open-introductions` endpoint exists in `admin.ts` (tagged FIN-010). Lists open RFQs/inquiries awaiting founder action. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-033 | Ingestion batch confirm auto-triggers scoring | `batch-confirm` handler calls `runOnboardPipeline()` after confirming each supplier — no separate "Score Now" click needed. Backfilled 2026-06-06. |
+| 2026-06-06 | FIN-011 | Operator playbook (final) | `OPERATOR_PLAYBOOK.md` finalised — status updated to Final; FIN-023/019 compliance note corrected (both shipped 2026-06-01); Phase C tools (FIN-009/010/033/006) added to relevant sections. |
+| 2026-06-06 | FIN-006 | Concierge introduction workflow | `POST /api/admin/rfqs/:id/introduce` sends bilingual intro email to buyer + supplier. One-queue intro flow documented in OPERATOR_PLAYBOOK.md §5. Closed after Phase C tooling verified. |
 
 ---
 
