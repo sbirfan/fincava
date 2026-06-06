@@ -17,21 +17,23 @@ import {
 } from "../services/gap-analysis-service";
 
 // ── DB mock (computeEligibility is now async + DB-dependent) ──────────────────
+// Do NOT use importOriginal — it loads the real module and triggers the
+// DATABASE_URL check before the mock can intercept it.
+// Do NOT use require() inside helpers — the package is ESM-typed and require
+// triggers a directory import error. Import db here; vitest gives us the mock.
 
-vi.mock("@workspace/db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@workspace/db")>();
-  return {
-    ...actual,
-    db: {
-      select: vi.fn(),
-    },
-  };
-});
+vi.mock("@workspace/db", () => ({
+  db: {
+    select: vi.fn(),
+  },
+  supplierRequirementStatusTable: {},
+}));
+
+import { db } from "@workspace/db";
 
 // selectMock helper — configures the db.select() chain for a given rows result.
 // Each call to computeEligibility does: db.select({...}).from(...).where(...)
 function mockDbRows(rows: { requirementCode: string; state: string }[]) {
-  const { db } = require("@workspace/db");
   const chain = { from: vi.fn() };
   chain.from.mockReturnValue({ where: vi.fn().mockResolvedValue(rows) });
   (db.select as ReturnType<typeof vi.fn>).mockReturnValue(chain);
