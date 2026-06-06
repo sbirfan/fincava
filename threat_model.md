@@ -56,3 +56,47 @@ Public and authenticated endpoints include expensive operations such as login, p
 ### Elevation of Privilege
 
 This codebase has multiple privilege boundaries: public vs authenticated, buyer vs supplier, and user vs admin. The highest-risk failures are broken access control (IDOR/BFLA) on transactional routes, missing admin enforcement on operational endpoints, and any path that lets a lower-privilege user read or modify another tenant’s data or platform-wide state. Object-storage helpers, logistics endpoints, and feature-gated modules require special scrutiny because they often bypass the usual business-route patterns.
+
+---
+
+## Security Hardening Log
+
+### SSRF — Discovery Engine URL Fetch
+
+**Status: Resolved (2026-06-06)**
+
+The discovery engine (`services/discovery-engine.ts`) fetches supplier websites returned by Claude Haiku. Five independent defence layers are in place:
+
+1. **String-based pre-check** (`isSsrfRisk`, `isBlockedDomain`) — rejects private IP literals, loopback, link-local, metadata endpoints (169.254.169.254), `.local`/`.internal` TLDs, social media domains, and non-http(s) schemes before any connection is attempted.
+2. **TOCTOU-safe connect-time IP validation** (`safeLookupFn`) — passed directly to `http.request({ lookup })`. Node calls this function at actual socket-connect time, so the IP we validate is the IP the socket connects to. This eliminates the race window between a separate DNS pre-flight check and the actual connection (DNS rebinding attacks).
+3. **Redirect re-validation** — each redirect hop in `fetchPageHtml()` passes through both the string check and the connect-time guard before a new connection is made.
+4. **Hard caps** — `MAX_TOTAL_LINKS=10` (requests per discovery call), `MAX_REDIRECT_HOPS=5`, body cap 64 KB, 5 s per-link timeout.
+5. **Protocol enforcement** — only `http:` and `https:` are accepted; `file:`, `ftp:`, `gopher:`, etc. are rejected.
+
+All five layers covered by 13 unit tests in `src/test/discovery-engine.test.ts`.
+
+---
+
+### Prompt Injection — AI Input/Output Escaping
+
+**Status: Resolved (2026-06-06)**
+
+| Surface | Defence | Notes |
+|---------|---------|-------|
+| `category` / `region` → prompt | `sanitizePromptInput()` strips `\n`, `\r`, `` ` ``, `<`, `>` (angle-brackets added 2026-06-06); caps at 100 chars | `<>` prevent pseudo-XML tag injection (Anthropic treats XML-like tags as instruction markers) |
+| `excludeTypes` → prompt | Zod `z.enum(EXCLUDE_TYPE_VALUES)` — only known enum values reach the prompt | No free-text interpolation possible |
+| AI output → application | `CandidateLeadArraySchema` (Zod) validates every field with type and length constraints before any field is used | Rejects unexpected fields via `.strip()` |
+| AI output `website` → SQL LIKE | Hostname escaped (`%` → `\%`, `_` → `\_`) before `like()` call (fix 2026-06-06) | Drizzle parameterizes so SQL injection is not possible, but unescaped wildcards would broaden LIKE match |
+| AI assistant messages | 2 000-char cap per message; 20-message max; server-side role alternation enforcement strips forged assistant history; rate-limited at 60 req/hr per user | `requireAuth` — only authenticated users reach this surface |
+
+All prompt injection fixes covered by 6 unit tests (`sanitizePromptInput` suite) and 5 tests (`escapeLikeWildcards` suite) in `src/test/discovery-engine.test.ts`.
+
+---
+
+### Open Security Items
+
+| Item | Severity | Notes |
+|------|----------|-------|
+| FIN-002 farmer self-service login | Medium | Auth model not yet designed; farmers currently mediated by officers |
+| FIN-037 durable job queue | Medium | `setImmediate` AI scoring — process crash loses in-flight jobs; no SSRF risk but operational |
+| Rate limiting — AI scoring endpoints | Low | Admin-only surface; low priority until field-officer role is separated (FIN-059) |

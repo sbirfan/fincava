@@ -172,10 +172,13 @@ const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
  */
 function sanitizePromptInput(value: string): string {
   return value
-    .replace(/[\n\r`]/g, " ")  // newlines and backticks → space
-    .replace(/\s{2,}/g, " ")   // collapse multiple spaces
+    .replace(/[\n\r`<>]/g, " ")  // newlines, backticks, and angle-brackets → space
+    //                     ^^^ <> added: Anthropic treats XML-like tags as instruction
+    //                     markers; stripping them prevents pseudo-tag injection from
+    //                     user-supplied category/region inputs.
+    .replace(/\s{2,}/g, " ")     // collapse multiple spaces
     .trim()
-    .slice(0, 100);             // hard length cap as a belt-and-suspenders guard
+    .slice(0, 100);               // hard length cap as a belt-and-suspenders guard
 }
 
 export async function discoverLeads(input: DiscoveryInput): Promise<AnnotatedLead[]> {
@@ -292,7 +295,12 @@ async function annotateWithExistingStatus(leads: CandidateLead[]): Promise<Annot
   const conditions = leadsWithSite.flatMap((l) => {
     try {
       const { hostname } = new URL(l.website);
-      return [like(suppliersTable.sourceUrl, `%${hostname}%`)];
+      // Escape SQL LIKE wildcards in the AI-returned hostname so a Claude-generated
+      // hostname containing '%' or '_' does not inadvertently broaden the match.
+      // SQL injection is not possible (Drizzle parameterizes), but LIKE semantics
+      // are affected without this guard.
+      const escapedHostname = hostname.replace(/%/g, "\\%").replace(/_/g, "\\_");
+      return [like(suppliersTable.sourceUrl, `%${escapedHostname}%`)];
     } catch {
       return [];
     }
