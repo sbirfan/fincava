@@ -55,25 +55,11 @@
 
 ---
 
-### FIN-004 — Contact form has no backend
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Stops invisible lead loss; Phase A “stop losing leads” theme |
-| **Dependencies** | Resend configured; email template |
-| **Expected outcome** | Contact submissions deliver to operator inbox (or configured `ADMIN_EMAIL`); no `console.log`-only submit |
-| **Estimated effort** | Tiny |
+~~### FIN-004 — Contact form has no backend~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
-### FIN-035 — Shallow health check (no DB probe)
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Parallel Phase A stability; false healthy during DB outages |
-| **Dependencies** | None |
-| **Expected outcome** | `/api/healthz` (or readiness endpoint) fails when PostgreSQL unreachable; Replit/deploy probes reflect real dependency health |
-| **Estimated effort** | Tiny |
+~~### FIN-035 — Shallow health check (no DB probe)~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
@@ -88,14 +74,7 @@
 
 ---
 
-### FIN-036 — No error monitoring or alerting (Sentry/Datadog)
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Parallel Phase A; founder sees failures before users |
-| **Dependencies** | Monitoring account; FIN-035 recommended first (health signal) |
-| **Expected outcome** | Production API + critical paths report errors; founder receives alerts; baseline dashboard or email notifications active |
-| **Estimated effort** | Small |
+~~### FIN-036 — No error monitoring or alerting (Sentry/Datadog)~~ ✅ **Completed 2026-06-01** (code) — pending `SENTRY_DSN` secret — see Section 5.
 
 ---
 
@@ -382,6 +361,9 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 | Completed | FIN ID | Title | Verified outcome (summary) |
 |-----------|--------|-------|----------------------------|
 | 2026-06-01 | FIN-003 | Officer registration API path bug | Route had `/api` prefix inside a router already mounted at `/api` → double path. Removed prefix. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-004 | Contact form has no backend | `POST /api/contact` wired to Resend; submissions reach operator inbox. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-035 | Shallow health check (no DB probe) | `/healthz` + `/health` both probe DB via `SELECT 1`; return 503 on failure. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-036 | No error monitoring (Sentry) | `instrument.ts` initialises Sentry; reads `SENTRY_DSN` from env, no-op if absent. Pending secret activation. Backfilled 2026-06-06. |
 | 2026-06-06 | FIN-001 | Two supplier systems with no database link | `company_supplier_links` join table (migration `0028`) bridges `suppliers` ↔ `companies`. Many-to-many model supports cooperatives. Admin CRUD endpoints shipped. Both repos synced. Typecheck + 199/199 tests passing. Migration applied to dev + prod DB. |
 | 2026-06-06 | FIN-053 | `UPLOAD_TOKEN_SECRET` in `.replit` shared env | Secret removed from committed `.replit`; moved to Replit Secrets. One-line deletion, no behaviour change. |
 

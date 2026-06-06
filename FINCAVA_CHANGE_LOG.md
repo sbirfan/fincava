@@ -41,6 +41,68 @@ Copy for each completed `FIN-###` item:
 
 ## 2026-06-01
 
+### FIN-035 — Shallow health check (no DB probe)
+
+**Status:** Completed  
+**Completed by:** Founder (commit 4a6c482)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+`/healthz` and `/health` now execute `SELECT 1` against the DB and return `503 { status: "degraded", db: "error" }` if the probe fails. Previously the endpoint returned 200 regardless of DB state.
+
+**Files:**  
+- `artifacts/api-server/src/routes/health.ts` — added `dbPing()` function; both routes return 503 on failure
+
+**Validation:**  
+- [x] `GET /api/healthz` returns `200 { status: "ok", db: "ok" }` when DB is reachable
+- [x] Returns `503` when DB is unreachable (confirmed by code inspection 2026-06-06)
+
+**Rollback:** N/A — health check is non-destructive.
+
+---
+
+### FIN-004 — Contact form has no backend
+
+**Status:** Completed  
+**Completed by:** Founder (commit 56c27d5)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+`POST /api/contact` implemented in `contact.ts` — validates name/email/phone/company/message via Zod, sends formatted email via Resend to the operator inbox. Frontend `contact.tsx` already submits to `/api/contact`. Submissions no longer go to `console.log` only.
+
+**Files:**  
+- `artifacts/api-server/src/routes/contact.ts` — new route with Zod validation + Resend email dispatch
+
+**Validation:**  
+- [x] Route mounted at `/api/contact` — confirmed in `index.ts`
+- [x] Frontend submits to `/api/contact` — confirmed in `contact.tsx`
+- [ ] Live end-to-end: submit contact form in production; confirm email arrives in operator inbox
+
+**Rollback:** N/A — additive route; removing it only silences submissions.
+
+---
+
+### FIN-036 — No error monitoring or alerting
+
+**Status:** Completed (code) — pending secret activation  
+**Completed by:** Founder (commit 671051c)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Sentry initialised in `instrument.ts` (first import in `index.ts`). Reads `SENTRY_DSN` from env — graceful no-op if not set. `tracesSampleRate: 0` for cost control at Phase I. Existing pipeline services (`onboard-pipeline.ts`, `scoring-service.ts`, `supplier-graduation-service.ts`) already call `globalThis.Sentry?.captureException()` — no changes needed there.
+
+**Files:**  
+- `artifacts/api-server/src/instrument.ts` — Sentry init with env-gated DSN
+
+**Validation:**  
+- [x] Code ships cleanly — no errors when `SENTRY_DSN` is absent
+- [ ] Add `SENTRY_DSN` to Replit Secrets → errors appear in Sentry dashboard
+- [ ] Trigger a test error; confirm it appears in Sentry
+
+**Rollback:** Remove `SENTRY_DSN` from Replit Secrets — Sentry silently disables itself.
+
+---
+
 ### FIN-003 — Officer registration API path bug
 
 **Status:** Completed  
