@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-3.11", "postgresql-16"]
+modules = ["nodejs-24"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -17,64 +17,6 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
-[[workflows.workflow]]
-name = "artifacts/fincava: web"
-author = "agent"
-mode = "sequential"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-artifactId = "artifacts/fincava"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/fincava run dev"
-cwd = "./artifacts/fincava"
-waitForPort = 25876
-router = "path"
-
-[workflows.workflow.tasks.env]
-PORT = "25876"
-BASE_PATH = "/"
-
-[[workflows.workflow]]
-name = "artifacts/api-server: API Server"
-author = "agent"
-mode = "sequential"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-artifactId = "3B4_FFSkEVBkAeYMFRJ2e"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/api-server run dev"
-cwd = "./artifacts/api-server"
-waitForPort = 8080
-
-[workflows.workflow.tasks.env]
-PORT = "8080"
-
-[[workflows.workflow]]
-name = "artifacts/mockup-sandbox: Component Preview Server"
-author = "agent"
-mode = "sequential"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-artifactId = "XegfDyZt7HqfW2Bb8Ghoy"
-isCanvasWorkflow = true
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/mockup-sandbox run dev"
-cwd = "./artifacts/mockup-sandbox"
-waitForPort = 8081
-
-[workflows.workflow.tasks.env]
-PORT = "8081"
-BASE_PATH = "/__mockup"
-
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
@@ -82,30 +24,3 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
-
-[nix]
-channel = "stable-25_05"
-packages = ["dig"]
-
-[userenv]
-
-[userenv.shared]
-FINCAVA_COMPANY_ID = "17"
-ENABLE_MATCHING = "true"
-ENABLE_TRANSACTIONS = "true"
-
-[userenv.production]
-CORS_ORIGIN = "https://fincava.com,https://fincava.replit.app"
-
-<<<<<<< HEAD
-=======
-# ── FIN-042: Automated daily DB backup ───────────────────────────────────────
-# Runs at 03:00 UTC daily (22:00 Colombia / COT).
-# Calls POST /api/admin/backup/run with BACKUP_SECRET_V2 from Replit Secrets.
-# Response is echoed to Replit deployment logs for visibility.
-# Retention policy (7 backups) is enforced inside backup-service.ts.
-[[cron]]
-name    = "daily-db-backup"
-schedule = "0 3 * * *"
-command  = "curl -sf -X POST http://localhost:8080/api/admin/backup/run -H \"x-backup-token: $BACKUP_SECRET_V2\" && echo '[cron] backup ok' || echo '[cron] backup FAILED'"
->>>>>>> 0e340934aba4504f3e08401dc02a949decfb3100
