@@ -1,0 +1,110 @@
+FIN-001 Validation Run — company_supplier_links (migration 0028)
+
+Context
+-------
+We shipped FIN-001 on 2026-06-06 from the local dev machine (fincava-hub → fincava repos,
+commit 882745a). The change introduces the `company_supplier_links` join table bridging the
+two supplier identity graphs. Everything passed locally EXCEPT the DB steps, which require
+Replit (port 5432 is blocked from the dev machine).
+
+This prompt completes the remaining validation checklist.
+
+Files changed (already in this repo via git pull from main)
+-----------------------------------------------------------
+  lib/db/src/schema/companies.ts         — linkTypeEnum + companySupplierLinksTable
+  lib/db/drizzle/0028_company_supplier_links.sql  — new migration (additive only)
+  lib/db/drizzle/meta/_journal.json      — idx 31 registered for 0028
+  lib/db/drizzle/meta/0032_snapshot.json — drizzle schema snapshot
+  artifacts/api-server/src/routes/admin.ts — 3 new endpoints + improved email resolution
+  artifacts/api-server/src/test/company-supplier-links.test.ts — 14 new tests
+
+Rollback (if anything below fails — stop and run this before anything else)
+---------------------------------------------------------------------------
+  psql $DATABASE_URL -c "DROP TABLE IF EXISTS company_supplier_links;"
+  psql $DATABASE_URL -c "DROP TYPE IF EXISTS company_supplier_link_type;"
+  Then revert the journal entry (remove idx 31 from _journal.json) and redeploy.
+
+Validation Steps — run in order, stop on first failure
+-------------------------------------------------------
+
+STEP 1 — Pull latest from main
+  git pull origin main
+  Confirm 0028_company_supplier_links.sql is present:
+    ls lib/db/drizzle/0028_company_supplier_links.sql
+
+STEP 2 — DB schema: apply migration
+  cd lib/db
+  npx drizzle-kit migrate
+  Expected: "Applying migration 0028_company_supplier_links" with no errors.
+  Verify the table exists:
+    psql $DATABASE_URL -c "\d company_supplier_links"
+  Expected: 8 columns (id, company_id, supplier_id, link_type, is_primary,
+  linked_by_admin_id, linked_at, notes) + 3 indexes shown.
+
+STEP 3 — DB schema: drizzle-kit generate should be a no-op
+  npx drizzle-kit generate
+  Expected: "No schema changes detected" (or generates an empty migration).
+  If it generates SQL, inspect before continuing — do NOT apply blindly.
+  cd ../..
+
+STEP 4 — DB package build
+  pnpm --filter @workspace/db run build
+  Expected: exits 0, no TypeScript errors.
+
+STEP 5 — API typecheck
+  pnpm --filter @workspace/api-server run typecheck
+  Expected: exits 0, no errors.
+
+STEP 6 — Full test suite (includes 14 new FIN-001 tests)
+  pnpm --filter @workspace/api-server run test
+  Expected: 199/199 tests pass (all green).
+  If any test fails, paste the failure output here before proceeding.
+
+STEP 7 — Manual smoke: new CRUD endpoints
+  Replace SUPPLIER_ID and COMPANY_ID with real IDs from your DB.
+  Find a valid supplier id:
+    psql $DATABASE_URL -c "SELECT id, nombre_completo FROM suppliers LIMIT 5;"
+  Find a valid company id:
+    psql $DATABASE_URL -c "SELECT id, name FROM companies LIMIT 5;"
+
+  7a. Create a link (POST):
+    curl -s -X POST http://localhost:3000/api/admin/suppliers/$SUPPLIER_ID/links \
+      -H "Content-Type: application/json" \
+      -H "Cookie: <your-admin-session-cookie>" \
+      -d '{"companyId": $COMPANY_ID, "linkType": "MEMBER", "isPrimary": true}' | jq .
+  Expected: HTTP 201, JSON object with id, companyId, supplierId, linkType, isPrimary.
+
+  7b. Read back (GET):
+    curl -s http://localhost:3000/api/admin/suppliers/$SUPPLIER_ID/links \
+      -H "Cookie: <your-admin-session-cookie>" | jq .
+  Expected: HTTP 200, array containing the link created in 7a.
+
+  7c. Delete (DELETE):
+    curl -s -X DELETE http://localhost:3000/api/admin/suppliers/$SUPPLIER_ID/links/$LINK_ID \
+      -H "Cookie: <your-admin-session-cookie>" | jq .
+  Expected: HTTP 200, {"success": true}.
+
+  7d. Confirm deleted (GET again):
+    curl -s http://localhost:3000/api/admin/suppliers/$SUPPLIER_ID/links \
+      -H "Cookie: <your-admin-session-cookie>" | jq .
+  Expected: empty array [].
+
+STEP 8 — Manual smoke: introduce route email resolution
+  Find an RFQ id: psql $DATABASE_URL -c "SELECT id FROM rfqs LIMIT 3;"
+
+  8a. Linked supplier case — re-create the link from step 7a, then:
+    curl -s -X POST http://localhost:3000/api/admin/rfqs/$RFQ_ID/introduce \
+      -H "Content-Type: application/json" \
+      -H "Cookie: <your-admin-session-cookie>" \
+      -d '{"supplierId": $SUPPLIER_ID}' | jq .
+  Expected: HTTP 200, introduction sent; no "supplier email not found" error.
+  Check server logs for: event=COMPANY_SUPPLIER_LINK_CREATED path used.
+
+  8b. Unlinked supplier case — use a supplier with no company_supplier_links row
+  and no active products. Confirm the route still returns a graceful error or
+  falls back to supplier.userId email if available (no 500).
+
+Done — mark these checkboxes in FINCAVA_CHANGE_LOG.md once verified:
+  - [ ] Migration applied to staging DB        → tick after step 2
+  - [ ] Migration applied to production DB     → tick after deploying to prod
+  - [ ] Manual smoke: CRUD endpoints verified  → tick after step 7
