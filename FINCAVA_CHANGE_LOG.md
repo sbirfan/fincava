@@ -39,6 +39,28 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+## 2026-06-01
+
+### FIN-003 — Officer registration API path bug
+
+**Status:** Completed  
+**Completed by:** Founder (commit 936cf44)  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+`officers.ts` had `POST /api/officers/register` as the route path, but the router is already mounted at `/api` in `app.ts` — making the effective path `/api/api/officers/register`. Frontend called `/api/officers/register` → 404. Fixed by removing the `/api` prefix from the route declaration, yielding the correct path.
+
+**Files:**  
+- `artifacts/api-server/src/routes/officers.ts` — changed `/api/officers/register` → `/officers/register`
+
+**Validation:**  
+- [x] Route path corrected — `POST /api/officers/register` now resolves correctly
+- [x] Backfill confirmed by code inspection (2026-06-06)
+
+**Rollback:** N/A — one-character path fix; no data affected.
+
+---
+
 ## 2026-06-06
 
 ### FIN-053 — `UPLOAD_TOKEN_SECRET` in `.replit` shared env

@@ -51,14 +51,7 @@
 
 ---
 
-### FIN-003 — Officer registration API path bug
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Tiny fix; unblocks field officer recruitment (supplier discovery at source) |
-| **Dependencies** | Developer availability; FIN-040 deploy discipline |
-| **Expected outcome** | `POST /api/officers/register` returns success; `/officer/register` form submits without 404 |
-| **Estimated effort** | Tiny |
+~~### FIN-003 — Officer registration API path bug~~ ✅ **Completed 2026-06-01** — see Section 5.
 
 ---
 
@@ -388,6 +381,7 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 
 | Completed | FIN ID | Title | Verified outcome (summary) |
 |-----------|--------|-------|----------------------------|
+| 2026-06-01 | FIN-003 | Officer registration API path bug | Route had `/api` prefix inside a router already mounted at `/api` → double path. Removed prefix. Backfilled 2026-06-06. |
 | 2026-06-06 | FIN-001 | Two supplier systems with no database link | `company_supplier_links` join table (migration `0028`) bridges `suppliers` ↔ `companies`. Many-to-many model supports cooperatives. Admin CRUD endpoints shipped. Both repos synced. Typecheck + 199/199 tests passing. Migration applied to dev + prod DB. |
 | 2026-06-06 | FIN-053 | `UPLOAD_TOKEN_SECRET` in `.replit` shared env | Secret removed from committed `.replit`; moved to Replit Secrets. One-line deletion, no behaviour change. |
 
