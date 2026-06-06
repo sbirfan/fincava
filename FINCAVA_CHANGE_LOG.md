@@ -39,6 +39,48 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+### FIN-042 — Automated DB backup scheduler
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Added a daily Replit cron job to `POST /api/admin/backup/run` at 03:00 UTC (22:00 COT). Uses `BACKUP_SECRET_V2` from Replit Secrets for auth. The backup service already handled pg_dump, object storage upload, and 7-backup retention — this adds the missing schedule trigger.
+
+**Files:**  
+- `.replit` — added `[[cron]]` entry: `daily-db-backup`, schedule `0 3 * * *`
+
+**Validation:**  
+- [x] Cron entry added to `.replit`
+- [ ] First scheduled run at 03:00 UTC — verify `[cron] backup ok` in Replit logs
+- [ ] `GET /api/admin/backup/list` shows a new entry < 25h old next morning
+
+**Rollback:** Remove the `[[cron]]` block from `.replit`.
+
+---
+
+### FIN-011 — Operator playbook *(draft)*
+
+**Status:** Draft completed  
+**Completed by:** Claude Code + founder approval  
+**Backlog sprint:** Current (Phase A)
+
+**Summary:**  
+Created `docs/runbooks/OPERATOR_PLAYBOOK.md` — the single operator reference covering daily triage, the full supplier pipeline (onboard → score → graduate → publish), compliance queue, RFQ triage, introduction SOP, stuck supplier recovery, company/supplier linking, deploy ritual, feature flags, backup procedures, and secrets reference.
+
+**Files:**  
+- `docs/runbooks/OPERATOR_PLAYBOOK.md` — new file (~280 lines)
+
+**Validation:**  
+- [x] Document covers all Phase A operator workflows
+- [ ] Founder reads and confirms accuracy against actual Replit UI
+- [ ] Update after FIN-023 (compliance gate fix) and FIN-019 (AI gap writeback) land
+
+**Rollback:** N/A — documentation only.
+
+---
+
 ## 2026-06-01
 
 ### FIN-035 — Shallow health check (no DB probe)
@@ -96,8 +138,8 @@ Sentry initialised in `instrument.ts` (first import in `index.ts`). Reads `SENTR
 
 **Validation:**  
 - [x] Code ships cleanly — no errors when `SENTRY_DSN` is absent
-- [ ] Add `SENTRY_DSN` to Replit Secrets → errors appear in Sentry dashboard
-- [ ] Trigger a test error; confirm it appears in Sentry
+- [x] `SENTRY_DSN` confirmed in Replit Secrets (2026-06-06)
+- [ ] Trigger a test error in production; confirm it appears in Sentry dashboard
 
 **Rollback:** Remove `SENTRY_DSN` from Replit Secrets — Sentry silently disables itself.
 

@@ -36,14 +36,7 @@
 
 ---
 
-### FIN-011 — Operator playbook documentation *(draft phase)*
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Unblocks solo founder ops without code; documents manual bridge for two supplier systems until FIN-001 is unblocked |
-| **Dependencies** | FIN-040 (stable deploy context before documenting “how we run prod”) |
-| **Expected outcome** | **Draft** playbook covering: supplier onboarding → score → graduate → publish; compliance PATCH flow; RFQ/inquiry triage steps; email-match bridge SOP; “stuck supplier” checklist (mitigates FIN-037 until Later) |
-| **Estimated effort** | Small |
+~~### FIN-011 — Operator playbook documentation *(draft phase)*~~ ✅ **Draft completed 2026-06-06** — see Section 5. Finalise in Phase B after FIN-023/019.
 
 ---
 
@@ -63,14 +56,7 @@
 
 ---
 
-### FIN-042 — Automated DB backup not scheduled
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Parallel Phase A; business continuity before trust/revenue work |
-| **Dependencies** | `BACKUP_SECRET_V2` in secrets; Replit cron or external scheduler |
-| **Expected outcome** | Backups run on schedule (e.g. daily); retention verified; operator knows restore procedure |
-| **Estimated effort** | Small |
+~~### FIN-042 — Automated DB backup not scheduled~~ ✅ **Completed 2026-06-06** — see Section 5.
 
 ---
 
@@ -363,7 +349,9 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 | 2026-06-01 | FIN-003 | Officer registration API path bug | Route had `/api` prefix inside a router already mounted at `/api` → double path. Removed prefix. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-004 | Contact form has no backend | `POST /api/contact` wired to Resend; submissions reach operator inbox. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-035 | Shallow health check (no DB probe) | `/healthz` + `/health` both probe DB via `SELECT 1`; return 503 on failure. Backfilled 2026-06-06. |
-| 2026-06-01 | FIN-036 | No error monitoring (Sentry) | `instrument.ts` initialises Sentry; reads `SENTRY_DSN` from env, no-op if absent. Pending secret activation. Backfilled 2026-06-06. |
+| 2026-06-01 | FIN-036 | No error monitoring (Sentry) | `instrument.ts` initialises Sentry; `SENTRY_DSN` confirmed in Replit Secrets 2026-06-06. Fully active. |
+| 2026-06-06 | FIN-042 | Automated DB backup scheduler | `[[cron]]` added to `.replit` — daily at 03:00 UTC using `BACKUP_SECRET_V2`. 7-backup retention in service. |
+| 2026-06-06 | FIN-011 | Operator playbook (draft) | `docs/runbooks/OPERATOR_PLAYBOOK.md` created — full supplier pipeline, compliance, RFQ, intro SOP, deploy ritual, flags, backup, secrets. Finalise after FIN-023/019. |
 | 2026-06-06 | FIN-001 | Two supplier systems with no database link | `company_supplier_links` join table (migration `0028`) bridges `suppliers` ↔ `companies`. Many-to-many model supports cooperatives. Admin CRUD endpoints shipped. Both repos synced. Typecheck + 199/199 tests passing. Migration applied to dev + prod DB. |
 | 2026-06-06 | FIN-053 | `UPLOAD_TOKEN_SECRET` in `.replit` shared env | Secret removed from committed `.replit`; moved to Replit Secrets. One-line deletion, no behaviour change. |
 
