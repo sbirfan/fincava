@@ -41,6 +41,26 @@ Copy for each completed `FIN-###` item:
 
 ## 2026-06-06
 
+### Observation — graduation-service ESM import failure (6 tests, pre-existing)
+
+**Status:** Known issue — not introduced by FIN-001  
+**First observed:** FIN-001 validation run (2026-06-06); root commit 0732899  
+**Not a FIN register item yet** — logging here for visibility; promote to register if it blocks a future sprint.
+
+**Symptom:**  
+`graduation-service.test.ts > computeEligibility` — 6 tests fail with:  
+`ERR_UNSUPPORTED_DIR_IMPORT: Directory import '.../lib/db/src/schema' is not supported resolving ES modules`  
+All other 193 tests pass. FIN-001 tests (14) are unaffected.
+
+**Root cause:**  
+`lib/db/src/schema` is imported as a bare directory (relies on implicit `index.ts` resolution). Node.js ESM does not support directory imports — only CommonJS does. The test runner (Vitest) normally handles this via its module resolver, but something in the graduation-service test setup bypasses that path.
+
+**Impact:** Low — graduation-service logic is tested via integration in other paths; no production code path is broken. Affects test confidence only.
+
+**To fix (when prioritised):** Change the import in the graduation service (or its test) from `from "@workspace/db/src/schema"` to the explicit index file, or ensure the `@workspace/db` package.json exports map covers the path.
+
+---
+
 ### FIN-001 — Two supplier systems with no database link
 
 **Status:** Completed  
@@ -57,12 +77,16 @@ Introduced `company_supplier_links` join table bridging the two supplier identit
 - `artifacts/api-server/src/routes/admin.ts` — 3 new CRUD endpoints (`GET/POST/DELETE /api/admin/suppliers/:id/links`); improved email resolution in introduce route
 
 **Validation:**  
-- [x] TypeScript typecheck passes in both repos (`pnpm --filter @workspace/api-server run typecheck`)
-- [x] Full test suite passes — 199/199 tests (`pnpm --filter @workspace/api-server run test`) — includes 14 new FIN-001 tests in `company-supplier-links.test.ts`
+- [x] TypeScript typecheck passes (`pnpm --filter @workspace/api-server run typecheck` exits 0)
+- [x] Test suite — 193/199 pass; all 14 new FIN-001 tests green. 6 pre-existing failures in `graduation-service.test.ts` (ESM `ERR_UNSUPPORTED_DIR_IMPORT` on `lib/db/src/schema` — commit 0732899, predates FIN-001, tracked separately)
 - [x] Schema change synced to `fincava` (prod repo)
-- [ ] Migration applied to staging DB
-- [ ] Migration applied to production DB
-- [ ] Manual smoke: `POST /admin/suppliers/:id/links` creates link; `GET` returns it; `DELETE` removes it
+- [x] Migration applied to dev DB (Replit) — DDL applied directly; `drizzle-kit generate` confirms no further drift
+- [x] Manual smoke: `POST /admin/suppliers/29/links` → 201; `GET` → 200 with companyName/companyType; `DELETE` → 200 `{success:true}`; second `GET` → `[]`
+- [x] Introduce route: mounted and DB-connected; returns 409 "RFQ closed" (no open RFQs in dev DB — not a FIN-001 regression)
+- [ ] Migration applied to production DB (pending re-publish in Replit)
+
+**Incidental fixes applied during validation (Replit):**  
+- `0032_shiny_wendell_rand.sql` — changed `ALTER TYPE "public"."actor" ADD VALUE 'FOUNDER'` to `ADD VALUE IF NOT EXISTS 'FOUNDER'` to make it idempotent. `FOUNDER` is an audit-trail actor label (not a login role; `ADMIN` remains the highest auth role) that was already live in the DB but missing from the Drizzle snapshot.
 
 **Rollback:**  
 ```sql
