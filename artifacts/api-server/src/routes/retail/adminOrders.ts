@@ -3,6 +3,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db, usersTable, profilesTable, productsTable, suppliersTable,
+  supplierPaymentMethodsTable,
   ordersTable, retailOrderDetailsTable, retailPaymentTransactionsTable,
   retailBuyerProfilesTable,
 } from "@workspace/db";
@@ -94,6 +95,7 @@ router.get("/admin/retail/orders/:id", ...adminOnly, async (req, res): Promise<v
   let productName = "—";
   let supplierWhatsapp: string | null = null;
   let supplierFirstName = "Productor";
+  let nequiPhone: string | null = null;  // FIN-114
   if (details?.productId) {
     const [p] = await db.select({ name: productsTable.name, supplierId: productsTable.supplierId }).from(productsTable).where(eq(productsTable.id, details.productId));
     if (p) {
@@ -103,6 +105,10 @@ router.get("/admin/retail/orders/:id", ...adminOnly, async (req, res): Promise<v
           .from(suppliersTable).where(eq(suppliersTable.id, p.supplierId));
         supplierWhatsapp = s?.whatsappNumber ?? null;
         supplierFirstName = s?.nombreCompleto?.split(" ")[0] ?? "Productor";
+        // FIN-114: supplier's Nequi phone for manual payment verification
+        const [spm] = await db.select({ nequiPhone: supplierPaymentMethodsTable.nequiPhone })
+          .from(supplierPaymentMethodsTable).where(eq(supplierPaymentMethodsTable.supplierId, p.supplierId));
+        nequiPhone = spm?.nequiPhone ?? null;
       }
     }
   }
@@ -131,6 +137,9 @@ router.get("/admin/retail/orders/:id", ...adminOnly, async (req, res): Promise<v
     } : null,
     supplierWhatsapp,
     supplierFirstName,
+    // FIN-114: Nequi interim payment fields for admin cross-check
+    nequiPhone,
+    buyerPaymentRef: details?.buyerPaymentRef ?? null,
   });
 });
 

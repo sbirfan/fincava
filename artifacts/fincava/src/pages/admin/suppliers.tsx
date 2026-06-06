@@ -237,9 +237,7 @@ export default function AdminSuppliersPage() {
   const [docSupplierId, setDocSupplierId] = useState<number | null>(null);
   const [docLang, setDocLang] = useState<"en" | "es">(lang === "es" ? "es" : "en");
   const [scoring, setScoring] = useState<number | null>(null);
-  type ScoreStatusVal = "polling" | "done" | "timeout" | "failed";
-  const [scoreStatus, setScoreStatus] = useState<Record<number, ScoreStatusVal>>({});
-  const scorePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [scoreStatus, setScoreStatus] = useState<Record<number, "started" | "failed">>({});
   const [publishing, setPublishing] = useState<number | null>(null);
   const [publishError, setPublishError] = useState("");
   // Delete supplier state
@@ -298,6 +296,12 @@ export default function AdminSuppliersPage() {
   const [editError, setEditError] = useState("");
   const [editFieldErrors, setEditFieldErrors] = useState<Record<string, string[]>>({});
 
+  // FIN-114: Nequi payment method per supplier
+  const [nequiPhoneInput, setNequiPhoneInput] = useState("");
+  const [nequiPhoneSaving, setNequiPhoneSaving] = useState(false);
+  const [nequiPhoneSaved, setNequiPhoneSaved] = useState(false);
+  const [nequiPhoneError, setNequiPhoneError] = useState("");
+
   useEffect(() => {
     const controller = new AbortController();
     fetchSuppliers(controller.signal);
@@ -305,13 +309,18 @@ export default function AdminSuppliersPage() {
   }, [filterPathway, filterStatus]);
 
   useEffect(() => {
-    return () => {
-      if (scorePollRef.current) clearInterval(scorePollRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
     setPublishError("");
+    // FIN-114: load existing Nequi phone when supplier changes
+    setNequiPhoneInput("");
+    setNequiPhoneSaved(false);
+    setNequiPhoneError("");
+    if (!selected?.id) return;
+    const ctrl = new AbortController();
+    fetch(`/api/admin/suppliers/${selected.id}/payment-method`, { credentials: "include", signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => { if (json?.nequiPhone) setNequiPhoneInput(json.nequiPhone); })
+      .catch(() => {/* best-effort prefill */});
+    return () => ctrl.abort();
   }, [selected?.id]);
 
   useEffect(() => {
@@ -342,22 +351,6 @@ export default function AdminSuppliersPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function silentRefreshSupplier(supplierId: number) {
-    try {
-      const params = new URLSearchParams();
-      if (filterPathway) params.set("pathway", filterPathway);
-      if (filterStatus) params.set("status", filterStatus);
-      const res = await fetch(`/api/suppliers/admin-list?${params}`, { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json();
-      const list: Supplier[] = data.data ?? [];
-      const fresh = list.find((s) => s.id === supplierId);
-      if (!fresh) return;
-      setSuppliers((prev) => prev.map((s) => s.id === supplierId ? fresh : s));
-      setSelected((prev) => prev && prev.id === supplierId ? fresh : prev);
-    } catch { /* ignore */ }
   }
 
   async function updateSupplierStatus(supplierId: number, status: string, reason?: "REJECTED" | "SUSPENDED") {
@@ -579,7 +572,6 @@ export default function AdminSuppliersPage() {
   }
 
   async function scoreNow(supplierId: number) {
-    if (scorePollRef.current) { clearInterval(scorePollRef.current); scorePollRef.current = null; }
     setScoring(supplierId);
     try {
       const res = await fetch(`/api/admin/suppliers/${supplierId}/score`, {
@@ -591,29 +583,8 @@ export default function AdminSuppliersPage() {
         const j = await res.json().catch(() => ({}));
         throw new Error(toErrMsg(j, res.status));
       }
-      setScoreStatus((prev) => ({ ...prev, [supplierId]: "polling" }));
-      let attempts = 0;
-      const MAX_ATTEMPTS = 15;
-      scorePollRef.current = setInterval(async () => {
-        attempts++;
-        try {
-          const pollRes = await fetch(`/api/suppliers/${supplierId}`, { credentials: "include" });
-          if (!pollRes.ok) return;
-          const data = await pollRes.json();
-          const freshCompleteness: ProfileCompleteness | undefined = data.profileCompleteness;
-          if (freshCompleteness?.hasAiScore) {
-            if (scorePollRef.current) { clearInterval(scorePollRef.current); scorePollRef.current = null; }
-            setCompleteness(freshCompleteness);
-            void silentRefreshSupplier(supplierId);
-            setScoreStatus((prev) => ({ ...prev, [supplierId]: "done" }));
-            setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 8000);
-          } else if (attempts >= MAX_ATTEMPTS) {
-            if (scorePollRef.current) { clearInterval(scorePollRef.current); scorePollRef.current = null; }
-            setScoreStatus((prev) => ({ ...prev, [supplierId]: "timeout" }));
-            setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 10000);
-          }
-        } catch { /* keep polling */ }
-      }, 3000);
+      setScoreStatus((prev) => ({ ...prev, [supplierId]: "started" }));
+      setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
     } catch (e: any) {
       setScoreStatus((prev) => ({ ...prev, [supplierId]: "failed" }));
       setTimeout(() => setScoreStatus((prev) => { const n = { ...prev }; delete n[supplierId]; return n; }), 4000);
@@ -1511,35 +1482,25 @@ export default function AdminSuppliersPage() {
             <div className="mt-6">
               <button
                 onClick={() => scoreNow(selected.id)}
-                disabled={scoring === selected.id || scoreStatus[selected.id] === "polling"}
+                disabled={scoring === selected.id}
                 className={`w-full py-2.5 rounded-lg text-sm font-medium transition border ${
-                  scoreStatus[selected.id] === "polling"
-                    ? "bg-amber-50 text-amber-700 border-amber-300 cursor-wait"
-                    : scoreStatus[selected.id] === "done"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                      : scoreStatus[selected.id] === "timeout"
-                        ? "bg-yellow-50 text-yellow-700 border-yellow-300"
-                        : scoreStatus[selected.id] === "failed"
-                          ? "bg-red-50 text-red-600 border-red-200"
-                          : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                  scoreStatus[selected.id] === "started"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                    : scoreStatus[selected.id] === "failed"
+                      ? "bg-red-50 text-red-600 border-red-200"
+                      : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
                 } disabled:opacity-60`}
               >
                 {scoring === selected.id
-                  ? (lang === "es" ? "Iniciando…" : "Starting…")
-                  : scoreStatus[selected.id] === "polling"
-                    ? (lang === "es" ? "⏳ Evaluando con IA…" : "⏳ Scoring in progress…")
-                    : scoreStatus[selected.id] === "done"
-                      ? (lang === "es" ? "✓ Score completado — actualizado" : "✓ Score complete — refreshed")
-                      : scoreStatus[selected.id] === "timeout"
-                        ? (lang === "es" ? "⏱ Scoring activo — refresca manualmente" : "⏱ Scoring running — refresh manually")
-                        : scoreStatus[selected.id] === "failed"
-                          ? (lang === "es" ? "✗ Error al iniciar" : "✗ Failed to start")
-                          : (lang === "es" ? "⚡ Score Now" : "⚡ Score Now")}
+                  ? (lang === "es" ? "Iniciando score…" : "Starting score…")
+                  : scoreStatus[selected.id] === "started"
+                    ? (lang === "es" ? "✓ Pipeline iniciado" : "✓ Pipeline started")
+                    : scoreStatus[selected.id] === "failed"
+                      ? (lang === "es" ? "✗ Error al iniciar" : "✗ Failed to start")
+                      : (lang === "es" ? "⚡ Score Now" : "⚡ Score Now")}
               </button>
               <p className="text-[10px] text-gray-400 text-center mt-1">
-                {scoreStatus[selected.id] === "polling"
-                  ? (lang === "es" ? "El score IA tarda ~15–30 s. El panel se actualizará solo." : "AI scoring takes ~15–30 s. The panel will update automatically.")
-                  : (lang === "es" ? "Re-ejecuta el pipeline de evaluación IA" : "Re-runs the AI evaluation pipeline")}
+                {lang === "es" ? "Re-ejecuta el pipeline de evaluación IA" : "Re-runs the AI evaluation pipeline"}
               </p>
             </div>
 
@@ -1726,6 +1687,54 @@ export default function AdminSuppliersPage() {
                   ? "Contactar por WhatsApp"
                   : "Contact via WhatsApp"}
               </a>
+            </div>
+
+            {/* ── FIN-114: Nequi Payment Method ────────────────────────── */}
+            <div className="mt-6 border border-emerald-100 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                {lang === "es" ? "Método de pago Nequi" : "Nequi Payment Method"}
+              </p>
+              <p className="text-xs text-gray-500">
+                {lang === "es"
+                  ? "Número Nequi del productor para pagos manuales de compradores retail."
+                  : "Producer's Nequi number for manual retail buyer payments."}
+              </p>
+              <div className="flex gap-2 items-center">
+                <input
+                  value={nequiPhoneInput}
+                  onChange={e => { setNequiPhoneInput(e.target.value); setNequiPhoneSaved(false); setNequiPhoneError(""); }}
+                  placeholder="3XXXXXXXXX"
+                  maxLength={10}
+                  className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+                <button
+                  disabled={nequiPhoneSaving || !nequiPhoneInput}
+                  onClick={async () => {
+                    if (!selected) return;
+                    setNequiPhoneSaving(true);
+                    setNequiPhoneError("");
+                    try {
+                      const r = await fetch(`/api/admin/suppliers/${selected.id}/payment-method`, {
+                        method: "PUT",
+                        credentials: "include",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ nequiPhone: nequiPhoneInput.trim(), preferred: "NEQUI" }),
+                      });
+                      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(typeof e.error === "string" ? e.error : `HTTP ${r.status}`); }
+                      setNequiPhoneSaved(true);
+                    } catch (err: any) {
+                      setNequiPhoneError(err.message ?? "Error");
+                    } finally {
+                      setNequiPhoneSaving(false);
+                    }
+                  }}
+                  className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-40 transition whitespace-nowrap"
+                >
+                  {nequiPhoneSaving ? "…" : (lang === "es" ? "Guardar" : "Save")}
+                </button>
+              </div>
+              {nequiPhoneSaved && <p className="text-xs text-emerald-600">✓ {lang === "es" ? "Guardado" : "Saved"}</p>}
+              {nequiPhoneError && <p className="text-xs text-red-500">{nequiPhoneError}</p>}
             </div>
 
             {/* ── Danger zone ──────────────────────────────────────────── */}

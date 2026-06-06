@@ -2887,6 +2887,62 @@ router.get("/admin/suppliers/:id/payment-method", ...adminOnly, async (req, res)
   res.json(method ?? null);
 });
 
+// ── PUT /api/admin/suppliers/:id/payment-method (FIN-114) ────────────────────
+// Upsert the supplier's Nequi phone (and optional bank fields) so the retail
+// order-status page can show buyers where to send their manual Nequi transfer.
+const SupplierPaymentMethodBody = z.object({
+  preferred:          z.enum(["NEQUI", "BANK_TRANSFER"]).optional(),
+  nequiPhone:         z.string().regex(/^3\d{9}$/, "Must be a 10-digit Colombian mobile starting with 3").nullable().optional(),
+  bankName:           z.string().max(100).nullable().optional(),
+  bankAccountNumber:  z.string().max(50).nullable().optional(),
+  bankAccountType:    z.enum(["AHORROS", "CORRIENTE"]).nullable().optional(),
+  bankHolderName:     z.string().max(100).nullable().optional(),
+  bankHolderIdType:   z.enum(["CC", "NIT", "CE"]).nullable().optional(),
+  bankHolderId:       z.string().max(20).nullable().optional(),
+});
+
+router.put("/admin/suppliers/:id/payment-method", ...adminOnly, async (req, res): Promise<void> => {
+  const supplierId = parseInt(req.params.id as string);
+  if (isNaN(supplierId)) { sendError(res, 400, "Invalid supplier id"); return; }
+
+  const parsed = SupplierPaymentMethodBody.safeParse(req.body);
+  if (!parsed.success) { sendError(res, 400, JSON.stringify(parsed.error.flatten().fieldErrors)); return; }
+
+  const { preferred, nequiPhone, bankName, bankAccountNumber, bankAccountType,
+          bankHolderName, bankHolderIdType, bankHolderId } = parsed.data;
+
+  const [upserted] = await db.insert(supplierPaymentMethodsTable)
+    .values({
+      supplierId,
+      preferred:         preferred         ?? "NEQUI",
+      nequiPhone:        nequiPhone        ?? null,
+      bankName:          bankName          ?? null,
+      bankAccountNumber: bankAccountNumber ?? null,
+      bankAccountType:   bankAccountType   ?? null,
+      bankHolderName:    bankHolderName    ?? null,
+      bankHolderIdType:  bankHolderIdType  ?? null,
+      bankHolderId:      bankHolderId      ?? null,
+    })
+    .onConflictDoUpdate({
+      target: supplierPaymentMethodsTable.supplierId,
+      set: {
+        ...(preferred         !== undefined && { preferred }),
+        ...(nequiPhone        !== undefined && { nequiPhone }),
+        ...(bankName          !== undefined && { bankName }),
+        ...(bankAccountNumber !== undefined && { bankAccountNumber }),
+        ...(bankAccountType   !== undefined && { bankAccountType }),
+        ...(bankHolderName    !== undefined && { bankHolderName }),
+        ...(bankHolderIdType  !== undefined && { bankHolderIdType }),
+        ...(bankHolderId      !== undefined && { bankHolderId }),
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+
+  logger.info({ supplierId, preferred: upserted?.preferred }, "FIN-114: supplier payment method upserted");
+  res.json(upserted ?? null);
+});
+
 // ── GET /api/admin/suppliers-simple ───────────────────────────────────────────
 // Minimal supplier list for dropdowns — id + display name, active suppliers only.
 router.get("/admin/suppliers-simple", ...adminOnly, async (_req, res): Promise<void> => {

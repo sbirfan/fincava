@@ -100,6 +100,10 @@ export const retailOrderDetailsTable = pgTable("retail_order_details", {
 
   reviewRequestedAt:          timestamp("review_requested_at", { withTimezone: true }),
 
+  // FIN-114: Nequi interim payment — buyer submits their Nequi transaction ID
+  // after manually transferring. Admin cross-checks before marking AUTHORIZED.
+  buyerPaymentRef:            text("buyer_payment_ref"),
+
   createdAt:                  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:                  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

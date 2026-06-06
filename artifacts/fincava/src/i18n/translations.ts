@@ -1496,6 +1496,9 @@ const en = {
     subtotal: "Subtotal",
     shipping: "Shipping",
     total: "Total",
+    cardLabel: "Credit/Debit card",
+    fillRequired: "Fill in all required fields",
+    orderError: "Error placing order",
     placeOrder: "Place order",
     placing: "Placing order…",
     paymentNote2: "Payment is only charged when your order is ready to ship.",
@@ -1514,6 +1517,17 @@ const en = {
     orderDeliveredRetail: "Delivered",
     orderNotFound: "Order not found.",
     orderBack: "Back to store",
+    // FIN-114: Nequi interim payment — checkout callout
+    nequiManualTitle: "Manual Nequi payment",
+    nequiManualNote: "After placing your order you'll receive the producer's Nequi number. Complete the transfer and submit your transaction ID from the order status page.",
+    // FIN-114: Nequi interim payment — order status panel
+    nequiPaymentTitle: "Nequi Payment",
+    nequiSellerPhoneLabel: "Producer's Nequi number",
+    nequiAdminWillSend: "The admin will send you the Nequi number shortly.",
+    nequiRefLabel: "Nequi transaction code",
+    nequiRefPlaceholder: "e.g. NQ-2024-123456",
+    nequiRefSubmit: "Submit",
+    nequiRefSubmitting: "Sending…",
   },
 };
 
@@ -3009,6 +3023,9 @@ const es: typeof en = {
     subtotal: "Subtotal",
     shipping: "Envío",
     total: "Total",
+    cardLabel: "Tarjeta de crédito/débito",
+    fillRequired: "Completa todos los campos requeridos",
+    orderError: "Error al procesar pedido",
     placeOrder: "Realizar pedido",
     placing: "Procesando pedido…",
     paymentNote2: "Tu pago solo se cobra cuando el pedido esté listo para enviar.",
@@ -3027,6 +3044,17 @@ const es: typeof en = {
     orderDeliveredRetail: "Entregado",
     orderNotFound: "Pedido no encontrado.",
     orderBack: "Volver a la tienda",
+    // FIN-114: Nequi interim payment — checkout callout
+    nequiManualTitle: "Pago manual por Nequi",
+    nequiManualNote: "Al confirmar tu pedido recibirás el número Nequi del productor. Realiza la transferencia y luego envía tu código de transacción desde la página de seguimiento.",
+    // FIN-114: Nequi interim payment — order status panel
+    nequiPaymentTitle: "Pago por Nequi",
+    nequiSellerPhoneLabel: "Número Nequi del productor",
+    nequiAdminWillSend: "El administrador te enviará el número Nequi pronto.",
+    nequiRefLabel: "Código de transacción Nequi",
+    nequiRefPlaceholder: "Ej: NQ-2024-123456",
+    nequiRefSubmit: "Enviar",
+    nequiRefSubmitting: "Enviando…",
   },
 };
 

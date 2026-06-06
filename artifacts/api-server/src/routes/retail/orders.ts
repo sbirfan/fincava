@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { eq, and, sql } from "drizzle-orm";
 import {
   db, usersTable, profilesTable,
-  productsTable, suppliersTable,
+  productsTable, suppliersTable, supplierPaymentMethodsTable,
   ordersTable, retailOrderDetailsTable,
   retailPaymentTransactionsTable, retailShippingZonesTable,
   retailBuyerProfilesTable,
@@ -264,13 +264,32 @@ router.get("/retail/orders/:id", async (req, res): Promise<void> => {
 
   if (!isOwner && !tokenValid) { sendError(res, 403, "Access denied"); return; }
 
+  // FIN-114: look up supplier's Nequi phone so buyer knows where to transfer
+  // Join path: retail_order_details.product_id → products.supplier_id → supplier_payment_methods
+  let nequiPhone: string | null = null;
+  if (details?.productId) {
+    const [prod] = await db.select({ supplierId: productsTable.supplierId })
+      .from(productsTable).where(eq(productsTable.id, details.productId));
+    if (prod?.supplierId) {
+      const [spm] = await db.select({ nequiPhone: supplierPaymentMethodsTable.nequiPhone })
+        .from(supplierPaymentMethodsTable)
+        .where(eq(supplierPaymentMethodsTable.supplierId, prod.supplierId));
+      nequiPhone = spm?.nequiPhone ?? null;
+    }
+  }
+
   res.json({
     data: {
       orderId: order.id,
       status: order.status,
       paymentStatus: payment?.status ?? "PENDING",
+      instrumentType: payment?.instrumentType ?? null,
       totalCents: payment?.amountCents ?? 0,
       currency: "COP",
+      // FIN-114: Nequi interim payment fields
+      nequiPhone,
+      buyerPaymentRef: details?.buyerPaymentRef ?? null,
+      // Shipping + tracking
       shippingDepartment: details?.shippingDepartment ?? null,
       shippingCity: details?.shippingCity ?? null,
       carrier: details?.carrier ?? null,
@@ -279,6 +298,42 @@ router.get("/retail/orders/:id", async (req, res): Promise<void> => {
       createdAt: order.createdAt.toISOString(),
     },
   });
+});
+
+// ── PATCH /api/retail/orders/:id/payment-ref (FIN-114) ───────────────────────
+// Buyer submits their Nequi transaction ID after making the manual transfer.
+// Admin cross-checks this reference in the Nequi app before marking AUTHORIZED.
+// Auth: same as GET — session owner OR valid access token.
+router.patch("/retail/orders/:id/payment-ref", async (req, res): Promise<void> => {
+  const orderId = parseInt(req.params.id as string);
+  if (isNaN(orderId)) { sendError(res, 400, "Invalid id"); return; }
+
+  const ref = (req.body as Record<string, unknown>).ref;
+  if (!ref || typeof ref !== "string" || ref.trim().length === 0) {
+    sendError(res, 400, "ref is required"); return;
+  }
+  if (ref.length > 100) { sendError(res, 400, "ref too long (max 100 chars)"); return; }
+
+  const tokenParam = req.query["token"] as string | undefined;
+
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
+  if (!order || order.channel !== "retail") { sendError(res, 404, "Order not found"); return; }
+
+  const [details] = await db.select().from(retailOrderDetailsTable)
+    .where(eq(retailOrderDetailsTable.orderId, orderId));
+
+  const isOwner = req.userId && req.userId === order.buyerId;
+  const tokenValid = tokenParam && details?.orderAccessTokenHash &&
+    crypto.timingSafeEqual(Buffer.from(sha256(tokenParam)), Buffer.from(details.orderAccessTokenHash));
+
+  if (!isOwner && !tokenValid) { sendError(res, 403, "Access denied"); return; }
+
+  await db.update(retailOrderDetailsTable)
+    .set({ buyerPaymentRef: ref.trim(), updatedAt: new Date() })
+    .where(eq(retailOrderDetailsTable.orderId, orderId));
+
+  logger.info({ orderId, ref: ref.trim() }, "FIN-114: buyer payment ref submitted");
+  res.json({ success: true });
 });
 
 export { requireAuth };

@@ -72,7 +72,7 @@ export default function TiendaCheckout() {
 
   async function handleSubmit() {
     if (!shippingName || !addressLine1 || !city || !dept || !email) {
-      toast({ title: lang === "es" ? "Completa todos los campos requeridos" : "Fill in all required fields", variant: "destructive" });
+      toast({ title: ti.fillRequired, variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -96,7 +96,7 @@ export default function TiendaCheckout() {
       const { data } = await res.json();
       setLocation(`/tienda/orders/${data.orderId}`);
     } catch (err: any) {
-      toast({ title: lang === "es" ? "Error al procesar pedido" : "Error placing order", description: err.message, variant: "destructive" });
+      toast({ title: ti.orderError, description: err.message, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -170,9 +170,16 @@ export default function TiendaCheckout() {
             {(["CARD","NEQUI","PSE"] as const).map(m => (
               <label key={m} className="flex items-center gap-3 cursor-pointer">
                 <input type="radio" name="payment" value={m} checked={paymentInstrument === m} onChange={() => setPaymentInstrument(m)} className="accent-primary" />
-                <span className="text-sm text-foreground">{m === "CARD" ? (lang === "es" ? "Tarjeta de crédito/débito" : "Credit/Debit card") : m}</span>
+                <span className="text-sm text-foreground">{m === "CARD" ? ti.cardLabel : m}</span>
               </label>
             ))}
+            {/* FIN-114: Nequi interim instructions — buyer needs to know before placing */}
+            {paymentInstrument === "NEQUI" && (
+              <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800 space-y-1">
+                <p className="font-semibold">{ti.nequiManualTitle}</p>
+                <p className="text-xs text-emerald-700">{ti.nequiManualNote}</p>
+              </div>
+            )}
           </div>
         </div>
 

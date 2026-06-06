@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ShoppingBag, Loader2, ChevronRight, CheckCircle2, Truck, Package, Clock, Send, CreditCard, MapPin, Wallet } from "lucide-react";
+import { ShoppingBag, Loader2, ChevronRight, CheckCircle2, Truck, Package, Clock, Send, CreditCard, MapPin, Wallet, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
@@ -45,11 +45,29 @@ const STATUS_COLORS: Record<string, string> = {
   REFUNDED:         "bg-red-50 text-red-700 border-red-200",
 };
 
+interface OrderDetail {
+  nequiPhone: string | null;
+  buyerPaymentRef: string | null;
+  buyerName: string;
+  buyerEmail: string;
+}
+
 interface ActionPanelProps { order: RetailOrder; onDone: () => void }
 
 function ActionPanel({ order, onDone }: ActionPanelProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
+
+  // FIN-114: fetch single-order detail for Nequi fields
+  const { data: detail } = useQuery<OrderDetail>({
+    queryKey: ["admin", "retail-order-detail", order.orderId],
+    queryFn: async () => {
+      const r = await fetch(`/api/admin/retail/orders/${order.orderId}`, { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const json = await r.json();
+      return { nequiPhone: json.nequiPhone ?? null, buyerPaymentRef: json.buyerPaymentRef ?? null, buyerName: json.buyerName ?? "—", buyerEmail: json.buyerEmail ?? "—" };
+    },
+  });
   const [carrier, setCarrier] = useState("");
   const [tracking, setTracking] = useState("");
   const [farmerRef, setFarmerRef] = useState("");
@@ -81,6 +99,28 @@ function ActionPanel({ order, onDone }: ActionPanelProps) {
 
   return (
     <div className="border-t border-border bg-muted/30 p-4 space-y-3">
+      {/* FIN-114: Nequi payment summary for admin verification */}
+      {(detail?.nequiPhone || detail?.buyerPaymentRef) && (
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2.5 text-xs space-y-1">
+          <div className="flex items-center gap-1.5 font-semibold text-emerald-800">
+            <Smartphone className="h-3.5 w-3.5" /> Nequi — manual payment
+          </div>
+          {detail.nequiPhone && (
+            <div className="flex justify-between text-emerald-700">
+              <span>Seller Nequi:</span>
+              <span className="font-mono font-semibold">{detail.nequiPhone}</span>
+            </div>
+          )}
+          {detail.buyerPaymentRef ? (
+            <div className="flex justify-between text-emerald-700">
+              <span>Buyer ref:</span>
+              <span className="font-mono font-semibold">{detail.buyerPaymentRef}</span>
+            </div>
+          ) : (
+            <p className="text-amber-600 italic">Buyer has not submitted transaction reference yet.</p>
+          )}
+        </div>
+      )}
       {/* Action 1: Notify farmer */}
       {s === "INQUIRY" && (
         <button onClick={() => act("notify-farmer")} disabled={!!loading}
