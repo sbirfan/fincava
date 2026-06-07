@@ -34,8 +34,9 @@ export default function SupplierProductNew() {
   const { toast } = useToast();
   const createProduct = useCreateProduct();
   const queryClient = useQueryClient();
-  const [uploadedObjectPath, setUploadedObjectPath] = useState<string | null>(null);
-  const pendingObjectPath = useRef<string | null>(null);
+  const MAX_PHOTOS = 4;
+  const [uploadedPaths, setUploadedPaths] = useState<(string | null)[]>(Array(MAX_PHOTOS).fill(null));
+  const pendingPaths = useRef<(string | null)[]>(Array(MAX_PHOTOS).fill(null));
 
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
@@ -53,19 +54,40 @@ export default function SupplierProductNew() {
     },
   });
 
-  async function requestUploadParams(file: { name: string; size: number | null; type: string }) {
-    const res = await fetch("/api/storage/uploads/request-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+  function makeRequestUploadParams(slotIndex: number) {
+    return async function requestUploadParams(file: { name: string; size: number | null; type: string }) {
+      const res = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      const data = await res.json() as { uploadURL: string; objectPath: string };
+      pendingPaths.current[slotIndex] = data.objectPath;
+      return { method: "PUT" as const, url: data.uploadURL, headers: { "Content-Type": file.type } };
+    };
+  }
+
+  function removePhoto(slotIndex: number) {
+    setUploadedPaths(prev => {
+      const next = [...prev];
+      next[slotIndex] = null;
+      return next;
     });
-    const data = await res.json() as { uploadURL: string; objectPath: string };
-    pendingObjectPath.current = data.objectPath;
-    return { method: "PUT" as const, url: data.uploadURL, headers: { "Content-Type": file.type } };
+  }
+
+  function onSlotComplete(slotIndex: number) {
+    if (pendingPaths.current[slotIndex]) {
+      setUploadedPaths(prev => {
+        const next = [...prev];
+        next[slotIndex] = pendingPaths.current[slotIndex];
+        return next;
+      });
+      pendingPaths.current[slotIndex] = null;
+    }
   }
 
   function onSubmit(values: z.infer<typeof productSchema>) {
-    const images = uploadedObjectPath ? [uploadedObjectPath] : [];
+    const images = uploadedPaths.filter((p): p is string => p !== null);
     createProduct.mutate({ data: { ...values, images } }, {
       onSuccess: () => {
         toast({ title: "Product created successfully!" });
@@ -183,68 +205,69 @@ export default function SupplierProductNew() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4" />
-                Product Image
+                Product Photos
+                <span className="text-sm font-normal text-muted-foreground ml-1">(up to 4)</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {uploadedObjectPath ? (
-                <div className="space-y-3">
-                  <div className="rounded-lg overflow-hidden border border-border bg-muted aspect-video w-full max-w-sm relative group">
-                    <img
-                      src={`/api/storage${uploadedObjectPath}`}
-                      alt="Uploaded product"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setUploadedObjectPath(null)}
-                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove image"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <p className="text-sm text-green-700 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Image uploaded successfully
-                  </p>
-                  <ObjectUploader
-                    maxNumberOfFiles={1}
-                    maxFileSize={10 * 1024 * 1024}
-                    onGetUploadParameters={requestUploadParams}
-                    onComplete={() => {
-                      if (pendingObjectPath.current) {
-                        setUploadedObjectPath(pendingObjectPath.current);
-                        pendingObjectPath.current = null;
-                      }
-                    }}
-                    buttonClassName="text-sm underline text-muted-foreground hover:text-foreground"
-                  >
-                    Replace image
-                  </ObjectUploader>
-                </div>
-              ) : (
-                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center bg-muted/30">
-                  <ImageIcon className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Upload a photo of your product (JPEG, PNG or WebP, up to 10 MB)
-                  </p>
-                  <ObjectUploader
-                    maxNumberOfFiles={1}
-                    maxFileSize={10 * 1024 * 1024}
-                    onGetUploadParameters={requestUploadParams}
-                    onComplete={() => {
-                      if (pendingObjectPath.current) {
-                        setUploadedObjectPath(pendingObjectPath.current);
-                        pendingObjectPath.current = null;
-                      }
-                    }}
-                    buttonClassName="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
-                  >
-                    Choose Photo
-                  </ObjectUploader>
-                </div>
-              )}
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                {Array.from({ length: MAX_PHOTOS }).map((_, i) => {
+                  const path = uploadedPaths[i];
+                  const label = i === 0 ? "Cover Photo" : `Photo ${i + 1}`;
+                  return (
+                    <div key={i} className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                      {path ? (
+                        <div className="rounded-lg overflow-hidden border border-border bg-muted aspect-video relative group">
+                          <img
+                            src={`/api/storage${path}`}
+                            alt={label}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(i)}
+                            className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove photo"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ObjectUploader
+                              maxNumberOfFiles={1}
+                              maxFileSize={10 * 1024 * 1024}
+                              onGetUploadParameters={makeRequestUploadParams(i)}
+                              onComplete={() => onSlotComplete(i)}
+                              buttonClassName="text-xs bg-black/60 text-white px-2 py-1 rounded hover:bg-black/80"
+                            >
+                              Replace
+                            </ObjectUploader>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-2 border-dashed border-border rounded-lg aspect-video flex flex-col items-center justify-center bg-muted/30 gap-2">
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                          <ObjectUploader
+                            maxNumberOfFiles={1}
+                            maxFileSize={10 * 1024 * 1024}
+                            onGetUploadParameters={makeRequestUploadParams(i)}
+                            onComplete={() => onSlotComplete(i)}
+                            buttonClassName="inline-flex items-center justify-center rounded-md text-xs font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-7 px-3"
+                          >
+                            {i === 0 ? "Choose Cover" : "Add Photo"}
+                          </ObjectUploader>
+                        </div>
+                      )}
+                      {path && (
+                        <p className="text-xs text-green-700 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Uploaded
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
 
