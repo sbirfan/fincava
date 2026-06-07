@@ -92,6 +92,7 @@ channel = "stable-25_05"
 FINCAVA_COMPANY_ID = "17"
 ENABLE_MATCHING = "true"
 ENABLE_TRANSACTIONS = "true"
+ENABLE_RETAIL = "true"
 
 [userenv.production]
 CORS_ORIGIN = "https://fincava.com,https://fincava.replit.app"
