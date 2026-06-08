@@ -618,7 +618,9 @@ router.post(
 
     const force = req.body?.force === true;
 
-    // Verify product belongs to requesting company (SUPPLIER) or allow all (ADMIN)
+    // Fetch product for ownership + status checks.
+    let productForCheck: { id: number; productStatus: string; companyId: number } | undefined;
+
     if (userRole === "SUPPLIER") {
       const [company] = await db
         .select({ id: companiesTable.id })
@@ -627,15 +629,26 @@ router.post(
       if (!company) { sendError(res, 400, "Supplier company not found"); return; }
 
       const [product] = await db
-        .select({ id: productsTable.id, productStatus: productsTable.productStatus })
+        .select({ id: productsTable.id, productStatus: productsTable.productStatus, companyId: productsTable.companyId })
         .from(productsTable)
         .where(and(eq(productsTable.id, productId), eq(productsTable.companyId, company.id)));
       if (!product) { sendError(res, 404, "Product not found"); return; }
+      productForCheck = product;
+    } else {
+      // ADMIN: no ownership restriction, but still fetch for status check.
+      const [product] = await db
+        .select({ id: productsTable.id, productStatus: productsTable.productStatus, companyId: productsTable.companyId })
+        .from(productsTable)
+        .where(eq(productsTable.id, productId));
+      if (!product) { sendError(res, 404, "Product not found"); return; }
+      productForCheck = product;
+    }
 
-      if (product.productStatus === "active" && !force) {
-        sendError(res, 409, "Product is active — pass force:true to re-enrich after attribute changes");
-        return;
-      }
+    // Allowlist: only draft/pending_review may be enriched without force.
+    // Active products require force:true to prevent accidental overwrites on live listings.
+    if (productForCheck.productStatus !== "draft" && productForCheck.productStatus !== "pending_review" && !force) {
+      sendError(res, 409, "Product is active — pass force:true to re-enrich after attribute changes");
+      return;
     }
 
     const result = await enrichProduct(productId, { force });
@@ -795,16 +808,22 @@ router.get(
       .from(productsTable)
       .$dynamic();
 
-    if (productStatus) {
-      query = query.where(eq(productsTable.productStatus, productStatus)) as typeof query;
+    const conditions = productStatus ? [eq(productsTable.productStatus, productStatus)] : [];
+    if (conditions.length) {
+      query = query.where(and(...conditions)) as typeof query;
     }
 
-    const products = await query
-      .orderBy(desc(productsTable.createdAt))
-      .limit(pageSize)
-      .offset(offset);
+    const countQuery = db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(productsTable)
+      .where(conditions.length ? and(...conditions) : undefined);
 
-    res.json({ products, page, pageSize });
+    const [products, [{ count }]] = await Promise.all([
+      query.orderBy(desc(productsTable.createdAt)).limit(pageSize).offset(offset),
+      countQuery,
+    ]);
+
+    res.json({ products, total: count, page, pageSize, totalPages: Math.ceil(count / pageSize) });
   },
 );
 
@@ -829,7 +848,12 @@ function checkRequiredForChannel(
     let val: unknown;
     if (fieldDef) {
       if (fieldDef.storageLocation === "products_column") {
-        val = product[fieldDef.columnName!];
+        if (!fieldDef.columnName) {
+          logger.warn({ fieldKey, typeKey }, "checkRequiredForChannel: products_column field missing columnName in schema");
+          missing.push(fieldKey);
+          continue;
+        }
+        val = product[fieldDef.columnName];
       } else {
         const attrs = (product.typeAttributes as Record<string, unknown>) ?? {};
         val = attrs[fieldKey];
