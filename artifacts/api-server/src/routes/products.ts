@@ -781,6 +781,24 @@ router.post(
     if (!product) { sendError(res, 404, "Product not found"); return; }
 
     if (channel === "wholesale") {
+      // Wholesale preflight: minimum bars before a product goes live.
+      if (!product.supplierId) {
+        sendError(res, 409, "Product must be linked to a supplier before wholesale approval");
+        return;
+      }
+      const [wholesaleSupplier] = await db
+        .select({ sellableStatus: suppliersTable.sellableStatus })
+        .from(suppliersTable)
+        .where(eq(suppliersTable.id, product.supplierId));
+      if (wholesaleSupplier?.sellableStatus !== "SELLABLE" && wholesaleSupplier?.sellableStatus !== "PUBLISHED") {
+        sendError(res, 409, "Supplier must be SELLABLE or PUBLISHED before wholesale approval");
+        return;
+      }
+      if (!product.images || product.images.length < 1) {
+        sendError(res, 409, "At least one product image required for wholesale approval");
+        return;
+      }
+
       const [updated] = await db
         .update(productsTable)
         .set({
@@ -868,7 +886,7 @@ router.post(
 
     const [updated] = await db
       .update(productsTable)
-      .set({ retailEnabled: true, retailApprovedAt: new Date() })
+      .set({ retailEnabled: true, retailApprovedAt: new Date(), productStatus: "active" })
       .where(eq(productsTable.id, productId))
       .returning();
 
