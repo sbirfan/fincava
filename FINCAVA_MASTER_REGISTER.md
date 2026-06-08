@@ -815,6 +815,7 @@
 | **Effort** | Small |
 | **Dependencies** | Replit cron + `BACKUP_SECRET_V2` |
 | **Recommended timing** | Must Do Now |
+| **Status** | **Resolved — 2026-06-08** — Cron confirmed active in `.replit`; `BACKUP_SECRET_V2` confirmed in Replit Secrets (not shared env). |
 
 ### FIN-043 — AI (Anthropic) dependency with limited fallback
 
@@ -1017,6 +1018,7 @@
 | **Effort** | Tiny |
 | **Dependencies** | Move to secrets |
 | **Recommended timing** | Must Do Now |
+| **Status** | **Resolved — 2026-06-08** — `UPLOAD_TOKEN_SECRET` confirmed in Replit Secrets only; not present in shared `.replit` env. Orphaned `SESSION_SECRET` and `RESEND_FINCAVA_EMAIL_API_KEY` entries also deleted from Replit Secrets. |
 
 ### FIN-054 — Plaintext token columns not yet dropped
 
@@ -1053,6 +1055,7 @@
 | **Effort** | Small |
 | **Dependencies** | Hash at rest |
 | **Recommended timing** | Later |
+| **Status** | **Partially Mitigated — 2026-06-08** — Column confirmed dormant: no route reads or writes `claim_token` in the current codebase. Annotated with hash-contract comment in `suppliers.ts`. No active exploitation risk while dormant; full remediation (hash + migration) deferred. |
 
 ### FIN-056 — Partial API rate limiting
 
@@ -1143,6 +1146,7 @@
 | **Effort** | Tiny |
 | **Dependencies** | `crypto.timingSafeEqual` |
 | **Recommended timing** | Later |
+| **Status** | **Resolved — 2026-06-08** — Backup endpoint now uses `crypto.timingSafeEqual` with length pre-check before comparison. Committed `da0da0e` in `artifacts/api-server/src/routes/admin.ts`. |
 
 ### FIN-061 — Discovery engine external fetch SSRF surface
 
@@ -1215,6 +1219,7 @@
 | **Effort** | Medium |
 | **Dependencies** | Shared flag doc/checklist |
 | **Recommended timing** | Next |
+| **Status** | **Improved — 2026-06-08** — `ENABLE_CART` added consistently to both `artifacts/api-server/src/lib/flags.ts` (backend) and `artifacts/fincava/src/lib/flags.ts` (frontend), to `FlagName` union, to all `PHASE_BASELINES`, and to `LIVE_FLAGS`. Pattern now serves as the reference for future flags. Full automated sync still deferred. |
 
 ---
 
@@ -1749,6 +1754,7 @@
 | **Effort** | Large |
 | **Dependencies** | Spec coverage project |
 | **Recommended timing** | Later |
+| **Status** | **Improved — 2026-06-08** — Phase 2 added 13 new paths and 13 new component schemas to `lib/api-spec/openapi.yaml` (type-schemas, enrich, admin products CRUD, cart, checkout). Orval regenerated `lib/api-client-react/` and `lib/api-zod/`. Coverage meaningfully extended but full spec parity still deferred. |
 
 ### FIN-094 — Single PostgreSQL instance, no read replicas
 

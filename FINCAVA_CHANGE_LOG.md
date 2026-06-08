@@ -39,6 +39,209 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+## 2026-06-08
+
+### Product Catalog V2 — Phase 2: Admin Catalog UI + B2B Enhancements
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval
+
+**Summary:**  
+Phase 2 of Product Catalog V2 shipped. Added `/admin/products` split-pane admin page (product list + detail panel with per-channel approval, SKU management, AI enrichment trigger). Added `PATCH /admin/products/:id` route for admin retail SKU fields. Updated `product-detail.tsx` with B2B Technical Specs tab (renders `typeAttributes` where `wholesaleDisplay=true`) and AI-enriched description badge (`aiContent.longEn`). Extended `openapi.yaml` with 13 new paths and 13 new schemas; regenerated `lib/api-client-react/` and `lib/api-zod/` via Orval.
+
+**Files:**  
+- `artifacts/fincava/src/pages/admin/products.tsx` — new file; split-pane admin catalog UI
+- `artifacts/api-server/src/routes/products.ts` — added `PATCH /admin/products/:id`
+- `artifacts/fincava/src/App.tsx` — added `/admin/products` lazy route
+- `artifacts/fincava/src/pages/product-detail.tsx` — Technical Specs tab + AI description with ✨ badge
+- `lib/api-spec/openapi.yaml` — 13 new paths + 13 new schemas
+- `lib/api-client-react/src/generated/` — regenerated (33 new type files)
+- `lib/api-zod/src/generated/` — regenerated
+
+**Validation:**  
+- [x] `/admin/products` renders product list with status filter tabs
+- [x] `PATCH /admin/products/:id` accepts retailPriceCop, retailStockUnits, retailUnitLabel, retailUnitWeightG, retailMaxPerOrder, harvest window fields
+- [x] Technical Specs tab appears on `product-detail.tsx` only when `typeSchema` is loaded
+- [x] AI description badge renders `aiContent.longEn` with ✨ fallback to `product.description`
+- [x] Orval codegen ran without errors; generated files updated
+
+**Rollback:** Revert the 7 files above. No schema change in this phase.
+
+**Improves:** FIN-093 (OpenAPI coverage meaningfully extended)
+
+---
+
+### Product Catalog V2 — Phase 1B Code Review: Finding #6 + #8
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval  
+**Commits:** `b925f95`, `ffe6496` (fincava-hub)
+
+**Summary:**  
+Two remaining code review findings from Phase 1B addressed. Finding #6: authenticated users without a buyer profile now get a stable `"user:${userId}"` cart key (no more session cookie dependency for auth users — cart survives cookie loss). Stale guest cookie cleared on authenticated request. Finding #8: `rawAccessToken` variable hoisted to outer function scope, eliminating the `(res as any)._orderAccessToken` cross-scope hack.
+
+**Files:**  
+- `artifacts/api-server/src/routes/retail/cart.ts` — stable `"user:${userId}"` key in `resolveCart()`; stale cookie cleared; PATCH/DELETE verify cart ownership
+- `artifacts/api-server/src/routes/retail/orders.ts` — `rawAccessToken` hoisted; `(res as any)` pattern removed
+
+**Validation:**  
+- [x] CP-8: Cart operations pass with auth user (no cookie required)
+- [x] CP-9: Checkout creates orders with correct `rawAccessToken` in email
+
+**Rollback:** Revert the two files. No schema change.
+
+---
+
+### Product Catalog V2 — Phase 1B Code Review: Findings #1–#5 + #7
+
+**Status:** Completed  
+**Completed by:** Founder (self-applied after review)
+
+**Summary:**  
+Seven of eight Phase 1B code review findings fixed by founder. Fixes: (1) PATCH/DELETE cart items now verify cart ownership before write; (2) CHECK constraints `quantity > 0` added to `retail_cart_items` and `unit_quantity > 0` to `retail_order_items` via migration 0036; (3) PATCH cart item now returns 409 if requested quantity exceeds `max_per_order_snapshot` (no silent cap); (4) checkout validates email domain ownership before sending (prevent impersonation); (5) shipping origin country confirmed non-null in order pre-flight; (7) UPSERT `onConflictDoUpdate` refreshes all 4 snapshots including `unitLabelSnapshot` and `maxPerOrderSnapshot`.
+
+**Files:**  
+- `artifacts/api-server/src/routes/retail/cart.ts` — ownership check, 409 on quantity cap
+- `lib/db/src/schema/retail.ts` — CHECK constraints
+- `artifacts/api-server/src/routes/retail/orders.ts` — email guard, shipping origin, snapshot refresh
+
+**Validation:**  
+- [x] CP-7, CP-8, CP-9 all pass after fixes applied
+- [x] Typecheck passes
+
+**Rollback:** Revert the three files; remove CHECK constraint additions from migration if needed (dev DB only at time of fix).
+
+---
+
+### Product Catalog V2 — Phase 1B: Retail Cart + Multi-Supplier Checkout
+
+**Status:** Completed  
+**Completed by:** Founder (implemented) + Claude Code (reviewed + fixes)  
+**Checkpoints:** CP-7 ✅ CP-8 ✅ CP-9 ✅
+
+**Summary:**  
+Phase 1B retail foundation shipped. Migration 0036 adds `retail_carts`, `retail_cart_items`, `retail_order_items` tables and `orders.checkout_batch_ref`. Cart routes (GET/POST/PATCH/DELETE) with guest cookie + auth session management. `POST /api/retail/checkout` implements 3-phase flow: Phase A pre-flight validation (all items, no DB writes), Phase B single atomic transaction across all supplier groups, Phase C fire-and-forget email. CartDrawer and AddToCartButton frontend components. `producto.tsx` wired to cart.
+
+**Files:**  
+- `lib/db/drizzle/0036_retail_cart_order_items.sql` — migration
+- `lib/db/src/schema/retail.ts` — 3 new tables
+- `lib/db/src/schema/orders.ts` — `checkoutBatchRef` column
+- `artifacts/api-server/src/lib/flags.ts` — `ENABLE_CART` added
+- `artifacts/fincava/src/lib/flags.ts` — `ENABLE_CART` frontend
+- `artifacts/api-server/src/routes/retail/cart.ts` — new file
+- `artifacts/api-server/src/routes/retail/orders.ts` — `POST /retail/checkout`
+- `artifacts/api-server/src/routes/retail/index.ts` — cart sub-router mounted
+- `artifacts/fincava/src/components/cart-drawer.tsx` — new file
+- `artifacts/fincava/src/components/add-to-cart-button.tsx` — new file
+- `artifacts/fincava/src/pages/tienda/producto.tsx` — AddToCartButton wired
+
+**Validation:**  
+- [x] CP-7: All 4 new tables + checkout_batch_ref column exist in DB
+- [x] CP-8: POST cart/items → GET cart → DELETE works end-to-end
+- [x] CP-9: 2-product/2-supplier checkout creates 2 orders with same batch_ref + Nequi snapshots; null supplier_id → 409
+
+**Rollback:** Set `ENABLE_CART=false` (disables all cart/checkout routes at runtime). Full rollback: revert the 11 files above.
+
+**Improves:** FIN-064 (ENABLE_CART added consistently to both flag files)
+
+---
+
+### Product Catalog V2 — Phase 1A: Catalog Foundation
+
+**Status:** Completed  
+**Completed by:** Claude Code + founder approval  
+**Checkpoints:** CP-1 ✅ CP-2 ✅ CP-3 ✅ CP-4 ✅ CP-5 ✅ CP-6 ✅
+
+**Summary:**  
+Phase 1A catalog foundation shipped. Migration 0034 adds 7 new columns to `products` (product_type_key, type_attributes, wholesale_enabled, ai_content, product_status, wholesale_approved_at, retail_approved_at). Product template engine for 5 types (COFFEE_GREEN, COFFEE_ROASTED, CACAO_BEAN, CACAO_POWDER, CACAO_NIBS). Admin per-channel approve route with full retail pre-flight. AI enrichment service writing to `products.ai_content`. Three new frontend components (ProductTypeSelector, DynamicTypeForm, AiEnrichmentPreview) plus updated product-new/product-edit pages.
+
+**Files:**  
+- `lib/db/drizzle/0034_product_catalog_v2.sql` — migration
+- `lib/db/src/schema/products.ts` — 7 new columns
+- `artifacts/api-server/src/lib/product-type-schemas.ts` — new template engine
+- `artifacts/api-server/src/services/product-enrichment-service.ts` — AI enrichment
+- `artifacts/api-server/src/routes/products.ts` — type-schemas, enrich, approve, link-supplier routes
+- `artifacts/fincava/src/components/product-type-selector.tsx` — new
+- `artifacts/fincava/src/components/dynamic-type-form.tsx` — new
+- `artifacts/fincava/src/components/ai-enrichment-preview.tsx` — new
+- `artifacts/fincava/src/pages/supplier-dashboard/product-new.tsx` — type selector + AI enhance
+- `artifacts/fincava/src/pages/supplier-dashboard/product-edit.tsx` — type selector + AI enhance
+
+**Validation:**  
+- [x] CP-1 through CP-6 all pass (verified in dev against local DB)
+- [x] Typecheck passes across api-server and fincava packages
+
+**Rollback:** Migration 0034 is additive only (nullable/default columns). Runtime flag: set product_status filter to bypass 'draft' gate. Full: `git revert` the Phase 1A commits; drop migration columns if needed.
+
+---
+
+### FIN-060 — Backup endpoint timing-safe comparison
+
+**Status:** Completed  
+**Completed by:** Claude Code  
+**Commit:** `da0da0e` (fincava-hub)
+
+**Summary:**  
+Backup trigger endpoint at `POST /admin/backup/run` was comparing the secret with string equality (`===`), which is timing-vulnerable. Replaced with `crypto.timingSafeEqual` plus a length pre-check (avoids length-leaking branch). Zero functional change — behavior identical for correct and incorrect tokens.
+
+**Files:**  
+- `artifacts/api-server/src/routes/admin.ts` — `timingSafeEqual` comparison in backup route
+
+**Validation:**  
+- [x] Correct token still triggers backup (200 OK)
+- [x] Wrong token still returns 401
+- [x] No `===` string comparison on secret value
+
+**Rollback:** Revert the one-line change in `admin.ts`.
+
+**Resolves:** FIN-060
+
+---
+
+### FIN-053 + FIN-042 — Secrets audit confirmation
+
+**Status:** Completed  
+**Completed by:** Founder (verified) + Claude Code (documented)
+
+**Summary:**  
+Secrets audit confirmed: `UPLOAD_TOKEN_SECRET` is in Replit Secrets only (not in shared `.replit` env block) — FIN-053 resolved. Cron job `0 3 * * *` confirmed present in `.replit` and `BACKUP_SECRET_V2` confirmed in Replit Secrets — FIN-042 resolved. Two orphaned secrets (`SESSION_SECRET` and `RESEND_FINCAVA_EMAIL_API_KEY`) with zero code references confirmed and deleted from Replit Secrets.
+
+**Files:**  
+- Replit Secrets (external) — orphan entries deleted; no code files changed
+
+**Validation:**  
+- [x] `grep -r "SESSION_SECRET" artifacts/` — zero results
+- [x] `grep -r "RESEND_FINCAVA_EMAIL_API_KEY" artifacts/` — zero results
+- [x] `BACKUP_SECRET_V2` present in Secrets; cron `0 3 * * *` in `.replit`
+- [x] `UPLOAD_TOKEN_SECRET` in Secrets; absent from shared env block
+
+**Rollback:** N/A — secrets management only.
+
+**Resolves:** FIN-053, FIN-042
+
+---
+
+### FIN-055 — `claim_token` dormant column annotated
+
+**Status:** Partially Mitigated  
+**Completed by:** Claude Code
+
+**Summary:**  
+Confirmed that `suppliers.claim_token` column has no active read or write paths in the current codebase. Annotated the column declaration in `suppliers.ts` with a comment marking the hash contract for when the column is eventually activated. No migration needed. Full remediation (bcrypt hash at rest) deferred until the claim flow is built.
+
+**Files:**  
+- `lib/db/src/schema/suppliers.ts` — `claim_token` column annotated
+
+**Validation:**  
+- [x] `grep -rn "claim_token" artifacts/api-server/src/routes/` — no route reads or writes this column
+- [x] Annotation present in schema file
+
+**Rollback:** N/A — annotation only.
+
+**Partially mitigates:** FIN-055
+
+---
+
 ### FIN-011 — Operator playbook *(final)*
 
 **Status:** Completed  
@@ -498,7 +701,16 @@ Established the improvement register, prioritization dashboards, and execution b
 
 | FIN ID | Completed date | Title | Summary (short) |
 |--------|----------------|-------|-----------------|
-| — | — | — | — |
+| FIN-060 | 2026-06-08 | Backup endpoint timing-safe comparison | `crypto.timingSafeEqual` + length pre-check in admin.ts |
+| FIN-053 | 2026-06-08 | UPLOAD_TOKEN_SECRET confirmed in Secrets | Not in shared env; orphan secrets deleted |
+| FIN-042 | 2026-06-08 | Cron + BACKUP_SECRET_V2 confirmed | Cron active in .replit; secret in Replit Secrets |
+| FIN-055 | 2026-06-08 | claim_token dormant column annotated | Column has no active routes; hash contract annotated |
+| FIN-064 | 2026-06-08 | ENABLE_CART added to both flag files | Backend flags.ts + frontend flags.ts consistent |
+| FIN-093 | 2026-06-08 | OpenAPI coverage extended (Phase 2) | 13 paths + 13 schemas added; Orval regenerated |
+| — (Phase 2) | 2026-06-08 | Product Catalog V2 Phase 2 | Admin products page, Technical Specs tab, AI description |
+| — (Phase 1B review) | 2026-06-08 | Phase 1B code review findings #1–#8 | All 8 findings fixed across 3 files |
+| — (Phase 1B) | 2026-06-08 | Product Catalog V2 Phase 1B | Cart + multi-supplier atomic checkout; CP-7/8/9 pass |
+| — (Phase 1A) | 2026-06-08 | Product Catalog V2 Phase 1A | Template engine, AI enrichment, admin approve; CP-1–6 pass |
 
 ---
 
