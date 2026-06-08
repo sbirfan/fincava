@@ -48,6 +48,7 @@ function retailProductBase() {
       and(
         eq(productsTable.retailEnabled, true),
         eq(productsTable.active, true),
+        eq(productsTable.productStatus, "active"),
         eq(suppliersTable.sellableStatus, "PUBLISHED"),
       )
     );
@@ -72,6 +73,7 @@ router.get("/retail/products", async (req, res): Promise<void> => {
     const conditions: ReturnType<typeof eq>[] = [
       eq(productsTable.retailEnabled, true),
       eq(productsTable.active, true),
+      eq(productsTable.productStatus, "active"),
       eq(suppliersTable.sellableStatus, "PUBLISHED"),
     ];
     if (category) conditions.push(eq(productsTable.category, category as any));
@@ -136,6 +138,7 @@ router.get("/retail/products/:id", async (req, res): Promise<void> => {
           eq(productsTable.id, id),
           eq(productsTable.retailEnabled, true),
           eq(productsTable.active, true),
+          eq(productsTable.productStatus, "active"),
           eq(suppliersTable.sellableStatus, "PUBLISHED"),
         )
       );
@@ -301,6 +304,7 @@ router.get("/retail/products/:id/similar", async (req, res): Promise<void> => {
     const conditions: ReturnType<typeof eq>[] = [
       eq(productsTable.retailEnabled, true),
       eq(productsTable.active, true),
+      eq(productsTable.productStatus, "active"),
       eq(suppliersTable.sellableStatus, "PUBLISHED"),
       ne(productsTable.id, id),
       gt(productsTable.retailStockUnits, 0),

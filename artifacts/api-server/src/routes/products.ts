@@ -118,6 +118,7 @@ router.get("/products", async (req, res): Promise<void> => {
 
   const conditions = [
     eq(productsTable.active, true),
+    eq(productsTable.productStatus, "active"),
     sql`(
       (${productsTable.supplierId} IS NOT NULL AND ${suppliersTable.sellableStatus}::text = ANY(ARRAY[${sql.join(GRADUATED_STATUSES.map(s => sql`${s}`), sql`, `)}]))
       OR
@@ -181,7 +182,7 @@ router.get("/products/featured", async (_req, res): Promise<void> => {
   })
     .from(productsTable)
     .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
-    .where(and(eq(productsTable.featured, true), eq(productsTable.active, true)))
+    .where(and(eq(productsTable.featured, true), eq(productsTable.active, true), eq(productsTable.productStatus, "active")))
     .limit(8)
     .orderBy(desc(productsTable.createdAt));
 
@@ -217,7 +218,7 @@ router.get("/products/:id", async (req, res): Promise<void> => {
   })
     .from(productsTable)
     .leftJoin(companiesTable, eq(productsTable.companyId, companiesTable.id))
-    .where(eq(productsTable.id, params.data.id));
+    .where(and(eq(productsTable.id, params.data.id), eq(productsTable.productStatus, "active")));
 
   if (!row) {
     sendError(res, 404, "Product not found");
