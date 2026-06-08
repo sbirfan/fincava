@@ -891,8 +891,9 @@ router.post(
     if (!product) { sendError(res, 404, "Product not found"); return; }
 
     if (channel === "wholesale") {
-      // Idempotency guard — prevent re-approval from overwriting the original approval timestamp.
-      if (product.wholesaleEnabled) {
+      // Idempotency guard — wholesaleEnabled defaults true (column default), so guard on the
+      // approval timestamp which is only set by a real approval write, not by the column default.
+      if (product.wholesaleApprovedAt) {
         sendError(res, 409, "Product is already wholesale approved");
         return;
       }
@@ -934,7 +935,7 @@ router.post(
         })
         .where(eq(productsTable.id, productId))
         .returning();
-      res.json({ product: updated });
+      res.json(updated);
       return;
     }
 
@@ -1026,7 +1027,7 @@ router.post(
       .where(eq(productsTable.id, productId))
       .returning();
 
-    res.json({ product: updated, warnings });
+    res.json({ ...updated, warnings });
   },
 );
 
