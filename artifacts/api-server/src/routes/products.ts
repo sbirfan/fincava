@@ -16,7 +16,7 @@ import { logger } from "../lib/logger";
 import { computePlatformTrustScore } from "../services/trust-score-service";
 import { z } from "zod";
 import { sendError } from "../lib/response";
-import { PRODUCT_TYPE_SCHEMAS, PRODUCT_TYPE_SCHEMA_VERSION, getSchemaForType } from "../lib/product-type-schemas";
+import { PRODUCT_TYPE_SCHEMAS, PRODUCT_TYPE_SCHEMA_VERSION, getSchemaForType, getZodSchemaForType } from "../lib/product-type-schemas";
 
 const BooleanFilters = z.object({
   smallholder: z.coerce.boolean().optional(),
@@ -394,6 +394,22 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
       return;
     }
 
+    const incomingTypeKey: string | undefined = typeof req.body.productTypeKey === "string" ? req.body.productTypeKey : undefined;
+    const incomingTypeAttributes: unknown = req.body.typeAttributes;
+
+    let validatedTypeAttributes: Record<string, unknown> | null = null;
+    if (incomingTypeKey !== undefined && incomingTypeAttributes !== undefined) {
+      const typeSchema = getZodSchemaForType(incomingTypeKey);
+      if (typeSchema) {
+        const attrResult = typeSchema.safeParse(incomingTypeAttributes);
+        if (!attrResult.success) {
+          sendError(res, 400, `Invalid typeAttributes for '${incomingTypeKey}': ${attrResult.error.message}`);
+          return;
+        }
+        validatedTypeAttributes = attrResult.data as Record<string, unknown>;
+      }
+    }
+
     const [product] = await db.insert(productsTable).values({
       companyId: company.id,
       name: parsed.data.name,
@@ -414,6 +430,9 @@ router.post("/supplier/products", requireAuth, async (req, res): Promise<void> =
       cupping: parsed.data.cupping ?? null,
       originStory: parsed.data.originStory ?? null,
       farmerName: parsed.data.farmerName ?? null,
+      productTypeKey: incomingTypeKey ?? null,
+      typeAttributes: validatedTypeAttributes,
+      productStatus: "draft",
     }).returning();
 
     const result = await buildProductResponse(product, company);
@@ -481,6 +500,41 @@ router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<vo
   if (parsed.data.images !== undefined) updateData.images = parsed.data.images;
   if (parsed.data.certifications !== undefined) updateData.certifications = parsed.data.certifications;
   if (parsed.data.cupping !== undefined) updateData.cupping = parsed.data.cupping;
+
+  // V2: productTypeKey, typeAttributes, productStatus
+  const incomingTypeKey: string | undefined = typeof req.body.productTypeKey === "string" ? req.body.productTypeKey : undefined;
+  const incomingTypeAttributes: unknown = req.body.typeAttributes;
+  const incomingStatus: unknown = req.body.productStatus;
+
+  if (incomingStatus !== undefined) {
+    if (incomingStatus !== "pending_review") {
+      sendError(res, 400, "Suppliers may only set productStatus to 'pending_review'");
+      return;
+    }
+    updateData.productStatus = "pending_review";
+  }
+
+  if (incomingTypeKey !== undefined) {
+    const typeKeyChanged = incomingTypeKey !== product.productTypeKey;
+    updateData.productTypeKey = incomingTypeKey;
+    if (typeKeyChanged && product.productStatus === "active") {
+      updateData.productStatus = "pending_review";
+    }
+  }
+
+  if (incomingTypeKey !== undefined && incomingTypeAttributes !== undefined) {
+    const typeSchema = getZodSchemaForType(incomingTypeKey);
+    if (typeSchema) {
+      const attrResult = typeSchema.safeParse(incomingTypeAttributes);
+      if (!attrResult.success) {
+        sendError(res, 400, `Invalid typeAttributes for '${incomingTypeKey}': ${attrResult.error.message}`);
+        return;
+      }
+      updateData.typeAttributes = attrResult.data;
+    } else {
+      updateData.typeAttributes = incomingTypeAttributes;
+    }
+  }
 
   const [updated] = await db.update(productsTable).set(updateData)
     .where(eq(productsTable.id, params.data.id)).returning();
