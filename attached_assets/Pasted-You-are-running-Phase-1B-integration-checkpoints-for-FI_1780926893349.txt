@@ -1,0 +1,307 @@
+You are running Phase 1B integration checkpoints for FINCAVA product catalog V2.
+Work through CP-7 → CP-9 in order. Stop and report immediately if any checkpoint fails.
+
+────────────────────────────────────────────────────────────────────────
+CONTEXT
+────────────────────────────────────────────────────────────────────────
+
+Phase 1A (CP-1 through CP-6) is complete and verified. This session covers
+Phase 1B: cart, multi-supplier checkout, and retail order items.
+
+Determine API_BASE_URL the same way as Phase 1A:
+  - Check process.env.REPL_SLUG / REPL_OWNER, or .env for API_BASE_URL.
+  - Or read the Replit Webview URL.
+
+You will need:
+  - ADMIN_TOKEN: log in via POST /api/auth/login with admin credentials
+  - SUPPLIER_TOKEN_A: a PUBLISHED supplier with nequiPhone set (use supplier
+    from CP-4, or find one via psql)
+  - SUPPLIER_TOKEN_B: a second PUBLISHED supplier with nequiPhone set
+    (if only one exists in dev DB, create a second test supplier)
+
+────────────────────────────────────────────────────────────────────────
+CP-7 — Migration 0036 applied: 3 new tables + checkout_batch_ref column
+────────────────────────────────────────────────────────────────────────
+
+Run:
+  psql $DATABASE_URL -c "\dt retail_carts retail_cart_items retail_order_items" 2>&1
+
+Expected: all 3 tables listed.
+
+Run:
+  psql $DATABASE_URL -c "\d retail_carts"
+  psql $DATABASE_URL -c "\d retail_cart_items"
+  psql $DATABASE_URL -c "\d retail_order_items"
+
+Verify key columns:
+  retail_carts:       session_id, retail_buyer_profile_id, expires_at, CHECK constraint
+  retail_cart_items:  cart_id, product_id, quantity, unit_label_snapshot,
+                      price_cop_snapshot, max_per_order_snapshot, UNIQUE(cart_id, product_id)
+  retail_order_items: order_id, product_id, supplier_id, unit_quantity,
+                      nequi_phone_snapshot
+
+Run:
+  psql $DATABASE_URL -c "\d orders" | grep checkout_batch_ref
+
+Expected: one line showing checkout_batch_ref text column.
+
+Run:
+  psql $DATABASE_URL -c \
+    "SELECT indexname FROM pg_indexes WHERE tablename = 'orders'
+     AND indexname = 'orders_checkout_batch_ref_idx';"
+
+Expected: 1 row returned.
+
+PASS condition: all 3 tables present with correct columns; checkout_batch_ref
+column and index both exist on orders.
+
+────────────────────────────────────────────────────────────────────────
+CP-8 — Cart CRUD: add item → read cart → update qty → delete item
+────────────────────────────────────────────────────────────────────────
+
+PREREQUISITE: ENABLE_CART must be true in the running environment.
+Check: if routes return 503 "Cart not available", set ENABLE_CART=true
+in Replit Secrets and restart the server.
+
+You need a retail-enabled active product. Either:
+  a) Use the product approved in CP-4, if it has:
+       retail_enabled = true, product_status = 'active',
+       retail_price_cop IS NOT NULL, retail_stock_units > 0,
+       retail_unit_label IS NOT NULL
+       and its supplier has nequiPhone set
+  b) Or find one:
+     psql $DATABASE_URL -c \
+       "SELECT p.id, p.name, p.retail_price_cop, p.retail_stock_units,
+               p.retail_enabled, p.product_status
+        FROM products p WHERE p.retail_enabled = true
+        AND p.product_status = 'active' LIMIT 3;"
+
+Store the product id as RETAIL_PRODUCT_ID.
+
+─── STEP A — Add item to cart (guest session) ───
+
+  CART_RESPONSE=$(curl -s -c /tmp/cart_cookies.txt \
+    -X POST "$API_BASE_URL/api/retail/cart/items" \
+    -H "Content-Type: application/json" \
+    -d "{\"productId\": $RETAIL_PRODUCT_ID, \"quantity\": 2}")
+
+  echo $CART_RESPONSE | jq '{
+    cartId: .data.cartId,
+    itemCount: (.data.items | length),
+    firstItem: .data.items[0] | {productId, quantity, priceCopSnapshot}
+  }'
+
+Expected:
+  - itemCount == 1
+  - firstItem.productId == $RETAIL_PRODUCT_ID
+  - firstItem.quantity == 2
+  - firstItem.priceCopSnapshot is a non-null integer
+
+Note: -c saves the fincava_cart_session cookie for subsequent calls.
+
+─── STEP B — Read cart back ───
+
+  curl -s -b /tmp/cart_cookies.txt \
+    "$API_BASE_URL/api/retail/cart" \
+  | jq '{itemCount: (.data.items | length), productId: .data.items[0].productId}'
+
+Expected: itemCount == 1, productId == $RETAIL_PRODUCT_ID
+
+─── STEP C — Update quantity ───
+
+  ITEM_ID=$(curl -s -b /tmp/cart_cookies.txt "$API_BASE_URL/api/retail/cart" \
+    | jq '.data.items[0].itemId')
+
+  curl -s -b /tmp/cart_cookies.txt -c /tmp/cart_cookies.txt \
+    -X PATCH "$API_BASE_URL/api/retail/cart/items/$ITEM_ID" \
+    -H "Content-Type: application/json" \
+    -d '{"quantity": 3}' \
+  | jq '.data.items[0].quantity'
+
+Expected: 3
+
+─── STEP D — Delete item ───
+
+  curl -s -b /tmp/cart_cookies.txt -c /tmp/cart_cookies.txt \
+    -X DELETE "$API_BASE_URL/api/retail/cart/items/$ITEM_ID" \
+  | jq '.data.items | length'
+
+Expected: 0
+
+─── STEP E — Verify over-max-per-order is rejected ───
+
+  MAX=$(psql $DATABASE_URL -tAq \
+    -c "SELECT retail_max_per_order FROM products WHERE id = $RETAIL_PRODUCT_ID;")
+
+  curl -s -c /tmp/cart_cookies2.txt \
+    -X POST "$API_BASE_URL/api/retail/cart/items" \
+    -H "Content-Type: application/json" \
+    -d "{\"productId\": $RETAIL_PRODUCT_ID, \"quantity\": $((MAX + 1))}" \
+  | jq '.error'
+
+Expected: non-null error string (quantity exceeds max per order).
+
+PASS condition: Steps A–D all return expected values; Step E rejects over-max.
+
+────────────────────────────────────────────────────────────────────────
+CP-9 — Multi-supplier checkout: 2 orders, same checkout_batch_ref,
+        correct retail_order_items, Nequi snapshots present.
+        Also: null supplier_id → 409.
+────────────────────────────────────────────────────────────────────────
+
+PREREQUISITE: You need two active retail-enabled products from two different
+suppliers (different supplier_id values). Both suppliers must be PUBLISHED
+with nequiPhone set.
+
+Confirm in DB:
+  psql $DATABASE_URL -c \
+    "SELECT p.id, p.name, p.supplier_id, p.retail_price_cop,
+            s.sellable_status, spm.nequi_phone
+     FROM products p
+     JOIN suppliers s ON s.id = p.supplier_id
+     JOIN supplier_payment_methods spm ON spm.supplier_id = p.supplier_id
+     WHERE p.retail_enabled = true AND p.product_status = 'active'
+     ORDER BY p.supplier_id;"
+
+You need at least 2 rows with DIFFERENT supplier_id values.
+Store: PRODUCT_A_ID (supplier A), PRODUCT_B_ID (supplier B).
+
+─── STEP A — Build a cart with both products ───
+
+  # Add product A (new guest session)
+  curl -s -c /tmp/checkout_cookies.txt \
+    -X POST "$API_BASE_URL/api/retail/cart/items" \
+    -H "Content-Type: application/json" \
+    -d "{\"productId\": $PRODUCT_A_ID, \"quantity\": 1}" > /dev/null
+
+  # Add product B (same session)
+  curl -s -b /tmp/checkout_cookies.txt -c /tmp/checkout_cookies.txt \
+    -X POST "$API_BASE_URL/api/retail/cart/items" \
+    -H "Content-Type: application/json" \
+    -d "{\"productId\": $PRODUCT_B_ID, \"quantity\": 1}" > /dev/null
+
+  # Confirm 2 items in cart
+  curl -s -b /tmp/checkout_cookies.txt "$API_BASE_URL/api/retail/cart" \
+  | jq '.data.items | length'
+
+Expected: 2
+
+─── STEP B — Submit checkout ───
+
+  CHECKOUT=$(curl -s -b /tmp/checkout_cookies.txt \
+    -X POST "$API_BASE_URL/api/retail/checkout" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "email": "cp9test@fincava.com",
+      "phone": "3001234567",
+      "shippingName": "CP9 Test",
+      "shippingAddressLine1": "Calle 1 # 1-1",
+      "shippingCity": "Bogotá",
+      "shippingDepartment": "Cundinamarca"
+    }')
+
+  echo $CHECKOUT | jq '{
+    checkoutBatchRef: .data.checkoutBatchRef,
+    orderCount: (.data.orders | length),
+    orders: [.data.orders[] | {orderId, supplierId, nequiPhone, itemCount: (.items | length)}]
+  }'
+
+Expected:
+  - checkoutBatchRef: non-null UUID string
+  - orderCount: 2 (one per supplier)
+  - each order has a distinct supplierId
+  - each order has nequiPhone populated (non-null)
+  - each order has itemCount: 1
+
+─── STEP C — Verify DB state ───
+
+  BATCH_REF=$(echo $CHECKOUT | jq -r '.data.checkoutBatchRef')
+
+  # Both orders share the same checkout_batch_ref
+  psql $DATABASE_URL -c \
+    "SELECT id, supplier_id, status, checkout_batch_ref
+     FROM orders WHERE checkout_batch_ref = '$BATCH_REF';"
+
+Expected: 2 rows, same checkout_batch_ref, different supplier_id.
+
+  # retail_order_items exist for both orders
+  psql $DATABASE_URL -c \
+    "SELECT roi.id, roi.order_id, roi.product_id, roi.supplier_id,
+            roi.unit_quantity, roi.nequi_phone_snapshot,
+            roi.product_price_cents_snapshot
+     FROM retail_order_items roi
+     JOIN orders o ON o.id = roi.order_id
+     WHERE o.checkout_batch_ref = '$BATCH_REF';"
+
+Expected: 2 rows, each with nequi_phone_snapshot populated (non-null).
+
+  # Cart was deleted after checkout
+  curl -s -b /tmp/checkout_cookies.txt "$API_BASE_URL/api/retail/cart" \
+  | jq '.data.items | length'
+
+Expected: 0 (cart cleared; new empty cart created on this GET)
+
+─── STEP D — Null supplier_id → checkout returns 409 ───
+
+Create a retail-active product with supplier_id IS NULL:
+  NULL_PRODUCT_ID=$(psql $DATABASE_URL -tAq -c \
+    "INSERT INTO products (company_id, name, category, origin,
+       price_per_kg_usd, min_order_kg, available_kg,
+       retail_enabled, retail_price_cop, retail_stock_units,
+       retail_unit_label, retail_unit_weight_g,
+       product_status, wholesale_enabled, wholesale_approved_at,
+       retail_approved_at)
+     SELECT company_id, 'CP9 Null Supplier Test', 'COFFEE', 'Test',
+       5, 10, 100, true, 25000, 50, 'Bolsa 250g', 250,
+       'active', true, now(), now()
+     FROM products WHERE supplier_id IS NOT NULL LIMIT 1
+     RETURNING id;")
+
+Add to a fresh cart and attempt checkout:
+  curl -s -c /tmp/null_supplier_cookies.txt \
+    -X POST "$API_BASE_URL/api/retail/cart/items" \
+    -H "Content-Type: application/json" \
+    -d "{\"productId\": $NULL_PRODUCT_ID, \"quantity\": 1}" > /dev/null
+
+  curl -s -b /tmp/null_supplier_cookies.txt \
+    -w "\nHTTP_%{http_code}" \
+    -X POST "$API_BASE_URL/api/retail/checkout" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "email": "cp9null@fincava.com",
+      "phone": "3009999999",
+      "shippingName": "Null Test",
+      "shippingAddressLine1": "Test St",
+      "shippingCity": "Bogotá",
+      "shippingDepartment": "Cundinamarca"
+    }'
+
+Expected: HTTP_409 and error body mentioning "payment routing unavailable".
+
+Confirm no partial orders were created:
+  psql $DATABASE_URL -c \
+    "SELECT COUNT(*) FROM orders
+     WHERE created_at > now() - interval '1 minute'
+     AND id NOT IN (SELECT DISTINCT order_id FROM retail_order_items);"
+
+Expected: 0
+
+PASS condition: Steps A–C produce 2 orders with same batch ref, correct
+retail_order_items, Nequi snapshots present, cart cleared. Step D returns
+409 and no orders were created.
+
+────────────────────────────────────────────────────────────────────────
+CHECKPOINT REPORT FORMAT
+────────────────────────────────────────────────────────────────────────
+
+| CP | Status | Notes |
+|----|--------|-------|
+| CP-7 | ✅ PASS / ❌ FAIL | [details] |
+| CP-8 | ✅ PASS / ❌ FAIL | [details] |
+| CP-9 | ✅ PASS / ❌ FAIL | [details] |
+
+For any FAIL:
+  - Exact command that failed
+  - Actual output received
+  - Expected output
+  - Most likely root cause
