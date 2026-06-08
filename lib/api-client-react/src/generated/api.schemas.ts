@@ -518,6 +518,154 @@ export interface OriginStory {
   logoUrl?: string | null;
 }
 
+export interface AiContent {
+  enrichedAt: string;
+  model: string;
+  /** @nullable */
+  productTypeKey?: string | null;
+  evidenceTier: string;
+  shortEs: string;
+  shortEn: string;
+  longEs: string;
+  longEn: string;
+  buyerHighlights: string[];
+}
+
+export interface TypeAttributeField {
+  key: string;
+  type: string;
+  labelEs: string;
+  labelEn: string;
+  helpTextEs: string;
+  helpTextEn: string;
+  unit?: string;
+  options?: string[];
+  requiredFor: string[];
+  filterable: boolean;
+  wholesaleDisplay: boolean;
+  retailDisplay: boolean;
+  aiContext: boolean;
+  storageLocation: string;
+  columnName?: string;
+}
+
+export type ProductTypeSchemaChannelsWholesale = {
+  requiredFields?: string[];
+};
+
+export type ProductTypeSchemaChannelsRetail = {
+  requiredFields?: string[];
+};
+
+export type ProductTypeSchemaChannels = {
+  wholesale?: ProductTypeSchemaChannelsWholesale;
+  retail?: ProductTypeSchemaChannelsRetail;
+};
+
+export type ProductTypeSchemaAiPromptHints = {
+  wholesalePersona?: string;
+  retailPersona?: string;
+  keySellingPoints?: string[];
+};
+
+export interface ProductTypeSchema {
+  typeKey: string;
+  category: string;
+  labelEs: string;
+  labelEn: string;
+  descriptionEs: string;
+  descriptionEn: string;
+  coreFields: TypeAttributeField[];
+  typeAttributes: TypeAttributeField[];
+  channels: ProductTypeSchemaChannels;
+  aiPromptHints: ProductTypeSchemaAiPromptHints;
+}
+
+export type TypeSchemasResponseSchemas = { [key: string]: ProductTypeSchema };
+
+export interface TypeSchemasResponse {
+  version: string;
+  schemas: TypeSchemasResponseSchemas;
+}
+
+export interface EnrichmentResult {
+  success: boolean;
+  enrichment?: AiContent;
+  error?: string;
+  cached?: AiContent | null;
+}
+
+export interface AdminProductListItem {
+  id: number;
+  name: string;
+  category: string;
+  productStatus: string;
+  /** @nullable */
+  productTypeKey?: string | null;
+  wholesaleEnabled: boolean;
+  retailEnabled: boolean;
+  /** @nullable */
+  wholesaleApprovedAt?: string | null;
+  /** @nullable */
+  retailApprovedAt?: string | null;
+  /** @nullable */
+  supplierId?: number | null;
+  companyId: number;
+  createdAt: string;
+}
+
+export interface AdminProductListResponse {
+  products: AdminProductListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface CartItem {
+  itemId: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  unitLabelSnapshot: string;
+  priceCopSnapshot: number;
+  maxPerOrderSnapshot: number;
+  priceChanged: boolean;
+  insufficientStock: boolean;
+}
+
+export type CartResponseData = {
+  cartId: number;
+  items: CartItem[];
+};
+
+export interface CartResponse {
+  data: CartResponseData;
+}
+
+export interface CheckoutOrderItem {
+  productName: string;
+  quantity: number;
+  /** @nullable */
+  unitLabel?: string | null;
+  priceCents: number;
+}
+
+export interface CheckoutOrder {
+  orderId: number;
+  supplierId: number;
+  supplierName: string;
+  totalCents: number;
+  nequiPhone: string;
+  accessToken: string;
+  items: CheckoutOrderItem[];
+}
+
+export interface CheckoutResponse {
+  checkoutBatchRef: string;
+  orders: CheckoutOrder[];
+}
+
 export type VerifyEmailParams = {
   token: string;
 };
@@ -543,6 +691,94 @@ export type ListProductsParams = {
   supplierId?: number | null;
   page?: number;
   limit?: number;
+};
+
+export type GetTypeSchema200 = {
+  version: string;
+  schema: ProductTypeSchema;
+};
+
+export type EnrichProductBody = {
+  force?: boolean;
+};
+
+export type AdminListProductsParams = {
+  productStatus?: AdminListProductsProductStatus;
+  page?: number;
+  /**
+   * @maximum 50
+   */
+  pageSize?: number;
+};
+
+export type AdminListProductsProductStatus =
+  (typeof AdminListProductsProductStatus)[keyof typeof AdminListProductsProductStatus];
+
+export const AdminListProductsProductStatus = {
+  draft: "draft",
+  pending_review: "pending_review",
+  active: "active",
+} as const;
+
+export type AdminUpdateProductBody = {
+  retailPriceCop?: number;
+  retailStockUnits?: number;
+  retailUnitLabel?: string;
+  retailUnitWeightG?: number;
+  retailMaxPerOrder?: number;
+  harvestWindowStart?: string;
+  harvestWindowEnd?: string;
+};
+
+export type AdminApproveProductBodyChannel =
+  (typeof AdminApproveProductBodyChannel)[keyof typeof AdminApproveProductBodyChannel];
+
+export const AdminApproveProductBodyChannel = {
+  wholesale: "wholesale",
+  retail: "retail",
+} as const;
+
+export type AdminApproveProductBody = {
+  channel: AdminApproveProductBodyChannel;
+  note?: string;
+};
+
+export type AdminLinkSupplierBody = {
+  supplierId: number;
+};
+
+export type AdminGetSupplierCandidates200CandidatesItem = {
+  supplierId: number;
+  supplierName: string;
+  sellableStatus: string;
+};
+
+export type AdminGetSupplierCandidates200 = {
+  candidates: AdminGetSupplierCandidates200CandidatesItem[];
+};
+
+export type AddCartItemBody = {
+  productId: number;
+  /** @minimum 1 */
+  quantity: number;
+};
+
+export type UpdateCartItemBody = {
+  /** @minimum 1 */
+  quantity: number;
+};
+
+export type CheckoutBody = {
+  shippingName: string;
+  shippingAddressLine1: string;
+  shippingAddressLine2?: string;
+  shippingCity: string;
+  shippingDepartment: string;
+  shippingPostalCode?: string;
+  email: string;
+  phone?: string;
+  notificationChannel?: string;
+  lang?: string;
 };
 
 export type ListSuppliersParams = {

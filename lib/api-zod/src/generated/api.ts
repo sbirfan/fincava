@@ -258,6 +258,153 @@ export const GetProductResponse = zod
   );
 
 /**
+ * @summary List all product type schemas
+ */
+export const GetTypeSchemasResponse = zod.object({
+  version: zod.string(),
+  schemas: zod.record(
+    zod.string(),
+    zod.object({
+      typeKey: zod.string(),
+      category: zod.string(),
+      labelEs: zod.string(),
+      labelEn: zod.string(),
+      descriptionEs: zod.string(),
+      descriptionEn: zod.string(),
+      coreFields: zod.array(
+        zod.object({
+          key: zod.string(),
+          type: zod.string(),
+          labelEs: zod.string(),
+          labelEn: zod.string(),
+          helpTextEs: zod.string(),
+          helpTextEn: zod.string(),
+          unit: zod.string().optional(),
+          options: zod.array(zod.string()).optional(),
+          requiredFor: zod.array(zod.string()),
+          filterable: zod.boolean(),
+          wholesaleDisplay: zod.boolean(),
+          retailDisplay: zod.boolean(),
+          aiContext: zod.boolean(),
+          storageLocation: zod.string(),
+          columnName: zod.string().optional(),
+        }),
+      ),
+      typeAttributes: zod.array(
+        zod.object({
+          key: zod.string(),
+          type: zod.string(),
+          labelEs: zod.string(),
+          labelEn: zod.string(),
+          helpTextEs: zod.string(),
+          helpTextEn: zod.string(),
+          unit: zod.string().optional(),
+          options: zod.array(zod.string()).optional(),
+          requiredFor: zod.array(zod.string()),
+          filterable: zod.boolean(),
+          wholesaleDisplay: zod.boolean(),
+          retailDisplay: zod.boolean(),
+          aiContext: zod.boolean(),
+          storageLocation: zod.string(),
+          columnName: zod.string().optional(),
+        }),
+      ),
+      channels: zod.object({
+        wholesale: zod
+          .object({
+            requiredFields: zod.array(zod.string()).optional(),
+          })
+          .optional(),
+        retail: zod
+          .object({
+            requiredFields: zod.array(zod.string()).optional(),
+          })
+          .optional(),
+      }),
+      aiPromptHints: zod.object({
+        wholesalePersona: zod.string().optional(),
+        retailPersona: zod.string().optional(),
+        keySellingPoints: zod.array(zod.string()).optional(),
+      }),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a single product type schema by key
+ */
+export const GetTypeSchemaParams = zod.object({
+  typeKey: zod.coerce.string(),
+});
+
+export const GetTypeSchemaResponse = zod.object({
+  version: zod.string(),
+  schema: zod.object({
+    typeKey: zod.string(),
+    category: zod.string(),
+    labelEs: zod.string(),
+    labelEn: zod.string(),
+    descriptionEs: zod.string(),
+    descriptionEn: zod.string(),
+    coreFields: zod.array(
+      zod.object({
+        key: zod.string(),
+        type: zod.string(),
+        labelEs: zod.string(),
+        labelEn: zod.string(),
+        helpTextEs: zod.string(),
+        helpTextEn: zod.string(),
+        unit: zod.string().optional(),
+        options: zod.array(zod.string()).optional(),
+        requiredFor: zod.array(zod.string()),
+        filterable: zod.boolean(),
+        wholesaleDisplay: zod.boolean(),
+        retailDisplay: zod.boolean(),
+        aiContext: zod.boolean(),
+        storageLocation: zod.string(),
+        columnName: zod.string().optional(),
+      }),
+    ),
+    typeAttributes: zod.array(
+      zod.object({
+        key: zod.string(),
+        type: zod.string(),
+        labelEs: zod.string(),
+        labelEn: zod.string(),
+        helpTextEs: zod.string(),
+        helpTextEn: zod.string(),
+        unit: zod.string().optional(),
+        options: zod.array(zod.string()).optional(),
+        requiredFor: zod.array(zod.string()),
+        filterable: zod.boolean(),
+        wholesaleDisplay: zod.boolean(),
+        retailDisplay: zod.boolean(),
+        aiContext: zod.boolean(),
+        storageLocation: zod.string(),
+        columnName: zod.string().optional(),
+      }),
+    ),
+    channels: zod.object({
+      wholesale: zod
+        .object({
+          requiredFields: zod.array(zod.string()).optional(),
+        })
+        .optional(),
+      retail: zod
+        .object({
+          requiredFields: zod.array(zod.string()).optional(),
+        })
+        .optional(),
+    }),
+    aiPromptHints: zod.object({
+      wholesalePersona: zod.string().optional(),
+      retailPersona: zod.string().optional(),
+      keySellingPoints: zod.array(zod.string()).optional(),
+    }),
+  }),
+});
+
+/**
  * @summary Get similar products
  */
 export const GetSimilarProductsParams = zod.object({
@@ -417,6 +564,356 @@ export const UpdateProductResponse = zod.object({
  */
 export const DeleteProductParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Trigger AI enrichment for a product
+ */
+export const EnrichProductParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const EnrichProductBody = zod.object({
+  force: zod.boolean().optional(),
+});
+
+export const EnrichProductResponse = zod.object({
+  success: zod.boolean(),
+  enrichment: zod
+    .object({
+      enrichedAt: zod.string(),
+      model: zod.string(),
+      productTypeKey: zod.string().nullish(),
+      evidenceTier: zod.string(),
+      shortEs: zod.string(),
+      shortEn: zod.string(),
+      longEs: zod.string(),
+      longEn: zod.string(),
+      buyerHighlights: zod.array(zod.string()),
+    })
+    .optional(),
+  error: zod.string().optional(),
+  cached: zod
+    .union([
+      zod.object({
+        enrichedAt: zod.string(),
+        model: zod.string(),
+        productTypeKey: zod.string().nullish(),
+        evidenceTier: zod.string(),
+        shortEs: zod.string(),
+        shortEn: zod.string(),
+        longEs: zod.string(),
+        longEn: zod.string(),
+        buyerHighlights: zod.array(zod.string()),
+      }),
+      zod.null(),
+    ])
+    .optional(),
+});
+
+/**
+ * @summary Paginated product list for admin
+ */
+export const adminListProductsQueryPageDefault = 1;
+export const adminListProductsQueryPageSizeDefault = 20;
+export const adminListProductsQueryPageSizeMax = 50;
+
+export const AdminListProductsQueryParams = zod.object({
+  productStatus: zod.enum(["draft", "pending_review", "active"]).optional(),
+  page: zod.coerce.number().default(adminListProductsQueryPageDefault),
+  pageSize: zod.coerce
+    .number()
+    .max(adminListProductsQueryPageSizeMax)
+    .default(adminListProductsQueryPageSizeDefault),
+});
+
+export const AdminListProductsResponse = zod.object({
+  products: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      category: zod.string(),
+      productStatus: zod.string(),
+      productTypeKey: zod.string().nullish(),
+      wholesaleEnabled: zod.boolean(),
+      retailEnabled: zod.boolean(),
+      wholesaleApprovedAt: zod.string().nullish(),
+      retailApprovedAt: zod.string().nullish(),
+      supplierId: zod.number().nullish(),
+      companyId: zod.number(),
+      createdAt: zod.string(),
+    }),
+  ),
+  total: zod.number(),
+  page: zod.number(),
+  pageSize: zod.number(),
+  totalPages: zod.number(),
+});
+
+/**
+ * @summary Update retail SKU fields for a product (admin only)
+ */
+export const AdminUpdateProductParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminUpdateProductBody = zod.object({
+  retailPriceCop: zod.number().optional(),
+  retailStockUnits: zod.number().optional(),
+  retailUnitLabel: zod.string().optional(),
+  retailUnitWeightG: zod.number().optional(),
+  retailMaxPerOrder: zod.number().optional(),
+  harvestWindowStart: zod.string().optional(),
+  harvestWindowEnd: zod.string().optional(),
+});
+
+export const AdminUpdateProductResponse = zod.object({
+  id: zod.number(),
+  companyId: zod.number(),
+  supplierName: zod.string(),
+  supplierVerified: zod.boolean(),
+  supplierLogoUrl: zod.string().nullish(),
+  name: zod.string(),
+  category: zod.string(),
+  subCategory: zod.string().nullish(),
+  description: zod.string(),
+  origin: zod.string(),
+  altitude: zod.string().nullish(),
+  process: zod.string().nullish(),
+  variety: zod.string().nullish(),
+  minOrderKg: zod.number(),
+  maxOrderKg: zod.number().nullish(),
+  pricePerKgUSD: zod.number(),
+  availableKg: zod.number(),
+  harvestSeason: zod.string().nullish(),
+  images: zod.array(zod.string()),
+  certifications: zod.array(zod.string()),
+  cupping: zod.number().nullish(),
+  active: zod.boolean(),
+  featured: zod.boolean(),
+  avgRating: zod.number().nullish(),
+  reviewCount: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Approve a product for a sales channel
+ */
+export const AdminApproveProductParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminApproveProductBody = zod.object({
+  channel: zod.enum(["wholesale", "retail"]),
+  note: zod.string().optional(),
+});
+
+export const AdminApproveProductResponse = zod.object({
+  id: zod.number(),
+  companyId: zod.number(),
+  supplierName: zod.string(),
+  supplierVerified: zod.boolean(),
+  supplierLogoUrl: zod.string().nullish(),
+  name: zod.string(),
+  category: zod.string(),
+  subCategory: zod.string().nullish(),
+  description: zod.string(),
+  origin: zod.string(),
+  altitude: zod.string().nullish(),
+  process: zod.string().nullish(),
+  variety: zod.string().nullish(),
+  minOrderKg: zod.number(),
+  maxOrderKg: zod.number().nullish(),
+  pricePerKgUSD: zod.number(),
+  availableKg: zod.number(),
+  harvestSeason: zod.string().nullish(),
+  images: zod.array(zod.string()),
+  certifications: zod.array(zod.string()),
+  cupping: zod.number().nullish(),
+  active: zod.boolean(),
+  featured: zod.boolean(),
+  avgRating: zod.number().nullish(),
+  reviewCount: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Link a supplier to a product
+ */
+export const AdminLinkSupplierParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminLinkSupplierBody = zod.object({
+  supplierId: zod.number(),
+});
+
+export const AdminLinkSupplierResponse = zod.object({
+  id: zod.number(),
+  companyId: zod.number(),
+  supplierName: zod.string(),
+  supplierVerified: zod.boolean(),
+  supplierLogoUrl: zod.string().nullish(),
+  name: zod.string(),
+  category: zod.string(),
+  subCategory: zod.string().nullish(),
+  description: zod.string(),
+  origin: zod.string(),
+  altitude: zod.string().nullish(),
+  process: zod.string().nullish(),
+  variety: zod.string().nullish(),
+  minOrderKg: zod.number(),
+  maxOrderKg: zod.number().nullish(),
+  pricePerKgUSD: zod.number(),
+  availableKg: zod.number(),
+  harvestSeason: zod.string().nullish(),
+  images: zod.array(zod.string()),
+  certifications: zod.array(zod.string()),
+  cupping: zod.number().nullish(),
+  active: zod.boolean(),
+  featured: zod.boolean(),
+  avgRating: zod.number().nullish(),
+  reviewCount: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Get supplier candidates for a product's company
+ */
+export const AdminGetSupplierCandidatesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminGetSupplierCandidatesResponse = zod.object({
+  candidates: zod.array(
+    zod.object({
+      supplierId: zod.number(),
+      supplierName: zod.string(),
+      sellableStatus: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get or create the current cart
+ */
+export const GetCartResponse = zod.object({
+  data: zod.object({
+    cartId: zod.number(),
+    items: zod.array(
+      zod.object({
+        itemId: zod.number(),
+        productId: zod.number(),
+        productName: zod.string(),
+        quantity: zod.number(),
+        unitLabelSnapshot: zod.string(),
+        priceCopSnapshot: zod.number(),
+        maxPerOrderSnapshot: zod.number(),
+        priceChanged: zod.boolean(),
+        insufficientStock: zod.boolean(),
+      }),
+    ),
+  }),
+});
+
+/**
+ * @summary Add an item to the cart
+ */
+
+export const AddCartItemBody = zod.object({
+  productId: zod.number(),
+  quantity: zod.number().min(1),
+});
+
+export const AddCartItemResponse = zod.object({
+  data: zod.object({
+    cartId: zod.number(),
+    items: zod.array(
+      zod.object({
+        itemId: zod.number(),
+        productId: zod.number(),
+        productName: zod.string(),
+        quantity: zod.number(),
+        unitLabelSnapshot: zod.string(),
+        priceCopSnapshot: zod.number(),
+        maxPerOrderSnapshot: zod.number(),
+        priceChanged: zod.boolean(),
+        insufficientStock: zod.boolean(),
+      }),
+    ),
+  }),
+});
+
+/**
+ * @summary Update cart item quantity
+ */
+export const UpdateCartItemParams = zod.object({
+  itemId: zod.coerce.number(),
+});
+
+export const UpdateCartItemBody = zod.object({
+  quantity: zod.number().min(1),
+});
+
+export const UpdateCartItemResponse = zod.object({
+  data: zod.object({
+    cartId: zod.number(),
+    items: zod.array(
+      zod.object({
+        itemId: zod.number(),
+        productId: zod.number(),
+        productName: zod.string(),
+        quantity: zod.number(),
+        unitLabelSnapshot: zod.string(),
+        priceCopSnapshot: zod.number(),
+        maxPerOrderSnapshot: zod.number(),
+        priceChanged: zod.boolean(),
+        insufficientStock: zod.boolean(),
+      }),
+    ),
+  }),
+});
+
+/**
+ * @summary Remove an item from the cart
+ */
+export const DeleteCartItemParams = zod.object({
+  itemId: zod.coerce.number(),
+});
+
+export const DeleteCartItemResponse = zod.object({
+  data: zod.object({
+    cartId: zod.number(),
+    items: zod.array(
+      zod.object({
+        itemId: zod.number(),
+        productId: zod.number(),
+        productName: zod.string(),
+        quantity: zod.number(),
+        unitLabelSnapshot: zod.string(),
+        priceCopSnapshot: zod.number(),
+        maxPerOrderSnapshot: zod.number(),
+        priceChanged: zod.boolean(),
+        insufficientStock: zod.boolean(),
+      }),
+    ),
+  }),
+});
+
+/**
+ * @summary Atomic multi-supplier checkout from cart
+ */
+export const CheckoutBody = zod.object({
+  shippingName: zod.string(),
+  shippingAddressLine1: zod.string(),
+  shippingAddressLine2: zod.string().optional(),
+  shippingCity: zod.string(),
+  shippingDepartment: zod.string(),
+  shippingPostalCode: zod.string().optional(),
+  email: zod.string(),
+  phone: zod.string().optional(),
+  notificationChannel: zod.string().optional(),
+  lang: zod.string().optional(),
 });
 
 /**

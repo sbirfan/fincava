@@ -1,6 +1,7 @@
 import { useParams, Link, useLocation } from "wouter";
 import NotFound from "./not-found";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ENABLE_TRANSACTIONS } from "@/lib/flags";
 import { useGetProduct, useGetSimilarProducts, getGetProductQueryKey, getGetSimilarProductsQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Star, ShieldCheck, MapPin, ChevronRight, Users, Handshake, Leaf, Droplets, Mountain, Calendar, ArrowRight, Package, Loader2 } from "lucide-react";
+import { Star, ShieldCheck, MapPin, ChevronRight, Users, Handshake, Leaf, Droplets, Mountain, Calendar, ArrowRight, Package, Loader2, Sparkles } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -98,6 +99,19 @@ export default function ProductDetail() {
   if (!Number.isFinite(id) || id <= 0) return <NotFound />;
 
   const p = product as any;
+  const productTypeKey: string | null = p?.productTypeKey ?? null;
+
+  const { data: typeSchemaData } = useQuery({
+    queryKey: ["typeSchema", productTypeKey],
+    queryFn: async () => {
+      const r = await fetch(`/api/products/type-schemas/${productTypeKey}`, { credentials: "include" });
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!productTypeKey,
+    staleTime: 3_600_000,
+  });
+  const typeSchema = typeSchemaData?.schema ?? null;
 
   if (isLoading) {
     return (
@@ -409,12 +423,26 @@ export default function ProductDetail() {
             <TabsTrigger value="supplier" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
               About Supplier
             </TabsTrigger>
+            {typeSchema && (
+              <TabsTrigger value="specs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
+                Technical Specs
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="details" className="space-y-8">
             <div>
-              <h3 className="text-xl font-serif font-bold mb-4">Description</h3>
-              <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{product.description}</p>
+              <h3 className="text-xl font-serif font-bold mb-4 flex items-center gap-2">
+                Description
+                {p?.aiContent?.longEn && (
+                  <span className="inline-flex items-center gap-1 text-xs font-normal text-violet-600 border border-violet-200 rounded-full px-2 py-0.5">
+                    <Sparkles className="h-3 w-3" /> AI-enhanced
+                  </span>
+                )}
+              </h3>
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                {p?.aiContent?.longEn ?? product.description}
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
@@ -501,6 +529,41 @@ export default function ProductDetail() {
               </Link>
             </div>
           </TabsContent>
+
+          {typeSchema && (
+            <TabsContent value="specs" className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12">
+                {/* Core fields */}
+                {[
+                  { label: "Altitude",      value: p?.altitude },
+                  { label: "Variety",       value: p?.variety },
+                  { label: "Process",       value: p?.process },
+                  { label: "Cupping Score", value: p?.cupping ? `${p.cupping} / 100` : null },
+                ].filter(f => f.value).map(f => (
+                  <div key={f.label} className="flex justify-between py-3 border-b">
+                    <span className="text-muted-foreground">{f.label}</span>
+                    <span className="font-medium">{f.value}</span>
+                  </div>
+                ))}
+                {/* Type-specific attributes where wholesaleDisplay=true */}
+                {typeSchema.typeAttributes
+                  .filter((field: any) => field.wholesaleDisplay)
+                  .map((field: any) => {
+                    const attrs = (p?.typeAttributes ?? {}) as Record<string, unknown>;
+                    const val = attrs[field.key];
+                    if (val === null || val === undefined || val === "") return null;
+                    const display = Array.isArray(val) ? (val as string[]).join(", ") : String(val);
+                    const label = `${field.labelEn}${field.unit ? ` (${field.unit})` : ""}`;
+                    return (
+                      <div key={field.key} className="flex justify-between py-3 border-b">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className="font-medium">{display}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 

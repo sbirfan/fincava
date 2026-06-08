@@ -1031,4 +1031,42 @@ router.post(
   },
 );
 
+// ── Admin: update retail SKU fields ──────────────────────────────────────────
+const AdminUpdateProductBody = z.object({
+  retailPriceCop:      z.number().int().positive().optional(),
+  retailStockUnits:    z.number().int().min(0).optional(),
+  retailUnitLabel:     z.string().min(1).max(100).optional(),
+  retailUnitWeightG:   z.number().int().positive().optional(),
+  retailMaxPerOrder:   z.number().int().positive().optional(),
+  harvestWindowStart:  z.string().optional(),
+  harvestWindowEnd:    z.string().optional(),
+});
+
+router.patch(
+  "/admin/products/:id",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const productId = Number(req.params.id);
+    if (!Number.isInteger(productId) || productId <= 0) { sendError(res, 400, "Invalid id"); return; }
+
+    const parsed = AdminUpdateProductBody.safeParse(req.body);
+    if (!parsed.success) { sendError(res, 400, parsed.error.message); return; }
+
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) { sendError(res, 400, "No fields to update"); return; }
+
+    const [existing] = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.id, productId));
+    if (!existing) { sendError(res, 404, "Product not found"); return; }
+
+    const [updated] = await db
+      .update(productsTable)
+      .set(updates)
+      .where(eq(productsTable.id, productId))
+      .returning();
+
+    res.json(updated);
+  },
+);
+
 export default router;

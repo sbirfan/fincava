@@ -84,6 +84,7 @@ const AdminOriginStories = lazy(() => import("@/pages/admin/origin-stories"));
 const AdminComplianceQueue = lazy(() => import("@/pages/admin/compliance-queue"));
 const AdminManagedCases = lazy(() => import("@/pages/admin/managed-cases"));
 const AdminIntroductions = lazy(() => import("@/pages/admin/introductions"));
+const AdminProducts = lazy(() => import("@/pages/admin/products"));
 
 // Retail (tienda) — gated by ENABLE_RETAIL; Sprint 2 replaces stubs with full pages
 const TiendaIndex = lazy(() => import("@/pages/tienda/index"));
@@ -220,6 +221,7 @@ function Router() {
         <Route path="/admin/compliance-queue" component={() => <PrivateRoute component={AdminComplianceQueue} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/managed-cases" component={() => <PrivateRoute component={AdminManagedCases} roles={["ADMIN"]} layout={AdminLayout} />} />
         <Route path="/admin/retail/orders" component={() => <PrivateRoute component={AdminRetailOrders} roles={["ADMIN"]} layout={AdminLayout} />} />
+        <Route path="/admin/products" component={() => <PrivateRoute component={AdminProducts} roles={["ADMIN"]} layout={AdminLayout} />} />
 
         {/* Retail storefront — gated by ENABLE_RETAIL; wrapped in AppLayout for navbar/footer/language toggle */}
         {ENABLE_RETAIL && <Route path="/tienda" component={() => <AppLayout><TiendaIndex /></AppLayout>} />}

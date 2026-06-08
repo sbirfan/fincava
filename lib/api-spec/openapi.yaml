@@ -308,6 +308,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /products/type-schemas:
+    get:
+      operationId: getTypeSchemas
+      tags: [products]
+      summary: List all product type schemas
+      responses:
+        "200":
+          description: Type schemas with version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TypeSchemasResponse"
+
+  /products/type-schemas/{typeKey}:
+    get:
+      operationId: getTypeSchema
+      tags: [products]
+      summary: Get a single product type schema by key
+      parameters:
+        - name: typeKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Type schema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  schema:  { $ref: "#/components/schemas/ProductTypeSchema" }
+                required: [version, schema]
+        "404":
+          description: Unknown type key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /products/{id}/similar:
     get:
       operationId: getSimilarProducts
@@ -412,6 +454,369 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /supplier/products/{id}/enrich:
+    post:
+      operationId: enrichProduct
+      tags: [products]
+      summary: Trigger AI enrichment for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force: { type: boolean }
+      responses:
+        "200":
+          description: Enrichment result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrichmentResult"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/products:
+    get:
+      operationId: adminListProducts
+      tags: [admin, products]
+      summary: Paginated product list for admin
+      parameters:
+        - name: productStatus
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending_review, active]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        "200":
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProductListResponse"
+
+  /admin/products/{id}:
+    patch:
+      operationId: adminUpdateProduct
+      tags: [admin, products]
+      summary: Update retail SKU fields for a product (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                retailPriceCop:    { type: integer }
+                retailStockUnits:  { type: integer }
+                retailUnitLabel:   { type: string }
+                retailUnitWeightG: { type: integer }
+                retailMaxPerOrder: { type: integer }
+                harvestWindowStart: { type: string }
+                harvestWindowEnd:   { type: string }
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/products/{id}/approve:
+    post:
+      operationId: adminApproveProduct
+      tags: [admin, products]
+      summary: Approve a product for a sales channel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel:
+                  type: string
+                  enum: [wholesale, retail]
+                note: { type: string }
+              required: [channel]
+      responses:
+        "200":
+          description: Approved product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "409":
+          description: Pre-flight check failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/products/{id}/link-supplier:
+    patch:
+      operationId: adminLinkSupplier
+      tags: [admin, products]
+      summary: Link a supplier to a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                supplierId: { type: integer }
+              required: [supplierId]
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "409":
+          description: Supplier not linked to this company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/products/{id}/supplier-candidates:
+    get:
+      operationId: adminGetSupplierCandidates
+      tags: [admin, products]
+      summary: Get supplier candidates for a product's company
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Supplier candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  candidates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        supplierId:    { type: integer }
+                        supplierName:  { type: string }
+                        sellableStatus: { type: string }
+                      required: [supplierId, supplierName, sellableStatus]
+                required: [candidates]
+
+  /retail/cart:
+    get:
+      operationId: getCart
+      tags: [retail]
+      summary: Get or create the current cart
+      responses:
+        "200":
+          description: Cart contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartResponse"
+        "503":
+          description: Cart feature disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /retail/cart/items:
+    post:
+      operationId: addCartItem
+      tags: [retail]
+      summary: Add an item to the cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId: { type: integer }
+                quantity:  { type: integer, minimum: 1 }
+              required: [productId, quantity]
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartResponse"
+        "409":
+          description: Insufficient stock or product unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /retail/cart/items/{itemId}:
+    patch:
+      operationId: updateCartItem
+      tags: [retail]
+      summary: Update cart item quantity
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity: { type: integer, minimum: 1 }
+              required: [quantity]
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartResponse"
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Quantity exceeds max or insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteCartItem
+      tags: [retail]
+      summary: Remove an item from the cart
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartResponse"
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /retail/checkout:
+    post:
+      operationId: checkout
+      tags: [retail]
+      summary: Atomic multi-supplier checkout from cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shippingName:         { type: string }
+                shippingAddressLine1: { type: string }
+                shippingAddressLine2: { type: string }
+                shippingCity:         { type: string }
+                shippingDepartment:   { type: string }
+                shippingPostalCode:   { type: string }
+                email:                { type: string }
+                phone:                { type: string }
+                notificationChannel:  { type: string }
+                lang:                 { type: string }
+              required: [shippingName, shippingAddressLine1, shippingCity, shippingDepartment, email]
+      responses:
+        "201":
+          description: Orders created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "409":
+          description: Pre-flight failed (stock, supplier, payment)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Cart feature disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # SUPPLIERS
   /suppliers:
@@ -1831,3 +2236,189 @@ components:
         - region
         - product
         - story
+
+    # ── Product Catalog V2 schemas ────────────────────────────────────────────
+
+    AiContent:
+      type: object
+      properties:
+        enrichedAt:      { type: string }
+        model:           { type: string }
+        productTypeKey:  { type: ["string", "null"] }
+        evidenceTier:    { type: string }
+        shortEs:         { type: string }
+        shortEn:         { type: string }
+        longEs:          { type: string }
+        longEn:          { type: string }
+        buyerHighlights:
+          type: array
+          items: { type: string }
+      required: [enrichedAt, model, evidenceTier, shortEs, shortEn, longEs, longEn, buyerHighlights]
+
+    TypeAttributeField:
+      type: object
+      properties:
+        key:              { type: string }
+        type:             { type: string }
+        labelEs:          { type: string }
+        labelEn:          { type: string }
+        helpTextEs:       { type: string }
+        helpTextEn:       { type: string }
+        unit:             { type: string }
+        options:
+          type: array
+          items: { type: string }
+        requiredFor:
+          type: array
+          items: { type: string }
+        filterable:       { type: boolean }
+        wholesaleDisplay: { type: boolean }
+        retailDisplay:    { type: boolean }
+        aiContext:        { type: boolean }
+        storageLocation:  { type: string }
+        columnName:       { type: string }
+      required: [key, type, labelEs, labelEn, helpTextEs, helpTextEn, requiredFor, filterable, wholesaleDisplay, retailDisplay, aiContext, storageLocation]
+
+    ProductTypeSchema:
+      type: object
+      properties:
+        typeKey:      { type: string }
+        category:     { type: string }
+        labelEs:      { type: string }
+        labelEn:      { type: string }
+        descriptionEs: { type: string }
+        descriptionEn: { type: string }
+        coreFields:
+          type: array
+          items: { $ref: "#/components/schemas/TypeAttributeField" }
+        typeAttributes:
+          type: array
+          items: { $ref: "#/components/schemas/TypeAttributeField" }
+        channels:
+          type: object
+          properties:
+            wholesale:
+              type: object
+              properties:
+                requiredFields: { type: array, items: { type: string } }
+            retail:
+              type: object
+              properties:
+                requiredFields: { type: array, items: { type: string } }
+        aiPromptHints:
+          type: object
+          properties:
+            wholesalePersona:  { type: string }
+            retailPersona:     { type: string }
+            keySellingPoints:  { type: array, items: { type: string } }
+      required: [typeKey, category, labelEs, labelEn, descriptionEs, descriptionEn, coreFields, typeAttributes, channels, aiPromptHints]
+
+    TypeSchemasResponse:
+      type: object
+      properties:
+        version:  { type: string }
+        schemas:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ProductTypeSchema"
+      required: [version, schemas]
+
+    EnrichmentResult:
+      type: object
+      properties:
+        success:    { type: boolean }
+        enrichment: { $ref: "#/components/schemas/AiContent" }
+        error:      { type: string }
+        cached:
+          oneOf:
+            - { $ref: "#/components/schemas/AiContent" }
+            - { type: "null" }
+      required: [success]
+
+    AdminProductListItem:
+      type: object
+      properties:
+        id:                  { type: integer }
+        name:                { type: string }
+        category:            { type: string }
+        productStatus:       { type: string }
+        productTypeKey:      { type: ["string", "null"] }
+        wholesaleEnabled:    { type: boolean }
+        retailEnabled:       { type: boolean }
+        wholesaleApprovedAt: { type: ["string", "null"] }
+        retailApprovedAt:    { type: ["string", "null"] }
+        supplierId:          { type: ["integer", "null"] }
+        companyId:           { type: integer }
+        createdAt:           { type: string }
+      required: [id, name, category, productStatus, wholesaleEnabled, retailEnabled, companyId, createdAt]
+
+    AdminProductListResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items: { $ref: "#/components/schemas/AdminProductListItem" }
+        total:      { type: integer }
+        page:       { type: integer }
+        pageSize:   { type: integer }
+        totalPages: { type: integer }
+      required: [products, total, page, pageSize, totalPages]
+
+    CartItem:
+      type: object
+      properties:
+        itemId:              { type: integer }
+        productId:           { type: integer }
+        productName:         { type: string }
+        quantity:            { type: integer }
+        unitLabelSnapshot:   { type: string }
+        priceCopSnapshot:    { type: integer }
+        maxPerOrderSnapshot: { type: integer }
+        priceChanged:        { type: boolean }
+        insufficientStock:   { type: boolean }
+      required: [itemId, productId, productName, quantity, unitLabelSnapshot, priceCopSnapshot, maxPerOrderSnapshot, priceChanged, insufficientStock]
+
+    CartResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            cartId: { type: integer }
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/CartItem" }
+          required: [cartId, items]
+      required: [data]
+
+    CheckoutOrderItem:
+      type: object
+      properties:
+        productName: { type: string }
+        quantity:    { type: integer }
+        unitLabel:   { type: ["string", "null"] }
+        priceCents:  { type: integer }
+      required: [productName, quantity, priceCents]
+
+    CheckoutOrder:
+      type: object
+      properties:
+        orderId:       { type: integer }
+        supplierId:    { type: integer }
+        supplierName:  { type: string }
+        totalCents:    { type: integer }
+        nequiPhone:    { type: string }
+        accessToken:   { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CheckoutOrderItem" }
+      required: [orderId, supplierId, supplierName, totalCents, nequiPhone, accessToken, items]
+
+    CheckoutResponse:
+      type: object
+      properties:
+        checkoutBatchRef: { type: string }
+        orders:
+          type: array
+          items: { $ref: "#/components/schemas/CheckoutOrder" }
+      required: [checkoutBatchRef, orders]
