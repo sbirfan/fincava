@@ -346,6 +346,161 @@ router.post("/suppliers/onboard", async (req, res): Promise<void> => {
     }
     // ── END UPDATE MODE ────────────────────────────────────────────────────────
 
+    // ── FIN-002: Pre-flight claim check ───────────────────────────────────────
+    // Before inserting a new supplier row, check whether an unclaimed record
+    // already exists that matches this self-registering farmer.
+    //
+    // Priority 1 — WhatsApp number (strongest signal: one per farmer, stable).
+    // Priority 2 — Email fallback (covers ingested records that have an email
+    //              but no WhatsApp number stored yet).
+    //
+    // Both checks require userId IS NULL and claimStatus != 'CLAIMED' to avoid
+    // touching any row already linked to another account.
+    //
+    // If a match is found: link the user account → existing row, preserve all
+    // admin-enriched data (skip subsidiary inserts if the table row exists),
+    // then fire the post-onboard pipeline and return early.
+    // If no match: fall through to the normal INSERT path below.
+
+    if (selfRegistrationUserId && (whatsappNumber || supplierEmail)) {
+      const claimConditions = [];
+      if (whatsappNumber) {
+        claimConditions.push(eq(suppliersTable.whatsappNumber, whatsappNumber));
+      }
+      if (supplierEmail) {
+        claimConditions.push(eq(suppliersTable.email, supplierEmail));
+      }
+
+      const [claimCandidate] = await db
+        .select({
+          id:          suppliersTable.id,
+          claimStatus: suppliersTable.claimStatus,
+        })
+        .from(suppliersTable)
+        .where(
+          and(
+            isNull(suppliersTable.userId),
+            or(...claimConditions),
+          ),
+        )
+        .limit(1);
+
+      if (claimCandidate && claimCandidate.claimStatus !== "CLAIMED") {
+        const claimedId = claimCandidate.id;
+
+        // Link account to existing row and mark as claimed.
+        await db
+          .update(suppliersTable)
+          .set({
+            userId:       selfRegistrationUserId,
+            claimStatus:  "CLAIMED",
+            // Supplement any missing contact fields from the registration form.
+            whatsappNumber: whatsappNumber || undefined,
+            email:          supplierEmail   ?? undefined,
+            department:     rawBody.department ?? undefined,
+            vereda:         rawBody.vereda     ?? undefined,
+            consentGiven:   rawBody.consentGiven ?? true,
+            consentDate:    new Date(),
+            updatedAt:      new Date(),
+          })
+          .where(eq(suppliersTable.id, claimedId));
+
+        // Farm data — only insert if the row doesn't already exist (preserve enriched data).
+        const [existingClaimFarm] = await db
+          .select({ id: farmsTable.id })
+          .from(farmsTable)
+          .where(eq(farmsTable.supplierId, claimedId))
+          .limit(1);
+
+        if (!existingClaimFarm) {
+          const primaryProductClaim  = rawBody.primary_product  || rawBody.farm?.cultivoPrincipal || null;
+          const farmSizeClaim        = rawBody.farm_size_hectares?.toString() || rawBody.farm?.hectareasProduccion?.toString() || null;
+          const harvestMonthsClaim   = Array.isArray(rawBody.harvestMonths)
+            ? rawBody.harvestMonths
+            : typeof rawBody.harvestMonths === "string"
+              ? rawBody.harvestMonths.split(",").map((s: string) => s.trim())
+              : null;
+
+          await db.insert(farmsTable).values({
+            supplierId:        claimedId,
+            cultivoPrincipal:  primaryProductClaim,
+            hectareasProduccion: farmSizeClaim,
+            harvestMonths:     harvestMonthsClaim,
+            altitudeMeters:    rawBody.altitudeMeters != null ? Number(rawBody.altitudeMeters) : null,
+          });
+        }
+
+        // Economics — only insert if the row doesn't already exist.
+        const [existingClaimEcon] = await db
+          .select({ id: economicsTable.id })
+          .from(economicsTable)
+          .where(eq(economicsTable.supplierId, claimedId))
+          .limit(1);
+
+        if (!existingClaimEcon) {
+          const annualVolumeClaim = rawBody.annual_volume_kg || rawBody.farm?.volumenKgUltimaCosecha || null;
+          await db.insert(economicsTable).values({
+            supplierId:             claimedId,
+            volumenKgUltimaCosecha: annualVolumeClaim ? Number(annualVolumeClaim) : null,
+            haIntentadoExportar:
+              rawBody.currently_exporting === "yes"
+                ? true
+                : rawBody.currently_exporting === "no"
+                  ? false
+                  : null,
+            usoCapital: rawBody.export_blocker ? [rawBody.export_blocker] : null,
+          });
+        }
+
+        // Compliance — idempotent (ON CONFLICT DO NOTHING preserves admin-set values).
+        const rutDianClaim = rawBody.has_rut === true || rawBody.has_rut === "yes";
+        const icaRegisteredClaim = rawBody.ica_registered === true || rawBody.ica_registered === "yes";
+        await db
+          .insert(complianceDocsTable)
+          .values({ supplierId: claimedId, rutDian: rutDianClaim, icaRegistro: icaRegisteredClaim })
+          .onConflictDoNothing({ target: complianceDocsTable.supplierId });
+
+        // FIN-023: seed DIAN_RUT requirement if declared — never downgrades.
+        if (rutDianClaim) {
+          await db
+            .insert(supplierRequirementStatusTable)
+            .values({ supplierId: claimedId, requirementCode: "DIAN_RUT", agency: "DIAN", state: "conditionally_approved" })
+            .onConflictDoNothing();
+        }
+
+        await db.insert(interactionsTable).values({
+          supplierId:      claimedId,
+          interactionType: "CLAIM_ON_REGISTER",
+          actor:           "SELF",
+          notes:           "Supplier claimed existing record during self-registration",
+          metadata: { selfRegistrationUserId, matchedBy: whatsappNumber ? "whatsapp" : "email" },
+        });
+
+        logger.info({ supplierId: claimedId, selfRegistrationUserId, matchedBy: whatsappNumber ? "whatsapp" : "email" }, "FIN-002: existing supplier record claimed during self-registration");
+
+        res.status(201).json({
+          success:    true,
+          supplierId: claimedId,
+          claimed:    true,
+          message:    `Registration successful — linked to existing profile for ${nombreCompleto}`,
+        });
+
+        // Fire post-onboard pipeline on the claimed row so scoring runs with the new data.
+        const claimCorrelationId = crypto.randomUUID();
+        setImmediate(() => {
+          const listenerCount = pipelineEmitter.listenerCount(SUPPLIER_ONBOARD_EVENT);
+          if (listenerCount > 0) {
+            pipelineEmitter.emit(SUPPLIER_ONBOARD_EVENT, { supplierId: claimedId, correlationId: claimCorrelationId });
+          } else {
+            void runOnboardPipeline({ supplierId: claimedId, correlationId: claimCorrelationId });
+          }
+        });
+
+        return;
+      }
+    }
+    // ── END PRE-FLIGHT CLAIM CHECK ─────────────────────────────────────────────
+
     const [supplier] = await db
       .insert(suppliersTable)
       .values({
