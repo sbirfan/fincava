@@ -1,0 +1,264 @@
+You are running integration checkpoints for the FINCAVA product catalog V2 feature.
+Work through CP-2 → CP-6 in order. Stop and report immediately if any checkpoint fails.
+
+────────────────────────────────────────────────────────────────────────
+PREREQUISITES
+────────────────────────────────────────────────────────────────────────
+
+1. Confirm migration 0034 has already been applied to the database.
+   Run:
+     psql $DATABASE_URL -c "\d products"
+   Verify these 7 columns exist:
+     product_type_key, type_attributes, wholesale_enabled, ai_content,
+     product_status, wholesale_approved_at, retail_approved_at
+   If any are missing, STOP. Migration 0034 must be applied before these
+   checkpoints can run.
+
+2. Determine the API base URL:
+   - Check process.env.REPL_SLUG and process.env.REPL_OWNER to build:
+     https://${REPL_SLUG}.${REPL_OWNER}.repl.co
+   - Or check .env / .env.local for API_BASE_URL or PUBLIC_API_URL.
+   - Or check the Replit "Webview" panel for the running URL.
+   Store this as API_BASE_URL for all curl commands below.
+
+────────────────────────────────────────────────────────────────────────
+CP-2 — Type-schema endpoint returns 5 templates
+────────────────────────────────────────────────────────────────────────
+
+Run:
+  curl -s "$API_BASE_URL/api/products/type-schemas" | jq '.schemas | length'
+
+Expected: 5
+
+Also run:
+  curl -s "$API_BASE_URL/api/products/type-schemas" | jq '[.schemas[].typeKey]'
+
+Expected: includes COFFEE_GREEN, COFFEE_ROASTED, CACAO_BEAN, CACAO_POWDER, CACAO_NIBS
+(exact names — check product-type-schemas.ts if keys differ)
+
+Also verify the response includes a top-level "version" field:
+  curl -s "$API_BASE_URL/api/products/type-schemas" | jq '.version'
+
+Expected: non-null string (e.g. "v1")
+
+If the endpoint returns 404, the route may be registered after /:id in products.ts
+— check route registration order.
+
+PASS condition: 5 schemas returned, version present.
+
+────────────────────────────────────────────────────────────────────────
+CP-3 — Supplier product POST stores productTypeKey, typeAttributes,
+        and sets productStatus='draft'
+────────────────────────────────────────────────────────────────────────
+
+You need a valid supplier auth token. Either:
+  a) Use an existing test supplier JWT from .env (TEST_SUPPLIER_TOKEN), or
+  b) Log in via POST /api/auth/login with test supplier credentials to get a token.
+
+Store the token as SUPPLIER_TOKEN.
+
+Run:
+  RESPONSE=$(curl -s -X POST "$API_BASE_URL/api/supplier/products" \
+    -H "Authorization: Bearer $SUPPLIER_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "name": "CP-3 Test Coffee",
+      "category": "COFFEE",
+      "productTypeKey": "COFFEE_GREEN",
+      "origin": "Huila, Colombia",
+      "pricePerKgUSD": 8.5,
+      "minOrderKg": 100,
+      "availableKg": 500,
+      "typeAttributes": {
+        "screen_size": "15",
+        "moisture_content_pct": 11.5,
+        "harvest_year": 2025,
+        "drying_method": "Sun Dried"
+      }
+    }')
+
+  echo $RESPONSE | jq '{
+    id: .id,
+    productTypeKey: .productTypeKey,
+    typeAttributes: .typeAttributes,
+    productStatus: .productStatus
+  }'
+
+PASS conditions:
+  - .productTypeKey == "COFFEE_GREEN"
+  - .typeAttributes.screen_size == "15" (or similar — confirms JSONB stored)
+  - .productStatus == "draft"
+  - .id is a positive integer
+
+Store the product ID as PRODUCT_ID for use in CP-4 and CP-6:
+  PRODUCT_ID=$(echo $RESPONSE | jq '.id')
+
+Also confirm the data was written to the DB:
+  psql $DATABASE_URL -c \
+    "SELECT id, product_type_key, type_attributes->'screen_size' AS screen, product_status FROM products WHERE id = $PRODUCT_ID;"
+
+────────────────────────────────────────────────────────────────────────
+CP-4 — Public GET /api/products returns 0 results for draft products;
+        approving one makes it appear
+────────────────────────────────────────────────────────────────────────
+
+STEP A — Verify public listing hides drafts:
+
+  curl -s "$API_BASE_URL/api/products" | jq '.products | length'
+
+Expected: 0 (all dev products should be in 'draft' or 'pending_review' status)
+
+If you get > 0, check whether any product in the DB has product_status = 'active'.
+Run:
+  psql $DATABASE_URL -c \
+    "SELECT id, name, product_status FROM products WHERE product_status = 'active';"
+If active products exist from before migration 0034, note them — they are pre-V2 products.
+The count from /api/products represents whatever is currently active.
+
+STEP B — Submit product for review:
+
+  curl -s -X PATCH "$API_BASE_URL/api/supplier/products/$PRODUCT_ID" \
+    -H "Authorization: Bearer $SUPPLIER_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"productStatus": "pending_review"}' \
+  | jq '.productStatus'
+
+Expected: "pending_review"
+
+Verify product is still NOT visible publicly:
+  curl -s "$API_BASE_URL/api/products" | jq '[.products[].id]'
+Product ID $PRODUCT_ID should NOT appear.
+
+STEP C — Admin approves wholesale channel:
+
+You need an admin auth token. Either use TEST_ADMIN_TOKEN from .env or log in
+with admin credentials via POST /api/auth/login.
+Store as ADMIN_TOKEN.
+
+  curl -s -X POST "$API_BASE_URL/api/admin/products/$PRODUCT_ID/approve" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"channel": "wholesale"}' \
+  | jq '{productStatus: .productStatus, wholesaleEnabled: .wholesaleEnabled, wholesaleApprovedAt: .wholesaleApprovedAt}'
+
+Expected:
+  - .productStatus == "active"
+  - .wholesaleEnabled == true
+  - .wholesaleApprovedAt is a timestamp (non-null)
+
+STEP D — Verify product now appears in public listing:
+
+  curl -s "$API_BASE_URL/api/products" | jq '[.products[].id]'
+
+Expected: $PRODUCT_ID appears in the list.
+
+PASS condition: all 4 steps succeed.
+
+────────────────────────────────────────────────────────────────────────
+CP-5 — Browser: Supplier selects COFFEE → COFFEE_GREEN/ROASTED appear
+        → type-specific fields render
+────────────────────────────────────────────────────────────────────────
+
+This checkpoint requires manual browser verification.
+
+1. Open the Replit webview and navigate to the supplier dashboard.
+2. Log in as a test supplier.
+3. Navigate to "Add New Product" (or the product-new page).
+4. Locate the ProductTypeSelector component — two dropdowns: Category and Type.
+5. In the Category dropdown, select "COFFEE".
+6. Verify the Type dropdown now shows at least:
+   - COFFEE_GREEN
+   - COFFEE_ROASTED
+7. Select "COFFEE_GREEN".
+8. Verify that a "Type-specific fields" section appears below the core product fields
+   and contains at minimum these labeled inputs:
+   - Screen Size
+   - Moisture Content (%)
+   - Harvest Year
+   - Drying Method (should be a select with options: Sun Dried, Raised Bed, Mechanical)
+
+If the ProductTypeSelector or DynamicTypeForm components are not rendering,
+check the browser console for errors. The most likely causes:
+  - GET /api/products/type-schemas returned an error (check Network tab)
+  - Component not imported/registered in product-new.tsx
+
+Capture a screenshot of the form showing both dropdowns and the type-specific
+field section. Paste it in your checkpoint report.
+
+PASS condition: Category=COFFEE → Type dropdown shows COFFEE_GREEN and COFFEE_ROASTED;
+selecting COFFEE_GREEN renders type-specific fields including Drying Method select.
+
+────────────────────────────────────────────────────────────────────────
+CP-6 — AI enrichment: Enhance button → loading state → preview modal
+        → accept populates description → products.ai_content has JSON
+────────────────────────────────────────────────────────────────────────
+
+This checkpoint requires both browser and DB verification.
+
+PREREQUISITE: ANTHROPIC_API_KEY must be set in Replit Secrets (Env Vars).
+Check: echo $ANTHROPIC_API_KEY (should be non-empty).
+If not set, add it in the Replit Secrets panel before proceeding.
+
+BROWSER STEPS:
+1. In the supplier dashboard, navigate to the COFFEE_GREEN draft product
+   created in CP-3 (ID: $PRODUCT_ID), or create a new one with typeKey=COFFEE_GREEN.
+2. Locate the "✨ Enhance with AI" button below the type-specific fields.
+3. Click it.
+4. Verify a loading state appears: spinner + "Generating descriptions..." message.
+   (Claude call takes 3–8 seconds — the UI should block until response.)
+5. Verify a preview modal appears with these sections:
+   - Short Description (ES) — 50–80 words in Spanish
+   - Short Description (EN) — 50–80 words in English
+   - Long Description (ES) — 150–200 words in Spanish
+   - Long Description (EN) — 150–200 words in English
+   - Highlights — 3 bullet points
+6. Click "Apply" (or "Accept").
+7. Verify the modal closes and the product description fields in the form
+   are now populated with the AI-generated content.
+
+DB VERIFICATION (after clicking Apply):
+If the Apply button calls PATCH /api/supplier/products/:id to persist:
+  psql $DATABASE_URL -c \
+    "SELECT id, ai_content->>'enrichedAt' AS enriched_at,
+            ai_content->>'model' AS model,
+            ai_content->>'evidenceTier' AS tier,
+            LEFT(ai_content->>'shortEs', 60) AS short_es_preview
+     FROM products WHERE id = $PRODUCT_ID;"
+
+Expected:
+  - enrichedAt: recent ISO timestamp
+  - model: "claude-sonnet-4-6" (or current DOCUMENT_MODEL)
+  - evidenceTier: "AI_INFERRED"
+  - short_es_preview: non-empty Spanish text
+
+Alternatively, test via API:
+  curl -s -X POST "$API_BASE_URL/api/supplier/products/$PRODUCT_ID/enrich" \
+    -H "Authorization: Bearer $SUPPLIER_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+  | jq '{success: .success, enrichedAt: .enrichment.enrichedAt, model: .enrichment.model}'
+
+PASS condition: ai_content JSON exists in DB with all 5 fields populated;
+preview modal displayed correctly in browser.
+
+────────────────────────────────────────────────────────────────────────
+CHECKPOINT REPORT FORMAT
+────────────────────────────────────────────────────────────────────────
+
+After running all checkpoints, output a table:
+
+| CP | Status  | Notes |
+|----|---------|-------|
+| CP-2 | ✅ PASS / ❌ FAIL | [details] |
+| CP-3 | ✅ PASS / ❌ FAIL | [details] |
+| CP-4 | ✅ PASS / ❌ FAIL | [details] |
+| CP-5 | ✅ PASS / ❌ FAIL | [details] |
+| CP-6 | ✅ PASS / ❌ FAIL | [details] |
+
+For any FAIL, include:
+- Exact command that failed
+- Actual output received
+- Expected output
+- Most likely root cause
+
+All 5 checkpoints must PASS before Phase 1B work begins.
