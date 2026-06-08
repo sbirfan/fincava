@@ -19,3 +19,8 @@ export const ENABLE_LOGISTICS: boolean =
  *  Defaults ON — Sprint 3 complete and live. Set VITE_ENABLE_RETAIL=false to kill-switch. */
 export const ENABLE_RETAIL: boolean =
   import.meta.env.VITE_ENABLE_RETAIL !== "false";
+
+/** Layer IV — retail cart and multi-supplier checkout. Defaults OFF until 1B ships. */
+export const ENABLE_CART: boolean =
+  import.meta.env.VITE_ENABLE_CART === "true" ||
+  import.meta.env.VITE_ENABLE_CART === "1";

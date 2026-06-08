@@ -2,7 +2,7 @@
 // All tables prefixed retail_* per spin-off readiness contract (TDD §1.4).
 // No reverse FKs from B2B tables into these tables.
 
-import { pgTable, serial, integer, text, boolean, jsonb, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, jsonb, timestamp, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { usersTable } from "./users";
 import { productsTable } from "./products";
@@ -211,3 +211,59 @@ export const retailHarvestUpdatesTable = pgTable("retail_harvest_updates", {
 
 export type RetailHarvestUpdate = typeof retailHarvestUpdatesTable.$inferSelect;
 export type InsertRetailHarvestUpdate = typeof retailHarvestUpdatesTable.$inferInsert;
+
+// ── retail_carts ──────────────────────────────────────────────────────────────
+
+export const retailCartsTable = pgTable("retail_carts", {
+  id:                   serial("id").primaryKey(),
+  sessionId:            text("session_id"),
+  retailBuyerProfileId: integer("retail_buyer_profile_id").references(() => retailBuyerProfilesTable.id, { onDelete: "cascade" }),
+  expiresAt:            timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("retail_carts_session_id_uidx").on(t.sessionId).where(sql`session_id IS NOT NULL`),
+  uniqueIndex("retail_carts_buyer_profile_uidx").on(t.retailBuyerProfileId).where(sql`retail_buyer_profile_id IS NOT NULL`),
+  check("retail_carts_has_identity", sql`session_id IS NOT NULL OR retail_buyer_profile_id IS NOT NULL`),
+]);
+
+export type RetailCart = typeof retailCartsTable.$inferSelect;
+export type InsertRetailCart = typeof retailCartsTable.$inferInsert;
+
+// ── retail_cart_items ─────────────────────────────────────────────────────────
+
+export const retailCartItemsTable = pgTable("retail_cart_items", {
+  id:                   serial("id").primaryKey(),
+  cartId:               integer("cart_id").notNull().references(() => retailCartsTable.id, { onDelete: "cascade" }),
+  productId:            integer("product_id").notNull().references(() => productsTable.id, { onDelete: "cascade" }),
+  quantity:             integer("quantity").notNull(),
+  unitLabelSnapshot:    text("unit_label_snapshot").notNull(),
+  priceCopSnapshot:     integer("price_cop_snapshot").notNull(),
+  maxPerOrderSnapshot:  integer("max_per_order_snapshot").notNull(),
+  addedAt:              timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("retail_cart_items_cart_id_idx").on(t.cartId),
+  uniqueIndex("retail_cart_items_cart_product_uidx").on(t.cartId, t.productId),
+]);
+
+export type RetailCartItem = typeof retailCartItemsTable.$inferSelect;
+export type InsertRetailCartItem = typeof retailCartItemsTable.$inferInsert;
+
+// ── retail_order_items ────────────────────────────────────────────────────────
+
+export const retailOrderItemsTable = pgTable("retail_order_items", {
+  id:                          serial("id").primaryKey(),
+  orderId:                     integer("order_id").notNull().references(() => ordersTable.id, { onDelete: "restrict" }),
+  productId:                   integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
+  supplierId:                  integer("supplier_id").references(() => suppliersTable.id, { onDelete: "set null" }),
+  unitQuantity:                integer("unit_quantity").notNull(),
+  unitLabelSnapshot:           text("unit_label_snapshot"),
+  productPriceCentsSnapshot:   integer("product_price_cents_snapshot"),
+  nequiPhoneSnapshot:          text("nequi_phone_snapshot"),
+  createdAt:                   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("retail_order_items_order_id_idx").on(t.orderId),
+]);
+
+export type RetailOrderItem = typeof retailOrderItemsTable.$inferSelect;
+export type InsertRetailOrderItem = typeof retailOrderItemsTable.$inferInsert;

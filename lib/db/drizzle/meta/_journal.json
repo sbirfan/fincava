@@ -253,6 +253,13 @@
       "when": 1781049600000,
       "tag": "0035_product_status_enum",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781136000000,
+      "tag": "0036_retail_cart_and_order_items",
+      "breakpoints": true
     }
   ]
 }

@@ -35,6 +35,8 @@ export const ordersTable = pgTable("orders", {
   // ── B2B / Retail discriminator (TDD §1.5) ─────────────────────────────────
   // 'b2b' for all existing orders; 'retail' for orders with a retail_order_details child.
   channel: text("channel").notNull().default("b2b"),
+  // Groups orders from one cart checkout across multiple suppliers
+  checkoutBatchRef: text("checkout_batch_ref"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Leaf, ShieldCheck, Users, MapPin, Loader2, Clock } from "lucide-react";
+import { ArrowLeft, Leaf, ShieldCheck, Users, MapPin, Loader2, Clock, Sparkles } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AddToCartButton } from "@/components/add-to-cart-button";
+import { ENABLE_CART } from "@/lib/flags";
 
 interface RetailProductDetail {
   id: number;
@@ -31,6 +33,13 @@ interface RetailProductDetail {
   verificationSignal: { visitedAt: string; officerName: string } | null;
   complianceBadges: { requirementCode: string; badgeLabel: string | null }[];
   waitlistCount: number;
+  productTypeKey: string | null;
+  typeAttributes: Record<string, unknown> | null;
+  aiContent: {
+    shortEs?: string; shortEn?: string;
+    longEs?: string;  longEn?: string;
+    buyerHighlights?: string[];
+  } | null;
 }
 
 interface ShippingEstimate { rateCents: number; currency: string; estimated: boolean }
@@ -247,13 +256,50 @@ export default function TiendaProducto() {
             )}
           </div>
 
+          {/* AI description */}
+          {(() => {
+            const aiDesc = lang === "es" ? p.aiContent?.longEs : (p.aiContent?.longEn ?? p.aiContent?.longEs);
+            if (!aiDesc) return null;
+            return (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> Descripción
+                </p>
+                <p className="text-sm text-foreground leading-relaxed">{aiDesc}</p>
+              </div>
+            );
+          })()}
+
+          {/* Type attribute pills */}
+          {p.typeAttributes && Object.keys(p.typeAttributes).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(p.typeAttributes).map(([key, val]) => {
+                if (val === null || val === undefined || val === "") return null;
+                const label = Array.isArray(val) ? val.join(", ") : String(val);
+                return (
+                  <Badge key={key} variant="secondary" className="text-xs font-normal">
+                    {label}
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+
           {/* CTA */}
           {inStock ? (
-            <Link href={`/tienda/checkout?productId=${p.id}&qty=${qty}`}>
-              <Button size="lg" className="w-full bg-primary hover:bg-primary/90">
-                {ti.buy} — {p.retailPriceCop ? formatCOP(p.retailPriceCop * qty) : ti.verPrice}
-              </Button>
-            </Link>
+            ENABLE_CART ? (
+              <AddToCartButton
+                productId={p.id}
+                quantity={qty}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+              />
+            ) : (
+              <Link href={`/tienda/checkout?productId=${p.id}&qty=${qty}`}>
+                <Button size="lg" className="w-full bg-primary hover:bg-primary/90">
+                  {ti.buy} — {p.retailPriceCop ? formatCOP(p.retailPriceCop * qty) : ti.verPrice}
+                </Button>
+              </Link>
+            )
           ) : (
             <Button size="lg" variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50">
               {ti.joinWaitlist}

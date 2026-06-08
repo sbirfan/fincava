@@ -10,10 +10,12 @@ import authRouter from "./auth";
 import catalogRouter from "./catalog";
 import ordersRouter from "./orders";
 import adminOrdersRouter from "./adminOrders";
+import cartRouter from "./cart";
 
 router.use(authRouter);
 router.use(catalogRouter);
 router.use(ordersRouter);
 router.use(adminOrdersRouter);
+router.use(cartRouter);
 
 export default router;
