@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, ilike, sql, desc, asc, inArray } from "drizzle-orm";
-import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable, productPlaceholdersTable, suppliersTable, sellableStatusEnum } from "@workspace/db";
+import { eq, and, gte, lte, ilike, sql, desc, asc, inArray, isNotNull } from "drizzle-orm";
+import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable, productPlaceholdersTable, suppliersTable, sellableStatusEnum, companySupplierLinksTable, supplierPaymentMethodsTable } from "@workspace/db";
 import {
   ListProductsQueryParams,
   CreateProductBody,
@@ -619,6 +619,200 @@ router.get(
     }));
 
     res.json({ placeholders });
+  },
+);
+
+// ── Admin: supplier candidates for a product ─────────────────────────────────
+router.get(
+  "/admin/products/:id/supplier-candidates",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const productId = Number(req.params.id);
+    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+
+    const [product] = await db
+      .select({ companyId: productsTable.companyId })
+      .from(productsTable)
+      .where(eq(productsTable.id, productId));
+    if (!product) { sendError(res, 404, "Product not found"); return; }
+
+    const candidates = await db
+      .select({
+        supplierId: suppliersTable.id,
+        supplierName: suppliersTable.nombreCompleto,
+        sellableStatus: suppliersTable.sellableStatus,
+      })
+      .from(companySupplierLinksTable)
+      .innerJoin(suppliersTable, eq(suppliersTable.id, companySupplierLinksTable.supplierId))
+      .where(eq(companySupplierLinksTable.companyId, product.companyId));
+
+    res.json({ candidates });
+  },
+);
+
+// ── Admin: link a supplier to a product ──────────────────────────────────────
+router.patch(
+  "/admin/products/:id/link-supplier",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const productId = Number(req.params.id);
+    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+
+    const supplierId = Number(req.body.supplierId);
+    if (isNaN(supplierId) || supplierId <= 0) {
+      sendError(res, 400, "supplierId must be a positive integer");
+      return;
+    }
+
+    const [product] = await db
+      .select({ id: productsTable.id, companyId: productsTable.companyId })
+      .from(productsTable)
+      .where(eq(productsTable.id, productId));
+    if (!product) { sendError(res, 404, "Product not found"); return; }
+
+    const [link] = await db
+      .select({ id: companySupplierLinksTable.id })
+      .from(companySupplierLinksTable)
+      .where(
+        and(
+          eq(companySupplierLinksTable.companyId, product.companyId),
+          eq(companySupplierLinksTable.supplierId, supplierId),
+        ),
+      );
+    if (!link) {
+      sendError(res, 409, "Supplier not linked to this company");
+      return;
+    }
+
+    const [updated] = await db
+      .update(productsTable)
+      .set({ supplierId })
+      .where(eq(productsTable.id, productId))
+      .returning();
+
+    res.json({ product: updated });
+  },
+);
+
+// ── Admin: approve wholesale or retail channel ────────────────────────────────
+const ApproveProductBody = z.object({
+  channel: z.enum(["wholesale", "retail"]),
+  note: z.string().optional(),
+});
+
+router.post(
+  "/admin/products/:id/approve",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const productId = Number(req.params.id);
+    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+
+    const parsed = ApproveProductBody.safeParse(req.body);
+    if (!parsed.success) { sendError(res, 400, parsed.error.message); return; }
+    const { channel } = parsed.data;
+
+    const [product] = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.id, productId));
+    if (!product) { sendError(res, 404, "Product not found"); return; }
+
+    if (channel === "wholesale") {
+      const [updated] = await db
+        .update(productsTable)
+        .set({
+          wholesaleEnabled: true,
+          wholesaleApprovedAt: new Date(),
+          productStatus: "active",
+        })
+        .where(eq(productsTable.id, productId))
+        .returning();
+      res.json({ product: updated });
+      return;
+    }
+
+    // channel === "retail" — full pre-flight
+    if (!product.wholesaleApprovedAt) {
+      sendError(res, 409, "Wholesale must be approved before retail");
+      return;
+    }
+
+    if (!product.supplierId) {
+      const candidates = await db
+        .select({
+          supplierId: suppliersTable.id,
+          supplierName: suppliersTable.nombreCompleto,
+          sellableStatus: suppliersTable.sellableStatus,
+        })
+        .from(companySupplierLinksTable)
+        .innerJoin(suppliersTable, eq(suppliersTable.id, companySupplierLinksTable.supplierId))
+        .where(eq(companySupplierLinksTable.companyId, product.companyId));
+      res.status(409).json({ error: "supplier_link_required", candidates });
+      return;
+    }
+
+    const [paymentMethod] = await db
+      .select({ nequiPhone: supplierPaymentMethodsTable.nequiPhone })
+      .from(supplierPaymentMethodsTable)
+      .where(eq(supplierPaymentMethodsTable.supplierId, product.supplierId));
+    if (!paymentMethod?.nequiPhone) {
+      sendError(res, 409, "No Nequi payment method for this supplier");
+      return;
+    }
+
+    const [supplier] = await db
+      .select({ sellableStatus: suppliersTable.sellableStatus })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, product.supplierId));
+    if (supplier?.sellableStatus !== "PUBLISHED") {
+      sendError(res, 409, "Supplier is not PUBLISHED");
+      return;
+    }
+
+    if (!product.retailPriceCop || product.retailPriceCop <= 0) {
+      sendError(res, 409, "Retail price not set");
+      return;
+    }
+    if (!product.retailStockUnits || product.retailStockUnits <= 0) {
+      sendError(res, 409, "Stock units not set");
+      return;
+    }
+    if (!product.retailUnitLabel) {
+      sendError(res, 409, "Unit label not set");
+      return;
+    }
+    if (!product.retailUnitWeightG) {
+      sendError(res, 409, "Unit weight not set");
+      return;
+    }
+    if (!product.images || product.images.length < 1) {
+      sendError(res, 409, "At least one product image required");
+      return;
+    }
+
+    // Origin story: non-blocking — warn only
+    const [story] = await db
+      .select({ id: originStoriesTable.id })
+      .from(originStoriesTable)
+      .where(
+        and(
+          eq(originStoriesTable.supplierId, product.supplierId),
+          eq(originStoriesTable.published, true),
+          isNotNull(originStoriesTable.farmerApprovedAt),
+        ),
+      );
+    const warnings = story ? [] : ["No approved origin story — product approved without one"];
+
+    const [updated] = await db
+      .update(productsTable)
+      .set({ retailEnabled: true, retailApprovedAt: new Date() })
+      .where(eq(productsTable.id, productId))
+      .returning();
+
+    res.json({ product: updated, warnings });
   },
 );
 
