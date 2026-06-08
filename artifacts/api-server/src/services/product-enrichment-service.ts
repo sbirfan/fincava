@@ -163,8 +163,12 @@ Output schema (all fields required):
     const duration = Date.now() - start;
     logger.info({ productId, duration }, "enrichProduct: Claude latency");
 
-    const raw = (message.content[0] as any).text as string;
-    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+    const firstBlock = message.content[0];
+    if (!firstBlock || firstBlock.type !== "text") {
+      logger.warn({ productId, stopReason: message.stop_reason }, "enrichProduct: unexpected content block type or empty response");
+      return { success: false, error: "empty_response", cached: cachedContent };
+    }
+    const jsonStr = firstBlock.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
     const claudeOutput = JSON.parse(jsonStr);
 
     // Validate the 5 user-visible fields Claude returned

@@ -74,6 +74,9 @@ async function buildProductResponse(product: any, company: any) {
     familiesSupported: product.familiesSupported,
     farmerName: product.farmerName ?? null,
     farmName: product.farmName ?? null,
+    productTypeKey: product.productTypeKey ?? null,
+    typeAttributes: product.typeAttributes ?? null,
+    productStatus: product.productStatus,
   };
 }
 
@@ -269,10 +272,9 @@ router.get("/products/:id", async (req, res): Promise<void> => {
           images:      originStoriesTable.images,
         })
         .from(originStoriesTable)
-        .innerJoin(productsTable, eq(productsTable.id, originStoriesTable.productId))
         .where(
           and(
-            eq(productsTable.supplierId, row.product.supplierId),
+            eq(originStoriesTable.supplierId, row.product.supplierId),
             eq(originStoriesTable.published, true),
           ),
         )
@@ -331,6 +333,7 @@ router.get("/products/:id/similar", async (req, res): Promise<void> => {
       and(
         eq(productsTable.category, product.category),
         eq(productsTable.active, true),
+        eq(productsTable.productStatus, "active"),
         sql`${productsTable.id} != ${product.id}`,
       )
     )
@@ -535,7 +538,7 @@ router.patch("/supplier/products/:id", requireAuth, async (req, res): Promise<vo
       }
       updateData.typeAttributes = attrResult.data;
     } else {
-      updateData.typeAttributes = incomingTypeAttributes;
+      updateData.typeAttributes = null;
     }
   }
 
@@ -611,7 +614,7 @@ router.post(
     }
 
     const productId = Number(req.params.id);
-    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+    if (!Number.isInteger(productId) || productId <= 0) { sendError(res, 400, "Invalid id"); return; }
 
     const force = req.body?.force === true;
 
@@ -689,7 +692,7 @@ router.get(
   requireAdmin,
   async (req, res): Promise<void> => {
     const productId = Number(req.params.id);
-    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+    if (!Number.isInteger(productId) || productId <= 0) { sendError(res, 400, "Invalid id"); return; }
 
     const [product] = await db
       .select({ companyId: productsTable.companyId })
@@ -718,7 +721,7 @@ router.patch(
   requireAdmin,
   async (req, res): Promise<void> => {
     const productId = Number(req.params.id);
-    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+    if (!Number.isInteger(productId) || productId <= 0) { sendError(res, 400, "Invalid id"); return; }
 
     const supplierId = Number(req.body.supplierId);
     if (isNaN(supplierId) || supplierId <= 0) {
@@ -768,7 +771,7 @@ router.post(
   requireAdmin,
   async (req, res): Promise<void> => {
     const productId = Number(req.params.id);
-    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+    if (!Number.isInteger(productId) || productId <= 0) { sendError(res, 400, "Invalid id"); return; }
 
     const parsed = ApproveProductBody.safeParse(req.body);
     if (!parsed.success) { sendError(res, 400, parsed.error.message); return; }
@@ -781,6 +784,12 @@ router.post(
     if (!product) { sendError(res, 404, "Product not found"); return; }
 
     if (channel === "wholesale") {
+      // Idempotency guard — prevent re-approval from overwriting the original approval timestamp.
+      if (product.wholesaleEnabled) {
+        sendError(res, 409, "Product is already wholesale approved");
+        return;
+      }
+
       // Wholesale preflight: minimum bars before a product goes live.
       if (!product.supplierId) {
         sendError(res, 409, "Product must be linked to a supplier before wholesale approval");
@@ -790,7 +799,11 @@ router.post(
         .select({ sellableStatus: suppliersTable.sellableStatus })
         .from(suppliersTable)
         .where(eq(suppliersTable.id, product.supplierId));
-      if (wholesaleSupplier?.sellableStatus !== "SELLABLE" && wholesaleSupplier?.sellableStatus !== "PUBLISHED") {
+      if (!wholesaleSupplier) {
+        sendError(res, 409, "Linked supplier record not found — data integrity issue, re-link the supplier");
+        return;
+      }
+      if (!GRADUATED_STATUSES.includes(wholesaleSupplier.sellableStatus as any)) {
         sendError(res, 409, "Supplier must be SELLABLE or PUBLISHED before wholesale approval");
         return;
       }
@@ -818,6 +831,11 @@ router.post(
       return;
     }
 
+    if (product.productStatus === "pending_review") {
+      sendError(res, 409, "Product is pending review — resolve the pending type change before retail approval");
+      return;
+    }
+
     if (!product.supplierId) {
       const candidates = await db
         .select({
@@ -832,19 +850,18 @@ router.post(
       return;
     }
 
-    const [paymentMethod] = await db
-      .select({ nequiPhone: supplierPaymentMethodsTable.nequiPhone })
-      .from(supplierPaymentMethodsTable)
-      .where(eq(supplierPaymentMethodsTable.supplierId, product.supplierId));
+    const [[paymentMethod], [supplier]] = await Promise.all([
+      db.select({ nequiPhone: supplierPaymentMethodsTable.nequiPhone })
+        .from(supplierPaymentMethodsTable)
+        .where(eq(supplierPaymentMethodsTable.supplierId, product.supplierId)),
+      db.select({ sellableStatus: suppliersTable.sellableStatus })
+        .from(suppliersTable)
+        .where(eq(suppliersTable.id, product.supplierId)),
+    ]);
     if (!paymentMethod?.nequiPhone) {
       sendError(res, 409, "No Nequi payment method for this supplier");
       return;
     }
-
-    const [supplier] = await db
-      .select({ sellableStatus: suppliersTable.sellableStatus })
-      .from(suppliersTable)
-      .where(eq(suppliersTable.id, product.supplierId));
     if (supplier?.sellableStatus !== "PUBLISHED") {
       sendError(res, 409, "Supplier is not PUBLISHED");
       return;
