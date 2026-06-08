@@ -1,4 +1,5 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
+import rateLimit from "express-rate-limit";
 import { eq, and, gte, lte, ilike, sql, desc, asc, inArray, isNotNull } from "drizzle-orm";
 import { db, productsTable, companiesTable, reviewsTable, profilesTable, usersTable, originStoriesTable, productPlaceholdersTable, suppliersTable, sellableStatusEnum, companySupplierLinksTable, supplierPaymentMethodsTable } from "@workspace/db";
 import {
@@ -17,6 +18,7 @@ import { computePlatformTrustScore } from "../services/trust-score-service";
 import { z } from "zod";
 import { sendError } from "../lib/response";
 import { PRODUCT_TYPE_SCHEMAS, PRODUCT_TYPE_SCHEMA_VERSION, getSchemaForType, getZodSchemaForType } from "../lib/product-type-schemas";
+import { enrichProduct } from "../services/product-enrichment-service";
 
 const BooleanFilters = z.object({
   smallholder: z.coerce.boolean().optional(),
@@ -585,6 +587,64 @@ router.delete("/supplier/products/:id", requireAuth, async (req, res): Promise<v
   await db.delete(productsTable).where(eq(productsTable.id, params.data.id));
   res.sendStatus(204);
 });
+
+// ── POST /api/supplier/products/:id/enrich ────────────────────────────────────
+// Rate limit: 20 calls per 24h per user (Claude calls are expensive).
+const enrichLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => `enrich:u:${req.userId ?? req.ip}`,
+  message: { error: "AI enrichment limit reached. Try again tomorrow." },
+});
+
+router.post(
+  "/supplier/products/:id/enrich",
+  requireAuth,
+  enrichLimiter,
+  async (req, res): Promise<void> => {
+    const userRole = req.userRole;
+    if (userRole !== "SUPPLIER" && userRole !== "ADMIN") {
+      sendError(res, 403, "Only supplier accounts can enrich products");
+      return;
+    }
+
+    const productId = Number(req.params.id);
+    if (isNaN(productId)) { sendError(res, 400, "Invalid id"); return; }
+
+    const force = req.body?.force === true;
+
+    // Verify product belongs to requesting company (SUPPLIER) or allow all (ADMIN)
+    if (userRole === "SUPPLIER") {
+      const [company] = await db
+        .select({ id: companiesTable.id })
+        .from(companiesTable)
+        .where(eq(companiesTable.userId, req.userId));
+      if (!company) { sendError(res, 400, "Supplier company not found"); return; }
+
+      const [product] = await db
+        .select({ id: productsTable.id, productStatus: productsTable.productStatus })
+        .from(productsTable)
+        .where(and(eq(productsTable.id, productId), eq(productsTable.companyId, company.id)));
+      if (!product) { sendError(res, 404, "Product not found"); return; }
+
+      if (product.productStatus !== "draft" && product.productStatus !== "pending_review") {
+        sendError(res, 400, "Enrichment only allowed on draft or pending_review products");
+        return;
+      }
+    }
+
+    const result = await enrichProduct(productId, { force });
+
+    if (!result.success) {
+      res.status(422).json({ success: false, error: result.error, cached: result.cached });
+      return;
+    }
+
+    res.json({ success: true, enrichment: result.enrichment });
+  },
+);
 
 // ── GET /api/admin/ingestion/suppliers/:id/product-placeholders ───────────────
 // Returns product placeholders for an ingested supplier.
