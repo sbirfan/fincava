@@ -16,6 +16,7 @@ import { logger } from "../lib/logger";
 import { computePlatformTrustScore } from "../services/trust-score-service";
 import { z } from "zod";
 import { sendError } from "../lib/response";
+import { PRODUCT_TYPE_SCHEMAS, PRODUCT_TYPE_SCHEMA_VERSION, getSchemaForType } from "../lib/product-type-schemas";
 
 const BooleanFilters = z.object({
   smallholder: z.coerce.boolean().optional(),
@@ -186,6 +187,21 @@ router.get("/products/featured", async (_req, res): Promise<void> => {
 
   const products = await Promise.all(rows.map((r) => buildProductResponse(r.product, r.company)));
   res.json(products);
+});
+
+router.get("/products/type-schemas", (_req, res): void => {
+  res.set("Cache-Control", "public, max-age=3600");
+  res.json({ version: PRODUCT_TYPE_SCHEMA_VERSION, schemas: Object.values(PRODUCT_TYPE_SCHEMAS) });
+});
+
+router.get("/products/type-schemas/:typeKey", (req, res): void => {
+  const schema = getSchemaForType(req.params.typeKey);
+  if (!schema) {
+    sendError(res, 404, `No schema found for type '${req.params.typeKey}'`);
+    return;
+  }
+  res.set("Cache-Control", "public, max-age=3600");
+  res.json({ version: PRODUCT_TYPE_SCHEMA_VERSION, schema });
 });
 
 router.get("/products/:id", async (req, res): Promise<void> => {
