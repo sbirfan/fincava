@@ -10,6 +10,8 @@ export const productCategoryEnum = pgEnum("product_category", [
   "COFFEE", "CACAO", "AVOCADO", "EXOTIC_FRUIT", "SUPERFOOD", "PROCESSED", "TEXTILE", "OTHER"
 ]);
 
+export const productStatusEnum = pgEnum("product_status", ["draft", "pending_review", "active"]);
+
 export const productsTable = pgTable("products", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companiesTable.id),
@@ -62,7 +64,7 @@ export const productsTable = pgTable("products", {
   typeAttributes:      jsonb("type_attributes"),
   wholesaleEnabled:    boolean("wholesale_enabled").notNull().default(true),
   aiContent:           jsonb("ai_content"),
-  productStatus:       text("product_status").notNull().default("draft"),
+  productStatus:       productStatusEnum("product_status").notNull().default("draft"),
   wholesaleApprovedAt: timestamp("wholesale_approved_at", { withTimezone: true }),
   retailApprovedAt:    timestamp("retail_approved_at", { withTimezone: true }),
 },

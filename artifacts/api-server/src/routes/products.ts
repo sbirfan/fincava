@@ -632,8 +632,8 @@ router.post(
         .where(and(eq(productsTable.id, productId), eq(productsTable.companyId, company.id)));
       if (!product) { sendError(res, 404, "Product not found"); return; }
 
-      if (product.productStatus !== "draft" && product.productStatus !== "pending_review") {
-        sendError(res, 400, "Enrichment only allowed on draft or pending_review products");
+      if (product.productStatus === "active" && !force) {
+        sendError(res, 409, "Product is active — pass force:true to re-enrich after attribute changes");
         return;
       }
     }
@@ -759,6 +759,89 @@ router.patch(
   },
 );
 
+// ── GET /api/admin/products ───────────────────────────────────────────────────
+// Admin product list with optional productStatus filter and pagination.
+const AdminProductsQuery = z.object({
+  productStatus: z.enum(["draft", "pending_review", "active"]).optional(),
+  page:     z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+router.get(
+  "/admin/products",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const parsed = AdminProductsQuery.safeParse(req.query);
+    if (!parsed.success) { sendError(res, 400, parsed.error.message); return; }
+    const { productStatus, page, pageSize } = parsed.data;
+    const offset = (page - 1) * pageSize;
+
+    let query = db
+      .select({
+        id:                 productsTable.id,
+        name:               productsTable.name,
+        category:           productsTable.category,
+        productStatus:      productsTable.productStatus,
+        productTypeKey:     productsTable.productTypeKey,
+        wholesaleEnabled:   productsTable.wholesaleEnabled,
+        retailEnabled:      productsTable.retailEnabled,
+        wholesaleApprovedAt: productsTable.wholesaleApprovedAt,
+        retailApprovedAt:   productsTable.retailApprovedAt,
+        supplierId:         productsTable.supplierId,
+        companyId:          productsTable.companyId,
+        createdAt:          productsTable.createdAt,
+      })
+      .from(productsTable)
+      .$dynamic();
+
+    if (productStatus) {
+      query = query.where(eq(productsTable.productStatus, productStatus)) as typeof query;
+    }
+
+    const products = await query
+      .orderBy(desc(productsTable.createdAt))
+      .limit(pageSize)
+      .offset(offset);
+
+    res.json({ products, page, pageSize });
+  },
+);
+
+// ── Required-for-channel validation helper ────────────────────────────────────
+// Returns the list of required field keys that are missing for the given channel.
+// Only runs when the product has a productTypeKey; untyped products skip schema validation.
+function checkRequiredForChannel(
+  product: Record<string, unknown>,
+  channel: "wholesale" | "retail",
+): string[] {
+  const typeKey = product.productTypeKey as string | null | undefined;
+  if (!typeKey) return [];
+  const schema = getSchemaForType(typeKey);
+  if (!schema) return [];
+
+  const allFields = [...schema.coreFields, ...schema.typeAttributes];
+  const fieldMap = new Map(allFields.map((f) => [f.key, f]));
+  const missing: string[] = [];
+
+  for (const fieldKey of schema.channels[channel].requiredFields) {
+    const fieldDef = fieldMap.get(fieldKey);
+    let val: unknown;
+    if (fieldDef) {
+      if (fieldDef.storageLocation === "products_column") {
+        val = product[fieldDef.columnName!];
+      } else {
+        const attrs = (product.typeAttributes as Record<string, unknown>) ?? {};
+        val = attrs[fieldKey];
+      }
+    } else {
+      val = product[fieldKey];
+    }
+    if (val === null || val === undefined || val === "") missing.push(fieldKey);
+  }
+  return missing;
+}
+
 // ── Admin: approve wholesale or retail channel ────────────────────────────────
 const ApproveProductBody = z.object({
   channel: z.enum(["wholesale", "retail"]),
@@ -812,6 +895,12 @@ router.post(
         return;
       }
 
+      const missingWholesale = checkRequiredForChannel(product as Record<string, unknown>, "wholesale");
+      if (missingWholesale.length > 0) {
+        sendError(res, 409, `Missing required wholesale fields: ${missingWholesale.join(", ")}`);
+        return;
+      }
+
       const [updated] = await db
         .update(productsTable)
         .set({
@@ -833,6 +922,12 @@ router.post(
 
     if (product.productStatus === "pending_review") {
       sendError(res, 409, "Product is pending review — resolve the pending type change before retail approval");
+      return;
+    }
+
+    const missingRetail = checkRequiredForChannel(product as Record<string, unknown>, "retail");
+    if (missingRetail.length > 0) {
+      sendError(res, 409, `Missing required retail fields: ${missingRetail.join(", ")}`);
       return;
     }
 

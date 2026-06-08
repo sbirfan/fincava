@@ -153,12 +153,15 @@ Output schema (all fields required):
     const client = getAnthropicClient();
     const start = Date.now();
 
-    const message = await client.messages.create({
-      model: DOCUMENT_MODEL,
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: "user", content: JSON.stringify(promptContext) }],
-    });
+    const message = await client.messages.create(
+      {
+        model: DOCUMENT_MODEL,
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [{ role: "user", content: JSON.stringify(promptContext) }],
+      },
+      { signal: AbortSignal.timeout(30_000) },
+    );
 
     const duration = Date.now() - start;
     logger.info({ productId, duration }, "enrichProduct: Claude latency");
@@ -169,7 +172,14 @@ Output schema (all fields required):
       return { success: false, error: "empty_response", cached: cachedContent };
     }
     const jsonStr = firstBlock.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-    const claudeOutput = JSON.parse(jsonStr);
+
+    let claudeOutput: unknown;
+    try {
+      claudeOutput = JSON.parse(jsonStr);
+    } catch {
+      logger.warn({ productId }, "enrichProduct: Claude returned unparseable JSON");
+      return { success: false, error: "invalid_json", cached: cachedContent };
+    }
 
     // Validate the 5 user-visible fields Claude returned
     const OutputSchema = z.object({
