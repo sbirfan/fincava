@@ -28,3 +28,9 @@ ALTER TABLE "products"
     USING "product_status"::"product_status";
 ALTER TABLE "products"
   ALTER COLUMN "product_status" SET DEFAULT 'draft'::"product_status";
+
+-- FIX-01: Backfill — reset wholesale_enabled to false for any product that was never
+-- explicitly approved (i.e. wholesale_approved_at IS NULL). The migration-0034 default
+-- of true meant all pre-V2 products became wholesale-visible without going through the
+-- approval flow. This corrects that in both dev (already applied via direct SQL) and prod.
+UPDATE "products" SET "wholesale_enabled" = false WHERE "wholesale_approved_at" IS NULL;
