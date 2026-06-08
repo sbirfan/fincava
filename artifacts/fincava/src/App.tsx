@@ -55,6 +55,8 @@ const BuyerAnalytics = lazy(() => import("@/pages/dashboard/analytics"));
 const BuyerMatches = lazy(() => import("@/pages/dashboard/matches"));
 const AiAssistant = lazy(() => import("@/pages/dashboard/ai-assistant"));
 // Supplier Dashboard — lazy
+const SupplierLoginPage      = lazy(() => import("@/pages/supplier-login"));
+const SupplierAuthConfirmPage = lazy(() => import("@/pages/supplier-auth/confirm"));
 const SupplierDashboard = lazy(() => import("@/pages/supplier-dashboard/index"));
 const SupplierProducts = lazy(() => import("@/pages/supplier-dashboard/products"));
 const SupplierProductNew = lazy(() => import("@/pages/supplier-dashboard/product-new"));
@@ -161,6 +163,8 @@ function Router() {
         <Route path="/contact" component={() => <AppLayout><Contact /></AppLayout>} />
         <Route path="/login" component={() => <AppLayout><Login /></AppLayout>} />
         <Route path="/register" component={() => <AppLayout><Register /></AppLayout>} />
+        <Route path="/supplier-login" component={() => <SupplierLoginPage />} />
+        <Route path="/supplier-auth/confirm" component={() => <SupplierAuthConfirmPage />} />
         <Route path="/buyer-register" component={() => <AppLayout><BuyerRegisterPage /></AppLayout>} />
         <Route path="/forgot-password" component={() => <AppLayout><ForgotPassword /></AppLayout>} />
         <Route path="/reset-password" component={() => <AppLayout><ResetPassword /></AppLayout>} />

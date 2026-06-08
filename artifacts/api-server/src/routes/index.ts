@@ -29,6 +29,7 @@ import supplierExportModeRouter from "./supplierExportMode";
 import reviewSuggestionRouter from "./reviewSuggestion";
 import contactRouter from "./contact";
 import retailRouter from "./retail/index";
+import supplierAuthRouter from "./supplier-auth";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(supplierExportModeRouter);
 router.use(reviewSuggestionRouter);
 router.use(contactRouter);
 router.use(retailRouter);
+router.use(supplierAuthRouter);
 
 export default router;

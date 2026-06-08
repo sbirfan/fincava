@@ -106,6 +106,10 @@ app.use("/api/auth/register", authLimiter);
 app.use("/api/retail/auth/request", authLimiter);
 app.use("/api/retail/auth/verify-otp", authLimiter);
 app.use("/api/retail/auth/verify-magic", authLimiter);
+app.use("/api/supplier-auth/request-otp", authLimiter);
+app.use("/api/supplier-auth/request-magic-link", authLimiter);
+app.use("/api/supplier-auth/verify-otp", authLimiter);
+app.use("/api/supplier-auth/verify-magic-link", authLimiter);
 app.use("/api/suppliers/onboard", onboardLimiter);
 app.use("/api/buyers/register", onboardLimiter);
 

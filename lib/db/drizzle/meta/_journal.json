@@ -260,6 +260,13 @@
       "when": 1781136000000,
       "tag": "0036_retail_cart_and_order_items",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781222400000,
+      "tag": "0037_supplier_auth_tokens",
+      "breakpoints": true
     }
   ]
 }

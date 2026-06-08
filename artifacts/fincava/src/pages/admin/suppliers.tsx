@@ -1737,6 +1737,43 @@ export default function AdminSuppliersPage() {
               {nequiPhoneError && <p className="text-xs text-red-500">{nequiPhoneError}</p>}
             </div>
 
+            {/* ── FIN-002: Send login link / OTP ───────────────────── */}
+            <div className="mt-6 border border-blue-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                {lang === "es" ? "Acceso del proveedor" : "Supplier access"}
+              </p>
+              <p className="text-xs text-muted-foreground mb-3">
+                {lang === "es"
+                  ? "Envía un enlace de acceso o código OTP al proveedor para que pueda ingresar sin contraseña."
+                  : "Send the supplier an access link or OTP so they can log in without a password."}
+              </p>
+              <div className="flex flex-col gap-2">
+                {selected?.phone && (
+                  <SendLoginAction
+                    supplierId={selected.id}
+                    type="otp"
+                    label={lang === "es" ? "Enviar OTP por WhatsApp" : "Send WhatsApp OTP"}
+                    lang={lang}
+                  />
+                )}
+                {selected?.email && (
+                  <SendLoginAction
+                    supplierId={selected.id}
+                    type="magic-link"
+                    label={lang === "es" ? "Enviar enlace por correo" : "Send magic link email"}
+                    lang={lang}
+                  />
+                )}
+                {!selected?.phone && !selected?.email && (
+                  <p className="text-xs text-muted-foreground italic">
+                    {lang === "es"
+                      ? "Sin WhatsApp ni correo registrado. Agrega un contacto primero."
+                      : "No WhatsApp or email on record. Add a contact first."}
+                  </p>
+                )}
+              </div>
+            </div>
+
             {/* ── Danger zone ──────────────────────────────────────────── */}
             <div className="mt-6 border border-red-100 rounded-xl p-4">
               <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-3">
@@ -2006,6 +2043,49 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="flex justify-between items-start gap-4 py-2 border-b border-gray-50">
       <span className="text-gray-500 shrink-0">{label}</span>
       <span className="text-gray-800 text-right">{value}</span>
+    </div>
+  );
+}
+
+// FIN-002: Officer-triggered supplier login link / OTP sender
+function SendLoginAction({
+  supplierId, type, label, lang,
+}: { supplierId: number; type: "otp" | "magic-link"; label: string; lang: string }) {
+  const [sending, setSending] = useState(false);
+  const [sent,    setSent]    = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
+
+  const handle = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      const endpoint = type === "otp"
+        ? `/api/admin/suppliers/${supplierId}/send-otp`
+        : `/api/admin/suppliers/${supplierId}/send-magic-link`;
+      const r = await fetch(endpoint, { method: "POST", credentials: "include" });
+      if (r.ok) {
+        setSent(true);
+      } else {
+        const body = await r.json().catch(() => ({}));
+        setError(typeof body.error === "string" ? body.error : `HTTP ${r.status}`);
+      }
+    } catch {
+      setError(lang === "es" ? "Error de red" : "Network error");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        onClick={handle}
+        disabled={sending || sent}
+        className="w-full py-2 rounded-lg text-sm font-medium border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 transition"
+      >
+        {sending ? "…" : sent ? (lang === "es" ? "✓ Enviado" : "✓ Sent") : label}
+      </button>
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
 }
