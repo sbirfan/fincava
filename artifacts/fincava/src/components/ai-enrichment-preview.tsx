@@ -8,7 +8,7 @@ import type { AiContent } from "../../../api-server/src/services/product-enrichm
 
 // ── Local AiContent type (mirrors the service — avoids cross-package import) ──
 
-interface AiEnrichmentResult {
+export interface AiEnrichmentResult {
   shortEs: string;
   shortEn: string;
   longEs: string;
