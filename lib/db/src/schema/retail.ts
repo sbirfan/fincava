@@ -244,6 +244,7 @@ export const retailCartItemsTable = pgTable("retail_cart_items", {
 }, (t) => [
   index("retail_cart_items_cart_id_idx").on(t.cartId),
   uniqueIndex("retail_cart_items_cart_product_uidx").on(t.cartId, t.productId),
+  check("retail_cart_items_qty_positive", sql`quantity > 0`),
 ]);
 
 export type RetailCartItem = typeof retailCartItemsTable.$inferSelect;
@@ -263,6 +264,7 @@ export const retailOrderItemsTable = pgTable("retail_order_items", {
   createdAt:                   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("retail_order_items_order_id_idx").on(t.orderId),
+  check("retail_order_items_qty_positive", sql`unit_quantity > 0`),
 ]);
 
 export type RetailOrderItem = typeof retailOrderItemsTable.$inferSelect;

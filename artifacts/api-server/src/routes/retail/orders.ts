@@ -104,10 +104,12 @@ router.post("/retail/orders", async (req, res): Promise<void> => {
       const supStatus = (supStatusRows as any).rows?.[0] ?? (supStatusRows as any)[0];
       if ((supStatus as any)?.sellable_status !== "PUBLISHED") { throw new Error("Supplier not available"); }
 
-      // Shipping rate lookup
+      // Shipping rate lookup — pin originDepartment to NACIONAL to avoid
+      // returning a wrong rate when multiple origins share the same destination.
       const [zone] = await tx.select({ rateCents: retailShippingZonesTable.rateCents })
         .from(retailShippingZonesTable)
         .where(and(
+          eq(retailShippingZonesTable.originDepartment, "NACIONAL"),
           eq(retailShippingZonesTable.destinationDepartment, shippingDepartment),
           eq(retailShippingZonesTable.weightClass, "SMALL"),
           eq(retailShippingZonesTable.active, true),
@@ -366,12 +368,13 @@ router.post("/retail/checkout", async (req, res): Promise<void> => {
       .from(retailBuyerProfilesTable).where(eq(retailBuyerProfilesTable.userId, buyerId));
     buyerProfileId = bp?.id ?? null;
   } else {
-    let [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
-    if (!existing) {
-      const [newUser] = await db.insert(usersTable).values({ email, passwordHash: "RETAIL_GUEST", role: "BUYER", tokenVersion: 0 }).returning({ id: usersTable.id });
-      existing = newUser;
-    }
-    buyerId = existing.id;
+    // Guest checkout — always create a fresh user row for this email to avoid
+    // silently attaching the order to an existing account (email impersonation).
+    // Existing accounts should authenticate first; guest orders get a unique row.
+    const [newUser] = await db.insert(usersTable)
+      .values({ email, passwordHash: "RETAIL_GUEST", role: "BUYER", tokenVersion: 0 })
+      .returning({ id: usersTable.id });
+    buyerId = newUser.id;
   }
 
   // Find cart
@@ -471,11 +474,14 @@ router.post("/retail/checkout", async (req, res): Promise<void> => {
     });
   }
 
-  // Shipping rate lookup (shared across all groups — single department)
+  // Shipping rate lookup (shared across all groups — single destination department)
+  // Use NACIONAL origin to match the national rate row; avoids returning a
+  // wrong rate when multiple origin zones share the same destination.
   let shippingRateCents = 0;
   const [zone] = await db.select({ rateCents: retailShippingZonesTable.rateCents })
     .from(retailShippingZonesTable)
     .where(and(
+      eq(retailShippingZonesTable.originDepartment, "NACIONAL"),
       eq(retailShippingZonesTable.destinationDepartment, shippingDepartment),
       eq(retailShippingZonesTable.weightClass, "SMALL"),
       eq(retailShippingZonesTable.active, true),
@@ -483,6 +489,7 @@ router.post("/retail/checkout", async (req, res): Promise<void> => {
   if (zone) {
     shippingRateCents = zone.rateCents;
   } else {
+    // Fallback to NACIONAL→NACIONAL flat rate
     const [national] = await db.select({ rateCents: retailShippingZonesTable.rateCents })
       .from(retailShippingZonesTable)
       .where(and(

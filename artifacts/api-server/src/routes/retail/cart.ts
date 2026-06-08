@@ -209,7 +209,12 @@ router.post("/retail/cart/items", async (req, res): Promise<void> => {
       })
       .onConflictDoUpdate({
         target: [retailCartItemsTable.cartId, retailCartItemsTable.productId],
-        set: { quantity, priceCopSnapshot: product.retailPriceCop ?? 0 },
+        set: {
+          quantity,
+          priceCopSnapshot:    product.retailPriceCop ?? 0,
+          unitLabelSnapshot:   product.retailUnitLabel ?? "",
+          maxPerOrderSnapshot: maxPerOrder,
+        },
       });
 
     await db.update(retailCartsTable)
@@ -246,6 +251,16 @@ router.patch("/retail/cart/items/:itemId", async (req, res): Promise<void> => {
 
     if (!item) { sendError(res, 404, "Cart item not found"); return; }
 
+    // Ownership: caller's session must own this cart
+    const resolved = await resolveCart(req, res);
+    if (!resolved || resolved.cartId !== item.cartId) {
+      sendError(res, 403, "Access denied"); return;
+    }
+
+    if (quantity > item.maxPerOrderSnapshot) {
+      sendError(res, 409, `Quantity exceeds maximum allowed (${item.maxPerOrderSnapshot})`); return;
+    }
+
     // Re-validate stock
     const [product] = await db
       .select({ retailStockUnits: productsTable.retailStockUnits })
@@ -256,9 +271,8 @@ router.patch("/retail/cart/items/:itemId", async (req, res): Promise<void> => {
       sendError(res, 409, "Insufficient stock"); return;
     }
 
-    const capped = Math.min(quantity, item.maxPerOrderSnapshot);
     await db.update(retailCartItemsTable)
-      .set({ quantity: capped })
+      .set({ quantity })
       .where(eq(retailCartItemsTable.id, itemId));
 
     const items = await readCartItems(item.cartId);
@@ -281,6 +295,12 @@ router.delete("/retail/cart/items/:itemId", async (req, res): Promise<void> => {
       .where(eq(retailCartItemsTable.id, itemId));
 
     if (!item) { sendError(res, 404, "Cart item not found"); return; }
+
+    // Ownership: caller's session must own this cart
+    const resolved = await resolveCart(req, res);
+    if (!resolved || resolved.cartId !== item.cartId) {
+      sendError(res, 403, "Access denied"); return;
+    }
 
     await db.delete(retailCartItemsTable).where(eq(retailCartItemsTable.id, itemId));
 
