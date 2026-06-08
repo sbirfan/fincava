@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, real, pgEnum, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, real, pgEnum, index, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 // Note: retail column additions live here per additive-only constraint (TDD §2.2)
 import { createInsertSchema } from "drizzle-zod";
@@ -56,10 +56,22 @@ export const productsTable = pgTable("products", {
   lastReplenishedAt: timestamp("last_replenished_at", { withTimezone: true }),
   nextWindowStart:   timestamp("next_window_start", { withTimezone: true }),
   nextWindowEnd:     timestamp("next_window_end", { withTimezone: true }),
+
+  // ── Product Catalog V2 columns (FIN-V2) ─────────────────────────────────
+  productTypeKey:      text("product_type_key"),
+  typeAttributes:      jsonb("type_attributes"),
+  wholesaleEnabled:    boolean("wholesale_enabled").notNull().default(true),
+  aiContent:           jsonb("ai_content"),
+  productStatus:       text("product_status").notNull().default("draft"),
+  wholesaleApprovedAt: timestamp("wholesale_approved_at", { withTimezone: true }),
+  retailApprovedAt:    timestamp("retail_approved_at", { withTimezone: true }),
 },
 (t) => [
   index("products_company_id_idx").on(t.companyId),
   index("idx_products_retail_enabled").on(t.id).where(sql`retail_enabled = true AND active = true`),
+  index("idx_products_type_key").on(t.productTypeKey).where(sql`product_type_key IS NOT NULL`),
+  index("idx_products_type_attrs_gin").using("gin", t.typeAttributes).where(sql`type_attributes IS NOT NULL`),
+  index("idx_products_status").on(t.productStatus).where(sql`product_status IS NOT NULL`),
 ],
 );
 
