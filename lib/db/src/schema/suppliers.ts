@@ -188,6 +188,9 @@ export const suppliersTable = pgTable(
     sourceType: text("source_type"),
     supplierFingerprint: text("supplier_fingerprint"),
     claimStatus: claimStatusEnum("claim_status").default("UNCLAIMED"),
+    // FIN-055: claim_token is dormant — no route writes or reads it yet.
+    // When a claim flow is implemented, write SHA-256(rawToken) here and
+    // compare with timingSafeEqual. Never store or return the raw token.
     claimToken: text("claim_token"),
     ingestionSource: ingestionSourceEnum("ingestion_source").default("FIELD_COLLECTED"),
     ingestionStatus: ingestionStatusEnum("ingestion_status"),

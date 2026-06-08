@@ -19,7 +19,7 @@ import { checkDuplicate, computeSupplierFingerprint, logDuplicateOverride } from
 import { discoverLeads } from "../services/discovery-engine";
 import { pipelineEmitter, SUPPLIER_ONBOARD_EVENT } from "../lib/pipeline-emitter";
 import { runOnboardPipeline } from "../services/onboard-pipeline";
-import { randomUUID } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 import { and, desc, eq, inArray, count, sum, sql, ilike, or, isNull, type SQL } from "drizzle-orm";
 import { companyTypeEnum } from "@workspace/db";
 import { sendEmail, supplierStatusChangeEmail, orderStatusEmail, loanStatusEmail, adminCreatedAccountEmail, adminPasswordResetEmail, adminRoleChangeEmail, buyerRevisionRequestedEmail, introductionEmail, getAdminEmails } from "../lib/email";
@@ -3160,7 +3160,13 @@ router.post("/admin/backup/run", async (req: Request, res: Response, next: NextF
   const backupSecret = process.env.BACKUP_SECRET_V2;
   const tokenHeader  = req.headers["x-backup-token"];
 
-  if (backupSecret && tokenHeader === backupSecret) {
+  // FIN-060: timing-safe comparison prevents timing-based secret enumeration
+  const tokenOk = backupSecret &&
+    typeof tokenHeader === "string" &&
+    tokenHeader.length === backupSecret.length &&
+    timingSafeEqual(Buffer.from(tokenHeader), Buffer.from(backupSecret));
+
+  if (tokenOk) {
     // Cron path — bypass JWT middleware
     try {
       const result = await runBackup();
