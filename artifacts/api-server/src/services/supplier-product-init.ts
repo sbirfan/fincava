@@ -185,6 +185,7 @@ export async function initSupplierProduct(supplierId: number): Promise<{
       active: true,
       smallholder: true,
       farmerName: supplier.nombreCompleto,
+      productStatus: "draft",
     })
     .returning();
 
