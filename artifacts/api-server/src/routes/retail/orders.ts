@@ -71,6 +71,7 @@ router.post("/retail/orders", async (req, res): Promise<void> => {
   let supplierId: number;
   let supplierName: string;
   let shippingRateCents = 0;
+  let rawAccessToken = "";
 
   try {
     await db.transaction(async (tx) => {
@@ -140,10 +141,8 @@ router.post("/retail/orders", async (req, res): Promise<void> => {
       orderId = order.id;
 
       // 2. Create retail_order_details
-      const rawAccessToken = crypto.randomBytes(32).toString("hex");
+      rawAccessToken = crypto.randomBytes(32).toString("hex");
       const accessTokenHash = sha256(rawAccessToken);
-      // Store raw token temporarily for the confirmation email — not stored plain
-      (res as any)._orderAccessToken = rawAccessToken;
 
       await tx.insert(retailOrderDetailsTable).values({
         orderId,
@@ -202,7 +201,6 @@ router.post("/retail/orders", async (req, res): Promise<void> => {
       const appBaseUrl = process.env["FRONTEND_URL"]
         ?? (process.env["REPLIT_DOMAINS"] ? `https://${process.env["REPLIT_DOMAINS"].split(",")[0]}` : "http://localhost:5173");
 
-      const rawAccessToken = (res as any)._orderAccessToken as string;
       const orderStatusUrl = `${appBaseUrl}/tienda/orders/${orderId}?token=${rawAccessToken}`;
       const adminOrderUrl = `${appBaseUrl}/admin/retail/orders/${orderId}`;
 

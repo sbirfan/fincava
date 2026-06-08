@@ -43,21 +43,8 @@ async function resolveCart(req: any, res: any): Promise<{ cartId: number; isGues
         SELECT id FROM retail_buyer_profiles WHERE user_id = ${userId} LIMIT 1
       )`);
 
-    // Merge guest cart if cookie present
-    if (sessionId && !cart) {
-      const [guestCart] = await db
-        .select({ id: retailCartsTable.id })
-        .from(retailCartsTable)
-        .where(and(eq(retailCartsTable.sessionId, sessionId)));
-
-      if (guestCart) {
-        // No auth profile yet — promote guest cart to session-less auth cart by
-        // keeping it as-is; clear cookie so next request creates auth cart.
-        // Full merge deferred until buyer profile exists.
-        res.clearCookie(COOKIE_NAME);
-        return { cartId: guestCart.id, isGuest: false };
-      }
-    }
+    // Clear any stale guest cookie — authenticated users never need a cookie cart.
+    if (sessionId) res.clearCookie(COOKIE_NAME, { path: "/api/retail" });
 
     if (cart) {
       if (cart.expiresAt < now) {
@@ -72,13 +59,29 @@ async function resolveCart(req: any, res: any): Promise<{ cartId: number; isGues
       }
     }
 
-    // Create new auth cart (no profile yet — use session_id as temporary identity)
-    const newSessionId = randomUUID();
+    // No buyer-profile cart found. Use "user:<userId>" as a stable session_id so
+    // the cart survives cookie loss for authenticated users without a buyer profile.
+    const stableKey = `user:${userId}`;
+    const [existingStable] = await db
+      .select({ id: retailCartsTable.id, expiresAt: retailCartsTable.expiresAt })
+      .from(retailCartsTable)
+      .where(eq(retailCartsTable.sessionId, stableKey));
+
+    if (existingStable) {
+      if (existingStable.expiresAt < now) {
+        await db.delete(retailCartsTable).where(eq(retailCartsTable.id, existingStable.id));
+      } else {
+        await db.update(retailCartsTable)
+          .set({ expiresAt: new Date(now.getTime() + AUTH_TTL_MS), updatedAt: now })
+          .where(eq(retailCartsTable.id, existingStable.id));
+        return { cartId: existingStable.id, isGuest: false };
+      }
+    }
+
     const [newCart] = await db.insert(retailCartsTable).values({
-      sessionId: newSessionId,
+      sessionId: stableKey,
       expiresAt: new Date(now.getTime() + AUTH_TTL_MS),
     }).returning({ id: retailCartsTable.id });
-    res.cookie(COOKIE_NAME, newSessionId, { httpOnly: true, sameSite: "strict", path: "/api/retail" });
     return { cartId: newCart.id, isGuest: false };
   }
 
