@@ -83,6 +83,7 @@
 | **Effort** | Large |
 | **Dependencies** | FIN-001, auth model decision |
 | **Recommended timing** | Must Do Now |
+| **Status** | **Resolved — 2026-06-08** — WhatsApp OTP (6-digit, 10min TTL, Twilio) + email magic link (UUID, 24hr TTL, Resend) both shipped. Migration 0037 (`supplier_auth_tokens`). Public `/supplier-login` page + admin drawer "Send Login Link" button. Pre-flight claim on self-registration links existing unclaimed supplier record by WhatsApp number or email. Commits: `e1b4503`, `4853ca0`. Unblocks FIN-065. |
 
 ### FIN-003 — Officer registration API path bug
 

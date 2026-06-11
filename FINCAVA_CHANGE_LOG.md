@@ -39,6 +39,39 @@ Copy for each completed `FIN-###` item:
 
 ---
 
+## 2026-06-11
+
+### FIN-002 — Farm Supplier Self-Service Auth (WhatsApp OTP + Email Magic Link)
+
+**Status:** Completed (backfilled)
+**Completed by:** Founder + Claude Code
+**Commits:** `e1b4503`, `4853ca0` (fincava-hub / fincava)
+
+**Summary:**
+Farm suppliers who were WhatsApp-onboarded with no password can now self-authenticate via two parallel paths: a 6-digit WhatsApp OTP (10min TTL, Twilio delivery) or an email magic link (UUID token, 24hr TTL, Resend delivery). Both paths result in a JWT session cookie, `supplier.userId` linked, and `claimStatus=CLAIMED`. Officers and admins can trigger either path from the admin supplier drawer. Unblocks FIN-065 (CC-1 self-serve for farm suppliers).
+
+**Files:**
+- `lib/db/drizzle/0037_supplier_auth_tokens.sql` — new migration
+- `lib/db/src/schema/supplier-auth.ts` — new schema
+- `artifacts/api-server/src/routes/supplier-auth.ts` — 4 public + 2 admin endpoints
+- `artifacts/api-server/src/routes/suppliers.ts` — pre-flight claim on self-registration
+- `artifacts/fincava/src/pages/supplier-login.tsx` — public login page (WA + email tabs)
+- `artifacts/fincava/src/pages/supplier-auth/confirm.tsx` — magic link confirm page
+- `artifacts/fincava/src/pages/admin/suppliers.tsx` — "Supplier access" section in drawer
+- `artifacts/fincava/src/i18n/translations.ts` — 30 new EN/ES keys
+
+**Validation:**
+- [x] WhatsApp OTP flow: supplier requests code → receives WA message → enters code → session established
+- [x] Email magic link flow: supplier requests link → receives email → clicks link → session established
+- [x] Admin drawer "Send Login Link" triggers both channels
+- [x] Pre-flight claim: self-registering farmer matched to existing unclaimed record by WhatsApp or email
+- [x] Security: timingSafeEqual on verify, used_at replay prevention, always-200 on request routes, IP rate limiting, 5 tokens/hr per supplier cap
+- [x] Typecheck: 4/4 packages clean
+
+**Rollback:** Disable `supplier-auth` router mount in `routes/index.ts`. No data loss — tokens table is additive.
+
+---
+
 ## 2026-06-08
 
 ### Product Catalog V2 — Phase 2: Admin Catalog UI + B2B Enhancements

@@ -189,14 +189,7 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 
 ---
 
-### FIN-002 — Farm suppliers lack self-service login for compliance
-
-| Field | Detail |
-|-------|--------|
-| **Reason for priority** | Must Do Now; CC-1 self-serve blocked |
-| **Dependencies** | **Blocked by:** FIN-001; auth model decision |
-| **Expected outcome** | *(When unblocked)* Farmers can complete compliance without full ADMIN mediation |
-| **Estimated effort** | Large |
+~~### FIN-002 — Farm suppliers lack self-service login for compliance~~ ✅ **Completed 2026-06-08** — see Section 5.
 
 ---
 
@@ -205,9 +198,9 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 | Field | Detail |
 |-------|--------|
 | **Reason for priority** | Compliance Must Do Now |
-| **Dependencies** | **Blocked by:** FIN-002 |
-| **Expected outcome** | *(When unblocked)* CC-1 usable by target farm suppliers |
-| **Estimated effort** | Large |
+| **Dependencies** | ~~Blocked by FIN-002~~ — FIN-002 shipped 2026-06-08; now unblocked |
+| **Expected outcome** | CC-1 fully usable by target farm suppliers via WhatsApp OTP or email magic link |
+| **Estimated effort** | Small — verify CC-1 flow end-to-end with a farm supplier account |
 
 ---
 
@@ -289,6 +282,7 @@ Items are in the register as Must Do Now or Next but **cannot start** within the
 | 2026-06-06 | FIN-040 | Replit ↔ GitHub sync discipline | Bidirectional ritual documented in OPERATOR_PLAYBOOK.md §8. Flow A (Replit Agent → fincava → fincava-hub) and Flow B (local dev → fincava-hub → fincava) both covered. Process in active use. |
 | 2026-06-01 | FIN-003 | Officer registration API path bug | Route had `/api` prefix inside a router already mounted at `/api` → double path. Removed prefix. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-004 | Contact form has no backend | `POST /api/contact` wired to Resend; submissions reach operator inbox. Backfilled 2026-06-06. |
+| 2026-06-08 | FIN-002 | Farm suppliers lack self-service login | WhatsApp OTP (6-digit, 10min TTL) + email magic link (UUID, 24hr TTL) both implemented. Migration 0037 (`supplier_auth_tokens`). Public `/supplier-login` page + admin drawer "Send Login Link". Pre-flight claim on self-registration (Option A). Commits: `e1b4503`, `4853ca0`. |
 | 2026-06-01 | FIN-035 | Shallow health check (no DB probe) | `/healthz` + `/health` both probe DB via `SELECT 1`; return 503 on failure. Backfilled 2026-06-06. |
 | 2026-06-01 | FIN-036 | No error monitoring (Sentry) | `instrument.ts` initialises Sentry; `SENTRY_DSN` confirmed in Replit Secrets 2026-06-06. Fully active. |
 | 2026-06-06 | FIN-042 | Automated DB backup scheduler | `[[cron]]` added to `.replit` — daily at 03:00 UTC using `BACKUP_SECRET_V2`. 7-backup retention in service. |
