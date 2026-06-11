@@ -351,7 +351,7 @@ export async function analyseGaps(buyerProfileId: number): Promise<{
     const message = await client.messages.create({
       model: GAP_MODEL,
       max_tokens: 4096,
-      system: BUYER_GAP_SYSTEM_PROMPT,
+      system: [{ type: "text", text: BUYER_GAP_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
       messages: [
         {
           role: "user",

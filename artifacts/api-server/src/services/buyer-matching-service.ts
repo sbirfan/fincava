@@ -519,7 +519,7 @@ export async function runMatching(buyerProfileId: number): Promise<{
       const message = await client.messages.create({
         model: MATCHING_MODEL,
         max_tokens: 4096,
-        system: BUYER_MATCHING_SYSTEM_PROMPT,
+        system: [{ type: "text", text: BUYER_MATCHING_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [
           {
             role: "user",

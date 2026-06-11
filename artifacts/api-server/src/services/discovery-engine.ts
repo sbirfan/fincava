@@ -221,7 +221,7 @@ Generate up to ${maxResults} Colombian agricultural supplier leads for the categ
     const message = await client.messages.create({
       model: DISCOVERY_MODEL,
       max_tokens: 2048,
-      system: systemPrompt,
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: userMessage }],
     });
     const block = message.content[0];

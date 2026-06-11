@@ -157,7 +157,7 @@ Output schema (all fields required):
       {
         model: DOCUMENT_MODEL,
         max_tokens: 1024,
-        system: systemPrompt,
+        system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: JSON.stringify(promptContext) }],
       },
       { signal: AbortSignal.timeout(30_000) },

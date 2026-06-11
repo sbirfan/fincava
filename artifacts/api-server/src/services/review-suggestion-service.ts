@@ -180,7 +180,7 @@ export async function getReviewSuggestion(requirementId: number): Promise<Review
   const message = await client.messages.create({
     model: DOCUMENT_MODEL,
     max_tokens: 256,
-    system: REVIEW_SUGGESTION_PROMPT,
+    system: [{ type: "text", text: REVIEW_SUGGESTION_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: JSON.stringify(context) }],
   });
 

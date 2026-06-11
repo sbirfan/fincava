@@ -69,7 +69,7 @@ export async function generateComplianceDocument(
   const message = await client.messages.create({
     model: DOCUMENT_MODEL,
     max_tokens: 2000,
-    system: systemPrompt,
+    system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   });
   const duration = Date.now() - start;
@@ -236,7 +236,7 @@ export async function generateInvestorSummary(
   const message = await client.messages.create({
     model: DOCUMENT_MODEL,
     max_tokens: 3000,
-    system: INVESTOR_SUMMARY_PROMPT,
+    system: [{ type: "text", text: INVESTOR_SUMMARY_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: JSON.stringify(context) }],
   });
   const duration = Date.now() - start;

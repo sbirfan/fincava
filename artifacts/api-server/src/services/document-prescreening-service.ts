@@ -169,7 +169,7 @@ export async function prescreenDocument(documentId: number): Promise<void> {
       client.messages.create({
         model: PRESCREENING_MODEL,
         max_tokens: 512,
-        system: PRESCREENING_PROMPT,
+        system: [{ type: "text", text: PRESCREENING_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [
           {
             role: "user",

@@ -97,7 +97,7 @@ export async function seedOriginStory(
     const message = await client.messages.create({
       model: SCORING_MODEL,
       max_tokens: 256,
-      system: SEED_STORY_PROMPT,
+      system: [{ type: "text", text: SEED_STORY_PROMPT, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: userContent }],
     });
 
@@ -249,7 +249,7 @@ export async function generateOriginStory(
   const message = await client.messages.create({
     model: SCORING_MODEL,
     max_tokens: 512,
-    system: ORIGIN_STORY_PROMPT,
+    system: [{ type: "text", text: ORIGIN_STORY_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [
       {
         role: "user",
